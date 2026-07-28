@@ -125,6 +125,13 @@
   - **Outlet "My Tasks" nav**: Added `'OUTLET'` to nav item roles in `Layout.jsx` + whitelist for `/tasks` route.
   - **PosSale orderNumber field**: Added `orderNumber String?` to PosSale schema; stored from checkout payload; returned in `getSalesDashboard`, `getSales`, and `getBalanceInvoices`.
   - **Print receipt order number**: `POSPrint.js` shows "Your Order #: JT-XXX" prominently in receipt header when `sale.orderNumber` is present.
+- **Edit Request admin nav item** (committed `65d468f`): Added `SUPER_ADMIN` and `ADMIN` roles to Edit Request nav item in `Layout.jsx`; added "Edit Request" to OUTLET whitelist for `/edit-requests` route.
+- **approveEditRequest workflow restart** (committed `65d468f`): When Admin approves edit request, backend marks active stages COMPLETED, creates new PENDING STORE stage, resets `currentStage` to STORE, clears routingHistory/productionRecords/allocations/logoPhaseSummary. Includes `getStoreDeadline` helper.
+- **OrderEntry edit mode rework** (committed `5ed1240`): Removed empty comparison view (two cards with no content); edit mode now shows normal form tabs pre-filled with loaded order data; reason textarea in edit mode banner; all buttons updated for edit mode (UPDATE CART, SUBMIT EDIT REQUEST).
+- **Full order details in edit mode** (committed `2103a33`): 3-column summary grid (Customer, Order Info, Dates), product items list, branding/customization summary, engraving instructions displayed in edit mode banner.
+- **EditOrderComparison component** (`EditOrderComparison.jsx`): Comprehensive side-by-side Job Sheet comparison — left=read-only original fields, right=editable fields, changed fields highlighted in amber; sections: Customer Info, Product Details (per item), Branding & Logo (per item), Measurements (per item), Engraving, Pricing Summary (original vs new with difference); reason input field required; diff count badge; builds payload from changed fields only via `buildPayload()`.
+- **OrderEntry wiring for EditOrderComparison**: When `isEditMode && originalOrder`, renders `EditOrderComparison` instead of form tabs; `submitOrderEditRequest` now accepts optional `externalPayload` parameter — when called from comparison component, posts payload directly; when called from normal flow, builds from cartItems as before.
+- **EditRequestDashboard full comparison**: Enhanced admin review with full Job Sheet field comparison — expanded `parseItems` to include sleeveLength, shirtLength, matchingCap, nameColor, logoColor, logoPlacement, designNotes, logoName, logoCharges, namePrintingCharges, customizationPrice; expanded customer fields to include deliveryCharges, engravingRequired, engravingInstructions, instructionNotes, logoName, logoDesign, logoCharges, namePrintingCharges, customizationPrice, shopifyOrderDate.
 
 ### In Progress
 - (none)
@@ -274,12 +281,14 @@
 - `frontend/src/pages/OutletPOS.jsx`: Dashboard, cart, checkout, receipt print (with print options), balance cards/modals/history, Balance Collection card with custom date inputs, `printReceipt`, `printBalanceReceipt`, `formatCurrency`
 - `frontend/src/pages/OutletOrderEntry.jsx`: Order lookup, sizing mode toggles, client select with measurement normalization (`FIELD_NAME_MAP` fix), auto-populate on product add, Size Chart, auto-generated order number
 - `frontend/src/pages/ClientRegistration.jsx`: Updated measurement fields — Shirt group (Shirt Length, Shoulder, Sleeves Length, Sleeves Hole, Chest, Bottom) and Trouser group (Waist, Length, Pancha, Thighs, Asan) with "Add More" extras
-- `frontend/src/context/OrderEntryContext.jsx`: All OrderEntry state + handlers + derived data (new).
+- `frontend/src/context/OrderEntryContext.jsx`: All OrderEntry state + handlers + derived data; `submitOrderEditRequest` accepts optional `externalPayload` from EditOrderComparison
 - `frontend/src/components/BasicInfoTab.jsx`: Basics tab UI (new).
 - `frontend/src/components/ProductSelectionTab.jsx`: Product selection tab UI (new).
 - `frontend/src/components/EngravingTab.jsx`: Engraving/branding tab UI (new).
 - `frontend/src/components/SizeChartTab.jsx`: Sizes/measurements tab UI (new).
-- `frontend/src/pages/OrderEntry.jsx`: Cap quantity, delivery charges, paymentStatus toggle, branding tab for CAPS — now thin shell importing context + 4 tab components
+- `frontend/src/components/EditOrderComparison.jsx`: Side-by-side Job Sheet comparison — read-only original left, editable right, amber diff highlights, reason input, pricing summary, payload builder
+- `frontend/src/pages/OrderEntry.jsx`: Cap quantity, delivery charges, paymentStatus toggle, branding tab for CAPS — now thin shell importing context + 4 tab components; edit mode renders EditOrderComparison when order loaded
+- `frontend/src/pages/EditRequestDashboard.jsx`: Admin edit request review with full Job Sheet field comparison (17 order-level + 20 per-item), lifecycle timeline, inventory impact, approve/reject
 - `frontend/src/utils/urduDictionary.js`: `toUrduName()` — always token-by-token with punctuation stripping, ~360 entries; no exact-match shortcut; used by POS products/cart/history/returns, OrderCard, AllOrders, printReport, OutletPOSDashboard, WarehousePOS
 - `frontend/src/hooks/useCache.js`: Race condition guard (`reqRef`), hot cache revalidation when `staleWhileRevalidate=true`
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production

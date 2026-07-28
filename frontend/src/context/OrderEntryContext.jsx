@@ -295,37 +295,44 @@ export const OrderEntryProvider = ({ children }) => {
     setEditOrderLoading(false);
   }, [editOrderNumber, user]);
 
-  const submitOrderEditRequest = useCallback(async () => {
-    if (!editOrderId || cartItems.length === 0) { setError('No items in the edit request or no order selected.'); return; }
+  const submitOrderEditRequest = useCallback(async (externalPayload) => {
+    if (!editOrderId) { setError('No order selected for editing.'); return; }
     setIsSubmitting(true); setLoading(true); setError('');
     try {
-      const finalItems = cartItems.map(item => ({
-        productDetails: { ...item.productDetails, gender: formData.gender },
-        customization: item.customization || {}, sizeData: item.sizeData || {},
-        quantity: parseInt(item.quantity) || 1, totalPrice: parseFloat(item.totalPrice) || 0,
-        logoName: item.logoName || '', logoDesign: item.logoDesign || '',
-        logoCharges: parseFloat(item.logoCharges) || 0, namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
-        customizationPrice: parseFloat(item.customizationPrice) || 0, capCharges: parseInt(item.capCharges) || 0
-      }));
-      await api.post(`/api/orders/${editOrderId}/edit-request`, {
-        requestedChanges: {
-          customerName: formData.customerName, customerPhone: formData.customerPhone, address: formData.address,
-          city: formData.city, type: formData.type, priority: formData.priority,
-          advancePaid: formData.advancePaid, advanceAmount: parseFloat(formData.advanceAmount) || 0,
-          items: finalItems, quantity: finalItems.reduce((s, i) => s + (i.quantity || 1), 0),
-          totalPrice: cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0),
-          logoDesign: formData.logoDesign, logoName: formData.logoName,
-          logoCharges: cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0),
-          namePrintingCharges: cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0),
-          customizationPrice: cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0),
-          shopifyOrderDate: formData.shopifyOrderDate || null,
-          deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
-          engravingInstructions: formData.engravingInstructions || null,
-          engravingRequired: !formData.skipEngraving,
-          instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null
-        },
-        reason: editReason
-      });
+      let payload;
+      if (externalPayload) {
+        payload = externalPayload;
+      } else {
+        if (cartItems.length === 0) { setError('No items in the edit request.'); setLoading(false); setIsSubmitting(false); return; }
+        const finalItems = cartItems.map(item => ({
+          productDetails: { ...item.productDetails, gender: formData.gender },
+          customization: item.customization || {}, sizeData: item.sizeData || {},
+          quantity: parseInt(item.quantity) || 1, totalPrice: parseFloat(item.totalPrice) || 0,
+          logoName: item.logoName || '', logoDesign: item.logoDesign || '',
+          logoCharges: parseFloat(item.logoCharges) || 0, namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+          customizationPrice: parseFloat(item.customizationPrice) || 0, capCharges: parseInt(item.capCharges) || 0
+        }));
+        payload = {
+          requestedChanges: {
+            customerName: formData.customerName, customerPhone: formData.customerPhone, address: formData.address,
+            city: formData.city, type: formData.type, priority: formData.priority,
+            advancePaid: formData.advancePaid, advanceAmount: parseFloat(formData.advanceAmount) || 0,
+            items: finalItems, quantity: finalItems.reduce((s, i) => s + (i.quantity || 1), 0),
+            totalPrice: cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0),
+            logoDesign: formData.logoDesign, logoName: formData.logoName,
+            logoCharges: cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0),
+            namePrintingCharges: cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0),
+            customizationPrice: cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0),
+            shopifyOrderDate: formData.shopifyOrderDate || null,
+            deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
+            engravingInstructions: formData.engravingInstructions || null,
+            engravingRequired: !formData.skipEngraving,
+            instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null
+          },
+          reason: editReason
+        };
+      }
+      await api.post(`/api/orders/${editOrderId}/edit-request`, payload);
       setIsEditMode(false); setEditOrderId(null); setOriginalOrder(null); setShowEditReview(false);
       setEditReason(''); setEditOrderNumber(''); setEditOrderData(null); setCartItems([]);
       resetFormData();

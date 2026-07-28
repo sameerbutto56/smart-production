@@ -11,6 +11,7 @@ import BasicInfoTab from '../components/BasicInfoTab';
 import ProductSelectionTab from '../components/ProductSelectionTab';
 import EngravingTab from '../components/EngravingTab';
 import SizeChartTab from '../components/SizeChartTab';
+import EditOrderComparison from '../components/EditOrderComparison';
 
 const TAB_ICONS = { Layout, ShoppingCart, Scissors, Ruler };
 
@@ -100,7 +101,7 @@ const SmartOrderForm = () => {
         </div>
       )}
 
-      {isEditMode && (
+      {isEditMode && !originalOrder && (
         <div className="mb-6 glass border-2 border-amber-500/30 rounded-[2rem] p-6 md:p-8 bg-amber-500/5 relative overflow-hidden backdrop-blur-md shadow-2xl">
           <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl" />
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
@@ -108,7 +109,7 @@ const SmartOrderForm = () => {
               <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl animate-pulse"><FileEdit size={24} /></div>
               <div>
                 <h3 className="text-lg md:text-xl font-black text-amber-400 uppercase tracking-wider">{useUrdu ? 'ترمیم کا طریقہ کار فعال ہے' : 'Edit Request Mode Active'}</h3>
-                <p className="theme-text-muted text-xs font-bold mt-1">{useUrdu ? 'کسی بھی فعال آرڈر میں تبدیلی کی درخواست پیش کرنے کے لیے نیچے آرڈر نمبر درج کریں۔' : 'Modify any active order details below, then submit for Admin approval.'}</p>
+                <p className="theme-text-muted text-xs font-bold mt-1">{useUrdu ? 'کسی بھی فعال آرڈر میں تبدیلی کی درخواست پیش کرنے کے لیے نیچے آرڈر نمبر درج کریں۔' : 'Enter an order number below to load the complete Job Sheet for comparison editing.'}</p>
               </div>
             </div>
             <button type="button" onClick={toggleEditMode}
@@ -116,135 +117,59 @@ const SmartOrderForm = () => {
               {useUrdu ? 'منسوخ کریں' : 'Cancel Edit Mode'}
             </button>
           </div>
-
-          {!originalOrder ? (
-            <div className="mt-6 border-t border-amber-500/20 pt-6">
-              <div className="flex flex-col sm:flex-row items-end gap-4">
-                <div className="flex-1 space-y-2">
-                  <label className="text-xs font-black text-amber-400 uppercase tracking-widest ml-2">{useUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number / ID'}</label>
-                  <div className="relative group">
-                    <Hash className="absolute left-6 top-1/2 -translate-y-1/2 text-amber-500/50 group-focus-within:text-amber-400 transition-colors" size={16} />
-                    <input type="text" value={editOrderNumber} onChange={(e) => setEditOrderNumber(e.target.value)}
-                      placeholder="e.g. ORD-1002"
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); fetchOrderByNumber(); } }}
-                      className="w-full theme-input rounded-[1.5rem] py-5 pl-16 pr-6 border-amber-500/20 focus:border-amber-400 text-lg font-black tracking-wider shadow-inner text-amber-400 placeholder-amber-500/30" />
-                  </div>
+          <div className="mt-6 border-t border-amber-500/20 pt-6">
+            <div className="flex flex-col sm:flex-row items-end gap-4">
+              <div className="flex-1 space-y-2">
+                <label className="text-xs font-black text-amber-400 uppercase tracking-widest ml-2">{useUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number'}</label>
+                <div className="relative group">
+                  <Hash className="absolute left-6 top-1/2 -translate-y-1/2 text-amber-500/50 group-focus-within:text-amber-400 transition-colors" size={16} />
+                  <input type="text" value={editOrderNumber} onChange={(e) => setEditOrderNumber(e.target.value)}
+                    placeholder="e.g. JT-836194"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); fetchOrderByNumber(); } }}
+                    className="w-full theme-input rounded-[1.5rem] py-5 pl-16 pr-6 border-amber-500/20 focus:border-amber-400 text-lg font-black tracking-wider shadow-inner text-amber-400 placeholder-amber-500/30" />
                 </div>
-                <button type="button" disabled={editOrderLoading} onClick={fetchOrderByNumber}
-                  className="px-8 py-5 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-[1.5rem] hover:bg-amber-400 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 min-w-[150px] active:scale-95">
-                  {editOrderLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                  {useUrdu ? 'آرڈر تلاش کریں' : 'Fetch Order'}
-                </button>
               </div>
-              {editOrderError && (
-                <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center gap-3 text-xs font-bold animate-fadeIn">
-                  <AlertCircle size={16} className="shrink-0" /><span>{editOrderError}</span>
-                </div>
-              )}
+              <button type="button" disabled={editOrderLoading} onClick={fetchOrderByNumber}
+                className="px-8 py-5 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-[1.5rem] hover:bg-amber-400 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 min-w-[150px] active:scale-95">
+                {editOrderLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                {useUrdu ? 'آرڈر تلاش کریں' : 'Fetch Order'}
+              </button>
             </div>
-          ) : (
-            <div className="mt-6 border-t border-amber-500/20 pt-6 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-amber-500 font-black">Loaded Order:</span>
-                  <span className="theme-text-primary font-black bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-lg">#{originalOrder.orderNumber}</span>
-                  <span className="theme-text-secondary">•</span>
-                  <span className="theme-text-primary font-bold">{originalOrder.customerName}</span>
-                  <span className="theme-text-secondary">•</span>
-                  <span className="theme-text-muted text-xs capitalize">{originalOrder.type}</span>
-                  {originalOrder.outletName && <><span className="theme-text-secondary">•</span><span className="text-amber-400/80 text-xs font-semibold">{originalOrder.outletName}</span></>}
-                </div>
-                <div className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl font-black uppercase tracking-wider">{useUrdu ? 'آرڈر ڈیٹا لوڈ ہو گیا ہے' : 'Data loaded successfully'}</div>
+            {editOrderError && (
+              <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center gap-3 text-xs font-bold animate-fadeIn">
+                <AlertCircle size={16} className="shrink-0" /><span>{editOrderError}</span>
               </div>
-
-              {/* Full Order Details */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
-                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Customer</p>
-                  <p className="text-sm font-black theme-text-primary">{originalOrder.customerName || '—'}</p>
-                  <p className="text-xs theme-text-muted font-bold">{originalOrder.customerPhone || '—'}</p>
-                  <p className="text-xs theme-text-muted">{[originalOrder.address, originalOrder.city].filter(Boolean).join(', ') || '—'}</p>
-                </div>
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
-                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Order Info</p>
-                  <p className="text-sm font-black theme-text-primary">Type: <span className="text-amber-400">{originalOrder.type || '—'}</span></p>
-                  <p className="text-xs theme-text-muted font-bold">Priority: {originalOrder.priority || 'NORMAL'}</p>
-                  <p className="text-xs theme-text-muted font-bold">Total: <span className="text-emerald-400 font-black">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span></p>
-                  {originalOrder.advanceAmount > 0 && <p className="text-xs theme-text-muted font-bold">Advance: <span className="text-blue-400">₨{parseFloat(originalOrder.advanceAmount).toLocaleString()}</span></p>}
-                </div>
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
-                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Dates</p>
-                  <p className="text-xs theme-text-muted font-bold">Created: {originalOrder.createdAt ? new Date(originalOrder.createdAt).toLocaleDateString() : '—'}</p>
-                  {originalOrder.shopifyOrderDate && <p className="text-xs theme-text-muted font-bold">Shopify Date: {new Date(originalOrder.shopifyOrderDate).toLocaleDateString()}</p>}
-                  {originalOrder.deliveryCharges > 0 && <p className="text-xs theme-text-muted font-bold">Delivery: ₨{parseFloat(originalOrder.deliveryCharges).toLocaleString()}</p>}
-                  {originalOrder.instructionNotes && <p className="text-[10px] theme-text-muted truncate">Notes: {originalOrder.instructionNotes}</p>}
-                </div>
-              </div>
-
-              {/* Product Items */}
-              {(() => {
-                let pd = [];
-                try { pd = Array.isArray(originalOrder.productDetails) ? originalOrder.productDetails : (originalOrder.productDetails?.productType ? [originalOrder.productDetails] : []); } catch { pd = []; }
-                if (pd.length === 0) return null;
-                return (
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4">
-                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-3">Products ({pd.length})</p>
-                    <div className="space-y-2">
-                      {pd.map((item, idx) => {
-                        const pdItem = item.productDetails || item;
-                        return (
-                          <div key={idx} className="flex flex-wrap items-center gap-3 bg-gray-900/40 rounded-xl px-4 py-2.5 border border-gray-800">
-                            <span className="text-xs font-black bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">{idx + 1}</span>
-                            <span className="text-sm font-black theme-text-primary">{pdItem.productType || 'Custom'}</span>
-                            {pdItem.color && <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">{pdItem.color}</span>}
-                            {pdItem.size && <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">Size {pdItem.size}</span>}
-                            {item.quantity > 1 && <span className="text-xs font-bold text-gray-400">×{item.quantity}</span>}
-                            <span className="text-xs font-black text-emerald-400 ml-auto">₨{parseFloat(item.totalPrice || 0).toLocaleString()}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Branding / Customization Summary */}
-              {(() => {
-                let hasBranding = originalOrder.logoDesign || originalOrder.logoName || originalOrder.logoCharges > 0 || originalOrder.namePrintingCharges > 0 || originalOrder.customizationPrice > 0;
-                let customInfo = null;
-                try { customInfo = originalOrder.customization ? (typeof originalOrder.customization === 'string' ? JSON.parse(originalOrder.customization) : originalOrder.customization) : null; } catch { customInfo = null; }
-                if (!hasBranding && !customInfo) return null;
-                return (
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex flex-wrap gap-4">
-                    {originalOrder.logoName && <span className="text-xs font-bold theme-text-muted">Logo: <span className="theme-text-primary">{originalOrder.logoName}</span></span>}
-                    {originalOrder.logoDesign && <span className="text-xs font-bold theme-text-muted">Design: <span className="theme-text-primary">{originalOrder.logoDesign}</span></span>}
-                    {originalOrder.logoCharges > 0 && <span className="text-xs font-bold text-emerald-400">Logo: ₨{parseFloat(originalOrder.logoCharges).toLocaleString()}</span>}
-                    {originalOrder.namePrintingCharges > 0 && <span className="text-xs font-bold text-emerald-400">Name Print: ₨{parseFloat(originalOrder.namePrintingCharges).toLocaleString()}</span>}
-                    {originalOrder.customizationPrice > 0 && <span className="text-xs font-bold text-emerald-400">Customization: ₨{parseFloat(originalOrder.customizationPrice).toLocaleString()}</span>}
-                    {customInfo?.nameSpelling && <span className="text-xs font-bold theme-text-muted">Name: <span className="theme-text-primary">{customInfo.nameSpelling}</span></span>}
-                  </div>
-                );
-              })()}
-
-              {/* Instructions */}
-              {originalOrder.engravingInstructions && (
-                <div className="bg-purple-500/5 border border-purple-500/20 rounded-2xl p-4">
-                  <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1">Engraving Instructions</p>
-                  <p className="text-xs theme-text-muted font-bold">{originalOrder.engravingInstructions}</p>
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-black text-amber-400 uppercase tracking-[0.2em] ml-2">{useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}</label>
-                <textarea required value={editReason} onChange={e => setEditReason(e.target.value)}
-                  className="w-full theme-input rounded-[1.5rem] py-3 px-5 text-sm font-semibold resize-none h-16 mt-2 border border-amber-500/20 focus:border-amber-400"
-                  placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں' : 'Provide justification for these changes...'} />
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
+      {isEditMode && originalOrder && (
+        <div className="space-y-6">
+          <div className="glass border-2 border-amber-500/30 rounded-[2rem] p-4 md:p-6 bg-amber-500/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl animate-pulse"><FileEdit size={20} /></div>
+              <div>
+                <h3 className="text-base md:text-lg font-black text-amber-400 uppercase tracking-wider">Editing Order #{originalOrder.orderNumber}</h3>
+                <p className="theme-text-muted text-xs font-bold">{originalOrder.customerName} — {originalOrder.outletName || 'ONLINE ORDER'}</p>
+              </div>
+            </div>
+            <button type="button" onClick={toggleEditMode}
+              className="px-5 py-2.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-[1.2rem] font-black text-xs uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap">
+              {useUrdu ? 'منسوخ کریں' : 'Cancel Edit'}
+            </button>
+          </div>
+          <EditOrderComparison
+            order={originalOrder}
+            onSubmit={submitOrderEditRequest}
+            onCancel={toggleEditMode}
+            isSubmitting={isSubmitting || loading}
+            useUrdu={useUrdu}
+          />
+        </div>
+      )}
+
+      {!isEditMode && (
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
           <AnimatePresence mode="wait">
             {activeTab === 'basic' && <BasicInfoTab key="basic" />}
@@ -253,7 +178,6 @@ const SmartOrderForm = () => {
             {activeTab === 'sizes' && <SizeChartTab key="sizes" />}
           </AnimatePresence>
 
-        {(
           <div className={`flex flex-col sm:flex-row items-center justify-between pt-6 md:pt-12 gap-4 md:gap-8 border-t-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
             <div className="flex flex-col space-y-4">
               <div className={`flex items-center space-x-3 text-gray-600 theme-bg-subtle px-6 py-3 rounded-2xl border theme-border ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
@@ -285,27 +209,20 @@ const SmartOrderForm = () => {
                 <button type="button" onClick={handleAddToCart} disabled={loading || isSubmitting}
                   className="flex-1 sm:px-16 py-6 theme-bg text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50">
                   {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
-                    <><Plus size={16} className={useUrdu ? "order-2" : "order-1"} /><span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : isEditMode ? 'UPDATE CART' : 'ADD ITEM TO CART'}</span></>
+                    <><Plus size={16} className={useUrdu ? "order-2" : "order-1"} /><span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART'}</span></>
                   )}
                 </button>
               )}
-              {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && !isEditMode && (
+              {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
                 <button type="button" onClick={() => setShowReview(true)} disabled={loading || isSubmitting}
                   className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50">
                   <CheckCircle2 size={16} /><span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
                 </button>
               )}
-              {activeTab === filteredTabs[filteredTabs.length - 1].id && isEditMode && originalOrder && (
-                <button type="button" onClick={submitOrderEditRequest} disabled={loading || isSubmitting || !editReason.trim() || cartItems.length === 0}
-                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50">
-                  {loading || isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <FileEdit size={16} />}
-                  <span>{loading || isSubmitting ? (useUrdu ? 'بھیج رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'درخواست جمع کروائیں' : 'SUBMIT EDIT REQUEST')}</span>
-                </button>
-              )}
             </div>
           </div>
-        )}
       </form>
+      )}
 
       <AnimatePresence>
         {showAddMore && (

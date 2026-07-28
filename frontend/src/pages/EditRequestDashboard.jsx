@@ -155,8 +155,21 @@ const EditRequestDashboard = () => {
             gender: d.gender || '',
             qty: item.quantity || 1,
             totalPrice: item.totalPrice || 0,
+            sleeveLength: d.sleeveLength || '',
+            shirtLength: d.shirtLength || '',
+            matchingCap: d.matchingCap ? 'Yes' : 'No',
+            matchingCapQty: d.matchingCapQty || 0,
             nameSpelling: cust.nameSpelling || '',
-            logoDesign: cust.logoDesign || item.logoDesign || ''
+            nameColor: cust.nameColor || '',
+            logoColor: cust.logoColor || '',
+            logoPlacement: cust.logoPlacement || '',
+            designNotes: cust.designNotes || '',
+            logoDesign: cust.logoDesign || item.logoDesign || '',
+            logoName: item.logoName || '',
+            logoCharges: item.logoCharges || 0,
+            namePrintingCharges: item.namePrintingCharges || 0,
+            customizationPrice: item.customizationPrice || 0,
+            capCharges: item.capCharges || 0,
           });
         });
       } else if (pd?.productType) {
@@ -169,8 +182,21 @@ const EditRequestDashboard = () => {
           gender: pd.gender || '',
           qty: data?.quantity || 1,
           totalPrice: pd.totalPrice || 0,
+          sleeveLength: pd.sleeveLength || '',
+          shirtLength: pd.shirtLength || '',
+          matchingCap: pd.matchingCap ? 'Yes' : 'No',
+          matchingCapQty: pd.matchingCapQty || 0,
           nameSpelling: cust.nameSpelling || '',
-          logoDesign: cust.logoDesign || ''
+          nameColor: cust.nameColor || '',
+          logoColor: cust.logoColor || '',
+          logoPlacement: cust.logoPlacement || '',
+          designNotes: cust.designNotes || '',
+          logoDesign: cust.logoDesign || '',
+          logoName: '',
+          logoCharges: 0,
+          namePrintingCharges: 0,
+          customizationPrice: 0,
+          capCharges: 0,
         });
       }
     } catch {}
@@ -431,9 +457,22 @@ const EditRequestDashboard = () => {
                             { label: 'City', field: 'city', oldVal: order.city, newVal: rc.city },
                             { label: 'Type', field: 'type', oldVal: order.type, newVal: rc.type },
                             { label: 'Priority', field: 'priority', oldVal: order.priority, newVal: rc.priority },
-                            { label: 'Advance Amount', field: 'advanceAmount', oldVal: `₨${parseFloat(order.advanceAmount || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.advanceAmount || 0).toLocaleString()}` }
+                            { label: 'Advance Amount', field: 'advanceAmount', oldVal: `₨${parseFloat(order.advanceAmount || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.advanceAmount || 0).toLocaleString()}` },
+                            { label: 'Delivery Charges', field: 'deliveryCharges', oldVal: `₨${parseFloat(order.deliveryCharges || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.deliveryCharges || 0).toLocaleString()}` },
+                            { label: 'Engraving Required', field: 'engravingRequired', oldVal: order.engravingRequired !== false ? 'Yes' : 'No', newVal: rc.engravingRequired !== false ? 'Yes' : 'No' },
+                            { label: 'Engraving Instructions', field: 'engravingInstructions', oldVal: order.engravingInstructions || '', newVal: rc.engravingInstructions || '' },
+                            { label: 'Special Notes', field: 'instructionNotes', oldVal: order.instructionNotes || '', newVal: rc.instructionNotes || '' },
+                            { label: 'Logo Name', field: 'logoName', oldVal: order.logoName || '', newVal: rc.logoName || '' },
+                            { label: 'Logo Design', field: 'logoDesign', oldVal: order.logoDesign || '', newVal: rc.logoDesign || '' },
+                            { label: 'Logo Charges', field: 'logoCharges', oldVal: `₨${parseFloat(order.logoCharges || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.logoCharges || 0).toLocaleString()}` },
+                            { label: 'Name Print Charges', field: 'namePrintingCharges', oldVal: `₨${parseFloat(order.namePrintingCharges || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.namePrintingCharges || 0).toLocaleString()}` },
+                            { label: 'Customization Charges', field: 'customizationPrice', oldVal: `₨${parseFloat(order.customizationPrice || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.customizationPrice || 0).toLocaleString()}` },
+                            { label: 'Shopify Order Date', field: 'shopifyOrderDate', oldVal: order.shopifyOrderDate ? new Date(order.shopifyOrderDate).toLocaleDateString() : '—', newVal: rc.shopifyOrderDate ? new Date(rc.shopifyOrderDate).toLocaleDateString() : '—' },
                           ];
-                          const changedFields = customerFields.filter(f => f.newVal !== undefined && f.newVal !== f.oldVal);
+                          const changedFields = customerFields.filter(f => {
+                            if (f.newVal === undefined) return false;
+                            return String(f.oldVal || '').trim() !== String(f.newVal || '').trim();
+                          });
                           if (changedFields.length === 0) return null;
                           return (
                             <div className="theme-bg rounded-xl p-3 border border-blue-500/20">
@@ -501,8 +540,19 @@ const EditRequestDashboard = () => {
                                         { label: 'Gender', oldVal: old?.gender || '—', newVal: nw?.gender || '—' },
                                         { label: 'Quantity', oldVal: String(old?.qty ?? '—'), newVal: String(nw?.qty ?? '—') },
                                         { label: 'Price', oldVal: old?.totalPrice ? `₨${Number(old.totalPrice).toLocaleString()}` : '—', newVal: nw?.totalPrice ? `₨${Number(nw.totalPrice).toLocaleString()}` : '—' },
+                                        { label: 'Sleeve Length', oldVal: old?.sleeveLength || '—', newVal: nw?.sleeveLength || '—' },
+                                        { label: 'Shirt Length', oldVal: old?.shirtLength || '—', newVal: nw?.shirtLength || '—' },
+                                        { label: 'Matching Cap', oldVal: old?.matchingCap || 'No', newVal: nw?.matchingCap || 'No' },
                                         { label: 'Name Spelling', oldVal: old?.nameSpelling || '—', newVal: nw?.nameSpelling || '—' },
+                                        { label: 'Name Color', oldVal: old?.nameColor || '—', newVal: nw?.nameColor || '—' },
+                                        { label: 'Logo Color', oldVal: old?.logoColor || '—', newVal: nw?.logoColor || '—' },
+                                        { label: 'Logo Placement', oldVal: old?.logoPlacement || '—', newVal: nw?.logoPlacement || '—' },
+                                        { label: 'Design Notes', oldVal: old?.designNotes || '—', newVal: nw?.designNotes || '—' },
+                                        { label: 'Logo Name', oldVal: old?.logoName || '—', newVal: nw?.logoName || '—' },
                                         { label: 'Logo Design', oldVal: old?.logoDesign || '—', newVal: nw?.logoDesign || '—' },
+                                        { label: 'Logo Charges', oldVal: old?.logoCharges ? `₨${Number(old.logoCharges).toLocaleString()}` : '—', newVal: nw?.logoCharges ? `₨${Number(nw.logoCharges).toLocaleString()}` : '—' },
+                                        { label: 'Name Print Charges', oldVal: old?.namePrintingCharges ? `₨${Number(old.namePrintingCharges).toLocaleString()}` : '—', newVal: nw?.namePrintingCharges ? `₨${Number(nw.namePrintingCharges).toLocaleString()}` : '—' },
+                                        { label: 'Customization Charges', oldVal: old?.customizationPrice ? `₨${Number(old.customizationPrice).toLocaleString()}` : '—', newVal: nw?.customizationPrice ? `₨${Number(nw.customizationPrice).toLocaleString()}` : '—' },
                                       ];
                                       return rows.map((row, ri) => {
                                         const isChanged = row.oldVal !== row.newVal;
