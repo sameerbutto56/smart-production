@@ -190,7 +190,7 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
       customizationPrice: parseFloat(item.customizationPrice) || 0,
       capCharges: parseInt(item.capCharges) || 0
     }));
-    return {
+    return { requestedChanges: {
       customerName: edited.customerName, customerPhone: edited.customerPhone, address: edited.address,
       city: edited.city, type: edited.type, priority: edited.priority,
       advancePaid: edited.advancePaid, advanceAmount: parseFloat(edited.advanceAmount) || 0,
@@ -205,8 +205,7 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
       engravingInstructions: edited.engravingInstructions || null,
       engravingRequired: edited.engravingRequired,
       instructionNotes: edited.instructionNotes || null
-    };
-    return { requestedChanges, reason };
+    }, reason };
   };
 
   return (
