@@ -156,6 +156,84 @@ const SmartOrderForm = () => {
                 </div>
                 <div className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl font-black uppercase tracking-wider">{useUrdu ? 'آرڈر ڈیٹا لوڈ ہو گیا ہے' : 'Data loaded successfully'}</div>
               </div>
+
+              {/* Full Order Details */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Customer</p>
+                  <p className="text-sm font-black theme-text-primary">{originalOrder.customerName || '—'}</p>
+                  <p className="text-xs theme-text-muted font-bold">{originalOrder.customerPhone || '—'}</p>
+                  <p className="text-xs theme-text-muted">{[originalOrder.address, originalOrder.city].filter(Boolean).join(', ') || '—'}</p>
+                </div>
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Order Info</p>
+                  <p className="text-sm font-black theme-text-primary">Type: <span className="text-amber-400">{originalOrder.type || '—'}</span></p>
+                  <p className="text-xs theme-text-muted font-bold">Priority: {originalOrder.priority || 'NORMAL'}</p>
+                  <p className="text-xs theme-text-muted font-bold">Total: <span className="text-emerald-400 font-black">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span></p>
+                  {originalOrder.advanceAmount > 0 && <p className="text-xs theme-text-muted font-bold">Advance: <span className="text-blue-400">₨{parseFloat(originalOrder.advanceAmount).toLocaleString()}</span></p>}
+                </div>
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Dates</p>
+                  <p className="text-xs theme-text-muted font-bold">Created: {originalOrder.createdAt ? new Date(originalOrder.createdAt).toLocaleDateString() : '—'}</p>
+                  {originalOrder.shopifyOrderDate && <p className="text-xs theme-text-muted font-bold">Shopify Date: {new Date(originalOrder.shopifyOrderDate).toLocaleDateString()}</p>}
+                  {originalOrder.deliveryCharges > 0 && <p className="text-xs theme-text-muted font-bold">Delivery: ₨{parseFloat(originalOrder.deliveryCharges).toLocaleString()}</p>}
+                  {originalOrder.instructionNotes && <p className="text-[10px] theme-text-muted truncate">Notes: {originalOrder.instructionNotes}</p>}
+                </div>
+              </div>
+
+              {/* Product Items */}
+              {(() => {
+                let pd = [];
+                try { pd = Array.isArray(originalOrder.productDetails) ? originalOrder.productDetails : (originalOrder.productDetails?.productType ? [originalOrder.productDetails] : []); } catch { pd = []; }
+                if (pd.length === 0) return null;
+                return (
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4">
+                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-3">Products ({pd.length})</p>
+                    <div className="space-y-2">
+                      {pd.map((item, idx) => {
+                        const pdItem = item.productDetails || item;
+                        return (
+                          <div key={idx} className="flex flex-wrap items-center gap-3 bg-gray-900/40 rounded-xl px-4 py-2.5 border border-gray-800">
+                            <span className="text-xs font-black bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">{idx + 1}</span>
+                            <span className="text-sm font-black theme-text-primary">{pdItem.productType || 'Custom'}</span>
+                            {pdItem.color && <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">{pdItem.color}</span>}
+                            {pdItem.size && <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">Size {pdItem.size}</span>}
+                            {item.quantity > 1 && <span className="text-xs font-bold text-gray-400">×{item.quantity}</span>}
+                            <span className="text-xs font-black text-emerald-400 ml-auto">₨{parseFloat(item.totalPrice || 0).toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Branding / Customization Summary */}
+              {(() => {
+                let hasBranding = originalOrder.logoDesign || originalOrder.logoName || originalOrder.logoCharges > 0 || originalOrder.namePrintingCharges > 0 || originalOrder.customizationPrice > 0;
+                let customInfo = null;
+                try { customInfo = originalOrder.customization ? (typeof originalOrder.customization === 'string' ? JSON.parse(originalOrder.customization) : originalOrder.customization) : null; } catch { customInfo = null; }
+                if (!hasBranding && !customInfo) return null;
+                return (
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex flex-wrap gap-4">
+                    {originalOrder.logoName && <span className="text-xs font-bold theme-text-muted">Logo: <span className="theme-text-primary">{originalOrder.logoName}</span></span>}
+                    {originalOrder.logoDesign && <span className="text-xs font-bold theme-text-muted">Design: <span className="theme-text-primary">{originalOrder.logoDesign}</span></span>}
+                    {originalOrder.logoCharges > 0 && <span className="text-xs font-bold text-emerald-400">Logo: ₨{parseFloat(originalOrder.logoCharges).toLocaleString()}</span>}
+                    {originalOrder.namePrintingCharges > 0 && <span className="text-xs font-bold text-emerald-400">Name Print: ₨{parseFloat(originalOrder.namePrintingCharges).toLocaleString()}</span>}
+                    {originalOrder.customizationPrice > 0 && <span className="text-xs font-bold text-emerald-400">Customization: ₨{parseFloat(originalOrder.customizationPrice).toLocaleString()}</span>}
+                    {customInfo?.nameSpelling && <span className="text-xs font-bold theme-text-muted">Name: <span className="theme-text-primary">{customInfo.nameSpelling}</span></span>}
+                  </div>
+                );
+              })()}
+
+              {/* Instructions */}
+              {originalOrder.engravingInstructions && (
+                <div className="bg-purple-500/5 border border-purple-500/20 rounded-2xl p-4">
+                  <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1">Engraving Instructions</p>
+                  <p className="text-xs theme-text-muted font-bold">{originalOrder.engravingInstructions}</p>
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-black text-amber-400 uppercase tracking-[0.2em] ml-2">{useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}</label>
                 <textarea required value={editReason} onChange={e => setEditReason(e.target.value)}
