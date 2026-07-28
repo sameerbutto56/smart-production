@@ -143,75 +143,39 @@ const SmartOrderForm = () => {
               )}
             </div>
           ) : (
-            <div className="mt-6 border-t border-amber-500/20 pt-6 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-amber-500 font-black">Loaded Order:</span>
-                <span className="theme-text-primary font-black bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-lg">#{originalOrder.orderNumber}</span>
-                <span className="theme-text-secondary">•</span>
-                <span className="theme-text-primary font-bold">{originalOrder.customerName}</span>
-                <span className="theme-text-secondary">•</span>
-                <span className="theme-text-muted text-xs capitalize">{originalOrder.type}</span>
-                {originalOrder.outletName && <><span className="theme-text-secondary">•</span><span className="text-amber-400/80 text-xs font-semibold">{originalOrder.outletName}</span></>}
+            <div className="mt-6 border-t border-amber-500/20 pt-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-amber-500 font-black">Loaded Order:</span>
+                  <span className="theme-text-primary font-black bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-lg">#{originalOrder.orderNumber}</span>
+                  <span className="theme-text-secondary">•</span>
+                  <span className="theme-text-primary font-bold">{originalOrder.customerName}</span>
+                  <span className="theme-text-secondary">•</span>
+                  <span className="theme-text-muted text-xs capitalize">{originalOrder.type}</span>
+                  {originalOrder.outletName && <><span className="theme-text-secondary">•</span><span className="text-amber-400/80 text-xs font-semibold">{originalOrder.outletName}</span></>}
+                </div>
+                <div className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl font-black uppercase tracking-wider">{useUrdu ? 'آرڈر ڈیٹا لوڈ ہو گیا ہے' : 'Data loaded successfully'}</div>
               </div>
-              <div className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl font-black uppercase tracking-wider">{useUrdu ? 'آرڈر ڈیٹا لوڈ ہو گیا ہے' : 'Data loaded successfully'}</div>
+              <div>
+                <label className="text-xs font-black text-amber-400 uppercase tracking-[0.2em] ml-2">{useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}</label>
+                <textarea required value={editReason} onChange={e => setEditReason(e.target.value)}
+                  className="w-full theme-input rounded-[1.5rem] py-3 px-5 text-sm font-semibold resize-none h-16 mt-2 border border-amber-500/20 focus:border-amber-400"
+                  placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں' : 'Provide justification for these changes...'} />
+              </div>
             </div>
           )}
         </div>
       )}
 
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
-        {isEditMode && originalOrder && !showProductSelector ? (
-          <motion.div key="comparison" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-red-500/5 border border-red-500/20 rounded-[2rem] p-6 space-y-4">
-                <div className="flex items-center gap-2 text-red-400 font-black text-xs uppercase tracking-wider mb-4">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  <span>{useUrdu ? 'موجودہ آرڈر (صرف پڑھیں)' : 'Existing Order (Read Only)'}</span>
-                </div>
-              </div>
-              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-[2rem] p-6 space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 font-black text-xs uppercase tracking-wider mb-4">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{useUrdu ? 'مجوزہ تبدیلیاں (ترمیم)' : 'Requested Changes (Editable)'}</span>
-                </div>
-              </div>
-            </div>
-            <div className="glass rounded-[2rem] p-5 border-2 border-amber-500/20 bg-amber-500/5">
-              <div className="text-center mb-4">
-                <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'اصل قیمت' : 'Actual Price'}</p>
-                <p className="text-2xl font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-black theme-text-muted uppercase tracking-[0.2em] ml-2">{useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}</label>
-                <textarea required value={editReason} onChange={e => setEditReason(e.target.value)}
-                  className="w-full theme-input rounded-[1.5rem] py-4 px-6 text-sm font-semibold resize-none h-20 border border-amber-500/20 focus:border-amber-400"
-                  placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں' : 'Provide justification for these changes...'} />
-              </div>
-              <div className="flex gap-4">
-                <button type="button" onClick={toggleEditMode} disabled={loading || isSubmitting}
-                  className="flex-1 py-5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest transition-all active:scale-95 border border-gray-700 disabled:opacity-50">
-                  {useUrdu ? 'منسوخ کریں' : 'CANCEL'}
-                </button>
-                <button type="button" onClick={submitOrderEditRequest} disabled={loading || isSubmitting || !editReason.trim() || cartItems.length === 0}
-                  className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50">
-                  {loading || isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <FileEdit size={16} />}
-                  <span>{loading || isSubmitting ? (useUrdu ? 'بھیج رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'درخواست جمع کروائیں' : 'SUBMIT EDIT REQUEST')}</span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ) : (
           <AnimatePresence mode="wait">
             {activeTab === 'basic' && <BasicInfoTab key="basic" />}
             {activeTab === 'product' && <ProductSelectionTab key="product" />}
             {activeTab === 'custom' && <EngravingTab key="custom" />}
             {activeTab === 'sizes' && <SizeChartTab key="sizes" />}
           </AnimatePresence>
-        )}
 
-        {!(isEditMode && originalOrder && !showProductSelector) && (
+        {(
           <div className={`flex flex-col sm:flex-row items-center justify-between pt-6 md:pt-12 gap-4 md:gap-8 border-t-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
             <div className="flex flex-col space-y-4">
               <div className={`flex items-center space-x-3 text-gray-600 theme-bg-subtle px-6 py-3 rounded-2xl border theme-border ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
@@ -225,12 +189,6 @@ const SmartOrderForm = () => {
               )}
             </div>
             <div className={`flex space-x-6 w-full sm:w-auto ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              {showProductSelector && (
-                <button type="button" onClick={() => setShowProductSelector(false)}
-                  className="flex-1 sm:px-12 py-6 theme-bg theme-text-primary rounded-[1.5rem] font-black text-sm border-2 theme-border hover:bg-gray-800 hover:border-gray-700 transition-all active:scale-95 shadow-xl">
-                  {useUrdu ? 'ترمیم پر واپس جائیں' : 'BACK TO EDIT'}
-                </button>
-              )}
               {activeTab !== 'basic' && (
                 <button type="button" onClick={() => { const ci = filteredTabs.findIndex(t => t.id === activeTab); setActiveTab(filteredTabs[ci - 1].id); }}
                   className="flex-1 sm:px-12 py-6 theme-bg theme-text-primary rounded-[1.5rem] font-black text-sm border-2 theme-border hover:bg-gray-800 hover:border-gray-700 transition-all active:scale-95 shadow-xl">
@@ -249,7 +207,7 @@ const SmartOrderForm = () => {
                 <button type="button" onClick={handleAddToCart} disabled={loading || isSubmitting}
                   className="flex-1 sm:px-16 py-6 theme-bg text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50">
                   {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
-                    <><Plus size={16} className={useUrdu ? "order-2" : "order-1"} /><span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART'}</span></>
+                    <><Plus size={16} className={useUrdu ? "order-2" : "order-1"} /><span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : isEditMode ? 'UPDATE CART' : 'ADD ITEM TO CART'}</span></>
                   )}
                 </button>
               )}
@@ -257,6 +215,13 @@ const SmartOrderForm = () => {
                 <button type="button" onClick={() => setShowReview(true)} disabled={loading || isSubmitting}
                   className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50">
                   <CheckCircle2 size={16} /><span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                </button>
+              )}
+              {activeTab === filteredTabs[filteredTabs.length - 1].id && isEditMode && originalOrder && (
+                <button type="button" onClick={submitOrderEditRequest} disabled={loading || isSubmitting || !editReason.trim() || cartItems.length === 0}
+                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50">
+                  {loading || isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <FileEdit size={16} />}
+                  <span>{loading || isSubmitting ? (useUrdu ? 'بھیج رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'درخواست جمع کروائیں' : 'SUBMIT EDIT REQUEST')}</span>
                 </button>
               )}
             </div>
@@ -277,9 +242,9 @@ const SmartOrderForm = () => {
                   className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3">
                   <Plus size={16} /><span>{useUrdu ? 'دوسری پروڈکٹ شامل کریں' : 'ADD ANOTHER PRODUCT'}</span>
                 </button>
-                <button onClick={() => { setShowAddMore(false); setShowReview(true); }}
+                <button onClick={() => { setShowAddMore(false); isEditMode ? submitOrderEditRequest() : setShowReview(true); }}
                   className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3">
-                  <CheckCircle2 size={16} /><span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                  <CheckCircle2 size={16} /><span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : isEditMode ? 'SUBMIT EDIT REQUEST' : 'CHECKOUT'}</span>
                 </button>
               </div>
             </motion.div>
@@ -287,7 +252,7 @@ const SmartOrderForm = () => {
         )}
       </AnimatePresence>
 
-      {!isEditMode && (
+      {(
         <>
           <AnimatePresence>
             {(cartItems || []).length > 0 && !isCartOpen && (
@@ -327,9 +292,9 @@ const SmartOrderForm = () => {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => { setIsCartOpen(false); handleCheckout(); }} disabled={loading || isSubmitting}
+                <button onClick={() => { setIsCartOpen(false); isEditMode ? submitOrderEditRequest() : handleCheckout(); }} disabled={loading || isSubmitting}
                   className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/40 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50">
-                  <CheckCircle2 size={16} /><span>Checkout Order</span>
+                  <CheckCircle2 size={16} /><span>{isEditMode ? 'Submit Edit Request' : 'Checkout Order'}</span>
                 </button>
               </motion.div>
             )}
