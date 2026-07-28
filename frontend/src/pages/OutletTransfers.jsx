@@ -32,6 +32,8 @@ const OutletTransfers = () => {
   const { user } = useAuth();
   const userOutlet = user?.role === 'OUTLET' ? user?.name : null;
   const isWarehouse = user?.role === 'STORE';
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(user?.role);
+  const canCreate = userOutlet || isAdmin;
 
   const [transfers, setTransfers] = useState([]);
   const [stats, setStats] = useState({});
@@ -266,6 +268,12 @@ const OutletTransfers = () => {
   const isOutgoing = (t) => t.fromOutlet === userOutlet || (isWarehouse && t.fromOutlet === 'Warehouse');
   const isSource = (t) => isOutgoing(t);
 
+  const canApproveReject = (t) => {
+    if (t.status !== 'PENDING') return false;
+    if (t.type === 'OUTLET_WAREHOUSE' || t.type === 'WAREHOUSE_OUTLET') return isWarehouse || isAdmin;
+    return isSource(t);
+  };
+
   const filteredTransfers = useMemo(() => {
     const incoming = (t) => t.toOutlet === userOutlet || (isWarehouse && t.toOutlet === 'Warehouse');
     const outgoing = (t) => t.fromOutlet === userOutlet || (isWarehouse && t.fromOutlet === 'Warehouse');
@@ -283,7 +291,9 @@ const OutletTransfers = () => {
         </h1>
         <div className="flex gap-2">
           <button onClick={() => setTab('list')} className={`px-4 py-2 rounded-xl text-xs font-black ${tab === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Transfers</button>
-          <button onClick={() => setTab('new')} className={`px-4 py-2 rounded-xl text-xs font-black ${tab === 'new' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400'}`}>+ New Request</button>
+          {canCreate && (
+            <button onClick={() => setTab('new')} className={`px-4 py-2 rounded-xl text-xs font-black ${tab === 'new' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400'}`}>+ New Request</button>
+          )}
         </div>
       </div>
 
@@ -382,7 +392,7 @@ const OutletTransfers = () => {
                       </button>
 
                       {/* Source actions: Approve/Reject PENDING */}
-                      {t.status === 'PENDING' && isSource(t) && (
+                      {canApproveReject(t) && (
                         <>
                           <button onClick={() => handleApprove(t.id)} disabled={actionLoading === t.id}
                             className="text-[10px] font-black text-white bg-purple-600 hover:bg-purple-500 px-3 py-1.5 rounded-lg disabled:opacity-50">

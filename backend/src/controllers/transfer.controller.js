@@ -142,8 +142,18 @@ const approveTransfer = async (req, res) => {
     if (transfer.status !== 'PENDING') return res.status(400).json({ message: `Transfer is ${transfer.status.toLowerCase()}, cannot approve` });
 
     const userOutlet = req.user?.name;
-    const isSource = transfer.fromOutlet === userOutlet || (transfer.fromOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
-    if (!isSource) return res.status(403).json({ message: 'Only the source location can approve' });
+    const userRole = req.user?.role;
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(userRole);
+
+    let canApprove = false;
+    if (transfer.type === 'OUTLET_WAREHOUSE') {
+      canApprove = userRole === 'STORE' || isAdmin;
+    } else if (transfer.type === 'WAREHOUSE_OUTLET') {
+      canApprove = userRole === 'STORE' || isAdmin;
+    } else {
+      canApprove = transfer.fromOutlet === userOutlet || isAdmin;
+    }
+    if (!canApprove) return res.status(403).json({ message: 'Not authorized to approve this transfer' });
 
     for (const item of transfer.items) {
       const approvedItem = approvalItems?.find(ai => ai.itemId === item.id);
@@ -151,7 +161,7 @@ const approveTransfer = async (req, res) => {
       if (approvedQty > item.quantity) return res.status(400).json({ message: `Approved qty for ${item.productName} exceeds requested qty` });
     }
 
-    if (transfer.type === 'OUTLET_WAREHOUSE' || transfer.type === 'OUTLET_OUTLET') {
+    if (transfer.type !== 'WAREHOUSE_OUTLET') {
       for (const item of transfer.items) {
         const approvedItem = approvalItems?.find(ai => ai.itemId === item.id);
         const approvedQty = approvedItem ? approvedItem.approvedQty : item.quantity;
@@ -203,8 +213,18 @@ const rejectTransfer = async (req, res) => {
     if (transfer.status !== 'PENDING') return res.status(400).json({ message: `Transfer is ${transfer.status.toLowerCase()}, cannot reject` });
 
     const userOutlet = req.user?.name;
-    const isSource = transfer.fromOutlet === userOutlet || (transfer.fromOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
-    if (!isSource) return res.status(403).json({ message: 'Only the source location can reject' });
+    const userRole = req.user?.role;
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(userRole);
+
+    let canReject = false;
+    if (transfer.type === 'OUTLET_WAREHOUSE') {
+      canReject = userRole === 'STORE' || isAdmin;
+    } else if (transfer.type === 'WAREHOUSE_OUTLET') {
+      canReject = userRole === 'STORE' || isAdmin;
+    } else {
+      canReject = transfer.fromOutlet === userOutlet || isAdmin;
+    }
+    if (!canReject) return res.status(403).json({ message: 'Not authorized to reject this transfer' });
 
     const updated = await prisma.outletTransfer.update({
       where: { id },
@@ -232,15 +252,30 @@ const dispatchTransfer = async (req, res) => {
     if (transfer.status !== 'APPROVED') return res.status(400).json({ message: `Transfer must be APPROVED before dispatch. Current: ${transfer.status}` });
 
     const userOutlet = req.user?.name;
-    const isSource = transfer.fromOutlet === userOutlet || (transfer.fromOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
+    const userRole = req.user?.role;
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(userRole);
+
+    let isSource = false;
+    if (transfer.type === 'WAREHOUSE_OUTLET') {
+      isSource = userRole === 'STORE' || isAdmin;
+    } else {
+      isSource = transfer.fromOutlet === userOutlet || isAdmin;
+    }
     if (!isSource) return res.status(403).json({ message: 'Only the source location can dispatch' });
 
     for (const item of transfer.items) {
-      if (item.outletInventoryId) {
+      const qty = item.approvedQty || item.quantity;
+      if (transfer.type === 'WAREHOUSE_OUTLET') {
+        const invItem = await prisma.inventoryItem.findFirst({
+          where: { name: item.productName, color: item.color || undefined, size: item.size || undefined }
+        });
+        if (!invItem || invItem.stock < qty) {
+          return res.status(400).json({ message: `Insufficient warehouse stock for ${item.productName}. Available: ${invItem?.stock || 0}` });
+        }
+      } else if (item.outletInventoryId) {
         const ov = await prisma.outletInventory.findUnique({ where: { id: item.outletInventoryId } });
-        const qty = item.approvedQty || item.quantity;
         if (!ov || ov.stock < qty) {
-          return res.status(400).json({ message: `Insufficient stock for ${item.productName}` });
+          return res.status(400).json({ message: `Insufficient stock for ${item.productName}. Available: ${ov?.stock || 0}` });
         }
       }
     }
@@ -340,6 +375,56 @@ const acceptTransfer = async (req, res) => {
               }
             });
           }
+        }
+      }
+    } else if (transfer.type === 'WAREHOUSE_OUTLET') {
+      for (const item of transfer.items) {
+        const qty = item.approvedQty || item.quantity;
+
+        const srcItem = await prisma.inventoryItem.findFirst({
+          where: { name: item.productName, color: item.color || undefined, size: item.size || undefined }
+        });
+        if (!srcItem || srcItem.stock < qty) {
+          return res.status(400).json({ message: `Insufficient warehouse stock for ${item.productName}. Available: ${srcItem?.stock || 0}` });
+        }
+
+        const newStock = (srcItem.stock || 0) - qty;
+        let newVariants = srcItem.variants;
+        if (Array.isArray(newVariants) && newVariants.length > 0) {
+          newVariants = newVariants.map(v => {
+            if ((v.color || null) === (item.color || null) && (v.size || null) === (item.size || null)) {
+              return { ...v, stock: Math.max(0, (v.stock || 0) - qty) };
+            }
+            return v;
+          });
+        }
+        await prisma.inventoryItem.update({ where: { id: srcItem.id }, data: { stock: newStock, variants: newVariants } });
+
+        let destOv = await prisma.outletInventory.findFirst({
+          where: { barcode: item.barcode, outletName: transfer.toOutlet }
+        });
+        if (!destOv) {
+          const candidates = await prisma.outletInventory.findMany({
+            where: { outletName: transfer.toOutlet, name: item.productName }
+          });
+          destOv = candidates.find(r =>
+            (item.color ? r.color === item.color : !r.color) &&
+            (item.size ? r.size === item.size : !r.size)
+          );
+        }
+        if (destOv) {
+          await prisma.outletInventory.update({ where: { id: destOv.id }, data: { stock: { increment: qty } } });
+        } else {
+          await prisma.outletInventory.create({
+            data: {
+              name: item.productName, category: srcItem.category || null,
+              outletName: transfer.toOutlet,
+              color: item.color || null, size: item.size || null,
+              fabric: srcItem.fabric || null, barcode: item.barcode,
+              stock: qty, price: item.unitPrice || srcItem.price || null,
+              metadata: JSON.stringify({ sourceInventoryItemId: srcItem.id })
+            }
+          });
         }
       }
     }
