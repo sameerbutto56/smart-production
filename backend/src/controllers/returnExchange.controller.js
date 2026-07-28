@@ -164,46 +164,101 @@ const rescheduleDelivery = async (req, res) => {
 const approveWarehouse = async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, warehouseNotes } = req.body; // action: 'APPROVE' | 'REJECT'
+    const { action, warehouseNotes } = req.body;
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
 
     const newStatus = action === 'APPROVE' ? 'WAREHOUSE_APPROVED' : 'WAREHOUSE_REJECTED';
 
-    const updated = await prisma.$transaction(async (tx) => {
-      await tx.returnExchange.update({
-        where: { id },
-        data: {
-          status: newStatus,
-          warehouseNotes,
-          warehouseApprovedBy: req.user?.name || 'Warehouse',
-          warehouseApprovedAt: new Date()
+    // For REPLACEMENT, check stock availability before approving
+    if (action === 'APPROVE' && record.type === 'REPLACEMENT') {
+      const replacements = typeof record.replacementItems === 'string' ? JSON.parse(record.replacementItems) : (record.replacementItems || []);
+      if (Array.isArray(replacements) && replacements.length > 0) {
+        for (const item of replacements) {
+          const name = item.name || item.productName || '';
+          if (!name) continue;
+          const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+          let found = false;
+          for (const inv of invItems) {
+            const variants = inv.variants || [];
+            const color = item.color || '';
+            const size = item.size || '';
+            const matchVariant = variants.find(v => {
+              const colorMatch = color ? v.color === color : true;
+              const sizeMatch = size ? v.size === size : true;
+              return colorMatch && sizeMatch;
+            });
+            if (matchVariant && (matchVariant.stock || 0) >= (item.quantity || 1)) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            return res.status(400).json({
+              message: `"${name}" (${item.color || 'any color'}, ${item.size || 'any size'}) is not available in warehouse inventory.`,
+              product: name
+            });
+          }
         }
-      });
-
-      if (action === 'APPROVE' && record.type === 'REPLACEMENT') {
-        await tx.returnExchange.update({
-          where: { id },
-          data: { status: 'DISPATCH_READY' }
-        });
       }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // Update status
+      const statusData = {
+        status: newStatus,
+        warehouseNotes,
+        warehouseApprovedBy: req.user?.name || 'Warehouse',
+        warehouseApprovedAt: new Date()
+      };
+      await tx.returnExchange.update({ where: { id }, data: statusData });
 
       if (action === 'APPROVE') {
         const order = await tx.order.findUnique({ where: { id: record.orderId } });
-        if (order) {
-          const products = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
-          for (const item of products) {
-            const pd = item.productDetails || item;
-            const name = pd.name || pd.productType || '';
+
+        // Step 1: Add original products back to warehouse inventory (RETURN + REPLACEMENT)
+        const originals = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
+        for (const item of originals) {
+          const pd = item.productDetails || item;
+          const name = pd.name || pd.productType || '';
+          if (!name) continue;
+          const invItems = await tx.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+          for (const inv of invItems) {
+            const variants = inv.variants || [];
+            const color = pd.color || '';
+            const size = pd.size || '';
+            const updatedVariants = variants.map(v => {
+              const colorMatch = color ? v.color === color : true;
+              const sizeMatch = size ? v.size === size : true;
+              if (colorMatch && sizeMatch) {
+                return { ...v, stock: (v.stock || 0) + (item.quantity || 1) };
+              }
+              return v;
+            });
+            const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+            await tx.inventoryItem.update({
+              where: { id: inv.id },
+              data: { variants: updatedVariants, totalStock: newTotal }
+            });
+          }
+        }
+
+        // Step 2: For REPLACEMENT, deduct new items from warehouse inventory
+        if (record.type === 'REPLACEMENT') {
+          const replacements = typeof record.replacementItems === 'string' ? JSON.parse(record.replacementItems) : (record.replacementItems || []);
+          for (const item of replacements) {
+            const name = item.name || item.productName || '';
             if (!name) continue;
             const invItems = await tx.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
             for (const inv of invItems) {
               const variants = inv.variants || [];
-              const color = pd.color || '';
-              const size = pd.size || '';
+              const color = item.color || '';
+              const size = item.size || '';
               const updatedVariants = variants.map(v => {
-                if ((color && v.color === color) || (size && v.size === size)) {
-                  return { ...v, stock: (v.stock || 0) + (item.quantity || 1) };
+                const colorMatch = color ? v.color === color : true;
+                const sizeMatch = size ? v.size === size : true;
+                if (colorMatch && sizeMatch) {
+                  return { ...v, stock: Math.max(0, (v.stock || 0) - (item.quantity || 1)) };
                 }
                 return v;
               });
@@ -214,6 +269,12 @@ const approveWarehouse = async (req, res) => {
               });
             }
           }
+
+          // Set to DISPATCH_READY so warehouse can dispatch
+          await tx.returnExchange.update({
+            where: { id },
+            data: { status: 'DISPATCH_READY' }
+          });
         }
       }
 
@@ -318,4 +379,39 @@ const getAllCases = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, dispatchReplacement, getCaseHistory, getAllCases };
+const checkStockAvailability = async (req, res) => {
+  try {
+    const { items } = req.body; // [{ name, color, size, quantity }]
+    if (!items || !Array.isArray(items)) return res.status(400).json({ message: 'Items array required' });
+
+    const results = [];
+    for (const item of items) {
+      const name = item.name || '';
+      if (!name) { results.push({ ...item, available: false, stock: 0 }); continue; }
+      const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+      let availableStock = 0;
+      for (const inv of invItems) {
+        const variants = inv.variants || [];
+        const color = item.color || '';
+        const size = item.size || '';
+        const matchVariant = variants.find(v => {
+          const colorMatch = color ? v.color === color : true;
+          const sizeMatch = size ? v.size === size : true;
+          return colorMatch && sizeMatch;
+        });
+        if (matchVariant) availableStock += (matchVariant.stock || 0);
+      }
+      results.push({
+        name, color: item.color, size: item.size, quantity: item.quantity,
+        available: availableStock >= (item.quantity || 1),
+        stock: availableStock
+      });
+    }
+    res.json(results);
+  } catch (error) {
+    console.error('Error checking stock:', error);
+    res.status(500).json({ message: 'Failed to check stock', error: error.message });
+  }
+};
+
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability };

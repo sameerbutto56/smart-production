@@ -6,7 +6,7 @@ import {
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
   Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle, Minus, Plus,
   CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send,
-  Factory, Trash2, ClipboardList, X, Activity, Printer, FileSpreadsheet, Layers, ArrowLeft
+  Factory, Trash2, ClipboardList, X, Activity, Printer, FileSpreadsheet, Layers, ArrowLeft, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,11 +17,12 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 import { usePolling } from '../hooks/usePolling';
 import InventoryManagement from './InventoryManagement';
 import StoreDashboardAnalytics from '../components/StoreDashboardAnalytics';
+import WarehouseReturns from '../components/WarehouseReturns';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'analytics', 'inventory', 'inv-print', 'production', 'allocation', 'demands'];
+const TABS = ['dashboard', 'analytics', 'inventory', 'inv-print', 'production', 'allocation', 'demands', 'returns'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
@@ -490,6 +491,7 @@ const WarehouseDashboard = () => {
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
                 {tab === 'demands' && <><ShoppingCart size={14} className="inline mr-2" />Demands {demandStats.pending > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{demandStats.pending}</span>}</>}
+                {tab === 'returns' && <><RotateCcw size={14} className="inline mr-2" />Returns</>}
           </button>
         ))}
       </div>
@@ -1565,6 +1567,12 @@ const WarehouseDashboard = () => {
         </>
       )}
 
+      {/* Returns Tab */}
+      {activeTab === 'returns' && (
+        <div className="theme-bg-subtle rounded-2xl p-4 md:p-6 border-2 theme-border">
+          <WarehouseReturns />
+        </div>
+      )}
 
 
 

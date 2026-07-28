@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Trash2, Eye, Database, Download, UploadCloud, Printer } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Trash2, Eye, Database, Download, UploadCloud, Printer, RotateCcw, RefreshCw as RefreshIcon, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
@@ -12,11 +12,24 @@ const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 /* ─── VIEW-ONLY: unified outlet stock at a glance (OUTLET) ─── */
 const ViewOnlyInventory = () => {
+  const { user } = useAuth();
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
   const [productVariantSearch, setProductVariantSearch] = useState({});
+  const [activeSubTab, setActiveSubTab] = useState('inventory');
+
+  // Return/Replace order lookup state
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderLookupLoading, setOrderLookupLoading] = useState(false);
+  const [lookedUpOrder, setLookedUpOrder] = useState(null);
+  const [activeAction, setActiveAction] = useState(null);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [replacementItems, setReplacementItems] = useState([{ name: '', color: '', size: '', quantity: 1, notes: '' }]);
+  const [replacementReason, setReplacementReason] = useState('');
+  const [replacementSubmitting, setReplacementSubmitting] = useState(false);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -34,6 +47,56 @@ const ViewOnlyInventory = () => {
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  /* Order lookup for Return/Replace */
+  const lookupOrder = useCallback(async () => {
+    if (!orderSearchQuery.trim()) return toast.error('Enter order number');
+    setOrderLookupLoading(true);
+    try {
+      const res = await api.get(`/api/return-exchange/lookup/${encodeURIComponent(orderSearchQuery.trim())}`);
+      setLookedUpOrder(res.data);
+      setActiveAction(null);
+    } catch (err) { toast.error(err.response?.data?.message || 'Order not found'); setLookedUpOrder(null); }
+    setOrderLookupLoading(false);
+  }, [orderSearchQuery]);
+
+  const handleReturnSubmit = async () => {
+    if (!returnReason.trim()) return toast.error('Enter return reason');
+    setReturnSubmitting(true);
+    try {
+      await api.post('/api/return-exchange/initiate', {
+        orderId: lookedUpOrder.id, type: 'RETURN', returnReason,
+        notes: `Return initiated by ${user?.name || user?.role || 'Outlet'}`
+      });
+      toast.success('Return sent to Warehouse for approval!');
+      setReturnReason(''); setActiveAction(null); setLookedUpOrder(null); setOrderSearchQuery('');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    setReturnSubmitting(false);
+  };
+
+  const handleReplacementSubmit = async () => {
+    if (!replacementReason.trim()) return toast.error('Enter replacement reason');
+    if (!replacementItems.some(r => r.name.trim())) return toast.error('Enter at least one replacement item');
+    setReplacementSubmitting(true);
+    try {
+      await api.post('/api/return-exchange/initiate', {
+        orderId: lookedUpOrder.id, type: 'REPLACEMENT', returnReason: replacementReason,
+        replacementItems: replacementItems.filter(r => r.name.trim()),
+        notes: `Replacement initiated by ${user?.name || user?.role || 'Outlet'}`
+      });
+      toast.success('Replacement request sent to Warehouse!');
+      setReplacementReason(''); setReplacementItems([{ name: '', color: '', size: '', quantity: 1, notes: '' }]);
+      setActiveAction(null); setLookedUpOrder(null); setOrderSearchQuery('');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    setReplacementSubmitting(false);
+  };
+
+  const parseProducts = (pd) => {
+    if (!pd) return [];
+    if (typeof pd === 'string') { try { return JSON.parse(pd); } catch { return []; } }
+    if (Array.isArray(pd)) return pd;
+    return [];
+  };
 
   /* Build a cross-outlet variant map keyed by name||category||color||size */
   const crossOutletData = useMemo(() => {
@@ -93,12 +156,25 @@ const ViewOnlyInventory = () => {
           <h1 className="text-2xl font-black text-white">Outlet POS Inventory</h1>
           <p className="text-sm font-bold text-gray-400">View-only — Stock across Johar Town / Jail Road / Abbottabad / Warehouse</p>
         </div>
-        <button onClick={fetchAll} disabled={loading}
-          className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setActiveSubTab('inventory')}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-black transition-all ${activeSubTab === 'inventory' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            <Package size={16} />Inventory
+          </button>
+          <button onClick={() => setActiveSubTab('returns')}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-black transition-all ${activeSubTab === 'returns' ? 'bg-rose-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            <RotateCcw size={16} />Return / Replace
+          </button>
+          {activeSubTab === 'inventory' && (
+            <button onClick={fetchAll} disabled={loading}
+              className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
+            </button>
+          )}
+          </div>
       </div>
 
+      {activeSubTab === 'inventory' && (<>
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         <button onClick={() => setActiveCategory('')}
           className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${!activeCategory ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
@@ -188,6 +264,179 @@ const ViewOnlyInventory = () => {
           })}
         </div>
       )}
+      </>)}
+
+      {/* ─── RETURN / REPLACE ─── */}
+      {activeSubTab === 'returns' && (<div className="space-y-4">
+        <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-4">
+          <h2 className="text-sm font-black text-white mb-3 flex items-center gap-2"><RotateCcw size={16} className="text-rose-400" />Initiate Return or Replacement</h2>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input value={orderSearchQuery} onChange={e => setOrderSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && lookupOrder()}
+                placeholder="Enter Order Number, Invoice #, or Phone..."
+                className="w-full pl-9 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white font-bold text-sm outline-none focus:border-rose-500" />
+            </div>
+            <button onClick={lookupOrder} disabled={orderLookupLoading}
+              className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-sm disabled:opacity-50 transition-all">
+              {orderLookupLoading ? 'Searching...' : 'Search'}
+            </button>
+          </div>
+        </div>
+
+        {lookedUpOrder && (
+          <div className="space-y-4">
+            <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-white">{lookedUpOrder.orderNumber || 'No Order #'}</h3>
+                  <p className="text-sm text-gray-400">{lookedUpOrder.customerName} • {lookedUpOrder.customerPhone}</p>
+                  {lookedUpOrder.invoiceNumber && <p className="text-xs text-amber-400 font-bold">Invoice: {lookedUpOrder.invoiceNumber}</p>}
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-black text-amber-400">{formatCurrency(lookedUpOrder.totalPrice)}</p>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">{lookedUpOrder.currentStage || lookedUpOrder.status}</span>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {parseProducts(lookedUpOrder.productDetails).map((item, i) => {
+                  const pd = item.productDetails || item;
+                  return (
+                    <div key={i} className="bg-gray-900 rounded-lg p-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-black text-white">{pd.name || pd.productType || 'Product'}</p>
+                        <div className="flex flex-wrap gap-2 text-[10px] text-gray-400 mt-0.5">
+                          {pd.color && <span>Color: {pd.color}</span>}
+                          {pd.size && <span>Size: {pd.size}</span>}
+                          <span>Qty: {item.quantity || 1}</span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-black text-amber-400">{formatCurrency(item.totalPrice)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            {!activeAction && (
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setActiveAction('return')}
+                  className="p-4 rounded-xl border-2 border-gray-700 bg-gray-800 text-gray-400 hover:border-red-500 hover:text-red-400 transition-all text-center">
+                  <RotateCcw size={24} className="mx-auto mb-2" />
+                  <p className="text-sm font-black">Return</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Send back to Warehouse</p>
+                </button>
+                <button onClick={() => setActiveAction('replace')}
+                  className="p-4 rounded-xl border-2 border-gray-700 bg-gray-800 text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-all text-center">
+                  <RefreshIcon size={24} className="mx-auto mb-2" />
+                  <p className="text-sm font-black">Replace</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Exchange items</p>
+                </button>
+              </div>
+            )}
+
+            {/* Return Form */}
+            {activeAction === 'return' && (
+              <div className="bg-gray-800 rounded-xl p-5 border border-red-500/30 space-y-4">
+                <h3 className="text-sm font-black text-red-400 flex items-center gap-2"><RotateCcw size={16} />Initiate Return</h3>
+                <p className="text-xs text-gray-400">Items to be returned to Warehouse:</p>
+                <div className="space-y-1">
+                  {parseProducts(lookedUpOrder.productDetails).map((item, i) => {
+                    const pd = item.productDetails || item;
+                    return (
+                      <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex justify-between">
+                        <span className="text-white font-bold">{pd.name || pd.productType} {pd.color ? `(${pd.color})` : ''} x{item.quantity || 1}</span>
+                        <span className="text-gray-500">Will be added back to inventory</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Return Reason</label>
+                  <textarea value={returnReason} onChange={e => setReturnReason(e.target.value)} rows={3} placeholder="Why is this order being returned?"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-red-500 resize-none" />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setActiveAction(null); setReturnReason(''); }}
+                    className="px-4 py-3 bg-gray-700 text-gray-300 font-black text-sm rounded-xl">Cancel</button>
+                  <button onClick={handleReturnSubmit} disabled={returnSubmitting || !returnReason.trim()}
+                    className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all">
+                    {returnSubmitting ? 'Submitting...' : 'Send Return to Warehouse'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Replace Form */}
+            {activeAction === 'replace' && (
+              <div className="bg-gray-800 rounded-xl p-5 border border-blue-500/30 space-y-4">
+                <h3 className="text-sm font-black text-blue-400 flex items-center gap-2"><RefreshIcon size={16} />Initiate Replacement</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-black text-gray-400 uppercase mb-2">Original Items</p>
+                    <div className="space-y-1">
+                      {parseProducts(lookedUpOrder.productDetails).map((item, i) => {
+                        const pd = item.productDetails || item;
+                        return (
+                          <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs">
+                            <p className="text-white font-bold">{pd.name || pd.productType}</p>
+                            <p className="text-gray-500">{pd.color || ''} {pd.size || ''} x{item.quantity || 1}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-gray-400 uppercase mb-2">Replacement Items</p>
+                    <div className="space-y-2">
+                      {replacementItems.map((item, i) => (
+                        <div key={i} className="bg-gray-900 rounded-lg p-2 space-y-1 relative">
+                          {replacementItems.length > 1 && (
+                            <button onClick={() => setReplacementItems(prev => prev.filter((_, idx) => idx !== i))}
+                              className="absolute top-1 right-1 text-gray-600 hover:text-red-400"><X size={12} /></button>
+                          )}
+                          <input value={item.name} onChange={e => setReplacementItems(prev => prev.map((it, idx) => idx === i ? { ...it, name: e.target.value } : it))}
+                            placeholder="Product name" className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none" />
+                          <div className="grid grid-cols-2 gap-1">
+                            <input value={item.color} onChange={e => setReplacementItems(prev => prev.map((it, idx) => idx === i ? { ...it, color: e.target.value } : it))}
+                              placeholder="Color" className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none" />
+                            <input value={item.size} onChange={e => setReplacementItems(prev => prev.map((it, idx) => idx === i ? { ...it, size: e.target.value } : it))}
+                              placeholder="Size" className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none" />
+                          </div>
+                          <div className="flex gap-1">
+                            <input type="number" value={item.quantity} min="1"
+                              onChange={e => setReplacementItems(prev => prev.map((it, idx) => idx === i ? { ...it, quantity: parseInt(e.target.value) || 1 } : it))}
+                              className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none" />
+                            <input value={item.notes} onChange={e => setReplacementItems(prev => prev.map((it, idx) => idx === i ? { ...it, notes: e.target.value } : it))}
+                              placeholder="Notes" className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none" />
+                          </div>
+                        </div>
+                      ))}
+                      <button onClick={() => setReplacementItems(prev => [...prev, { name: '', color: '', size: '', quantity: 1, notes: '' }])}
+                        className="text-[10px] font-bold text-blue-400 hover:text-blue-300">+ Add Item</button>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Replacement Reason</label>
+                  <textarea value={replacementReason} onChange={e => setReplacementReason(e.target.value)} rows={2} placeholder="Why is this order being replaced?"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 resize-none" />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setActiveAction(null); setReplacementReason(''); setReplacementItems([{ name: '', color: '', size: '', quantity: 1, notes: '' }]); }}
+                    className="px-4 py-3 bg-gray-700 text-gray-300 font-black text-sm rounded-xl">Cancel</button>
+                  <button onClick={handleReplacementSubmit} disabled={replacementSubmitting}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all">
+                    {replacementSubmitting ? 'Submitting...' : 'Send Replacement to Warehouse'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>)}
     </div>
   );
 };
