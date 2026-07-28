@@ -64,17 +64,17 @@ const MyTasks = () => {
 
   // Cache-first: unseen tasks (hasTaskFilters users)
   const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen } = useCache(
-    hasTaskFilters ? `my-tasks:unseen:${user?.role}` : null,
+    hasTaskFilters ? `v2:my-tasks:unseen:${user?.role}` : null,
     { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: production returned (STORE only)
   const { data: productionData = null, refresh: refreshProduction } = useCache(
-    showProductionTab ? 'my-tasks:production-returned' : null,
+    showProductionTab ? 'v2:my-tasks:production-returned' : null,
     { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: active orders (non-task-filter users)
   const { data: fetchedOrders = [], loading: ordersLoading, refresh: refreshOrders } = useCache(
-    !hasTaskFilters ? 'my-tasks:active' : null,
+    !hasTaskFilters ? 'v2:my-tasks:active' : null,
     { fetcher: () => api.get('/api/orders?status=active').then(r => Array.isArray(r.data) ? r.data : (r.data?.orders || [])), ttl: 60 * 1000 }
   );
 
