@@ -203,7 +203,22 @@ const createEditRequest = async (req, res) => {
       }
     });
 
-    await createAuditLog(orderId, 'EDIT_REQUESTED', `Order edit request submitted. Reason: ${reason || 'No reason provided'}`, req.user.id);
+    const rc = typeof requestedChanges === 'string' ? JSON.parse(requestedChanges) : requestedChanges;
+    const fieldSummary = [];
+    if (rc.items && Array.isArray(rc.items)) {
+      rc.items.forEach((item, i) => {
+        if (item.productDetails?.productType) fieldSummary.push(`Item ${i + 1}: ${item.productDetails.productType}`);
+      });
+    } else if (rc.productDetails) {
+      fieldSummary.push(`Product: ${rc.productDetails.productType || 'updated'}`);
+    }
+    Object.keys(rc).forEach(k => {
+      if (!['items', 'productDetails', 'sizeData', 'customization'].includes(k) && rc[k] !== undefined) {
+        fieldSummary.push(`${k}`);
+      }
+    });
+
+    await createAuditLog(orderId, 'EDIT_REQUESTED', `Edit request submitted by ${req.user.name}. Reason: ${reason || 'No reason'}. Fields: ${fieldSummary.join(', ') || 'product details'}`, req.user.id);
 
     const io = req.app.get('io');
     if (io) {
@@ -271,7 +286,7 @@ const approveEditRequest = async (req, res) => {
   try {
     const editRequest = await prisma.orderEditRequest.findUnique({
       where: { id: requestId },
-      include: { order: true }
+      include: { order: true, requestedBy: { select: { id: true, name: true, role: true } } }
     });
 
     if (!editRequest) {
@@ -289,11 +304,8 @@ const approveEditRequest = async (req, res) => {
     const order = editRequest.order;
     const requestedChanges = editRequest.requestedChanges;
 
-    // 1. Restore old inventory (add stock back)
-    await restoreInventory(order, req.user.id);
-
-    // 2. Update order with new product details
-    const updateData = {};
+    // 1. Update order with new product details (no inventory changes — stock was deducted at original order time)
+    const updateData = { editedByAdmin: true, editedAt: new Date() };
 
     if (requestedChanges.productDetails) {
       updateData.productDetails = requestedChanges.productDetails;
@@ -340,8 +352,14 @@ const approveEditRequest = async (req, res) => {
       'shopifyOrderDate'
     ];
 
+    const changedFields = [];
     fieldsToMap.forEach(field => {
       if (requestedChanges[field] !== undefined) {
+        const oldVal = order[field];
+        const newVal = requestedChanges[field];
+        if (String(oldVal) !== String(newVal)) {
+          changedFields.push(`${field}: "${oldVal}" → "${newVal}"`);
+        }
         if (field === 'advancePaid') {
           updateData[field] = !!requestedChanges[field];
         } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice', 'advanceAmount', 'deliveryCharges'].includes(field)) {
@@ -359,12 +377,7 @@ const approveEditRequest = async (req, res) => {
       data: updateData
     });
 
-    // 3. Deduct inventory for new products
-    const newProductDetails = updateData.productDetails || order.productDetails;
-    const newQuantity = updateData.quantity || order.quantity;
-    await deductInventoryForEdit(order, newProductDetails, newQuantity, req.user.id);
-
-    // 4. Mark edit request as approved
+    // 2. Mark edit request as approved
     await prisma.orderEditRequest.update({
       where: { id: requestId },
       data: {
@@ -375,7 +388,7 @@ const approveEditRequest = async (req, res) => {
       }
     });
 
-    // 5. Restart workflow: reset to STORE stage
+    // 3. Restart workflow: reset to STORE stage (PRESERVE all existing history)
     // Mark any existing active stages as COMPLETED
     await prisma.orderStage.updateMany({
       where: { orderId: order.id, status: { in: ['PENDING', 'IN_PROGRESS'] } },
@@ -394,17 +407,10 @@ const approveEditRequest = async (req, res) => {
       data: { currentStage: 'STORE', status: 'IN_PROGRESS' }
     });
 
-    // Clean up department-specific data so the order appears fresh
-    await prisma.routingHistory.deleteMany({ where: { orderId: order.id } });
-    await prisma.productionRecord.deleteMany({ where: { orderId: order.id } });
-    await prisma.allocationCart.deleteMany({ where: { orderId: order.id } });
+    // 4. Rich audit trail — log the approval with field changes (DO NOT delete routingHistory, productionRecords, allocationCart, or logoPhaseSummary)
+    await createAuditLog(order.id, 'EDIT_REQUEST_APPROVED', `Edit request approved by Admin. Changes: ${changedFields.length > 0 ? changedFields.join('; ') : 'product details updated'}. Remarks: ${adminRemarks || 'N/A'}`, req.user.id);
 
-    // Clear logoPhaseSummary if present
-    if (order.logoPhaseSummary) {
-      await prisma.order.update({ where: { id: order.id }, data: { logoPhaseSummary: null } });
-    }
-
-    await createAuditLog(order.id, 'WORKFLOW_RESTARTED', `Order workflow restarted at STORE after edit approval. Remarks: ${adminRemarks || 'N/A'}`, req.user.id);
+    await createAuditLog(order.id, 'WORKFLOW_RESTARTED', `Order workflow restarted at STORE after admin edit approval. Previous history preserved. Remarks: ${adminRemarks || 'N/A'}`, req.user.id);
 
     const io = req.app.get('io');
     if (io) {

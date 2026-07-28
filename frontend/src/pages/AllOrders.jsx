@@ -661,6 +661,9 @@ const AllOrders = () => {
                       <div className="font-bold text-lg theme-text-primary group-hover:text-blue-400 transition-colors">
                         #{order.orderNumber || order.id.substring(0, 8)}
                       </div>
+                      {order.editedByAdmin && (
+                        <span className="inline-block bg-amber-500 text-black text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter mt-1">✏️ ADMIN EDITED</span>
+                      )}
                       <div className="text-xs theme-text-muted font-medium mt-1">
                         {order.customerName}
                         {order.city && (
@@ -837,6 +840,9 @@ const AllOrders = () => {
                 <div>
                   <div className="flex items-center space-x-4 mb-2">
                     <h2 className="text-2xl md:text-4xl font-black tracking-tighter theme-text-primary">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
+                    {selectedOrder.editedByAdmin && (
+                      <span className="bg-amber-500 text-black text-[10px] md:text-xs font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">✏️ ADMIN EDITED ORDER</span>
+                    )}
                     <div className="flex items-center gap-2">
                       <span className={`px-3 py-1 border text-xs md:text-sm font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
                         {selectedOrder.source || 'OUTLET'}: {selectedOrder.outletName || 'MAIN'}

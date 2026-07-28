@@ -160,8 +160,8 @@ const getLogoDeptEngravings = async (req, res) => {
   try {
     const engravings = await prisma.engravingRequest.findMany({
       where: {
-        currentStage: { in: ['ENGRAVING_PENDING', 'ENGRAVING_IN'] },
-        status: { in: ['PENDING', 'ACCEPTED'] }
+        currentStage: 'ENGRAVING_PENDING',
+        status: 'PENDING'
       },
       include: {
         stages: true,
@@ -171,6 +171,7 @@ const getLogoDeptEngravings = async (req, res) => {
     });
     res.json(engravings);
   } catch (error) {
+    console.error('Error fetching logo dept engravings:', error);
     res.status(500).json({ message: 'Error fetching logo dept engravings', error: error.message });
   }
 };

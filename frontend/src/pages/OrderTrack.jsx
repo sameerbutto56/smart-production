@@ -28,6 +28,8 @@ const ENTRY_COLORS = {
   RECEIVED: { dot: 'bg-amber-500', border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
   FAILED: { dot: 'bg-red-500', border: 'border-red-500', bg: 'bg-red-500/10', text: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/40' },
   VERIFIED: { dot: 'bg-cyan-500', border: 'border-cyan-500', bg: 'bg-cyan-500/10', text: 'text-cyan-400', badge: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' },
+  EDIT: { dot: 'bg-amber-500', border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
+  RESTART: { dot: 'bg-orange-500', border: 'border-orange-500', bg: 'bg-orange-500/10', text: 'text-orange-400', badge: 'bg-orange-500/20 text-orange-400 border-orange-500/40' },
   audit: { dot: 'bg-gray-500', border: 'border-gray-500', bg: 'bg-gray-500/10', text: 'text-gray-400', badge: 'bg-gray-500/20 text-gray-400 border-gray-500/40' },
 };
 
@@ -38,6 +40,8 @@ const getEntryColors = (entry) => {
   if (entry.action === 'RECEIVED') return ENTRY_COLORS.RECEIVED;
   if (entry.action === 'VERIFIED' || entry.action === 'ORDER_VERIFIED') return ENTRY_COLORS.VERIFIED;
   if (entry.action?.includes('FAIL') || entry.action?.includes('RETURN')) return ENTRY_COLORS.FAILED;
+  if (entry.action?.includes('EDIT')) return ENTRY_COLORS.EDIT;
+  if (entry.action === 'WORKFLOW_RESTARTED') return ENTRY_COLORS.RESTART;
   return ENTRY_COLORS.audit;
 };
 
@@ -123,6 +127,9 @@ const OrderTrack = () => {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="text-lg font-black text-white">#{order.orderNumber}</p>
+                {order.editedByAdmin && (
+                  <span className="inline-block bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter mt-1">✏️ ADMIN EDITED ORDER</span>
+                )}
                 <p className="text-xs text-gray-400 font-bold">{order.customerName}{order.customerPhone ? ` — ${order.customerPhone}` : ''}</p>
                 {order.createdBy && <p className="text-[10px] text-gray-500 font-bold mt-0.5">Created by: {order.createdBy.name}</p>}
               </div>

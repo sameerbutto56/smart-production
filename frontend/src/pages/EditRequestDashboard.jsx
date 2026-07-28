@@ -38,9 +38,6 @@ const EditRequestDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('ALL');
   const [expandedId, setExpandedId] = useState(null);
-  const [inventoryResults, setInventoryResults] = useState({});
-  const [inventoryLoading, setInventoryLoading] = useState(false);
-
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewData, setReviewData] = useState(null);
   const [reviewAction, setReviewAction] = useState('');
@@ -52,38 +49,6 @@ const EditRequestDashboard = () => {
     socket.on('global-alert', debouncedRefresh);
     return () => socket.off('global-alert', debouncedRefresh);
   }, [refresh]);
-
-  useEffect(() => {
-    if (!expandedId) return;
-    const req = allRequests.find(r => r.id === expandedId);
-    if (!req) return;
-    let productTypes = [];
-    try {
-      const rc = req.requestedChanges;
-      if (rc?.items && Array.isArray(rc.items)) {
-        productTypes = [...new Set(rc.items.map(i => (i.productDetails?.productType || i.productType || '')).filter(Boolean))];
-      } else if (rc?.productDetails) {
-        const pd = rc.productDetails;
-        if (pd?.productType) productTypes = [pd.productType];
-      }
-    } catch {}
-    if (productTypes.length === 0) return;
-    const doFetch = async () => {
-      setInventoryLoading(true);
-      const results = {};
-      for (const name of productTypes) {
-        try {
-          const res = await api.get('/api/inventory/search', {
-            params: { name }
-          });
-          results[name] = Array.isArray(res.data) ? res.data : [];
-        } catch { results[name] = []; }
-      }
-      setInventoryResults(prev => ({ ...prev, ...results }));
-      setInventoryLoading(false);
-    };
-    doFetch();
-  }, [expandedId, allRequests]);
 
   const handleApprove = async () => {
     if (!reviewData) return;
@@ -611,160 +576,14 @@ const EditRequestDashboard = () => {
                           })()}
                         </div>
 
-                        {/* Inventory Impact Analysis Table */}
-                        <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3">
-                          <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                            <RefreshCw size={10} /> Inventory Impact Analysis
+                        {/* Inventory Note */}
+                        <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3">
+                          <p className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Package size={10} /> Inventory Unchanged
                           </p>
-                          {(() => {
-                            // Merge old and new items by product+color+size key
-                            const itemMap = {};
-                            oldItems.forEach(p => {
-                              const key = `${p.name}|${p.color}|${p.size}`;
-                              if (!itemMap[key]) itemMap[key] = { ...p, oldQty: p.qty, newQty: 0 };
-                              else itemMap[key].oldQty = (itemMap[key].oldQty || 0) + p.qty;
-                            });
-                            newItems.forEach(p => {
-                              const key = `${p.name}|${p.color}|${p.size}`;
-                              if (!itemMap[key]) itemMap[key] = { ...p, oldQty: 0, newQty: p.qty };
-                              else itemMap[key].newQty = (itemMap[key].newQty || 0) + p.qty;
-                            });
-                            const merged = Object.values(itemMap);
-                            return merged.length === 0 ? (
-                              <p className="text-xs theme-text-muted italic">No items to compare</p>
-                            ) : (
-                              <div className="overflow-x-auto custom-scrollbar">
-                                <table className="w-full text-xs md:text-sm">
-                                  <thead>
-                                    <tr className="border-b border-amber-500/20">
-                                      <th className="text-left py-1.5 pr-2 font-black theme-text-muted uppercase tracking-wider">Product</th>
-                                      <th className="text-center py-1.5 px-2 font-black theme-text-muted uppercase tracking-wider">Current</th>
-                                      <th className="text-center py-1.5 px-2 font-black theme-text-muted uppercase tracking-wider">Requested</th>
-                                      <th className="text-center py-1.5 px-2 font-black theme-text-muted uppercase tracking-wider">&#916;</th>
-                                      <th className="text-right py-1.5 pl-2 font-black theme-text-muted uppercase tracking-wider">Impact</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {merged.map((item, i) => {
-                                      const diff = item.newQty - item.oldQty;
-                                      const stockChange = diff > 0
-                                        ? { text: `-${diff} from stock`, cls: 'text-red-400' }
-                                        : diff < 0
-                                        ? { text: `+${Math.abs(diff)} to stock`, cls: 'text-emerald-400' }
-                                        : { text: 'No change', cls: 'text-gray-500' };
-                                      return (
-                                        <tr key={i} className="border-b border-amber-500/10">
-                                          <td className="py-1.5 pr-2">
-                                            <span className="font-bold theme-text-primary">{item.name}</span>
-                                            {(item.color || item.size) && (
-                                              <span className="text-theme-muted ml-1 text-xs">
-                                                ({[item.color, item.size].filter(Boolean).join('/')})
-                                              </span>
-                                            )}
-                                          </td>
-                                          <td className="text-center py-1.5 px-2 font-bold">{item.oldQty}</td>
-                                          <td className="text-center py-1.5 px-2 font-bold">{item.newQty}</td>
-                                          <td className="text-center py-1.5 px-2">
-                                            <span className={`font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
-                                              {diff > 0 ? `+${diff}` : diff}
-                                            </span>
-                                          </td>
-                                          <td className="text-right py-1.5 pl-2">
-                                            <span className={`font-bold text-xs ${stockChange.cls}`}>
-                                              {stockChange.text}
-                                            </span>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            );
-                          })()}
-                        </div>
-
-                        {/* Inventory Availability */}
-                        <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
-                          <p className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                            <Package size={10} /> Inventory Availability
+                          <p className="text-xs font-bold theme-text-muted mt-1">
+                            Stock levels will not be affected. The order will be sent back to Store with updated details.
                           </p>
-                          {inventoryLoading ? (
-                            <div className="flex items-center gap-2 py-2">
-                              <Loader2 className="animate-spin text-indigo-400" size={12} />
-                              <span className="text-xs font-bold theme-text-muted">Checking inventory...</span>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {newItems.map((p, i) => {
-                                const products = inventoryResults[p.name] || [];
-                                
-                                // Variant lookup
-                                let foundVariant = null;
-                                let totalStock = 0;
-                                let hasProduct = products.length > 0;
-                                let hasVariant = false;
-
-                                if (hasProduct) {
-                                  for (const prod of products) {
-                                    const variants = prod.variants && Array.isArray(prod.variants)
-                                      ? prod.variants
-                                      : [{ color: prod.color, size: prod.size, stock: prod.stock }];
-                                    
-                                    const match = variants.find(v => 
-                                      (!p.color || v.color?.toLowerCase() === p.color.toLowerCase()) &&
-                                      (!p.size || v.size?.toLowerCase() === p.size.toLowerCase())
-                                    );
-                                    if (match) {
-                                      foundVariant = match;
-                                      totalStock = match.stock || 0;
-                                      hasVariant = true;
-                                      break;
-                                    }
-                                  }
-                                }
-
-                                // Stock checks with Sufficient / Low / Insufficient badges
-                                let badgeText = '';
-                                let badgeClass = '';
-                                if (!hasProduct) {
-                                  badgeText = `❌ INSUFFICIENT (No record found — Need: ${p.qty})`;
-                                  badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
-                                } else if (!hasVariant) {
-                                  badgeText = `❌ INSUFFICIENT (Variant ${[p.color, p.size].filter(Boolean).join('/')} not found — Need: ${p.qty})`;
-                                  badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
-                                } else if (totalStock >= p.qty) {
-                                  badgeText = `✅ SUFFICIENT (Stock: ${totalStock} / Need: ${p.qty})`;
-                                  badgeClass = 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
-                                } else if (totalStock > 0) {
-                                  badgeText = `⚠️ LOW (Stock: ${totalStock} / Need: ${p.qty})`;
-                                  badgeClass = 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
-                                } else {
-                                  badgeText = `❌ INSUFFICIENT (Stock: 0 / Need: ${p.qty})`;
-                                  badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
-                                }
-
-                                return (
-                                  <div key={i} className="theme-bg rounded-xl p-3 border theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-indigo-500/20 transition-all duration-300">
-                                    <div>
-                                      <p className="text-xs font-black theme-text-primary uppercase tracking-wider">{p.name}</p>
-                                      {(p.color || p.size) && (
-                                        <p className="text-xs font-bold theme-text-muted mt-0.5">
-                                          Variant: <span className="theme-text-secondary">{[p.color, p.size].filter(Boolean).join(' / ')}</span>
-                                        </p>
-                                      )}
-                                      <p className="text-xs font-bold theme-text-muted">Requested Qty: <span className="theme-text-secondary">{p.qty}</span></p>
-                                    </div>
-                                    <div className="flex items-center shrink-0">
-                                      <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${badgeClass}`}>
-                                        {badgeText}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
                         </div>
 
                         {/* Reason */}
@@ -846,9 +665,9 @@ const EditRequestDashboard = () => {
 
               {reviewAction === 'approve' && (
                 <div className="space-y-3 mb-4">
-                  <div className="theme-bg rounded-xl p-4 border theme-border">
-                    <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
-                    <p className="text-xs md:text-sm font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
+                  <div className="bg-emerald-500/10 rounded-xl p-4 border border-emerald-500/20">
+                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">✓ No inventory changes</p>
+                    <p className="text-xs md:text-sm font-medium theme-text-muted">Stock levels will not be affected. The order will be sent back to Store with updated details.</p>
                   </div>
                 </div>
               )}

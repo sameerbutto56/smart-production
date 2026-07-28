@@ -548,6 +548,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-1 mb-0.5">
                   <h3 className="font-black text-base md:text-lg tracking-tighter text-white truncate max-w-[120px] md:max-w-none">#{order.orderNumber || order.id.substring(0, 8)}</h3>
+                  {order.editedByAdmin && (
+                    <span className="bg-amber-500 text-black text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1 animate-pulse">
+                      ✏️ ADMIN EDITED
+                    </span>
+                  )}
                   {order.priority === 'SUPER_URGENT' && (
                     <span className="bg-red-600 text-white text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter flex items-center gap-1">
                       <span>⚡</span> SUPER URGENT

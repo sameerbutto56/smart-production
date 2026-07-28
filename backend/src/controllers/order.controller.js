@@ -2624,8 +2624,9 @@ const getOrderTimeline = async (req, res) => {
       DEADLINE_EXTENDED: 'Deadline Extended', ROUTE_BLOCKED: 'Route Blocked',
       COURIER_DISPATCH_REQUESTED: 'Courier Requested', PICKED_UP: 'Picked Up',
       REFUND_REQUESTED: 'Refund Requested', REFUND_COMPLETED: 'Refund Completed',
-      REFUND_PROCESSING: 'Refund Processing',       EDIT_REQUESTED: 'Edit Requested',
+      REFUND_PROCESSING: 'Refund Processing',       EDIT_REQUESTED: 'Edit Request Submitted',
       EDIT_APPROVED: 'Edit Approved', EDIT_REJECTED: 'Edit Rejected',
+      EDIT_REQUEST_APPROVED: 'Edit Approved — Order Returned to Store', WORKFLOW_RESTARTED: 'Workflow Restarted at Store',
       SENT_FOR_VERIFICATION: 'Sent for Verification', ORDER_VERIFIED: 'Order Verified',
       VERIFICATION_PENDING: 'Verification Pending'
     };

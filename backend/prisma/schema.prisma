@@ -145,7 +145,10 @@ model Order {
   @@index([invoiceNumber])
   @@index([goForVerification, verifiedAt])
   dispatchOfficer   String?
-  forwardedBy       String?
+    forwardedBy       String?
+    // Edit tracking fields
+    editedByAdmin   Boolean    @default(false)
+    editedAt        DateTime?
   deliveryPayments  DeliveryPayment[]
   noResponseLogs    NoResponseLog[]
   deliveryChargeRecords DeliveryCharge[] @relation("DeliveryChargeToOrder")
