@@ -2382,8 +2382,7 @@ const getUnseenOrders = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: {
         currentStage: { in: relevantStages },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-        stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
       },
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
@@ -2999,8 +2998,7 @@ const getStoreDashboardOrders = async (req, res) => {
   try {
     const whereStore = {
       currentStage: 'STORE',
-      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-      stages: { some: { stageName: 'STORE', status: { in: ['PENDING', 'IN_PROGRESS'] } } }
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
     };
     if (sourceFilter !== 'ALL') {
       if (sourceFilter === 'ONLINE') {
