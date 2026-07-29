@@ -3413,7 +3413,7 @@ const getOrderPerformance = async (req, res) => {
   try {
     const { from, to } = req.query;
     const dateFrom = from ? new Date(from) : new Date('2000-01-01');
-    const dateTo = to ? new Date(to + 'T23:59:59.999Z') : new Date('2100-01-01');
+    const dateTo = to ? (to.includes('T') ? new Date((new Date(to)).getTime() - 1) : new Date(to + 'T23:59:59.999Z')) : new Date('2100-01-01');
 
     // Faisal: only new orders created by Faisal-role users within date range
     const faisalEntered = await prisma.order.count({

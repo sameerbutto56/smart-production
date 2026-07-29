@@ -24,21 +24,21 @@ function getDateRange(filter, customFrom, customTo) {
   const d = now.getDate();
   switch (filter) {
     case 'today':
-      return { from: new Date(y, m, d).toISOString().slice(0, 10), to: new Date(y, m, d).toISOString().slice(0, 10) };
+      return { from: new Date(y, m, d).toISOString(), to: new Date(y, m, d + 1).toISOString() };
     case 'yesterday': {
       const yd = new Date(y, m, d - 1);
-      return { from: yd.toISOString().slice(0, 10), to: yd.toISOString().slice(0, 10) };
+      return { from: yd.toISOString(), to: new Date(y, m, d).toISOString() };
     }
     case 'last7': {
       const w = new Date(y, m, d - 6);
-      return { from: w.toISOString().slice(0, 10), to: new Date(y, m, d).toISOString().slice(0, 10) };
+      return { from: w.toISOString(), to: new Date(y, m, d + 1).toISOString() };
     }
     case 'last30': {
       const mo = new Date(y, m, d - 29);
-      return { from: mo.toISOString().slice(0, 10), to: new Date(y, m, d).toISOString().slice(0, 10) };
+      return { from: mo.toISOString(), to: new Date(y, m, d + 1).toISOString() };
     }
     case 'thisMonth':
-      return { from: new Date(y, m, 1).toISOString().slice(0, 10), to: new Date(y, m, d).toISOString().slice(0, 10) };
+      return { from: new Date(y, m, 1).toISOString(), to: new Date(y, m, d + 1).toISOString() };
     case 'custom':
       return { from: customFrom, to: customTo };
     default:

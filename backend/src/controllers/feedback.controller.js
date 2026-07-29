@@ -82,7 +82,7 @@ const getAllFeedback = async (req, res) => {
     if (dateFrom || dateTo) {
       where.createdAt = {};
       if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-      if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+      if (dateTo) where.createdAt.lte = new Date(dateTo.includes('T') ? (new Date(dateTo)).getTime() - 1 : dateTo + 'T23:59:59.999Z');
     }
     const feedback = await prisma.customerFeedback.findMany({
       where,
@@ -103,7 +103,7 @@ const getFeedbackStats = async (req, res) => {
     if (dateFrom || dateTo) {
       where.createdAt = {};
       if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-      if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+      if (dateTo) where.createdAt.lte = new Date(dateTo.includes('T') ? (new Date(dateTo)).getTime() - 1 : dateTo + 'T23:59:59.999Z');
     }
 
     const all = await prisma.customerFeedback.findMany({ where, orderBy: { createdAt: 'desc' } });

@@ -34,7 +34,7 @@ const buildSourceFilter = (sourceId) => {
 const buildDateFilter = (start, end) => {
   const f = {};
   if (start) f.gte = new Date(start);
-  if (end) f.lte = new Date(end + 'T23:59:59.999Z');
+  if (end) f.lte = new Date(end.includes('T') ? (new Date(end)).getTime() - 1 : end + 'T23:59:59.999Z');
   return Object.keys(f).length ? { createdAt: f } : {};
 };
 

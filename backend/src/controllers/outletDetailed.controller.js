@@ -15,7 +15,7 @@ const getOutletDetailed = async (req, res) => {
     else if (range === 'yesterday') { startLimit = new Date(now); startLimit.setDate(startLimit.getDate()-1); startLimit.setHours(0,0,0,0); }
     else if (range === 'week') { startLimit = new Date(now); startLimit.setDate(startLimit.getDate()-7); }
     else if (range === 'month') { startLimit = new Date(now); startLimit.setMonth(startLimit.getMonth()-1); }
-    const endLimit = dateTo ? new Date(dateTo + 'T23:59:59.999Z') : now;
+    const endLimit = dateTo ? new Date(dateTo.includes('T') ? (new Date(dateTo)).getTime() - 1 : dateTo + 'T23:59:59.999Z') : now;
 
     const dateWhere = { gte: startLimit, lte: endLimit };
 

@@ -8,7 +8,7 @@ const getDashboard = async (req, res) => {
 
     const dateFilter = {};
     if (startDate) dateFilter.gte = new Date(startDate);
-    if (endDate) dateFilter.lte = new Date(endDate + 'T23:59:59.999Z');
+    if (endDate) dateFilter.lte = new Date(endDate.includes('T') ? (new Date(endDate)).getTime() - 1 : endDate + 'T23:59:59.999Z');
     const createdAtFilter = Object.keys(dateFilter).length ? { createdAt: dateFilter } : {};
     const sourceFilter = source && source !== 'all' ? { source } : {};
 

@@ -8,11 +8,11 @@ import * as XLSX from 'xlsx';
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const PRESETS = [
-  { label: 'Today', getRange: () => { const d = new Date(); return { from: d.toISOString().slice(0, 10), to: d.toISOString().slice(0, 10) }; } },
-  { label: 'Yesterday', getRange: () => { const d = new Date(); d.setDate(d.getDate() - 1); return { from: d.toISOString().slice(0, 10), to: d.toISOString().slice(0, 10) }; } },
-  { label: 'Last 7 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 6); return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }; } },
-  { label: 'Last 30 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 29); return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }; } },
-  { label: 'This Month', getRange: () => { const now = new Date(); return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) }; } },
+  { label: 'Today', getRange: () => { const d = new Date(); const y = d.getFullYear(), m = d.getMonth(), dd = d.getDate(); return { from: new Date(y, m, dd).toISOString(), to: new Date(y, m, dd + 1).toISOString() }; } },
+  { label: 'Yesterday', getRange: () => { const d = new Date(); d.setDate(d.getDate() - 1); const y = d.getFullYear(), m = d.getMonth(), dd = d.getDate(); return { from: new Date(y, m, dd).toISOString(), to: new Date(y, m, dd + 1).toISOString() }; } },
+  { label: 'Last 7 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 6); const y1 = from.getFullYear(), m1 = from.getMonth(), d1 = from.getDate(); const y2 = to.getFullYear(), m2 = to.getMonth(), d2 = to.getDate(); return { from: new Date(y1, m1, d1).toISOString(), to: new Date(y2, m2, d2 + 1).toISOString() }; } },
+  { label: 'Last 30 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 29); const y1 = from.getFullYear(), m1 = from.getMonth(), d1 = from.getDate(); const y2 = to.getFullYear(), m2 = to.getMonth(), d2 = to.getDate(); return { from: new Date(y1, m1, d1).toISOString(), to: new Date(y2, m2, d2 + 1).toISOString() }; } },
+  { label: 'This Month', getRange: () => { const now = new Date(); return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(), to: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString() }; } },
   { label: 'All Time', getRange: () => ({ from: '', to: '' }) },
 ];
 
