@@ -86,7 +86,9 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
     if (includeInvoice) {
       doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p>${sale.orderNumber ? `<p style="font-size:18px;font-weight:900;margin:6px 0;">Your Order #: ${sale.orderNumber}</p>` : ''}<p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
       doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
-      (sale.items || []).forEach(item => {
+      const exchangeItems = (sale.items || []).filter(i => i.isExchange);
+      const newItems = (sale.items || []).filter(i => !i.isExchange);
+      (newItems.length > 0 ? newItems : sale.items).forEach(item => {
         const isUrd = isUrduReceipt();
         const name = isUrd ? toUrduName(item.productName || '') : (item.productName || '');
         const variantParts = [isUrd ? toUrduName(item.color) : item.color, item.size].filter(Boolean);
@@ -111,6 +113,20 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
         }
         doc.write('</div>');
       });
+      if (exchangeItems.length > 0) {
+        doc.write('<div style="margin-top:8px;padding-top:6px;border-top:2px solid #c00;"><p style="font-size:14px;font-weight:900;color:#c00;text-align:center;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Exchange / Returned Items</p>');
+        exchangeItems.forEach(item => {
+          const isUrd = isUrduReceipt();
+          const name = isUrd ? toUrduName(item.productName || '') : (item.productName || '');
+          const variantParts = [isUrd ? toUrduName(item.color) : item.color, item.size].filter(Boolean);
+          doc.write('<div class="item">');
+          doc.write(`<div class="item-name">${name}</div>`);
+          if (variantParts.length > 0) doc.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
+          doc.write(`<div class="item-line" style="color:#c00;"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
+          doc.write('</div>');
+        });
+        doc.write('</div>');
+      }
       if (isFT) {
         doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
       } else {
@@ -211,6 +227,17 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
   lines.push(`Cash+Online:  Already Added`);
   lines.push(`Grand Total:  ${formatCurrency(summary.paymentSummary.grandTotal)}`);
   lines.push('');
+  lines.push('SALES DETAIL (Invoice / Total / Received / Customer)');
+  lines.push('─'.repeat(32));
+  (summary.sales || []).forEach(s => {
+    const amtRec = s.advanceAmount > 0 ? s.advanceAmount : s.grandTotal;
+    const bal = Math.max(0, s.grandTotal - amtRec);
+    const cust = s.customerName || 'Walk-in';
+    lines.push(`${s.receiptNumber || 'N/A'}`);
+    lines.push(`  Total: ${formatCurrency(s.grandTotal)}  Recv: ${formatCurrency(amtRec)}  Bal: ${formatCurrency(bal)}`);
+    lines.push(`  ${cust}`);
+  });
+  lines.push('');
   lines.push('EMPLOYEE COLLECTIONS');
   lines.push('─'.repeat(32));
   (summary.employeeCollections || []).forEach(e => {
@@ -244,18 +271,31 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
 
   const text = lines.join('\n');
 
+  const printIframe = (htmlContent) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '0';
+    iframe.style.top = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.title = 'Close Book Print';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+    setTimeout(() => {
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
+      setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+    }, 500);
+  };
+
   if (opts.thermal) {
-    const w = window.open('', '_blank', 'width=400,height=600');
-    if (!w) return toast.error('Popup blocked');
-    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;">${text}</pre>`);
-    w.document.close();
-    w.focus();
-    w.print();
+    printIframe(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;">${text}</pre>`);
   }
   if (opts.a4) {
-    const w = window.open('', '_blank', 'width=800,height=900');
-    if (!w) return toast.error('Popup blocked');
-    w.document.write(`<html><head><style>
+    printIframe(`<html><head><style>
       @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
       @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
       @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
@@ -291,6 +331,14 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
         <tr><td>Cash + Online</td><td class="right" style="font-style:italic;color:#888;">Already Added</td></tr>
         <tr class="total"><td>Grand Total</td><td class="right">${formatCurrency(summary.paymentSummary.grandTotal)}</td></tr>
       </table>
+      <h2>Sales Detail</h2>
+      <table><tr><th>Invoice</th><th class="right">Total</th><th class="right">Received</th><th class="right">Balance</th><th>Customer</th></tr>
+        ${(summary.sales || []).map(s => {
+          const amtRec = s.advanceAmount > 0 ? s.advanceAmount : s.grandTotal;
+          const bal = Math.max(0, s.grandTotal - amtRec);
+          return `<tr><td>${s.receiptNumber || 'N/A'}</td><td class="right">${formatCurrency(s.grandTotal)}</td><td class="right">${formatCurrency(amtRec)}</td><td class="right">${formatCurrency(bal)}</td><td>${s.customerName || 'Walk-in'}</td></tr>`;
+        }).join('')}
+      </table>
       <h2>Employee Collections</h2>
       <table><tr><th>Employee</th><th class="right">Cash</th><th class="right">Card</th><th class="right">Online</th><th class="right">Total</th></tr>
         ${(summary.employeeCollections || []).map(e => `<tr><td>${e.name}</td><td class="right">${formatCurrency(e.cash)}</td><td class="right">${formatCurrency(e.card)}</td><td class="right">${formatCurrency(e.online)}</td><td class="right">${formatCurrency(e.total)}</td></tr>`).join('')}
@@ -317,17 +365,24 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
       <div class="footer">BOOK CLOSED</div>
       ${getPrintFooterHTML()}
     </body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
   }
 }
 
 export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) {
   if (!lastBalancePayment) return;
   const bp = lastBalancePayment;
-  const w = window.open('', '_blank', 'width=400,height=700');
-  w.document.write(`<html><head><title>Balance Receipt</title><style>
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '0';
+  iframe.style.top = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  iframe.title = 'Balance Receipt Print';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`<html><head><title>Balance Receipt</title><style>
     @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
     @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
     @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
@@ -367,6 +422,9 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
     <hr/>
     ${getPrintFooterHTML()}
   </body></html>`);
-  w.document.close();
-  setTimeout(() => w.print(), 300);
+  doc.close();
+  setTimeout(() => {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
+    setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+  }, 500);
 }

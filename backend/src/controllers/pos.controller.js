@@ -447,11 +447,15 @@ const createSale = async (req, res) => {
     let netAfterItems = 0;
     const saleItems = [];
     const stockErrors = [];
+    let exchangeTotal = 0;
+    let nonExchangeTotal = 0;
 
     for (const item of items) {
       const inv = invMap.get(item.variantId);
       if (!inv) return res.status(400).json({ message: `Inventory item ${item.variantId} not found for outlet ${outletName || 'unknown'}` });
-      if (inv.stock < (item.quantity || 1)) {
+      const isEx = item.isExchange === true || item.isExchange === 'true';
+      // Skip stock check for exchange items (customer returning the product)
+      if (!isEx && inv.stock < (item.quantity || 1)) {
         stockErrors.push(`${inv.name} (${inv.color || ''} ${inv.size || ''}). Available: ${inv.stock}`);
       }
       const unitPrice = item.unitPrice || inv.price || 0;
@@ -472,6 +476,8 @@ const createSale = async (req, res) => {
       totalAlt += itemAlt * qty;
       totalItemDiscount += itemDiscount;
       netAfterItems += itemNet;
+      if (isEx) exchangeTotal += itemNet;
+      else nonExchangeTotal += itemNet;
       saleItems.push({
         outletVariantId: inv.id,
         productName: inv.name,
@@ -488,7 +494,8 @@ const createSale = async (req, res) => {
         otherCharges,
         discountPct: dpct,
         discountFixed: dfixed,
-        lineTotal: itemNet
+        lineTotal: itemNet,
+        isExchange: isEx
       });
     }
 
@@ -518,15 +525,28 @@ const createSale = async (req, res) => {
     }
 
     const sale = await prisma.$transaction(async (tx) => {
-      // Always decrement stock (Faisal Takes still consume inventory)
-      await Promise.all(saleItems.map(si =>
-        tx.outletInventory.updateMany({
-          where: { id: si.outletVariantId, stock: { gte: si.quantity } },
-          data: { stock: { decrement: si.quantity } }
-        }).then(result => {
-          if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
-        })
-      ));
+      // Exchange items: INCREMENT stock (return to inventory)
+      // Non-exchange items: DECREMENT stock (sell)
+      const exchangeItems = saleItems.filter(si => si.isExchange);
+      const nonExchangeItems = saleItems.filter(si => !si.isExchange);
+      await Promise.all([
+        ...exchangeItems.map(si =>
+          tx.outletInventory.updateMany({
+            where: { id: si.outletVariantId },
+            data: { stock: { increment: si.quantity } }
+          }).then(result => {
+            if (result.count === 0) throw new Error(`Exchange stock update failed for ${si.productName}`);
+          })
+        ),
+        ...nonExchangeItems.map(si =>
+          tx.outletInventory.updateMany({
+            where: { id: si.outletVariantId, stock: { gte: si.quantity } },
+            data: { stock: { decrement: si.quantity } }
+          }).then(result => {
+            if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
+          })
+        )
+      ]);
       if (orderId) {
         await tx.order.update({
           where: { id: orderId },
@@ -609,9 +629,20 @@ const getSales = async (req, res) => {
 
     let sales = await prisma.posSale.findMany({
       where,
-      include: { items: true, returns: true, balancePayments: { select: { amountPaidNow: true } } },
+      include: { items: true, returns: true, balancePayments: { select: { amountPaidNow: true, paidAt: true } } },
       orderBy: { createdAt: 'desc' }
     });
+
+    // Fetch invoice numbers for order-linked sales
+    const orderIds = sales.filter(s => s.orderId).map(s => s.orderId);
+    const orderMap = new Map();
+    if (orderIds.length > 0) {
+      const orders = await prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        select: { id: true, invoiceNumber: true }
+      });
+      orders.forEach(o => orderMap.set(o.id, o.invoiceNumber));
+    }
 
     sales = sales.map(s => {
       const totalAdvance = s.advanceAmount || 0;
@@ -622,8 +653,11 @@ const getSales = async (req, res) => {
       const { balancePayments, ...saleData } = s;
       return {
         ...saleData,
+        _amountReceived: totalReceived,
+        _outstandingBalance: s.grandTotal - totalReceived,
         _balanceRemaining: remaining,
-        _balanceStatus: remaining > 0.01 ? 'balance' : 'paid'
+        _balanceStatus: remaining > 0.01 ? 'balance' : 'paid',
+        _invoiceNumber: s.orderId ? (orderMap.get(s.orderId) || null) : null
       };
     });
 
@@ -1566,6 +1600,33 @@ const getBalancePaymentHistory = async (req, res) => {
   }
 };
 
+const getJournalEntries = async (req, res) => {
+  try {
+    const outlet = getOutletName(req);
+    const { range, dateFrom, dateTo } = req.query;
+    const now = new Date();
+    let where = {};
+    if (outlet) where.outletName = outlet;
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) { const s = new Date(dateFrom); s.setHours(0, 0, 0, 0); where.createdAt.gte = s; }
+      if (dateTo) { const e = new Date(dateTo); e.setHours(23, 59, 59, 999); where.createdAt.lte = e; }
+    } else if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); where.createdAt = { gte: s }; }
+    else if (range === 'yesterday') { const s = new Date(now); s.setDate(s.getDate() - 1); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setHours(23, 59, 59, 999); where.createdAt = { gte: s, lte: e }; }
+    else if (range === 'week') { const s = new Date(now); s.setDate(s.getDate() - 7); s.setHours(0, 0, 0, 0); where.createdAt = { gte: s }; }
+    else if (range === 'month') { const s = new Date(now); s.setMonth(s.getMonth() - 1); s.setHours(0, 0, 0, 0); where.createdAt = { gte: s }; }
+    else if (range === 'year') { const s = new Date(now); s.setFullYear(s.getFullYear() - 1); s.setHours(0, 0, 0, 0); where.createdAt = { gte: s }; }
+    const entries = await prisma.journalEntry.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 200
+    });
+    res.json(entries);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch journal entries', error: error.message });
+  }
+};
+
 const getEmployees = async (req, res) => {
   try {
     const outlet = getOutletName(req);
@@ -1601,6 +1662,7 @@ module.exports = {
   getBalanceCollections,
   getBalancePaymentHistory,
   getEmployees,
+  getJournalEntries,
   refundInvoice
 };
 

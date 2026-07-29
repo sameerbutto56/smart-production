@@ -9,9 +9,10 @@ import toast from 'react-hot-toast';
 const POSCart = () => {
   const { isUrdu } = useLanguage();
   const {
-    cart, setCart, removeCartItem, updateQty, updateCartCustomization, updateCartDiscount,
+    cart, setCart, removeCartItem, updateQty, updateCartCustomization, updateCartDiscount, updateCartExchange,
     subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal,
     perItemDiscount, deliveryCharge, globalDiscountAmt, cardChargesAmt, grandTotal,
+    exchangeItemsTotal, newItemsTotal, exchangeDiff,
     discountPct, setDiscountPct, discountFixed, setDiscountFixed,
     paymentMethod, cashAmount, setCashAmount, onlineAmount, setOnlineAmount,
     cardChargesPct,
@@ -90,6 +91,12 @@ const POSCart = () => {
                 Logo Design (+₨300)
               </button>
             </div>
+            <div className="mt-1.5">
+              <button onClick={() => updateCartExchange(i)}
+                className={`w-full px-2 py-1 rounded-lg text-[9px] font-bold border ${item.isExchange ? 'border-amber-500 bg-amber-600/20 text-amber-300' : 'border-gray-700 text-gray-500'}`}>
+                {item.isExchange ? '🔄 Exchange/Return — Stock will be added back' : 'Mark as Exchange/Return'}
+              </button>
+            </div>
             <div className="mt-1.5 flex items-center gap-2">
               <span className="text-[10px] font-bold text-orange-400">Other Charges ₨</span>
               <input type="number" value={item.otherCharges || 0} onChange={e => updateCartDiscount(i, 'otherCharges', Math.max(0, parseFloat(e.target.value) || 0))}
@@ -164,6 +171,19 @@ const POSCart = () => {
             <div className="flex items-center justify-between text-xs text-orange-400">
               <span>Delivery Charges</span>
               <span>{formatCurrency(deliveryCharge)}</span>
+            </div>
+          )}
+          {cart.some(i => i.isExchange) && (
+            <div className="bg-amber-900/10 border border-amber-800/50 rounded-xl px-3 py-2 space-y-1">
+              <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Exchange Summary</p>
+              <div className="flex justify-between text-xs"><span className="text-red-400">Returning Items</span><span className="text-red-400">{formatCurrency(exchangeItemsTotal)}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-emerald-400">New Items</span><span className="text-emerald-400">{formatCurrency(newItemsTotal)}</span></div>
+              <div className="flex justify-between text-xs font-black border-t border-amber-800/50 pt-1">
+                <span className="text-white">Difference</span>
+                <span className={exchangeDiff >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                  {exchangeDiff >= 0 ? `Customer Pays ${formatCurrency(exchangeDiff)}` : `Refund ${formatCurrency(Math.abs(exchangeDiff))}`}
+                </span>
+              </div>
             </div>
           )}
           <div className="flex items-center gap-2">

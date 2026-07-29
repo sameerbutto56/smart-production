@@ -137,6 +137,33 @@ const POSModals = () => {
             <h3 className="text-xl font-black text-white mb-1">{lastSale.isFaisalTake ? 'Faisal Take' : 'Sale Complete!'}</h3>
             <p className="text-sm font-bold text-gray-400 mb-2">{lastSale.receiptNumber}</p>
             <p className={`text-3xl font-black mb-4 ${lastSale.isFaisalTake ? 'text-red-400' : 'text-emerald-400'}`}>{lastSale.isFaisalTake ? '₨0 — NO CHARGE' : formatCurrency(lastSale.grandTotal)}</p>
+            {/* Exchange Summary */}
+            {(lastSale.items || []).some(i => i.isExchange) && (
+              <div className="bg-amber-900/20 border border-amber-700 rounded-xl px-4 py-3 mb-3 text-left">
+                <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-2">Exchange Transaction</p>
+                {lastSale.items.filter(i => i.isExchange).map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-xs text-red-400"><span>Return: {item.productName} x{item.quantity}</span><span>{formatCurrency(item.lineTotal || 0)}</span></div>
+                ))}
+                {lastSale.items.filter(i => !i.isExchange).length > 0 && (
+                  <div className="border-t border-amber-800/50 mt-1 pt-1">
+                    {lastSale.items.filter(i => !i.isExchange).map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-xs text-emerald-400"><span>New: {item.productName} x{item.quantity}</span><span>{formatCurrency(item.lineTotal || 0)}</span></div>
+                    ))}
+                  </div>
+                )}
+                {(() => {
+                  const exTotal = lastSale.items.filter(i => i.isExchange).reduce((s, i) => s + (i.lineTotal || 0), 0);
+                  const nxTotal = lastSale.items.filter(i => !i.isExchange).reduce((s, i) => s + (i.lineTotal || 0), 0);
+                  const diff = nxTotal - exTotal;
+                  return (
+                    <div className="border-t border-amber-800/50 mt-2 pt-2 flex justify-between text-sm font-black">
+                      <span className="text-white">Difference</span>
+                      <span className={diff >= 0 ? 'text-emerald-400' : 'text-red-400'}>{diff >= 0 ? `Pay ${formatCurrency(diff)}` : `Refund ${formatCurrency(Math.abs(diff))}`}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
             {lastSale.orderNumber && (
               <div className={`${lastSale.alterationNumber ? 'bg-purple-900/30 border-purple-700' : 'bg-amber-900/30 border-amber-700'} border rounded-xl px-4 py-2 mb-2`}>
                 <p className={`text-xs font-bold ${lastSale.alterationNumber ? 'text-purple-400' : 'text-amber-400'}`}>{lastSale.alterationNumber ? 'Alteration & Order Number' : 'Your Order Number'}</p>
@@ -149,7 +176,7 @@ const POSModals = () => {
                 <p className="text-lg font-black text-white tracking-wider">{lastSale.engravingNumber}</p>
               </div>
             )}
-            {!lastSale.orderNumber && !lastSale.engravingNumber && <div className="mb-4"></div>}
+            {!lastSale.orderNumber && !lastSale.engravingNumber && !(lastSale.items || []).some(i => i.isExchange) && <div className="mb-4"></div>}
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <button onClick={() => { setPendingPrintSale(lastSale); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">

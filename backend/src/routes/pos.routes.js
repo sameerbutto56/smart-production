@@ -17,6 +17,7 @@ const {
   getBalanceCollections,
   getBalancePaymentHistory,
   getEmployees,
+  getJournalEntries,
   refundInvoice
 } = require('../controllers/pos.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -70,6 +71,9 @@ router.get('/balance-invoices/:saleId/history', authenticate, getBalancePaymentH
 
 // Refund
 router.post('/sales/:saleId/refund', authenticate, refundInvoice);
+
+// Journal Entries
+router.get('/journal-entries', authenticate, getJournalEntries);
 
 // Employees
 router.get('/employees', authenticate, getEmployees);

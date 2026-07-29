@@ -661,6 +661,7 @@ model PosSaleItem {
   discountPct       Float    @default(0)
   discountFixed     Float    @default(0)
   lineTotal         Float    @default(0)
+  isExchange        Boolean  @default(false)
 
   @@index([saleId])
   @@index([outletVariantId])

@@ -305,9 +305,9 @@ export function POSProvider({ children }) {
             const unitPrice = oi.unitPrice || 0;
             const match = products.find(p => p.name.toLowerCase() === prodName.toLowerCase() && (!prodColor || p.color === prodColor) && (!prodSize || p.size === prodSize));
             if (match) {
-              newCartItems.push({ variantId: match.id, productName: match.name, size: match.size || null, color: match.color || null, unitPrice: match.price || 0, qty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0 });
+              newCartItems.push({ variantId: match.id, productName: match.name, size: match.size || null, color: match.color || null, unitPrice: match.price || 0, qty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0, isExchange: false });
             } else {
-              newCartItems.push({ variantId: null, productName: prodName, size: prodSize || null, color: prodColor || null, unitPrice: unitPrice || 0, qty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0 });
+              newCartItems.push({ variantId: null, productName: prodName, size: prodSize || null, color: prodColor || null, unitPrice: unitPrice || 0, qty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0, isExchange: false });
             }
           });
           setCart(prev => {
@@ -381,12 +381,12 @@ export function POSProvider({ children }) {
       if (res.data) v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
     } catch (e) { console.warn(`Barcode API lookup failed for "${code}":`, e?.response?.data || e.message); }
     if (!v) return toast.error(`Barcode not found: ${code}`);
-    if (v.stock != null && v.stock < 1) return toast.error(`"${v.productName}" is out of stock`);
+    if (v.stock != null && v.stock < 1) toast(`"${v.productName}" is out of stock — use Exchange toggle to process as return`);
     const existing = cart.find(i => i.variantId === v.id);
     if (existing) {
       setCart(cart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
     } else {
-      setCart([...cart, { variantId: v.id, productName: v.productName, size: v.size, color: v.color, unitPrice: v.price || 0, qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0 }]);
+      setCart([...cart, { variantId: v.id, productName: v.productName, size: v.size, color: v.color, unitPrice: v.price || 0, qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0, isExchange: false }]);
     }
     toast.success(`${v.productName} added via barcode`);
   };
@@ -430,7 +430,7 @@ export function POSProvider({ children }) {
 
   const handleAddToCart = (product) => {
     if (!employeeLoggedIn) return toast.error('Please login employee first');
-    if (product.stock != null && product.stock <= 0) return toast.error(`"${product.name}" is out of stock`);
+    if (product.stock != null && product.stock <= 0) toast(`"${product.name}" is out of stock — use Exchange toggle to process as return`);
     const hasColors = product.colors?.length > 0;
     const hasSizes = product.sizes?.length > 0;
     if (hasColors || hasSizes) {
@@ -440,7 +440,7 @@ export function POSProvider({ children }) {
       setSelectedQty(1);
       refreshProducts();
     } else {
-      setCart([...cart, { variantId: product.id, productName: product.name, size: product.size || null, color: product.color || null, unitPrice: product.price || 0, qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0 }]);
+      setCart([...cart, { variantId: product.id, productName: product.name, size: product.size || null, color: product.color || null, unitPrice: product.price || 0, qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0, isExchange: false }]);
       toast.success(`${product.name} added`);
     }
   };
@@ -458,7 +458,7 @@ export function POSProvider({ children }) {
     if (!variant) variant = products.find(v => v.name === product.name && matchColor(v) && matchSize(v));
     if (!variant) return toast.error('Variant not found');
     if (!inStock(variant)) return toast.error(`Only ${variant.stock} in stock for ${variant.name}` + (variant.color ? ` (${variant.color})` : '') + (variant.size ? ` ${variant.size}` : ''));
-    setCart([...cart, { variantId: variant.id, productName: product.name, size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0, qty: selectedQty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0 }]);
+    setCart([...cart, { variantId: variant.id, productName: product.name, size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0, qty: selectedQty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0, isExchange: false }]);
     setShowConfig(null);
     toast.success(`${product.name} added`);
   };
@@ -468,6 +468,7 @@ export function POSProvider({ children }) {
   const updateAlteration = (i, label, amount) => { const copy = [...cart]; copy[i] = { ...copy[i], alterationLabel: label, alterationAmount: amount }; setCart(copy); };
   const updateCartDiscount = (i, field, value) => { const copy = [...cart]; copy[i] = { ...copy[i], [field]: value }; setCart(copy); };
   const updateCartCustomization = (i, field) => { const copy = [...cart]; copy[i] = { ...copy[i], [field]: !copy[i][field] }; setCart(copy); };
+  const updateCartExchange = (i) => { const copy = [...cart]; copy[i] = { ...copy[i], isExchange: !copy[i].isExchange }; setCart(copy); };
 
   const cardChargesPct = paymentMethod === 'CARD' ? 2 : 0;
 
@@ -491,6 +492,15 @@ export function POSProvider({ children }) {
   const grandTotal = useMemo(() => {
     return Math.max(0, subtotal + altCharges + cust1Total + cust2Total + engraveTotal + logoDesignTotal + otherChargesTotal - perItemDiscount - globalDiscountAmt + cardChargesAmt + deliveryCharge);
   }, [subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal, perItemDiscount, globalDiscountAmt, cardChargesAmt, deliveryCharge]);
+
+  // Exchange-related memo values
+  const exchangeItemsTotal = useMemo(() =>
+    cart.filter(i => i.isExchange).reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * i.qty, 0),
+  [cart]);
+  const newItemsTotal = useMemo(() =>
+    cart.filter(i => !i.isExchange).reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * i.qty, 0),
+  [cart]);
+  const exchangeDiff = useMemo(() => newItemsTotal - exchangeItemsTotal, [newItemsTotal, exchangeItemsTotal]);
 
   useEffect(() => {
     if (paymentMethod === 'CASH_ONLINE' && grandTotal > 0) {
@@ -536,6 +546,7 @@ export function POSProvider({ children }) {
     }
     setCheckoutLoading(true);
     for (const c of cart) {
+      if (c.isExchange) continue; // exchange items return to stock — no stock check needed
       const pr = products.find(p => p.id === c.variantId);
       if (!pr) { setCheckoutLoading(false); return toast.error(`"${c.productName}" not found in outlet inventory`); }
       if (pr.stock != null && pr.stock < c.qty) { setCheckoutLoading(false); return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`); }
@@ -563,7 +574,7 @@ export function POSProvider({ children }) {
       } catch { /* proceed without engraving number */ }
     }
     const payload = {
-      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0 })),
+      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0, isExchange: i.isExchange || false })),
       customerName: customerName || null, customerPhone: customerPhone || null,
       extraCharges: 0, discountPercent: discountPct, discountFixed: discountFixed,
       advanceAmount: parseFloat(advanceAmount) || 0, deliveryCharges: deliveryCharge,
@@ -940,9 +951,10 @@ export function POSProvider({ children }) {
     productsKey, dashboardKey, salesKey, returnsKey,
     subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal,
     perItemDiscount, deliveryCharge, globalDiscountAmt, cardChargesAmt, grandTotal,
+    exchangeItemsTotal, newItemsTotal, exchangeDiff,
     filteredSales, filteredProducts, groupedProducts,
     handleBarcodeLookup, handleAddToCart, confirmConfig, removeCartItem, updateQty,
-    updateAlteration, updateCartDiscount, updateCartCustomization,
+    updateAlteration, updateCartDiscount, updateCartCustomization, updateCartExchange,
     handleCheckout, handleReturn, processReturns,
     handleInvoiceLookup, handleRefundInvoice, handleReturnBarcodeLookup, handleRefundInvoiceFromHistory,
     handleOpenBook, handleFetchCloseBookSummary, handleCloseBook,
