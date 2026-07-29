@@ -506,12 +506,12 @@ const createSale = async (req, res) => {
     const deliveryCharge = parseFloat(deliveryCharges || 0);
     const globalPct = parseFloat(discountPercent || 0);
     const globalFixed = parseFloat(discountFixed || 0);
-    const globalDiscountAmt = (netAfterItems * globalPct / 100) + globalFixed;
+    const globalDiscountAmt = (nonExchangeTotal * globalPct / 100) + globalFixed;
     const discountAmount = totalItemDiscount + globalDiscountAmt;
-    const netAfterGlobal = netAfterItems - globalDiscountAmt;
+    const netAfterGlobal = nonExchangeTotal - globalDiscountAmt;
     const cardPct = parseFloat(cardChargesPct || 0);
-    const cardChargesAmount = (netAfterItems * cardPct) / 100;
-    const grandTotal = netAfterGlobal + cardChargesAmount + deliveryCharge;
+    const cardChargesAmount = (nonExchangeTotal * cardPct) / 100;
+    const grandTotal = Math.max(0, netAfterGlobal - exchangeTotal + cardChargesAmount + deliveryCharge);
 
     const isFaisalTake = faisalTake === true || faisalTake === 'true';
 

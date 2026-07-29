@@ -131,7 +131,9 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
         doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
       } else {
         doc.write('</div><div class="section-label">SUMMARY</div>');
+        const receiptExchangeCredit = (sale.items || []).filter(i => i.isExchange).reduce((s, i) => s + (i.lineTotal || 0), 0);
         doc.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
+        if (receiptExchangeCredit > 0) doc.write(`<tr><td style="color:#c00;font-weight:900;">Exchange Credit</td><td class="value" style="color:#c00;font-weight:900;">-${pf(receiptExchangeCredit)}</td></tr>`);
         if (sale.alterationCharges > 0) doc.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
         if (sale.deliveryCharges > 0) doc.write(`<tr><td>Delivery Charges</td><td class="value">${pf(sale.deliveryCharges)}</td></tr>`);
         const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);

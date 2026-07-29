@@ -472,14 +472,16 @@ export function POSProvider({ children }) {
 
   const cardChargesPct = paymentMethod === 'CARD' ? 2 : 0;
 
-  const subtotal = useMemo(() => cart.reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * i.qty, 0), [cart]);
-  const altCharges = useMemo(() => cart.reduce((s, i) => s + (parseFloat(i.alterationAmount) || 0) * i.qty, 0), [cart]);
-  const cust1Total = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 : 0) * i.qty, 0), [cart]);
-  const cust2Total = useMemo(() => cart.reduce((s, i) => s + (i.customization2 ? 1000 : 0) * i.qty, 0), [cart]);
-  const engraveTotal = useMemo(() => cart.reduce((s, i) => s + (i.nameEngrave ? 300 : 0) * i.qty, 0), [cart]);
-  const logoDesignTotal = useMemo(() => cart.reduce((s, i) => s + (i.logoDesign ? 300 : 0) * i.qty, 0), [cart]);
-  const otherChargesTotal = useMemo(() => cart.reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0), [cart]);
-  const perItemDiscount = useMemo(() => cart.reduce((s, i) => s + ((parseFloat(i.discountPct) || 0) / 100 * parseFloat(i.unitPrice) + (parseFloat(i.discountFixed) || 0)) * i.qty, 0), [cart]);
+  const nonExchangeCart = useMemo(() => cart.filter(i => !i.isExchange), [cart]);
+
+  const subtotal = useMemo(() => nonExchangeCart.reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * i.qty, 0), [nonExchangeCart]);
+  const altCharges = useMemo(() => nonExchangeCart.reduce((s, i) => s + (parseFloat(i.alterationAmount) || 0) * i.qty, 0), [nonExchangeCart]);
+  const cust1Total = useMemo(() => nonExchangeCart.reduce((s, i) => s + (i.customization1 ? 500 : 0) * i.qty, 0), [nonExchangeCart]);
+  const cust2Total = useMemo(() => nonExchangeCart.reduce((s, i) => s + (i.customization2 ? 1000 : 0) * i.qty, 0), [nonExchangeCart]);
+  const engraveTotal = useMemo(() => nonExchangeCart.reduce((s, i) => s + (i.nameEngrave ? 300 : 0) * i.qty, 0), [nonExchangeCart]);
+  const logoDesignTotal = useMemo(() => nonExchangeCart.reduce((s, i) => s + (i.logoDesign ? 300 : 0) * i.qty, 0), [nonExchangeCart]);
+  const otherChargesTotal = useMemo(() => nonExchangeCart.reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0), [nonExchangeCart]);
+  const perItemDiscount = useMemo(() => nonExchangeCart.reduce((s, i) => s + ((parseFloat(i.discountPct) || 0) / 100 * parseFloat(i.unitPrice) + (parseFloat(i.discountFixed) || 0)) * i.qty, 0), [nonExchangeCart]);
   const deliveryCharge = deliveryEnabled ? 250 : 0;
   const globalDiscountAmt = useMemo(() => {
     const afterItemD = Math.max(0, subtotal + altCharges + cust1Total + cust2Total + engraveTotal + logoDesignTotal + otherChargesTotal - perItemDiscount);
@@ -489,11 +491,8 @@ export function POSProvider({ children }) {
     const afterDiscount = Math.max(0, subtotal + altCharges + cust1Total + cust2Total + engraveTotal + logoDesignTotal + otherChargesTotal - perItemDiscount - globalDiscountAmt);
     return paymentMethod === 'CARD' ? Math.round(afterDiscount * cardChargesPct / 100) : 0;
   }, [subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal, perItemDiscount, globalDiscountAmt, paymentMethod, cardChargesPct]);
-  const grandTotal = useMemo(() => {
-    return Math.max(0, subtotal + altCharges + cust1Total + cust2Total + engraveTotal + logoDesignTotal + otherChargesTotal - perItemDiscount - globalDiscountAmt + cardChargesAmt + deliveryCharge);
-  }, [subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal, perItemDiscount, globalDiscountAmt, cardChargesAmt, deliveryCharge]);
 
-  // Exchange-related memo values
+  // Exchange-related memo values (based on ALL cart items for display + grandTotal deduction)
   const exchangeItemsTotal = useMemo(() =>
     cart.filter(i => i.isExchange).reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * i.qty, 0),
   [cart]);
@@ -501,6 +500,10 @@ export function POSProvider({ children }) {
     cart.filter(i => !i.isExchange).reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * i.qty, 0),
   [cart]);
   const exchangeDiff = useMemo(() => newItemsTotal - exchangeItemsTotal, [newItemsTotal, exchangeItemsTotal]);
+
+  const grandTotal = useMemo(() => {
+    return Math.max(0, subtotal + altCharges + cust1Total + cust2Total + engraveTotal + logoDesignTotal + otherChargesTotal - perItemDiscount - globalDiscountAmt + cardChargesAmt + deliveryCharge - exchangeItemsTotal);
+  }, [subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal, perItemDiscount, globalDiscountAmt, cardChargesAmt, deliveryCharge, exchangeItemsTotal]);
 
   useEffect(() => {
     if (paymentMethod === 'CASH_ONLINE' && grandTotal > 0) {
