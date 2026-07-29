@@ -53,8 +53,12 @@ export const NotificationProvider = ({ children }) => {
   const markModuleRead = useCallback(async (path) => {
     if (!user?.role) return;
     try {
-      await api.put('/api/notifications/mark-read', { path });
-      setUnreadCounts(prev => ({ ...prev, [path]: 0 }));
+      await api.put('/api/notifications/mark-read', { path: path || undefined });
+      if (path) {
+        setUnreadCounts(prev => ({ ...prev, [path]: 0 }));
+      } else {
+        setUnreadCounts({});
+      }
     } catch (e) { /* silent */ }
   }, [user?.role]);
 

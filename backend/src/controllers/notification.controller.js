@@ -2,21 +2,23 @@ const prisma = require('../prisma');
 
 exports.getNotifications = async (req, res) => {
   try {
-    const { page = 1, limit = 50 } = req.query;
+    const { page = 1, limit = 50, unread } = req.query;
     const role = req.user?.role;
     if (!role) return res.status(400).json({ message: 'Role required' });
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const take = parseInt(limit);
+    const where = { role };
+    if (unread === 'true') where.isRead = false;
 
     const [notifications, total] = await Promise.all([
       prisma.notification.findMany({
-        where: { role },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take
       }),
-      prisma.notification.count({ where: { role } })
+      prisma.notification.count({ where })
     ]);
 
     res.json({ notifications, total, page: parseInt(page), totalPages: Math.ceil(total / take) });

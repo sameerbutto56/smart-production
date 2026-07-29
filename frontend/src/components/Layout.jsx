@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -362,6 +362,36 @@ const Layout = () => {
 
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [globalSearch, setLocalSearch] = useState('');
+  const { unreadCounts, markModuleRead } = useNotifications();
+  const [bellOpen, setBellOpen] = useState(false);
+  const [bellNotifs, setBellNotifs] = useState([]);
+  const bellRef = useRef(null);
+
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+
+  const fetchBellNotifs = useCallback(async () => {
+    try {
+      const res = await api.get('/api/notifications?limit=5&unread=true');
+      setBellNotifs(res.data.notifications || []);
+    } catch (e) { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    if (!bellOpen) return;
+    fetchBellNotifs();
+  }, [bellOpen, fetchBellNotifs]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) {
+        setBellOpen(false);
+      }
+    };
+    if (bellOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [bellOpen]);
 
   const handleGlobalSearch = (e) => {
     e.preventDefault();
@@ -568,6 +598,70 @@ const Layout = () => {
                 <LogOut size={14} />
               </button>
             )}
+            <div className="relative" ref={bellRef}>
+              <button
+                onClick={() => setBellOpen(o => !o)}
+                className="relative p-2.5 text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-700/50 rounded-xl transition-all"
+                title="Notifications"
+              >
+                <Bell size={18} />
+                {totalUnread > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight shadow-lg shadow-red-500/30 animate-nav-blink">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </span>
+                )}
+              </button>
+              {bellOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 md:w-96 max-h-[70vh] overflow-y-auto rounded-2xl border shadow-2xl z-50" style={{ background: 'var(--nav-bg)', borderColor: 'var(--glass-border)' }}>
+                  <div className="sticky top-0 flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
+                    <span className="text-xs font-black text-white uppercase tracking-widest">Notifications</span>
+                    <div className="flex items-center gap-2">
+                      {totalUnread > 0 && (
+                        <button
+                          onClick={() => { markModuleRead(''); setBellNotifs([]); }}
+                          className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest"
+                        >
+                          Mark All Read
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { navigate('/notifications'); setBellOpen(false); }}
+                        className="text-[10px] font-bold text-gray-400 hover:text-white uppercase tracking-widest"
+                      >
+                        View All
+                      </button>
+                    </div>
+                  </div>
+                  {bellNotifs.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500 font-bold text-xs">No unread notifications</div>
+                  ) : (
+                    bellNotifs.map(n => (
+                      <button
+                        key={n.id}
+                        onClick={() => {
+                          setBellOpen(false);
+                          markModuleRead(n.path);
+                          if (n.path) navigate(n.path);
+                        }}
+                        className="w-full text-left px-4 py-3 border-b hover:bg-gray-800/50 transition-colors last:border-b-0" style={{ borderColor: 'var(--glass-border)' }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-black text-white uppercase tracking-wider truncate">{n.title}</div>
+                            <div className="text-[11px] text-gray-400 font-medium mt-0.5 line-clamp-2">{n.message}</div>
+                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-500 font-bold">
+                              <span>{new Date(n.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                              {n.employeeName && <><span>·</span><span>{n.employeeName}</span></>}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
             <LanguageToggle />
             <div className="hidden md:flex flex-col items-end text-right">
               <span className="text-xs md:text-sm font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
