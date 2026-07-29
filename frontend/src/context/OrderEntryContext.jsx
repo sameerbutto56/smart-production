@@ -157,6 +157,12 @@ export const OrderEntryProvider = ({ children }) => {
             const firstPd = Array.isArray(found.productDetails) && found.productDetails.length > 0
               ? (found.productDetails[0].productDetails || found.productDetails[0])
               : {};
+            // Parse instructionNotes to extract measurement special note (stored concatenated on submit)
+            const _instRaw = found.instructionNotes || '';
+            const _sep = '\n---\n';
+            const _sepIdx = _instRaw.indexOf(_sep);
+            const _loadedInstNote = _sepIdx !== -1 ? _instRaw.substring(0, _sepIdx) : _instRaw;
+            const _loadedMeasNote = _sepIdx !== -1 ? _instRaw.substring(_sepIdx + _sep.length) : '';
             setFormData(prev => ({
               ...prev,
               orderNumber: found.orderNumber || '',
@@ -173,7 +179,8 @@ export const OrderEntryProvider = ({ children }) => {
               quantity: found.quantity || 1,
               deliveryCharges: found.deliveryCharges || '',
               shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
-              instructionNotes: found.instructionNotes || '',
+              instructionNotes: _loadedInstNote,
+              measurements: { ...prev.measurements, specialNote: _loadedMeasNote },
               // Engraving / branding (order-level)
               logoDesign: found.logoDesign || '',
               logoName: found.logoName || '',
@@ -594,7 +601,8 @@ export const OrderEntryProvider = ({ children }) => {
         waist: item.sizeData?.waist || '', hip: item.sizeData?.hip || '', hips: item.sizeData?.hips || '',
         shirtLength: item.sizeData?.shirtLength || '', trouserLength: item.sizeData?.trouserLength || '',
         bottom: item.sizeData?.bottom || '', thigh: item.sizeData?.thigh || '',
-        mori: item.sizeData?.mori || '', ganda: item.sizeData?.ganda || ''
+        mori: item.sizeData?.mori || '', ganda: item.sizeData?.ganda || '',
+        specialNote: item.sizeData?.specialNote || ''
       }
     }));
     setLogoEntries(cust.logos && cust.logos.length > 0 ? cust.logos : [{ name: item.logoName || '', design: item.logoDesign || '' }]);
