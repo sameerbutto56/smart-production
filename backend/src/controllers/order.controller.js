@@ -3414,9 +3414,9 @@ const getOrderPerformance = async (req, res) => {
     const dateFrom = from ? new Date(from) : new Date('2000-01-01');
     const dateTo = to ? new Date(to + 'T23:59:59.999Z') : new Date('2100-01-01');
 
-    // Faisal: orders created in date range
+    // Faisal: orders created in date range (exclude OUTLET orders — match codebase convention)
     const faisalEntered = await prisma.order.count({
-      where: { createdAt: { gte: dateFrom, lte: dateTo } }
+      where: { createdAt: { gte: dateFrom, lte: dateTo }, source: { not: 'OUTLET' } }
     });
 
     // Helper: count DISTINCT orders that have a stage record matching criteria
