@@ -37,6 +37,7 @@ const {
   getOrderTimeline,
   getOrderPerformance,
   getOutletAnalytics,
+  getOrderById,
   updateProductAvailability,
   toggleProductVerification,
   trackOrder
@@ -166,5 +167,8 @@ router.get('/:orderId/routing-history', authenticate, authorize(['SUPER_ADMIN', 
 // Dispatch Management
 router.post('/:orderId/dispatch', authenticate, authorize(['DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), dispatchOrder);
 router.put('/:orderId/dispatch-status', authenticate, authorize(['DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), updateDispatchStatus);
+
+// Fetch single order by ID (must be after all specific GET routes)
+router.get('/:orderId', authenticate, getOrderById);
 
 module.exports = router;

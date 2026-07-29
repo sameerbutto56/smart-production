@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer, Send, UserCheck, MapPin, ArrowRight, Palette, Factory } from 'lucide-react';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
@@ -46,6 +46,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [selectedDeliveryType, setSelectedDeliveryType] = useState('');
   const [showForceModal, setShowForceModal] = useState(false);
   const [storeRouteDest, setStoreRouteDest] = useState('DISPATCH');
+  const [outletRouteAction, setOutletRouteAction] = useState('');
+  const [outletRoutingTarget, setOutletRoutingTarget] = useState('');
+  const [outletRoutingLoading, setOutletRoutingLoading] = useState(false);
+  const outletName = (order.outletName || '').toLowerCase();
+  const isJoharTown = outletName.includes('johar');
+  const isJailRoad = outletName.includes('jail');
+  const isAbbottabad = outletName.includes('abbottabad');
   const [verifiedProducts, setVerifiedProducts] = useState(new Set());
   const [forceAction, setForceAction] = useState('FORCE_MOVE');
   const [forceStage, setForceStage] = useState('');
@@ -180,6 +187,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       return typeof data === 'string' ? JSON.parse(data) : data;
     } catch (e) {
       return {};
+    }
+  };
+
+  // Outlet route handler — sends action to outlet-route endpoint
+  const handleOutletRoute = async (action, targetOutlet) => {
+    setOutletRouteAction(action);
+    setOutletRoutingLoading(true);
+    try {
+      const payload = { action };
+      if (targetOutlet) payload.targetOutlet = targetOutlet;
+      await api.post(`/api/outlet-orders/${order.id}/outlet-route`, payload);
+      toast.success(`Order ${action === 'customerTakeDeliver' ? 'completed' : 'routed'} successfully`);
+      if (onMarkSeen) onMarkSeen();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Routing failed');
+    } finally {
+      setOutletRouteAction('');
+      setOutletRoutingLoading(false);
     }
   };
 
@@ -1993,31 +2018,113 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           REPORT PROBLEM
                         </button>
                       </div>
-                    ) : currentStage?.stageName === 'OUTLET_RECEIVE' ? (
-                      <div className="flex flex-col gap-2 w-full">
+                    ) : currentStage?.stageName === 'ORDER_ENTRY' && userRole === 'OUTLET' ? (
+                      <div className="w-full space-y-3">
                         <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => {
-                              if (window.confirm('Confirm delivery complete? This will mark order as DELIVERED.')) {
-                                api.put(`/api/orders/${order.id}/delivery`, {
-                                  deliveryStatus: 'DELIVERED',
-                                  remarks: 'Delivered at outlet'
-                                }).then(() => { toast.success('Marked as DELIVERED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
-                              }
-                            }}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
-                          >
-                            <CheckCircle size={12} className="mx-auto mb-0.5" />
-                            DELIVER
-                          </button>
-                          <button
-                            onClick={() => setShowProblemModal(true)}
-                            className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase transition-all flex items-center justify-center space-x-2 border border-red-500/20 active:scale-95"
-                          >
-                            <AlertCircle size={14} />
-                            PROBLEM
+                          {isJoharTown && (
+                            <>
+                              <button onClick={() => handleOutletRoute('sendToLogo')} disabled={outletRoutingLoading}
+                                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                                <Palette size={14} /><span>Send to Logo</span>
+                              </button>
+                              <button onClick={() => handleOutletRoute('sendToProduction')} disabled={outletRoutingLoading}
+                                className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                                <Factory size={14} /><span>Send to Production</span>
+                              </button>
+                            </>
+                          )}
+                          {isJoharTown && (
+                            <button onClick={() => handleOutletRoute('sendToEnamelsDelivery')} disabled={outletRoutingLoading}
+                              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                              <Truck size={14} /><span>Delivery Boy</span>
+                            </button>
+                          )}
+                          {isJoharTown && (
+                            <div className="relative">
+                              <select
+                                value={outletRoutingTarget || ''}
+                                onChange={(e) => {
+                                  setOutletRoutingTarget(e.target.value);
+                                  if (e.target.value) handleOutletRoute('sendToOutlet', e.target.value);
+                                }}
+                                disabled={outletRoutingLoading}
+                                className="w-full bg-gradient-to-r from-emerald-700 to-teal-700 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-center appearance-none cursor-pointer disabled:opacity-50"
+                              >
+                                <option value="" className="bg-gray-900 text-gray-400">Send to...</option>
+                                {!isJailRoad && <option value="Jail Road Outlet" className="bg-gray-900 text-white">Jail Road Outlet</option>}
+                                {!isAbbottabad && <option value="Abbottabad Outlet" className="bg-gray-900 text-white">Abbottabad Outlet</option>}
+                                {!isJoharTown && <option value="Johar Town Outlet" className="bg-gray-900 text-white">Johar Town Outlet</option>}
+                              </select>
+                            </div>
+                          )}
+                          {isJailRoad && (
+                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                              <Send size={14} /><span>Send to JT</span>
+                            </button>
+                          )}
+                          {isAbbottabad && (
+                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                              <Send size={14} /><span>Send to JT</span>
+                            </button>
+                          )}
+                          <button onClick={() => handleOutletRoute('customerTakeDeliver')} disabled={outletRoutingLoading}
+                            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                            <UserCheck size={14} /><span>Customer Take</span>
                           </button>
                         </div>
+                      </div>
+                    ) : currentStage?.stageName === 'OUTLET_RECEIVE' ? (
+                      <div className="w-full space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          {isJoharTown && (
+                            <>
+                              <button onClick={() => handleOutletRoute('sendToEnamelsDelivery')} disabled={outletRoutingLoading}
+                                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                                <Truck size={14} /><span>Delivery Boy</span>
+                              </button>
+                              <div className="relative">
+                                <select
+                                  value={outletRoutingTarget || ''}
+                                  onChange={(e) => {
+                                    setOutletRoutingTarget(e.target.value);
+                                    if (e.target.value) handleOutletRoute('sendToOutlet', e.target.value);
+                                  }}
+                                  disabled={outletRoutingLoading}
+                                  className="w-full bg-gradient-to-r from-emerald-700 to-teal-700 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-center appearance-none cursor-pointer disabled:opacity-50"
+                                >
+                                  <option value="" className="bg-gray-900 text-gray-400">Send to...</option>
+                                  <option value="Jail Road Outlet" className="bg-gray-900 text-white">Jail Road</option>
+                                  <option value="Abbottabad Outlet" className="bg-gray-900 text-white">Abbottabad</option>
+                                </select>
+                              </div>
+                            </>
+                          )}
+                          {isJailRoad && (
+                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                              <Send size={14} /><span>Send to JT</span>
+                            </button>
+                          )}
+                          {isAbbottabad && (
+                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                              <Send size={14} /><span>Send to JT</span>
+                            </button>
+                          )}
+                          <button onClick={() => handleOutletRoute('customerTakeDeliver')} disabled={outletRoutingLoading}
+                            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                            <UserCheck size={14} /><span>Customer Take</span>
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setShowProblemModal(true)}
+                          className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95"
+                        >
+                          <AlertCircle size={14} />
+                          <span>Report Problem</span>
+                        </button>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">

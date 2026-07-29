@@ -35,10 +35,11 @@ const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry', STORE: 'Store', WORKERS: 'Workers',
   LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production Acceptance',
   PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
-  DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered'
+  DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered',
+  ENAMELS_DELIVERY: 'Enamels Delivery', OUTLET_RECEIVE: 'Outlet Receive'
 };
  
-const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'OUTLET_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'OUTLET_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'];
 
 // Validates forward-only stage transitions to prevent routing loops
 const validateStageTransition = (fromStage, toStage, orderType) => {
@@ -49,7 +50,10 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
     'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'] },
     'STORE_RECEIVE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
-    'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] }
+    'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] },
+    'ORDER_ENTRY': { 'STANDARD': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] },
+    'OUTLET_RECEIVE': { 'STANDARD': ['ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] },
+    'ENAMELS_DELIVERY': { 'STANDARD': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] }
   };
 
   const allowed = validTransitions[fromStage]?.[orderType];
@@ -59,7 +63,7 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
   return { valid: true, expected: toStage };
 };
 
-const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE'];
+const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'ENAMELS_DELIVERY'];
 
 const getRolesForStage = (stageName) => {
   const map = {
@@ -71,7 +75,9 @@ const getRolesForStage = (stageName) => {
     'STORE_RECEIVE': ['STORE', 'STORE_EMPLOYEE'],
     'OUTLET_RECEIVE': ['OUTLET'],
     'DISPATCH': ['DISPATCH', 'MAIN_EMPLOYEE'],
-    'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY', 'DELIVERY_BOY']
+    'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY', 'DELIVERY_BOY'],
+    'ENAMELS_DELIVERY': ['DELIVERY_BOY'],
+    'ORDER_ENTRY': ['OUTLET', 'ADMIN', 'FAISAL']
   };
   return map[stageName] || ['ADMIN', 'FAISAL'];
 };
@@ -91,7 +97,7 @@ const getStageDurations = async (priority = 'NORMAL') => {
   });
 
   let config = {
-    stageDurations: { STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    stageDurations: { STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, ENAMELS_DELIVERY: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
 
@@ -656,6 +662,19 @@ const getOrders = async (req, res) => {
   }
 };
 
+const getOrderById = async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch order', error: error.message });
+  }
+};
+
 const requestStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
   const { inventoryStatus, nextStage: manualNextStage, remarks } = req.body;
@@ -710,10 +729,15 @@ const requestStageCompletion = async (req, res) => {
     let actualNextStage = manualNextStage || null;
     if (!actualNextStage) {
       const stageName = currentStage.stageName;
-      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-      const currentIndex = stages.indexOf(stageName);
-      if (currentIndex >= 0 && currentIndex < stages.length - 1) {
-        actualNextStage = stages[currentIndex + 1];
+      // Outlet orders returning from Production auto-route to OUTLET_RECEIVE (not STORE_RECEIVE)
+      if (stageName === 'PRODUCTION' && order.source === 'OUTLET') {
+        actualNextStage = 'OUTLET_RECEIVE';
+      } else {
+        const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+        const currentIndex = stages.indexOf(stageName);
+        if (currentIndex >= 0 && currentIndex < stages.length - 1) {
+          actualNextStage = stages[currentIndex + 1];
+        }
       }
     }
 
@@ -807,7 +831,7 @@ const requestStageCompletion = async (req, res) => {
     
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
-    const nextStageRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY', 'DELIVERED': 'DELIVERY_BOY' };
+    const nextStageRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY', 'DELIVERED': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
     const nextRole = nextStageRoleMap[actualNextStage] || 'STORE';
     if (order.customerName && order.orderNumber) {
       await notify.create(req, { type: 'stage_task', moduleName: 'My Tasks', path: '/tasks', role: nextRole, title: 'New Task', message: `Order #${order.orderNumber} moved to ${actualNextStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `\u2192 ${actualNextStage}`, employeeName: req.user?.name }).catch(() => {});
@@ -2317,7 +2341,7 @@ const manualRouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
-    const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY' };
+    const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
     const manRole = manDestRoleMap[destinationStage] || 'STORE';
     if (order?.customerName && order?.orderNumber) {
       await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
@@ -2343,7 +2367,8 @@ const getRolesForStageBasedOnRole = (role) => {
     'DISPATCH': ['DISPATCH'],
     'MAIN_EMPLOYEE': ['DISPATCH'],
     'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY'],
-    'OUTLET': ['OUTLET_RECEIVE'],
+    'DELIVERY_BOY': ['ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY'],
+    'OUTLET': ['ORDER_ENTRY', 'OUTLET_RECEIVE'],
   };
   return map[role] || [];
 };
@@ -2410,12 +2435,18 @@ const getUnseenOrders = async (req, res) => {
   try {
     // Find orders that are in stages relevant to this user's role
     const relevantStages = getRolesForStageBasedOnRole(userRole);
+    const whereClause = {
+      currentStage: { in: relevantStages },
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+      stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
+    };
+    // Filter by outlet name for OUTLET role so each outlet only sees its own orders
+    if (userRole === 'OUTLET' && req.user?.name) {
+      const outletName = req.user.name;
+      whereClause.outletName = { contains: outletName.replace(' Branch', ''), mode: 'insensitive' };
+    }
     const orders = await prisma.order.findMany({
-      where: {
-        currentStage: { in: relevantStages },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-        stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
-      },
+      where: whereClause,
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
@@ -2627,7 +2658,7 @@ const getOrderTimeline = async (req, res) => {
       LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production Acceptance',
       PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
       DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery',
-      OUTLET_RECEIVE: 'Outlet Receive', DELIVERED: 'Delivered'
+      OUTLET_RECEIVE: 'Outlet Receive', ENAMELS_DELIVERY: 'Enamels Delivery', DELIVERED: 'Delivered'
     };
 
     const ACTION_LABELS = {
@@ -3564,6 +3595,7 @@ module.exports = {
   updateProductAvailability,
   toggleProductVerification,
   trackOrder,
+  getOrderById,
   getRolesForStage,
   getOrderPerformance
 };

@@ -16,7 +16,7 @@ const MyTasks = () => {
   const { user } = useAuth();
   if (user?.role === 'INVENTORY_VIEW') return <Navigate to="/inventory" replace={true} />;
   const { t, LanguageToggle, isUrdu } = useLanguage();
-  const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE'].includes(user?.role);
+  const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'OUTLET'].includes(user?.role);
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
   const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';

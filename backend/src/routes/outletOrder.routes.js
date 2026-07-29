@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth.middleware');
-const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics } = require('../controllers/outletOrder.controller');
+const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder } = require('../controllers/outletOrder.controller');
 
 router.post('/', authenticate, createOutletOrder);
 router.get('/generate-number', authenticate, generateOrderNumberEndpoint);
@@ -12,6 +12,9 @@ router.post('/save-client', authenticate, saveUnregisteredClient);
 router.get('/', authenticate, getOutletOrders);
 router.get('/returns', authenticate, getOutletReturns);
 router.post('/:orderId/receive', authenticate, receiveOutletReturn);
+
+// Outlet routing (accept → route to departments/other outlets)
+router.post('/:orderId/outlet-route', authenticate, outletRouteOrder);
 
 // Dashboard
 router.get('/dashboard-stats', authenticate, getOutletDashboardStats);

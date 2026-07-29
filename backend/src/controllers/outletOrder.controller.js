@@ -36,19 +36,12 @@ const generateInvoiceNumber = async (outletName) => {
   return `INV-${prefix}-${String(seq.nextValue).padStart(5, '0')}`;
 };
 
-const DESTINATION_STAGES = {
-  STORE: 'STORE',
-  LOGO_DESIGN: 'LOGO_DESIGN',
-  PRODUCTION: 'PRODUCTION_ACCEPTANCE'
-};
-
 const createOutletOrder = async (req, res) => {
   try {
     const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
-    if (!orderDestination || !DESTINATION_STAGES[orderDestination]) return res.status(400).json({ message: 'Order destination is required: STORE, LOGO_DESIGN, or PRODUCTION' });
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
 
@@ -137,7 +130,7 @@ const createOutletOrder = async (req, res) => {
           logoDesign: logoDesign || null,
           engravingNames: engravingNames ? (typeof engravingNames === 'string' ? engravingNames : JSON.stringify(engravingNames)) : null,
           engravingLogos: engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null,
-          orderDestination,
+          orderDestination: orderDestination || null,
           placedBy: placedBy || null,
           advanceAmount: adv,
           totalPrice,
@@ -146,38 +139,17 @@ const createOutletOrder = async (req, res) => {
         }
       });
 
+      // Create PENDING ORDER_ENTRY stage — order stays in Outlet's Unseen Tasks until accepted
       await tx.orderStage.create({
-        data: { orderId: created.id, stageName: 'ORDER_ENTRY', status: 'COMPLETED', completedAt: new Date() }
-      });
-
-      const destStage = DESTINATION_STAGES[orderDestination];
-      await tx.orderStage.create({
-        data: { orderId: created.id, stageName: destStage, status: 'PENDING' }
-      });
-
-      await tx.order.update({
-        where: { id: created.id },
-        data: { currentStage: destStage }
+        data: { orderId: created.id, stageName: 'ORDER_ENTRY', status: 'PENDING' }
       });
 
       await tx.auditLog.create({
         data: {
           orderId: created.id,
           action: 'OUTLET_ORDER_CREATED',
-          details: `Outlet order created, routed to ${orderDestination}`,
+          details: `Outlet order created, pending acceptance at ${outletName}`,
           performedBy: req.user?.id || 'SYSTEM'
-        }
-      });
-
-      // Create routing history for ORDER_ENTRY → destStage
-      await tx.routingHistory.create({
-        data: {
-          orderId: created.id,
-          sentByUserId: req.user?.id || null,
-          previousStage: 'ORDER_ENTRY',
-          newStage: destStage,
-          sentToStage: destStage,
-          remarks: 'Order created and routed'
         }
       });
 
@@ -281,7 +253,25 @@ const createOutletOrder = async (req, res) => {
       }
     }
 
-    if (req.app.get('io')) req.app.get('io').emit('new-order', { orderId: order.id, orderNumber: order.orderNumber, source: 'OUTLET', outletName });
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('new-order', { orderId: order.id, orderNumber: order.orderNumber, source: 'OUTLET', outletName });
+      io.emit('order-updated', { orderId: order.id });
+    }
+
+    await notify.create(req, {
+      type: 'outlet_task',
+      moduleName: 'My Tasks',
+      path: '/tasks',
+      role: 'OUTLET',
+      title: 'New Order',
+      message: `Order #${order.orderNumber} created, pending acceptance`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName,
+      action: 'New → Outlet Task',
+      employeeName: req.user?.name
+    }).catch(() => {});
 
     res.status(201).json(order);
   } catch (error) {
@@ -412,7 +402,7 @@ const getOutletOrders = async (req, res) => {
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
     const orders = await prisma.order.findMany({
-      where: { source: 'OUTLET', outletName, currentStage: { not: 'ORDER_ENTRY' } },
+      where: { source: 'OUTLET', outletName },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: { id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true, totalPrice: true, advanceAmount: true, currentStage: true, orderDestination: true, createdAt: true, engravingRequired: true, status: true }
@@ -923,4 +913,178 @@ const getOutletAnalytics = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics };
+// Outlet Route Order — handles all outlet routing actions
+const outletRouteOrder = async (req, res) => {
+  const { orderId } = req.params;
+  const { action, targetOutlet, remarks } = req.body;
+  // action: 'sendToLogo' | 'sendToProduction' | 'sendToEnamelsDelivery' | 'sendToOutlet' | 'customerTakeDeliver'
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.source !== 'OUTLET') return res.status(400).json({ message: 'Only outlet orders can be routed' });
+
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    if (![order.outletName, 'Enamels Delivery'].some(n => outletName.includes(n) || n.includes(outletName))) {
+      // Allow Enamels Delivery Boy to route to outlets
+      const isDeliveryBoy = req.user?.role === 'DELIVERY_BOY';
+      if (!isDeliveryBoy) {
+        return res.status(403).json({ message: `This order belongs to ${order.outletName}` });
+      }
+    }
+
+    const validActions = ['sendToLogo', 'sendToProduction', 'sendToEnamelsDelivery', 'sendToOutlet', 'customerTakeDeliver'];
+    if (!validActions.includes(action)) {
+      return res.status(400).json({ message: `Invalid action. Valid: ${validActions.join(', ')}` });
+    }
+
+    // Stage mappings
+    const actionStageMap = {
+      sendToLogo: 'LOGO_DESIGN',
+      sendToProduction: 'PRODUCTION_ACCEPTANCE',
+      sendToEnamelsDelivery: 'ENAMELS_DELIVERY',
+      sendToOutlet: 'OUTLET_RECEIVE',
+      customerTakeDeliver: null // no next stage — marks complete
+    };
+
+    const destinationStage = actionStageMap[action];
+    const currentStage = order.stages.find(s =>
+      ['PENDING', 'IN_PROGRESS'].includes(s.status) &&
+      ['ORDER_ENTRY', 'OUTLET_RECEIVE', 'ENAMELS_DELIVERY'].includes(s.stageName)
+    );
+    if (!currentStage) return res.status(400).json({ message: 'No active stage found for routing' });
+
+    // Complete current stage
+    await prisma.orderStage.update({
+      where: { id: currentStage.id },
+      data: { status: 'COMPLETED', completedAt: new Date() }
+    });
+
+    if (action === 'customerTakeDeliver') {
+      // Customer Take & Deliver — mark order DELIVERED
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          currentStage: 'ORDER_ENTRY',
+          status: 'COMPLETED',
+          customerTakenAt: new Date(),
+          orderTakenBy: req.user?.name || 'Outlet Staff',
+          deliveredAt: new Date()
+        }
+      });
+
+      await createAuditLog(orderId, 'CUSTOMER_TAKEN',
+        `Customer taken by ${outletName}`,
+        req.user?.id || 'SYSTEM');
+
+      await prisma.routingHistory.create({
+        data: {
+          orderId, sentByUserId: req.user?.id || null,
+          previousStage: currentStage.stageName, newStage: 'DELIVERED',
+          sentToStage: 'DELIVERED',
+          remarks: remarks || 'Customer picked up order'
+        }
+      });
+
+      await notify.create(req, {
+        type: 'order_completed', moduleName: 'Orders', path: '/orders',
+        role: 'FAISAL', title: 'Order Completed',
+        message: `Order #${order.orderNumber} taken by customer`,
+        orderId: order.id, orderNumber: order.orderNumber,
+        customerName: order.customerName, action: 'Customer Taken',
+        employeeName: req.user?.name
+      }).catch(() => {});
+
+      const io = req.app.get('io');
+      if (io) io.emit('order-updated', { orderId });
+
+      return res.json({ message: 'Order completed: Customer Take & Deliver' });
+    }
+
+    // For sendToOutlet, validate target outlet
+    let targetOutletName = null;
+    if (action === 'sendToOutlet') {
+      if (!targetOutlet) return res.status(400).json({ message: 'Target outlet is required' });
+      targetOutletName = targetOutlet;
+    }
+
+    // Create destination stage
+    const durations = await require('./order-helpers').getStageDurations?.() || {};
+    const deadline = new Date(Date.now() + ((durations[destinationStage] || 48) * 60 * 60 * 1000));
+    await prisma.orderStage.create({
+      data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+    });
+
+    // Update order's currentStage
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: destinationStage, status: 'PENDING' }
+    });
+
+    // Find recipient users
+    const recipientRoles = {
+      LOGO_DESIGN: ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
+      PRODUCTION_ACCEPTANCE: ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'],
+      ENAMELS_DELIVERY: ['DELIVERY_BOY'],
+      OUTLET_RECEIVE: ['OUTLET']
+    };
+    const roles = recipientRoles[destinationStage] || ['OUTLET'];
+    const whereUsers = { role: { in: roles } };
+    // For outlet-to-outlet routing, filter by target outlet name
+    if (action === 'sendToOutlet' && targetOutletName) {
+      whereUsers.outletName = { contains: targetOutletName, mode: 'insensitive' };
+    }
+    const recipientUsers = await prisma.user.findMany({
+      where: whereUsers,
+      select: { id: true }
+    });
+
+    // Routing history
+    await prisma.routingHistory.create({
+      data: {
+        orderId, sentByUserId: req.user?.id,
+        sentToStage: destinationStage,
+        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+        previousStage: currentStage.stageName,
+        newStage: destinationStage,
+        remarks: remarks || `Outlet routed to ${destinationStage}${targetOutletName ? ` (${targetOutletName})` : ''}`,
+        createdAt: new Date()
+      }
+    });
+
+    // Reset seen status
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
+    }).catch(() => {});
+
+    const auditAction = action === 'sendToOutlet' ? 'OUTLET_ROUTED' : 'MANUAL_ROUTE';
+    await createAuditLog(orderId, auditAction,
+      `Routed from ${currentStage.stageName} to ${destinationStage}${targetOutletName ? ` (${targetOutletName})` : ''} by ${req.user?.name}`,
+      req.user?.id || 'SYSTEM');
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId });
+
+    // Notify destination role
+    const destRole = action === 'sendToOutlet' ? 'OUTLET' : (action === 'sendToEnamelsDelivery' ? 'DELIVERY_BOY' : (action === 'sendToLogo' ? 'LOGO_DESIGN' : 'PRODUCTION'));
+    await notify.create(req, {
+      type: 'manual_route', moduleName: 'My Tasks', path: '/tasks',
+      role: destRole, title: 'Order Routed',
+      message: `Order #${order.orderNumber} routed to ${destinationStage}${targetOutletName ? ` (${targetOutletName})` : ''}`,
+      orderId: order.id, orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      action: `Routed → ${destinationStage.replace(/_/g, ' ')}${targetOutletName ? ` (${targetOutletName})` : ''}`,
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    res.json({ message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
+  } catch (error) {
+    console.error('outletRouteOrder error:', error);
+    res.status(500).json({ message: 'Error routing outlet order', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder };

@@ -132,9 +132,8 @@ export const OrderEntryProvider = ({ children }) => {
       // Load the order data
       (async () => {
         try {
-          const res = await api.get('/api/orders', { params: { limit: 'all' } });
-          const orders = Array.isArray(res.data) ? res.data : [];
-          const found = orders.find(o => o.id === editId);
+          const res = await api.get(`/api/orders/${editId}`);
+          const found = res.data;
           if (found) {
             setEditOrderData(found);
             setOriginalOrder(found);

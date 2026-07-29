@@ -101,7 +101,19 @@ const SmartOrderForm = () => {
         </div>
       )}
 
-      {isEditMode && !originalOrder && (
+      {fromVerification && !originalOrder && (
+        <div className="mb-6 glass border-2 border-emerald-500/30 rounded-[2rem] p-10 bg-emerald-500/5 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 size={40} className="text-emerald-400 animate-spin" />
+            <div>
+              <h3 className="text-lg md:text-xl font-black text-emerald-400 uppercase tracking-wider">Loading Order...</h3>
+              <p className="text-gray-400 text-sm font-bold mt-2">Please wait while the complete order is being loaded.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditMode && !originalOrder && !fromVerification && (
         <div className="mb-6 glass border-2 border-amber-500/30 rounded-[2rem] p-6 md:p-8 bg-amber-500/5 relative overflow-hidden backdrop-blur-md shadow-2xl">
           <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl" />
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">

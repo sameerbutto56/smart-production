@@ -100,6 +100,7 @@ const VerificationPage = () => {
         const cust = getCust(item);
         const sd = getSizeData(item);
         const measurements = Object.entries(sd).filter(([k, v]) => v && k !== 'specialNote');
+        const specialNote = sd?.specialNote || '';
         const hasEng = item.engravingText || item.engravingType || item.engravingNames || item.engravingLogos || item.engravingInstructions || item.instructionNotes || order.engravingInstructions || order.instructionNotes;
         return (
           <div key={i} className="bg-gray-900 rounded-xl p-4 border border-gray-700/50">
@@ -131,6 +132,16 @@ const VerificationPage = () => {
                       <span className="text-xs font-bold text-white">{v}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Special Note */}
+            {specialNote && (
+              <div className="mb-3">
+                <p className="text-[10px] font-black text-yellow-400 uppercase mb-1.5 flex items-center gap-1"><MessageSquare size={10} /> Special Note</p>
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-2">
+                  <p className="text-xs text-yellow-300 font-medium italic">{specialNote}</p>
                 </div>
               </div>
             )}
@@ -326,6 +337,14 @@ const VerificationPage = () => {
                           <p className="text-[10px] font-black text-purple-400 uppercase">Logo Design</p>
                           <p className="text-xs font-bold text-purple-300">{order.logoDesign}</p>
                           {order.logoName && <p className="text-[10px] text-purple-400 mt-1">Logo: {order.logoName}</p>}
+                        </div>
+                      )}
+
+                      {/* Instruction Notes (order-level) */}
+                      {order.instructionNotes && (
+                        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+                          <p className="text-[10px] font-black text-yellow-400 uppercase flex items-center gap-1 mb-1"><MessageSquare size={10} /> Instruction Notes</p>
+                          <p className="text-xs text-yellow-300 font-medium italic">{order.instructionNotes}</p>
                         </div>
                       )}
 
