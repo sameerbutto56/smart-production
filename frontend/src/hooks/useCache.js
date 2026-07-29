@@ -71,7 +71,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     // 3. Fetch fresh from API (revalidation or cold load)
     const fn = fetcherRef.current;
     if (!fn) { setLoading(false); return; }
-    if (!hadCachedData) setLoading(true);
+    if (!hadCachedData && !skipCache) setLoading(true);
     try {
       const freshData = await fn();
       if (!mountRef.current || reqRef.current !== reqId) return;

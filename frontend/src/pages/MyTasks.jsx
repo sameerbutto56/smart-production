@@ -164,6 +164,16 @@ const MyTasks = () => {
     }
   };
 
+  // Debounced refresh — prevents rapid re-fetches when multiple socket events fire
+  const debouncedRefresh = useRef(null);
+  const scheduleRefresh = useCallback(() => {
+    if (debouncedRefresh.current) return;
+    debouncedRefresh.current = setTimeout(() => {
+      debouncedRefresh.current = null;
+      refreshTasks();
+    }, 2000);
+  }, []);
+
   // Listen for real-time events that should trigger a task refresh
   useEffect(() => {
     const onStageRejected = (data) => {
@@ -172,10 +182,10 @@ const MyTasks = () => {
         icon: <AlertCircle className="text-red-500" />
       });
     };
-    const onOrderVerified = () => { refreshTasks(); };
-    const onOrderUpdated = () => { refreshTasks(); };
+    const onOrderVerified = () => { scheduleRefresh(); };
+    const onOrderUpdated = () => { scheduleRefresh(); };
     const onNewNotification = (data) => {
-      if (!data.role || data.role === user?.role) refreshTasks();
+      if (!data.role || data.role === user?.role) scheduleRefresh();
     };
     socket.on('stage-rejected', onStageRejected);
     socket.on('order-verified', onOrderVerified);
@@ -186,20 +196,19 @@ const MyTasks = () => {
       socket.off('order-verified', onOrderVerified);
       socket.off('order-updated', onOrderUpdated);
       socket.off('notification:new', onNewNotification);
+      if (debouncedRefresh.current) clearTimeout(debouncedRefresh.current);
     };
-  }, [user?.role]);
+  }, [user?.role, scheduleRefresh]);
 
   // Refresh once on mount
   useEffect(() => { refreshTasks(); }, []);
 
-  // Polling fallback for environments where socket events may be missed
+  // Lightweight background poll (every 30s) as socket fallback — never shows loading spinner
   useEffect(() => {
     if (!user?.role) return;
-    const poll = () => refreshTasks();
-    poll();
-    const id = setInterval(poll, 5000);
+    const id = setInterval(() => scheduleRefresh(), 30000);
     return () => clearInterval(id);
-  }, [user?.role]);
+  }, [user?.role, scheduleRefresh]);
 
   // Fetch alteration/engraving tasks when those tabs are selected
   useEffect(() => {

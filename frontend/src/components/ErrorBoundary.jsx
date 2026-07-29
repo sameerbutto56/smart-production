@@ -1,6 +1,8 @@
 import React from 'react';
 import { AlertCircle, Bug, Loader2 } from 'lucide-react';
 
+let lastReloadTime = 0;
+
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -20,7 +22,11 @@ export default class ErrorBoundary extends React.Component {
       error?.message?.includes('ChunkLoadError') ||
       error?.name === 'ChunkLoadError'
     ) {
-      window.location.reload();
+      const now = Date.now();
+      if (now - lastReloadTime > 30000) {
+        lastReloadTime = now;
+        window.location.reload();
+      }
       return;
     }
     // Delay showing error UI by 1.5s to allow transient errors to self-resolve

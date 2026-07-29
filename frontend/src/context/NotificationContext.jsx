@@ -128,11 +128,11 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     if (!user?.role) return;
 
-    console.log('[Notif] Polling started for', user.role, '(3s interval)');
+    console.log('[Notif] Polling started for', user.role, '(15s interval)');
     const poll = () => { fetchUnreadCounts(); };
 
     poll();
-    pollingRef.current = setInterval(poll, 3000);
+    pollingRef.current = setInterval(poll, 15000);
     return () => {
       console.log('[Notif] Polling stopped for', user.role);
       if (pollingRef.current) clearInterval(pollingRef.current);
