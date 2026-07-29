@@ -294,7 +294,7 @@ const resubmitFromVerification = async (req, res) => {
     // Build update payload from submitted data
     const payload = {};
     const updatableFields = [
-      'productDetails', 'items', 'quantity', 'totalPrice', 'customization', 'sizeData',
+      'productDetails', 'quantity', 'totalPrice', 'customization', 'sizeData',
       'customerName', 'customerPhone', 'address', 'city', 'type', 'priority',
       'advancePaid', 'advanceAmount', 'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
