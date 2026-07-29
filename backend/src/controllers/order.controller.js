@@ -3419,9 +3419,9 @@ const getOrderPerformance = async (req, res) => {
       where: { createdAt: { gte: dateFrom, lte: dateTo } }
     });
 
-    // Helper: count stage records by date field + status
-    const stageCount = (stageName, dateField, status) => {
-      const where = { stageName };
+    // Helper: count DISTINCT orders that have a stage record matching criteria
+    const distinctStageOrderCount = async (stageNameOrNames, dateField, statusFilter) => {
+      const where = { stageName: Array.isArray(stageNameOrNames) ? { in: stageNameOrNames } : stageNameOrNames };
       if (dateField === 'startedAt') {
         where.startedAt = { gte: dateFrom, lte: dateTo };
         where.status = 'IN_PROGRESS';
@@ -3430,66 +3430,48 @@ const getOrderPerformance = async (req, res) => {
         where.status = 'COMPLETED';
       } else {
         where.createdAt = { gte: dateFrom, lte: dateTo };
-        where.status = 'PENDING';
+        if (statusFilter) where.status = statusFilter;
       }
-      return prisma.orderStage.count({ where });
+      const records = await prisma.orderStage.findMany({
+        where,
+        distinct: ['orderId'],
+        select: { orderId: true }
+      });
+      return records.length;
     };
 
     // Store
     const [storeAccepted, storeSentForward, storePending] = await Promise.all([
-      stageCount('STORE', 'startedAt'),
-      stageCount('STORE', 'completedAt'),
-      stageCount('STORE', 'createdAt'),
+      distinctStageOrderCount('STORE', 'startedAt'),
+      distinctStageOrderCount('STORE', 'completedAt'),
+      distinctStageOrderCount('STORE', 'createdAt', 'PENDING'),
     ]);
 
     // Logo
     const [logoAccepted, logoSentForward, logoPending] = await Promise.all([
-      stageCount('LOGO_DESIGN', 'startedAt'),
-      stageCount('LOGO_DESIGN', 'completedAt'),
-      stageCount('LOGO_DESIGN', 'createdAt'),
+      distinctStageOrderCount('LOGO_DESIGN', 'startedAt'),
+      distinctStageOrderCount('LOGO_DESIGN', 'completedAt'),
+      distinctStageOrderCount('LOGO_DESIGN', 'createdAt', 'PENDING'),
     ]);
 
     // Production (PRODUCTION_ACCEPTANCE + PRODUCTION)
+    const prodStageNames = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'];
     const [prodAccepted, prodSentForward, prodPending] = await Promise.all([
-      prisma.orderStage.count({
-        where: {
-          stageName: { in: ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
-          startedAt: { gte: dateFrom, lte: dateTo },
-          status: 'IN_PROGRESS'
-        }
-      }),
-      prisma.orderStage.count({
-        where: {
-          stageName: { in: ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
-          completedAt: { gte: dateFrom, lte: dateTo },
-          status: 'COMPLETED'
-        }
-      }),
-      prisma.orderStage.count({
-        where: {
-          stageName: { in: ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
-          createdAt: { gte: dateFrom, lte: dateTo },
-          status: 'PENDING'
-        }
-      }),
+      distinctStageOrderCount(prodStageNames, 'startedAt'),
+      distinctStageOrderCount(prodStageNames, 'completedAt'),
+      distinctStageOrderCount(prodStageNames, 'createdAt', 'PENDING'),
     ]);
 
     // Dispatch
-    const [dispatchReceived, dispatchDispatched, dispatchPending] = await Promise.all([
-      prisma.orderStage.count({
-        where: {
-          stageName: 'DISPATCH',
-          createdAt: { gte: dateFrom, lte: dateTo }
-        }
-      }),
-      stageCount('DISPATCH', 'completedAt'),
-      prisma.orderStage.count({
-        where: {
-          stageName: 'DISPATCH',
-          createdAt: { gte: dateFrom, lte: dateTo },
-          status: 'PENDING'
-        }
-      }),
+    const dispatchReceivedRecords = await prisma.orderStage.findMany({
+      where: { stageName: 'DISPATCH', createdAt: { gte: dateFrom, lte: dateTo } },
+      distinct: ['orderId'],
+      select: { orderId: true }
+    });
+    const dispatchReceived = dispatchReceivedRecords.length;
+    const [dispatchDispatched, dispatchPending] = await Promise.all([
+      distinctStageOrderCount('DISPATCH', 'completedAt'),
+      distinctStageOrderCount('DISPATCH', 'createdAt', 'PENDING'),
     ]);
 
     // Inventory Verification
@@ -3510,27 +3492,20 @@ const getOrderPerformance = async (req, res) => {
     ]);
 
     // Delivery (OUT_FOR_DELIVERY)
-    const [deliveryAssigned, deliveryDelivered, deliveryReturnedCount, deliveryPending] = await Promise.all([
-      prisma.orderStage.count({
-        where: { stageName: 'OUT_FOR_DELIVERY', createdAt: { gte: dateFrom, lte: dateTo } }
+    const deliveryAssignedRecords = await prisma.orderStage.findMany({
+      where: { stageName: 'OUT_FOR_DELIVERY', createdAt: { gte: dateFrom, lte: dateTo } },
+      distinct: ['orderId'],
+      select: { orderId: true }
+    });
+    const deliveryAssigned = deliveryAssignedRecords.length;
+    const [deliveryDelivered, deliveryReturnedCount, deliveryPending] = await Promise.all([
+      prisma.order.count({
+        where: { deliveredAt: { gte: dateFrom, lte: dateTo } }
       }),
       prisma.order.count({
-        where: {
-          deliveredAt: { gte: dateFrom, lte: dateTo }
-        }
+        where: { returnedAt: { gte: dateFrom, lte: dateTo } }
       }),
-      prisma.order.count({
-        where: {
-          returnedAt: { gte: dateFrom, lte: dateTo }
-        }
-      }),
-      prisma.orderStage.count({
-        where: {
-          stageName: 'OUT_FOR_DELIVERY',
-          createdAt: { gte: dateFrom, lte: dateTo },
-          status: 'PENDING'
-        }
-      }),
+      distinctStageOrderCount('OUT_FOR_DELIVERY', 'createdAt', 'PENDING'),
     ]);
 
     res.json({
