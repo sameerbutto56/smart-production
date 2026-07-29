@@ -232,7 +232,7 @@ const SmartOrderForm = () => {
                 </button>
               )}
               {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
-                <button type="button" onClick={() => fromVerification ? submitOrderEditRequest() : setShowReview(true)} disabled={loading || isSubmitting}
+                <button type="button" onClick={() => setShowReview(true)} disabled={loading || isSubmitting}
                   className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50">
                   <CheckCircle2 size={16} /><span>{fromVerification ? (useUrdu ? 'اسٹور کو دوبارہ جمع کریں' : 'RESUBMIT TO STORE') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT')}</span>
                 </button>
@@ -313,7 +313,7 @@ const SmartOrderForm = () => {
                 </button>
               )}
               {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
-                <button type="button" onClick={() => fromVerification ? submitOrderEditRequest() : setShowReview(true)} disabled={loading || isSubmitting}
+                <button type="button" onClick={() => setShowReview(true)} disabled={loading || isSubmitting}
                   className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50">
                   <CheckCircle2 size={16} /><span>{fromVerification ? (useUrdu ? 'اسٹور کو دوبارہ جمع کریں' : 'RESUBMIT TO STORE') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT')}</span>
                 </button>
@@ -336,7 +336,7 @@ const SmartOrderForm = () => {
                   className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3">
                   <Plus size={16} /><span>{useUrdu ? 'دوسری پروڈکٹ شامل کریں' : 'ADD ANOTHER PRODUCT'}</span>
                 </button>
-                <button onClick={() => { setShowAddMore(false); fromVerification ? submitOrderEditRequest() : isEditMode ? submitOrderEditRequest() : setShowReview(true); }}
+                <button onClick={() => { setShowAddMore(false); setShowReview(true); }}
                   className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3">
                   <CheckCircle2 size={16} /><span>{fromVerification ? 'RESUBMIT TO STORE' : isEditMode ? 'SUBMIT EDIT REQUEST' : 'CHECKOUT'}</span>
                 </button>

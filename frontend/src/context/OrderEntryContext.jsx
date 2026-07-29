@@ -179,6 +179,9 @@ export const OrderEntryProvider = ({ children }) => {
               logoName: found.logoName || '',
               engravingInstructions: found.engravingInstructions || '',
               skipEngraving: found.engravingRequired === undefined ? true : !found.engravingRequired,
+              logoCharges: found.logoCharges?.toString() || '',
+              namePrintingCharges: found.namePrintingCharges?.toString() || '',
+              customizationPrice: found.customizationPrice?.toString() || '',
               // First product's selection fields as defaults
               productType: firstPd.productType || firstPd.name || '',
               fabricType: firstPd.fabricType || '',
