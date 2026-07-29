@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
@@ -27,6 +28,7 @@ const openBook = async (req, res) => {
     const session = await prisma.posBookSession.create({
       data: { outletName: outlet, openedBy, status: 'OPEN' },
     });
+    await notify.create(req, { type: 'register_open', moduleName: 'POS', path: '/pos', role: 'OUTLET', title: 'Register Opened', message: `${outlet} register opened by ${openedBy}`, action: 'Register Opened', employeeName: req.user?.name }).catch(() => {});
     res.status(201).json(session);
   } catch (error) {
     res.status(500).json({ message: 'Failed to open register', error: error.message });
@@ -334,6 +336,7 @@ const closeBook = async (req, res) => {
         summary: JSON.stringify(summary),
       },
     });
+    await notify.create(req, { type: 'register_close', moduleName: 'POS', path: '/pos', role: 'OUTLET', title: 'Register Closed', message: `${session.outletName} register closed by ${closedBy}`, action: 'Register Closed', employeeName: req.user?.name }).catch(() => {});
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to close register', error: error.message });

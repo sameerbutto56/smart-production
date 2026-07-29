@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const notify = require('../utils/notify');
 
 const getOutletName = (req) => {
   let name = req.user?.name || req.query.outlet || '';
@@ -77,6 +78,8 @@ const createAlteration = async (req, res) => {
     if (io) {
       io.emit('alteration-created', { alteration });
     }
+
+    await notify.create(req, { type: 'alteration_task', moduleName: 'Alteration In', path: '/alteration-production', role: 'PRODUCTION_IN', title: 'New Alteration Request', message: `Alteration for ${alteration.productName || 'order'}`, orderId: alteration.orderId, customerName: alteration.customerName, action: 'Alteration Created', employeeName: req.user?.name }).catch(() => {});
 
     res.status(201).json(alteration);
   } catch (error) {
@@ -300,6 +303,9 @@ const completeAlteration = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('alteration-updated', { alteration: updated });
 
+    const altReturnRole = returnStage === 'ALTERATION_IV_RETURN' ? 'INVENTORY_VIEW' : 'OUTLET';
+    await notify.create(req, { type: 'alteration_completed', moduleName: 'Alteration', path: '/alteration-request', role: altReturnRole, title: 'Alteration Completed', message: `Alteration for ${alteration.productName || 'order'} is ready`, orderId: alteration.orderId, customerName: alteration.customerName, action: 'Alteration Returned', employeeName: req.user?.name }).catch(() => {});
+
     res.json(updated);
   } catch (error) {
     console.error('Complete alteration error:', error);
@@ -381,6 +387,8 @@ const rejectAlteration = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) io.emit('alteration-updated', { alteration: updated });
+
+    await notify.create(req, { type: 'alteration_rejected', moduleName: 'Alteration', path: '/alteration-request', role: 'OUTLET', title: 'Alteration Rejected', message: `Alteration for ${alteration.productName || 'order'} was rejected`, orderId: alteration.orderId, customerName: alteration.customerName, action: 'Alteration Rejected', employeeName: req.user?.name }).catch(() => {});
 
     res.json(updated);
   } catch (error) {

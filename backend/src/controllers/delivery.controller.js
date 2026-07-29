@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 
 const parseDateRange = (dateFrom, dateTo) => {
   const dateFilter = {};
@@ -74,6 +75,8 @@ const acceptDelivery = async (req, res) => {
     await prisma.auditLog.create({
       data: { orderId, action: 'DELIVERY_ACCEPTED', details: `Rider ${riderName} accepted delivery`, performedBy: req.user?.id || 'SYSTEM' }
     });
+
+    await notify.create(req, { type: 'delivery_accepted', moduleName: 'My Tasks', path: '/dispatch', role: 'DISPATCH', title: 'Delivery Accepted', message: `Order #${order.orderNumber} accepted by rider`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Rider Accepted', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: 'Order accepted', riderAcceptedAt: now });
   } catch (error) {
@@ -166,6 +169,8 @@ const deliverOrder = async (req, res) => {
       data: { orderId, action: 'DELIVERED', details: `Order delivered by ${riderName} via ${paymentMethod || 'CASH'}`, performedBy: req.user?.id || 'SYSTEM' }
     });
 
+    await notify.create(req, { type: 'delivery_done', moduleName: 'Orders', path: '/orders', role: 'FAISAL', title: 'Order Delivered', message: `Order #${order.orderNumber} delivered`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Delivered', employeeName: req.user?.name }).catch(() => {});
+
     res.json({ message: 'Order delivered successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Delivery failed', error: error.message });
@@ -214,6 +219,8 @@ const noResponse = async (req, res) => {
       data: { orderId, action: 'DELIVERY_FAILED', details: `Day ${currentCount} – No Response by ${riderName}`, performedBy: req.user?.id || 'SYSTEM' }
     });
 
+    await notify.create(req, { type: 'delivery_no_response', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'No Response', message: `Order #${order.orderNumber} no response on delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'No Response', employeeName: req.user?.name }).catch(() => {});
+
     res.json({ message: `Day ${currentCount} – No Response logged`, noResponseCount: currentCount });
   } catch (error) {
     res.status(500).json({ message: 'Failed to log no response', error: error.message });
@@ -254,6 +261,8 @@ const returnOrder = async (req, res) => {
     await prisma.auditLog.create({
       data: { orderId, action: 'DISPATCH_RETURNED', details: `Returned by ${riderName}: ${reason || 'No reason'}`, performedBy: req.user?.id || 'SYSTEM' }
     });
+
+    await notify.create(req, { type: 'delivery_returned', moduleName: 'My Tasks', path: '/dispatch', role: 'DISPATCH', title: 'Order Returned', message: `Order #${order.orderNumber} returned from delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned to Dispatch', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: 'Order returned to dispatch' });
   } catch (error) {

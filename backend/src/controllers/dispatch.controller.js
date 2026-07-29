@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
+const notify = require('../utils/notify');
 
 const createAuditLog = async (orderId, action, details, userId) => {
   try {
@@ -124,6 +125,8 @@ const requestCourierDispatch = async (req, res) => {
       });
     }
 
+    await notify.create(req, { type: 'dispatch_request', moduleName: 'My Tasks', path: '/dispatch', role: 'DISPATCH', title: 'Courier Required', message: `Order #${order.orderNumber} needs courier dispatch`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Courier Required', employeeName: req.user?.name }).catch(() => {});
+
     res.json({ message: 'Courier dispatch requested. Dispatch department has been notified.' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to request courier dispatch', error: error.message });
@@ -214,6 +217,8 @@ const bookCourier = async (req, res) => {
         where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
       }).catch(() => {});
     }
+
+    await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery', message: `Order #${order.orderNumber} booked with courier`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Courier Booked', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: `Courier booked: ${courierName}`, trackingNumber });
   } catch (error) {
@@ -354,6 +359,8 @@ const markPickedUp = async (req, res) => {
         type: 'PICKUP'
       });
     }
+
+    await notify.create(req, { type: 'order_completed', moduleName: 'Orders', path: '/orders', role: 'FAISAL', title: 'Order Picked Up', message: `Order #${order.orderNumber} was picked up`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Picked Up', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: 'Order marked as picked up' });
   } catch (error) {

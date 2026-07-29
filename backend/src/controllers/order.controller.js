@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue } = require('./order-helpers');
+const notify = require('../utils/notify');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
 
@@ -805,6 +806,11 @@ const requestStageCompletion = async (req, res) => {
     
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
+    const nextStageRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY', 'DELIVERED': 'DELIVERY_BOY' };
+    const nextRole = nextStageRoleMap[actualNextStage] || 'STORE';
+    if (order.customerName && order.orderNumber) {
+      await notify.create(req, { type: 'stage_task', moduleName: 'My Tasks', path: '/tasks', role: nextRole, title: 'New Task', message: `Order #${order.orderNumber} moved to ${actualNextStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `\u2192 ${actualNextStage}`, employeeName: req.user?.name }).catch(() => {});
+    }
     return res.json({ message: 'Stage completed and auto-moved to next stage', nextStage: actualNextStage });
   } catch (error) {
     console.error('requestStageCompletion error:', error.stack || error);
@@ -945,6 +951,11 @@ const approveStageCompletion = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order?.createdById });
+    const apprNextRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY' };
+    const apprNextRole = apprNextRoleMap[actualNextStage] || 'STORE';
+    if (order?.customerName && order?.orderNumber) {
+      await notify.create(req, { type: 'stage_task', moduleName: 'My Tasks', path: '/tasks', role: apprNextRole, title: 'Phase Advanced', message: `Order #${order.orderNumber} moved to ${actualNextStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Approved \u2192 ${actualNextStage}`, employeeName: req.user?.name }).catch(() => {});
+    }
 
     res.json({ message: 'Stage processed successfully', nextStage: actualNextStage });
   } catch (error) {
@@ -970,6 +981,9 @@ const rejectStageCompletion = async (req, res) => {
     const io = req.app.get('io');
     io.emit('stage-rejected', { orderId, stage, reason });
     io.emit('order-updated', { orderId, createdById: stage.order?.createdById });
+    if (stage.order?.customerName && stage.order?.orderNumber) {
+      await notify.create(req, { type: 'stage_rejected', moduleName: 'My Tasks', path: '/tasks', role: req.user?.role, title: 'Stage Rejected', message: `Order #${stage.order.orderNumber} rejected at ${stage.stageName}`, orderId: stage.order.id, orderNumber: stage.order.orderNumber, customerName: stage.order.customerName, action: `Rejected at ${stage.stageName}`, employeeName: req.user?.name }).catch(() => {});
+    }
 
     await createAuditLog(orderId, 'STAGE_REJECTED', `${stage.stageName} rejected by Faisal. Reason: ${reason}`, req.user.id);
 
@@ -1041,6 +1055,8 @@ const updatePaymentStatus = async (req, res) => {
           currentStage: 'STORE'
         }
       });
+
+      await notify.create(req, { type: 'store_task', moduleName: 'My Tasks', path: '/tasks', role: 'STORE', title: 'Payment Complete', message: `Order #${order.orderNumber} payment received, moving to Store`, orderId, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Payment → Store', employeeName: req.user?.name }).catch(() => {});
     }
 
     const io = req.app.get('io');
@@ -1479,6 +1495,11 @@ const bulkRouteOrders = async (req, res) => {
 
         const io = req.app.get('io');
         io.emit('order-updated', { orderId, createdById: order.createdById });
+        const bulkDestRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUTLET_RECEIVE': 'OUTLET' };
+        const bulkDestRole = bulkDestRoleMap[destinationStage] || 'STORE';
+        if (order?.customerName && order?.orderNumber) {
+          await notify.create(req, { type: 'bulk_route', moduleName: 'My Tasks', path: '/tasks', role: bulkDestRole, title: 'Bulk Routed', message: `Order #${order.orderNumber} bulk routed`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Bulk \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
+        }
 
         results.push({ orderId, status: 'routed', nextStage: destinationStage });
       } catch (err) {
@@ -1859,6 +1880,9 @@ const sendForDelivery = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
+    if (order?.customerName && order?.orderNumber) {
+      await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery', message: `Order #${order.orderNumber} is out for delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Out for Delivery', employeeName: req.user?.name }).catch(() => {});
+    }
 
     res.json({ message: 'Order sent for delivery', order: updatedOrder });
   } catch (error) {
@@ -2292,6 +2316,11 @@ const manualRouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
+    const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY' };
+    const manRole = manDestRoleMap[destinationStage] || 'STORE';
+    if (order?.customerName && order?.orderNumber) {
+      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
+    }
 
     res.json({ message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
   } catch (error) {
@@ -2803,6 +2832,7 @@ const storeRouteOrder = async (req, res) => {
       await createAuditLog(orderId, 'STORE_RETURN_TO_SOURCE', `Order returned to ${sourceStage} by ${req.user.name}`, req.user.id);
       const io = req.app.get('io');
       io.emit('order-updated', { orderId });
+      await notify.create(req, { type: 'store_routed', moduleName: 'Order Entry', path: '/order-entry', role: 'ORDER_ENTRY', title: 'Order Returned to Source', message: `Order #${order.orderNumber} returned from Store`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Store → Source', employeeName: req.user?.name }).catch(() => {});
       return res.json({ message: 'Order returned to source' });
     }
 
@@ -2843,6 +2873,10 @@ const storeRouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
+
+    const destRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUTLET_RECEIVE': 'OUTLET' };
+    const storeDestRole = destRoleMap[destinationStage] || 'STORE';
+    await notify.create(req, { type: 'store_routed', moduleName: 'My Tasks', path: '/tasks', role: storeDestRole, title: 'New Task from Store', message: `Order #${order.orderNumber} sent to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Store → ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
@@ -2920,6 +2954,8 @@ const returnToStore = async (req, res) => {
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
 
+    await notify.create(req, { type: 'store_task', moduleName: 'My Tasks', path: '/tasks', role: 'STORE', title: 'Order Returned to Store', message: `Order #${order.orderNumber} returned from ${returnedFrom}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned → Store', employeeName: req.user?.name }).catch(() => {});
+
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
       include: { stages: { orderBy: { createdAt: 'asc' } } }
@@ -2988,6 +3024,8 @@ const returnToOutlet = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
+
+    await notify.create(req, { type: 'outlet_task', moduleName: 'My Tasks', path: '/tasks', role: 'OUTLET', title: 'Order Returned to Outlet', message: `Order #${order.orderNumber} returned from Production`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned → Outlet', employeeName: req.user?.name }).catch(() => {});
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },

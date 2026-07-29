@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
+const notify = require('../utils/notify');
 
 const getStoreDeadline = async (priority = 'NORMAL') => {
   const slaMultiplier = { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }[priority] || 1;
@@ -229,6 +230,8 @@ const createEditRequest = async (req, res) => {
       });
     }
 
+    await notify.create(req, { type: 'edit_request', moduleName: 'Edit Request', path: '/edit-requests', role: 'ADMIN', title: 'Edit Request Submitted', message: message || `Order #${orderNumber} edit requested`, orderId, orderNumber, customerName: customerName, action: 'Edit Requested', employeeName: req.user?.name }).catch(() => {});
+
     res.status(201).json({ message: 'Edit request submitted', editRequest });
   } catch (error) {
     console.error('Error creating edit request:', error);
@@ -432,6 +435,8 @@ const approveEditRequest = async (req, res) => {
       io.emit('order-updated', { orderId: order.id, createdById: order.createdById });
     }
 
+    await notify.create(req, { type: 'edit_approved', moduleName: 'My Tasks', path: '/tasks', role: 'STORE', title: 'Edit Approved', message: `Order #${order.orderNumber} edit approved, restarting at Store`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Edit Approved → Store', employeeName: req.user?.name }).catch(() => {});
+
     res.json({ message: 'Edit request approved', order: updatedOrder });
   } catch (error) {
     console.error('Error approving edit request:', error);
@@ -477,6 +482,8 @@ const rejectEditRequest = async (req, res) => {
         type: 'WARNING'
       });
     }
+
+    await notify.create(req, { type: 'edit_rejected', moduleName: 'Edit Request', path: '/edit-requests', role: 'OUTLET', title: 'Edit Request Rejected', message: `Order #${editRequest.order?.orderNumber} edit rejected`, orderId: editRequest.orderId, orderNumber: editRequest.order?.orderNumber, customerName: editRequest.order?.customerName, action: 'Edit Rejected', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: 'Edit request rejected' });
   } catch (error) {

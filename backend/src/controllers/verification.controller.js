@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 const { getRolesForStage } = require('./order.controller');
 
 const getPendingVerifications = async (req, res) => {
@@ -157,6 +158,7 @@ const verifyOrder = async (req, res) => {
     try {
       const io = req.app.get('io');
       if (io) io.emit('order-verified', updated);
+      await notify.create(req, { type: 'store_task', moduleName: 'My Tasks', path: '/tasks', role: 'STORE', title: 'New Order Arrived', message: `Order #${order.orderNumber} requires Store action`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Verified → Store', employeeName: req.user?.name });
     } catch (e) { /* socket emit is non-critical */ }
 
     res.json(updated);
@@ -229,6 +231,7 @@ const returnToFaisal = async (req, res) => {
     try {
       const io = req.app.get('io');
       if (io) io.emit('order-updated', { orderId });
+      await notify.create(req, { type: 'return_from_verification', moduleName: 'Return from Verification', path: '/returned-from-verification', role: 'FAISAL', title: 'Order Returned from Verification', message: `Order #${order.orderNumber} needs changes`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Changes Required', employeeName: req.user?.name });
     } catch (e) {}
 
     res.json({ message: 'Order returned to Faisal for corrections' });
@@ -383,6 +386,7 @@ const resubmitFromVerification = async (req, res) => {
     try {
       const io = req.app.get('io');
       if (io) io.emit('order-updated', { orderId });
+      await notify.create(req, { type: 'store_task', moduleName: 'My Tasks', path: '/tasks', role: 'STORE', title: 'Order Re-submitted', message: `Order #${order.orderNumber} re-submitted after verification`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Re-submitted → Store', employeeName: req.user?.name });
     } catch (e) {}
 
     res.json({ message: 'Order resubmitted to Store', order: updated });

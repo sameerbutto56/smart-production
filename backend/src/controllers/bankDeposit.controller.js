@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
@@ -69,6 +70,8 @@ const submitDeposit = async (req, res) => {
         createdAt: depositDate ? new Date(depositDate) : new Date(),
       }
     });
+
+    await notify.create(req, { type: 'bank_deposit', moduleName: 'Bank Deposit', path: '/bank-deposit', role: 'ADMIN', title: 'New Bank Deposit', message: `PKR ${amount} deposited by ${employeeName}`, action: 'Bank Deposit', employeeName: req.user?.name }).catch(() => {});
 
     res.status(201).json({ message: 'Bank deposit recorded successfully', deposit });
   } catch (error) {

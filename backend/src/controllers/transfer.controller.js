@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const notify = require('../utils/notify');
 const { generateBarcode } = require('./pos.controller');
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
@@ -80,6 +81,7 @@ const createTransferRequest = async (req, res) => {
         },
         include: { items: true }
       });
+      await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'STORE', title: 'New Transfer Request', message: `Transfer #${transfer.transferNumber} from ${fromOutlet}`, action: 'Transfer Created', employeeName: req.user?.name }).catch(() => {});
       cache.delPattern('pos:');
       return res.status(201).json(transfer);
 
@@ -122,6 +124,7 @@ const createTransferRequest = async (req, res) => {
         },
         include: { items: true }
       });
+      await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'STORE', title: 'New Transfer Request', message: `Transfer #${transfer.transferNumber} from ${fromOutlet}`, action: 'Transfer Created', employeeName: req.user?.name }).catch(() => {});
       cache.delPattern('pos:');
       return res.status(201).json(transfer);
 
@@ -197,6 +200,7 @@ const approveTransfer = async (req, res) => {
     }
 
     const updated = await prisma.outletTransfer.update({ where: { id }, data: updateData, include: { items: true } });
+    await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'OUTLET', title: 'Transfer Approved', message: `Transfer #${transfer.transferNumber} approved`, action: 'Transfer Approved', employeeName: req.user?.name }).catch(() => {});
     cache.delPattern('pos:');
     res.json(updated);
   } catch (error) {
@@ -236,6 +240,7 @@ const rejectTransfer = async (req, res) => {
       },
       include: { items: true }
     });
+    await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'OUTLET', title: 'Transfer Rejected', message: `Transfer #${transfer.transferNumber} rejected`, action: 'Transfer Rejected', employeeName: req.user?.name }).catch(() => {});
     cache.delPattern('pos:');
     res.json(updated);
   } catch (error) {
@@ -290,6 +295,7 @@ const dispatchTransfer = async (req, res) => {
       },
       include: { items: true }
     });
+    await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'OUTLET', title: 'Transfer Dispatched', message: `Transfer #${transfer.transferNumber} dispatched`, action: 'Transfer Dispatched', employeeName: req.user?.name }).catch(() => {});
     cache.delPattern('pos:');
     res.json(updated);
   } catch (error) {
@@ -434,6 +440,7 @@ const acceptTransfer = async (req, res) => {
       data: { status: 'COMPLETED', completedById: req.user?.id || null, completedAt: new Date() },
       include: { items: true }
     });
+    await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'STORE', title: 'Transfer Completed', message: `Transfer #${transfer.transferNumber} completed at destination`, action: 'Transfer Completed', employeeName: req.user?.name }).catch(() => {});
     cache.delPattern('pos:');
     res.json(updated);
   } catch (error) {

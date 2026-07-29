@@ -30,6 +30,7 @@ import {
   FileText,
   MessageCircle,
   StickyNote,
+  Bell,
   BellRing,
   UserCheck,
   Lock,
@@ -47,12 +48,14 @@ import toast from 'react-hot-toast';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { useNotifications } from '../context/NotificationContext';
 import { Palette } from 'lucide-react';
 
 const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
   const { t, isUrdu } = useLanguage();
   const { themeId, currentTheme, changeTheme, THEMES } = useTheme();
+  const { unreadCounts, markModuleRead } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const [showThemePicker, setShowThemePicker] = useState(false);
@@ -124,6 +127,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] },
     { name: 'Bank Deposit', path: '/bank-deposit', icon: Landmark, roles: ['OUTLET'] },
     { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY'] },
+    { name: 'Notifications', path: '/notifications', icon: Bell, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY', 'INVENTORY_VIEW'] },
     { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] }
   ];
   
@@ -137,12 +141,12 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
     if (userRole === 'DELIVERY_BOY') {
-      return item.name === 'Deliveries' || item.name === 'Chat' || item.name === 'Notes';
+      return item.name === 'Deliveries' || item.name === 'Chat' || item.name === 'Notes' || item.name === 'Notifications';
     }
 
     return true;
@@ -191,27 +195,33 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
         
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           {filteredNavItems.map((item) => {
+            const itemPath = item.path;
+            const notifCount = unreadCounts[itemPath] || 0;
+            const chatCount = item.name === 'Chat' ? chatUnread : 0;
+            const badgeCount = notifCount + chatCount;
+            const hasBadge = badgeCount > 0;
+            const isActive = item.state?.adminTab
+              ? location.pathname === item.path && location.state?.adminTab === item.state.adminTab
+              : location.pathname === item.path && !location.state?.adminTab && !location.search;
             return (
             <Link
               key={item.path + (item.state?.adminTab || '')}
               to={item.state ? { pathname: item.path, state: item.state } : item.path}
-              onClick={() => { if (window.innerWidth < 1024) toggle(); }}
+              onClick={() => { if (window.innerWidth < 1024) toggle(); if (notifCount > 0) markModuleRead(itemPath); if (item.name === 'Chat') { setChatUnread(0); sessionStorage.setItem('chatUnread', '0'); } }}
               className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group ${
-                (item.state?.adminTab
-                  ? location.pathname === item.path && location.state?.adminTab === item.state.adminTab
-                  : location.pathname === item.path && !location.state?.adminTab && !location.search)
+                isActive
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
               title={isCollapsed ? t(item.name) : ""}
             >
-              <item.icon size={16} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} />
+              <item.icon size={16} className={isActive ? 'text-white' : 'group-hover:text-blue-400'} />
               {!isCollapsed && (
                 <span className="font-bold text-xs tracking-wide flex-1">{t(item.name)}</span>
               )}
-              {!isCollapsed && item.name === 'Chat' && chatUnread > 0 && (
-                <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight shadow-lg shadow-red-500/30">
-                  {chatUnread > 99 ? '99+' : chatUnread}
+              {hasBadge && (
+                <span className={`${isCollapsed ? 'absolute -top-1 -right-1' : ''} ${hasBadge && notifCount > 0 ? 'animate-nav-blink' : ''} bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight shadow-lg shadow-red-500/30`}>
+                  {badgeCount > 99 ? '99+' : badgeCount}
                 </span>
               )}
             </Link>

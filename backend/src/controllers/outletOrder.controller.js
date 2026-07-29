@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const notify = require('../utils/notify');
 const { createAuditLog } = require('./order-helpers');
 
 const getOutletName = (req) => {
@@ -543,6 +544,8 @@ const customerTaken = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
 
+    await notify.create(req, { type: 'order_completed', moduleName: 'Orders', path: '/orders', role: 'FAISAL', title: 'Order Completed', message: `Order #${order.orderNumber} taken by customer`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Customer Taken', employeeName: req.user?.name }).catch(() => {});
+
     res.json({ message: 'Order marked as customer taken' });
   } catch (error) {
     res.status(500).json({ message: 'Error marking customer taken', error: error.message });
@@ -584,6 +587,8 @@ const sendOutletForDelivery = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
+
+    await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery from Outlet', message: `Order #${order.orderNumber} sent for delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Outlet → Delivery', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: 'Order sent for delivery' });
   } catch (error) {
@@ -647,6 +652,8 @@ const inHouseDelivery = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
+
+    await notify.create(req, { type: 'order_completed', moduleName: 'Orders', path: '/orders', role: 'FAISAL', title: 'Order Delivered (In-House)', message: `Order #${order.orderNumber} delivered in-house`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'In-House Delivered', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: 'Order delivered in-house' });
   } catch (error) {

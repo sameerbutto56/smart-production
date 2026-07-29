@@ -465,3 +465,12 @@
 .theme-table th {
   @apply font-black uppercase tracking-wider theme-text-muted;
 }
+
+/* Notification badge blink animation */
+@keyframes nav-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.animate-nav-blink {
+  animation: nav-blink 1.2s ease-in-out infinite;
+}

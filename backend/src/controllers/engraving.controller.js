@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 
 const getOutletName = (req) => {
   let name = req.user?.name || req.query.outlet || '';
@@ -74,6 +75,8 @@ const createEngraving = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) io.emit('engraving-created', { engraving });
+
+    await notify.create(req, { type: 'engraving_task', moduleName: 'Outlet Engraving', path: '/engraving-queue', role: 'LOGO_DESIGN', title: 'New Engraving Request', message: `Engraving request for ${engraving.productName || 'order'}`, orderId: engraving.orderId, orderNumber: engraving.orderNumber, customerName: engraving.customerName, action: 'Engraving Created', employeeName: req.user?.name }).catch(() => {});
 
     res.status(201).json(engraving);
   } catch (error) {
@@ -285,6 +288,9 @@ const completeEngraving = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('engraving-updated', { engraving: updated });
 
+    const engravingReturnRole = returnStage === 'ENGRAVING_IV_RETURN' ? 'INVENTORY_VIEW' : 'OUTLET';
+    await notify.create(req, { type: 'engraving_completed', moduleName: engravingReturnRole === 'INVENTORY_VIEW' ? 'Engraving' : 'Engraving', path: '/engraving-request', role: engravingReturnRole, title: 'Engraving Completed', message: `Engraving for ${engraving.productName || 'order'} is ready`, orderId: engraving.orderId, orderNumber: engraving.orderNumber, customerName: engraving.customerName, action: 'Engraving Returned', employeeName: req.user?.name }).catch(() => {});
+
     res.json(updated);
   } catch (error) {
     console.error('Complete engraving error:', error);
@@ -366,6 +372,8 @@ const rejectEngraving = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) io.emit('engraving-updated', { engraving: updated });
+
+    await notify.create(req, { type: 'engraving_rejected', moduleName: 'Engraving', path: '/engraving-request', role: 'OUTLET', title: 'Engraving Rejected', message: `Engraving for ${engraving.productName || 'order'} was rejected`, orderId: engraving.orderId, orderNumber: engraving.orderNumber, customerName: engraving.customerName, action: 'Engraving Rejected', employeeName: req.user?.name }).catch(() => {});
 
     res.json(updated);
   } catch (error) {

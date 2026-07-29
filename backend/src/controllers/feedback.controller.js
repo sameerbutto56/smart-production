@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 
 const ensureTable = (() => {
   let done = false;
@@ -63,6 +64,8 @@ const submitFeedback = async (req, res) => {
         comments: comments?.trim() || null,
       },
     });
+    await notify.create(req, { type: 'feedback', moduleName: 'Dashboard', path: '/dashboard', role: 'ADMIN', title: 'New Feedback', message: `Feedback submitted by ${feedback.name || 'customer'}`, action: 'Feedback Received', employeeName: req.user?.name }).catch(() => {});
+
     res.status(201).json({ message: 'Thank you for your feedback!', feedback });
   } catch (error) {
     console.error('submitFeedback error:', error);

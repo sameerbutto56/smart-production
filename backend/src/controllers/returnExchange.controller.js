@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 
 const lookupOrder = async (req, res) => {
   try {
@@ -69,6 +70,8 @@ const createReturnExchange = async (req, res) => {
         performedBy: req.user?.id || 'SYSTEM'
       }
     });
+
+    await notify.create(req, { type: 'return_exchange', moduleName: 'Return & Exchange', path: '/return-exchange', role: 'STORE', title: 'New Return/Exchange Request', message: `${type} request for ${order?.customerName || 'customer'}`, orderId: order?.id, customerName: order?.customerName, action: `${type} Requested`, employeeName: req.user?.name }).catch(() => {});
 
     res.status(201).json(record);
   } catch (error) {
@@ -289,6 +292,8 @@ const approveWarehouse = async (req, res) => {
 
       return tx.returnExchange.findUnique({ where: { id } });
     });
+
+    await notify.create(req, { type: 'return_exchange', moduleName: 'Return & Exchange', path: '/return-exchange', role: 'INVENTORY_VIEW', title: 'Return/Exchange Processed', message: `Request #${record.id} ${newStatus}`, action: `${newStatus}`, employeeName: req.user?.name }).catch(() => {});
 
     res.json(updated);
   } catch (error) {

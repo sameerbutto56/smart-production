@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { NotificationProvider } from './context/NotificationContext';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './context/ThemeContext';
@@ -49,6 +50,7 @@ const VerificationPage = lazy(() => import('./pages/VerificationPage'));
 const ReturnedFromVerification = lazy(() => import('./pages/ReturnedFromVerification'));
 const ReturnExchangePage = lazy(() => import('./pages/ReturnExchangePage'));
 const CustomerFeedbackForm = lazy(() => import('./pages/CustomerFeedbackForm'));
+const NotificationHistory = lazy(() => import('./pages/NotificationHistory'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -82,6 +84,7 @@ function App() {
       <ThemeProvider>
         <LanguageProvider>
           <SearchProvider>
+            <NotificationProvider>
             <Toaster position="top-right" toastOptions={{ className: 'glass text-white font-black', style: { background: '#111827', border: '1px solid #1f2937' } }} />
             <Router>
               <ErrorBoundary>
@@ -154,10 +157,12 @@ function App() {
                   <Route path="verification" element={<VerificationPage />} />
                   <Route path="returned-from-verification" element={<ReturnedFromVerification />} />
                   <Route path="return-exchange" element={<ReturnExchangePage />} />
+                  <Route path="notifications" element={<NotificationHistory />} />
                 </Route>
               </Routes>
               </ErrorBoundary>
             </Router>
+            </NotificationProvider>
           </SearchProvider>
         </LanguageProvider>
       </ThemeProvider>

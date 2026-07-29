@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const notify = require('../utils/notify');
 const {
   isSystemPaused, createAuditLog, calculateAndRecordRevenue,
   reverseInventoryForRefund
@@ -58,6 +59,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
     await createAuditLog(orderId, 'DELIVERED', remarks || 'Order delivered', userId);
     const io = req.app.get('io');
     io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
+    await notify.create(req, { type: 'delivery_status', moduleName: 'Orders', path: '/orders', role: 'FAISAL', title: 'Delivery Updated', message: `Order #${order.orderNumber} delivery: ${deliveryStatus}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Delivery ${deliveryStatus}`, employeeName: req.user?.name }).catch(() => {});
     return res.json(updatedOrder);
   }
 
@@ -66,6 +68,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
   const io = req.app.get('io');
   const freshOrder = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { orderBy: { createdAt: 'desc' } } } });
   io.emit('order-updated', { order: freshOrder, createdById: order.createdById });
+  await notify.create(req, { type: 'delivery_status', moduleName: 'Orders', path: '/orders', role: 'FAISAL', title: 'Delivery Updated', message: `Order #${order.orderNumber} delivery: ${deliveryStatus}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Delivery ${deliveryStatus}`, employeeName: req.user?.name }).catch(() => {});
   res.json(freshOrder);
 });
 
@@ -96,6 +99,7 @@ const refundOrder = asyncHandler(async (req, res) => {
   await prisma.order.update({ where: { id: orderId }, data: { refundStatus: 'REQUESTED', refundReason: reason || 'Not specified', refundNote: note || '', refundedAt: new Date(), refundedById: req.user.id, dispatchStatus: 'RETURNED', currentStage: 'RETURNED', status: 'RETURNED', updatedAt: new Date() } });
   await createAuditLog(orderId, 'REFUND_REQUESTED', `Refund by ${req.user.name}. Reason: ${reason || 'N/A'}`, req.user.id);
   req.app.get('io').emit('order-updated', { orderId, createdById: order.createdById });
+  await notify.create(req, { type: 'refund', moduleName: 'Orders', path: '/orders', role: 'ADMIN', title: 'Refund Requested', message: `Order #${order.orderNumber} refund requested`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Refund Requested', employeeName: req.user?.name }).catch(() => {});
   res.json({ message: 'Refund requested' });
 });
 
@@ -128,6 +132,7 @@ const processRefund = asyncHandler(async (req, res) => {
   await prisma.order.update({ where: { id: orderId }, data: updateData });
   await createAuditLog(orderId, auditAction, auditMessage, req.user.id);
   req.app.get('io').emit('order-updated', { orderId, createdById: order.createdById });
+  await notify.create(req, { type: 'refund', moduleName: 'Refund Management', path: '/refund-management', role: 'DELIVERY_BOY', title: 'Refund Processed', message: `Refund for Order #${order.orderNumber} completed`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Refund Completed', employeeName: req.user?.name }).catch(() => {});
   res.json({ message: `Refund ${action === 'REFUNDED' ? 'completed' : 'processing started'}` });
 });
 

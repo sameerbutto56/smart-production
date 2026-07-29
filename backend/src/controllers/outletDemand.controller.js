@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const notify = require('../utils/notify');
 
 const generateTransferNumber = async () => {
   const d = new Date();
@@ -56,6 +57,9 @@ const createDemandRequest = async (req, res) => {
         createdAt: demand.createdAt
       });
     }
+
+    await notify.create(req, { type: 'demand', moduleName: 'Warehouse', path: '/warehouse', role: 'STORE', title: 'New Demand Request', message: `Demand from ${outletName}`, action: 'Demand Created', employeeName: req.user?.name }).catch(() => {});
+
     res.status(201).json(demand);
   } catch (error) {
     res.status(500).json({ message: 'Error creating demand request', error: error.message });
@@ -155,6 +159,8 @@ const approveDemandRequest = async (req, res) => {
         storeNotes: updated.storeNotes
       });
     }
+
+    await notify.create(req, { type: 'demand', moduleName: 'Outlet Requests', path: '/outlet-requests', role: 'OUTLET', title: 'Demand Updated', message: `Demand #${demand.transferNumber} ${status}`, action: `Demand ${status}`, employeeName: req.user?.name }).catch(() => {});
 
     res.json(updated);
   } catch (error) {
