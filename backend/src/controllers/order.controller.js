@@ -471,9 +471,10 @@ const createOrder = async (req, res) => {
       await calculateAndRecordRevenue(order);
     }
 
-    // If go for verification, log it
+    // If go for verification, log it and notify INVENTORY_VIEW
     if (goForVerification) {
       await createAuditLog(order.id, 'SENT_FOR_VERIFICATION', 'Order sent for verification before Store allocation', req.user?.id);
+      await notify.create(req, { type: 'verification_needed', moduleName: 'Verification', path: '/verification', role: 'INVENTORY_VIEW', title: 'New Verification Request', message: `Order #${order.orderNumber} from ${customerName || 'customer'} needs verification`, orderId: order.id, orderNumber: order.orderNumber, customerName, action: 'Needs Verification', employeeName: req.user?.name }).catch(() => {});
     }
 
     // Re-fetch order with stages so frontend has currentStage info immediately

@@ -12,15 +12,12 @@ function createStub() {
   return { on: () => createStub(), off: () => createStub(), emit: () => createStub(), connect: () => {}, disconnect: () => {}, id: null, connected: false };
 }
 
-// Socket.io needs a persistent server — skip entirely on Vercel (serverless)
-const isVercel = window.location.hostname.includes('vercel.app');
-
 let _socket = null;
 
 function getSocket() {
   if (_socket) return _socket;
   const token = sessionStorage.getItem('token');
-  _socket = token && !isVercel
+  _socket = token
     ? io(WS_URL, {
         auth: { token },
         reconnection: true,
