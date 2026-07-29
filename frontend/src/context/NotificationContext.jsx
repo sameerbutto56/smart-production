@@ -28,16 +28,36 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const pollingRef = useRef(null);
-  const lastNotifRef = useRef(null);
-
-  const isVercel = window.location.hostname.includes('vercel.app');
+  const prevCountsRef = useRef({});
+  const notifSoundCooldown = useRef(0);
 
   const fetchUnreadCounts = useCallback(async () => {
     if (!user?.role) return;
     try {
       const res = await api.get('/api/notifications/unread-counts');
-      setUnreadCounts(res.data.counts || {});
-    } catch (e) { /* silent */ }
+      const counts = res.data.counts || {};
+      const prev = prevCountsRef.current;
+
+      // Detect new notifications via delta comparison
+      const now = Date.now();
+      let totalBefore = Object.values(prev).reduce((a, b) => a + b, 0);
+      let totalAfter = Object.values(counts).reduce((a, b) => a + b, 0);
+      for (const [path, count] of Object.entries(counts)) {
+        const prevCount = prev[path] || 0;
+        if (count > prevCount && now - notifSoundCooldown.current > 5000) {
+          playNotificationSound();
+          notifSoundCooldown.current = now;
+          break;
+        }
+      }
+
+      if (totalAfter !== totalBefore) {
+        console.log('[Notif] delta:', totalBefore, '→', totalAfter, counts);
+      }
+
+      prevCountsRef.current = counts;
+      setUnreadCounts(counts);
+    } catch (e) { console.warn('[Notif] fetchCounts error:', e?.message || e); }
   }, [user?.role]);
 
   const fetchNotifications = useCallback(async () => {
@@ -55,14 +75,19 @@ export const NotificationProvider = ({ children }) => {
     try {
       await api.put('/api/notifications/mark-read', { path: path || undefined });
       if (path) {
-        setUnreadCounts(prev => ({ ...prev, [path]: 0 }));
+        setUnreadCounts(prev => {
+          const next = { ...prev, [path]: 0 };
+          prevCountsRef.current = next;
+          return next;
+        });
       } else {
         setUnreadCounts({});
+        prevCountsRef.current = {};
       }
     } catch (e) { /* silent */ }
   }, [user?.role]);
 
-  // Socket listener for real-time notifications
+  // Socket listener for real-time notifications (optimization — fires instantly when socket works)
   useEffect(() => {
     if (!user?.role) return;
 
@@ -71,15 +96,11 @@ export const NotificationProvider = ({ children }) => {
       const path = data.path;
       if (!path) return;
 
-      // Deduplicate
-      const key = `${data.id}`;
-      if (lastNotifRef.current === key) return;
-      lastNotifRef.current = key;
-
-      setUnreadCounts(prev => ({
-        ...prev,
-        [path]: (prev[path] || 0) + 1
-      }));
+      setUnreadCounts(prev => {
+        const next = { ...prev, [path]: (prev[path] || 0) + 1 };
+        prevCountsRef.current = next;
+        return next;
+      });
 
       playNotificationSound();
     };
@@ -87,6 +108,7 @@ export const NotificationProvider = ({ children }) => {
     const handleReadNotification = (data) => {
       if (data.role && data.role !== user.role) return;
       if (data.counts) {
+        prevCountsRef.current = data.counts;
         setUnreadCounts(data.counts);
       }
     };
@@ -102,16 +124,27 @@ export const NotificationProvider = ({ children }) => {
     };
   }, [user, fetchUnreadCounts]);
 
-  // Polling fallback — ensures notifications arrive even if socket events are missed
+  // Core polling — 3s interval for near-real-time badge/sound on all environments (Vercel/localhost)
   useEffect(() => {
     if (!user?.role) return;
 
-    const poll = () => {
-      fetchUnreadCounts();
-    };
+    console.log('[Notif] Polling started for', user.role, '(3s interval)');
+    const poll = () => { fetchUnreadCounts(); };
+
     poll();
-    pollingRef.current = setInterval(poll, 30000);
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+    pollingRef.current = setInterval(poll, 3000);
+    return () => {
+      console.log('[Notif] Polling stopped for', user.role);
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [user?.role, fetchUnreadCounts]);
+
+  // Tab focus handler — fetch immediately when user returns to the tab
+  useEffect(() => {
+    if (!user?.role) return;
+    const onFocus = () => { fetchUnreadCounts(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [user?.role, fetchUnreadCounts]);
 
   const value = {

@@ -197,7 +197,7 @@ const MyTasks = () => {
     if (!user?.role) return;
     const poll = () => refreshTasks();
     poll();
-    const id = setInterval(poll, 30000);
+    const id = setInterval(poll, 5000);
     return () => clearInterval(id);
   }, [user?.role]);
 
