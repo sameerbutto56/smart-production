@@ -29,8 +29,8 @@ const ReturnedFromVerification = () => {
   const formatDateTime = (d) => d ? new Date(d).toLocaleString() : '';
 
   const handleEditOrder = (order) => {
-    // Navigate to OrderEntry with order ID to load in edit mode
-    navigate(`/order-entry?editOrderId=${order.id}&fromVerification=true`);
+    // Navigate to OrderEntry with both ID and order number for reliable loading
+    navigate(`/order-entry?editOrderId=${order.id}&orderNumber=${order.orderNumber || ''}&fromVerification=true`);
   };
 
   return (

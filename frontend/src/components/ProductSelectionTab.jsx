@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Package, CheckCircle2, Layers, Palette, Hash, Search, X, Plus, FileEdit, Trash2 } from 'lucide-react';
+import { Package, CheckCircle2, Layers, Palette, Hash, Search, X, Plus, FileEdit, Trash2, ShoppingCart, Pencil } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
 
 const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color, disabled = false }) => (
@@ -47,7 +47,8 @@ const ProductSelectionTab = () => {
     computedUnitPrice, computedTotalPrice, capUnitPrice, capCharges,
     memoCartTotalItems, memoCartTotalPrice,
     preventEnterSubmit, handleSizeSelect,
-    cartItems, setCartItems, removeCartItem, editCartItem
+    cartItems, setCartItems, removeCartItem, editCartItem,
+    fromVerification, originalOrder
   } = useOrderEntry();
 
   return (
@@ -58,6 +59,48 @@ const ProductSelectionTab = () => {
       exit={{ opacity: 0, x: -50 }}
       className="space-y-6 md:space-y-10"
     >
+      {/* Show existing cart items when coming from verification return */}
+      {fromVerification && originalOrder && cartItems.length > 0 && (
+        <div className="glass p-4 md:p-6 rounded-[2rem] border-2 border-emerald-500/30 bg-emerald-500/5 shadow-2xl">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <ShoppingCart size={18} className="text-emerald-400" />
+              <h3 className="text-sm md:text-base font-black text-emerald-400 uppercase tracking-wider">Existing Products ({cartItems.length})</h3>
+            </div>
+            <span className="text-[10px] text-gray-500 font-bold">Already loaded from original order</span>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+            {cartItems.map((item, idx) => {
+              const pd = item.productDetails || {};
+              return (
+                <div key={idx} className="flex items-center justify-between bg-gray-900/60 border border-gray-800 rounded-xl p-3 gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-white truncate">{pd.productType || 'Product'}</p>
+                    <p className="text-[10px] text-gray-400 font-bold truncate">
+                      {pd.color || ''}{pd.color && pd.size ? ' / ' : ''}{pd.size || ''} × {item.quantity || 1}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs font-black text-emerald-400">Rs{(parseFloat(item.totalPrice) || 0).toLocaleString()}</span>
+                    <button type="button" onClick={() => editCartItem(idx, 'product')}
+                      className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all">
+                      <Pencil size={12} />
+                    </button>
+                    <button type="button" onClick={() => removeCartItem(idx)}
+                      className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-[10px] text-gray-500 font-bold border-t border-gray-800 pt-2">
+            <Plus size={12} />
+            <span>Add new products below or edit existing ones above</span>
+          </div>
+        </div>
+      )}
       <div className="glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border shadow-2xl">
         <div className={`flex flex-col lg:flex-row lg:items-center justify-between mb-6 md:mb-10 gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
           <div className={`space-y-1 ${useUrdu ? 'text-right' : ''}`}>

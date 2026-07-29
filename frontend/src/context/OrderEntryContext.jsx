@@ -132,14 +132,34 @@ export const OrderEntryProvider = ({ children }) => {
       // Load the order data
       (async () => {
         try {
-          const res = await api.get(`/api/orders/${editId}`);
-          const found = res.data;
+          let found = null;
+          // Try fetching by database ID first
+          try {
+            const res = await api.get(`/api/orders/${editId}`);
+            found = res.data;
+          } catch (idErr) {
+            // Fallback: try fetching by order number
+            const orderNum = searchParams.get('orderNumber');
+            if (orderNum) {
+              try {
+                const trackRes = await api.get(`/api/orders/track/${orderNum}`);
+                found = trackRes.data;
+              } catch (trackErr) {}
+            }
+          }
           if (found) {
             setEditOrderData(found);
             setOriginalOrder(found);
-            // Pre-fill form data
+            // Parse customization
+            let custData = {};
+            try { custData = found.customization ? (typeof found.customization === 'string' ? JSON.parse(found.customization) : found.customization) : {}; } catch { custData = {}; }
+            // Pre-fill form data — ALL order-level fields
+            const firstPd = Array.isArray(found.productDetails) && found.productDetails.length > 0
+              ? (found.productDetails[0].productDetails || found.productDetails[0])
+              : {};
             setFormData(prev => ({
               ...prev,
+              orderNumber: found.orderNumber || '',
               customerName: found.customerName || '',
               customerPhone: found.customerPhone || '',
               address: found.address || '',
@@ -148,22 +168,60 @@ export const OrderEntryProvider = ({ children }) => {
               priority: found.priority || 'NORMAL',
               advancePaid: !!found.advancePaid,
               advanceAmount: found.advanceAmount || '',
+              paymentStatus: found.paymentStatus || 'PENDING',
               totalPrice: found.totalPrice || '',
               quantity: found.quantity || 1,
+              deliveryCharges: found.deliveryCharges || '',
+              shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
+              instructionNotes: found.instructionNotes || '',
+              // Engraving / branding (order-level)
               logoDesign: found.logoDesign || '',
-              logoName: found.logoName || ''
+              logoName: found.logoName || '',
+              engravingInstructions: found.engravingInstructions || '',
+              skipEngraving: found.engravingRequired === undefined ? true : !found.engravingRequired,
+              // First product's selection fields as defaults
+              productType: firstPd.productType || firstPd.name || '',
+              fabricType: firstPd.fabricType || '',
+              color: firstPd.color || '',
+              size: firstPd.size || '',
+              gender: firstPd.gender || found.gender || 'Male',
+              femaleOptions: firstPd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+              sleeveLength: firstPd.sleeveLength || '',
+              shirtLength: firstPd.shirtLength || '',
+              matchingCap: firstPd.matchingCap || false,
+              matchingCapQty: firstPd.matchingCapQty || 0
             }));
-            // Pre-fill cart items
+            // Pre-fill logoEntries and articleNameEntries from customization
+            if (custData.logos && Array.isArray(custData.logos) && custData.logos.length > 0) {
+              setLogoEntries(custData.logos);
+            } else if (found.logoName || found.logoDesign) {
+              setLogoEntries([{ name: found.logoName || '', design: found.logoDesign || '' }]);
+            }
+            if (custData.articleNames && Array.isArray(custData.articleNames) && custData.articleNames.length > 0) {
+              setArticleNameEntries(custData.articleNames);
+            } else if (custData.nameSpelling) {
+              setArticleNameEntries([custData.nameSpelling]);
+            }
+            // Pre-fill cart items from productDetails
             let pd = [];
             try { pd = found.productDetails; } catch { pd = []; }
-            if (Array.isArray(pd)) {
-              setCartItems(pd.map(item => {
+            if (Array.isArray(pd) && pd.length > 0) {
+              const mapped = pd.map(item => {
                 const pdItem = item.productDetails || item;
                 const custItem = item.customization || {};
                 const sizeDataObj = item.sizeData || {};
                 return {
                   orderNumber: found.orderNumber,
                   customerName: found.customerName,
+                  customerPhone: found.customerPhone,
+                  address: found.address,
+                  city: found.city,
+                  type: found.type,
+                  priority: found.priority,
+                  advancePaid: found.advancePaid,
+                  advanceAmount: found.advanceAmount || '',
+                  logoDesign: found.logoDesign || '',
+                  logoName: found.logoName || '',
                   quantity: item.quantity || 1,
                   productDetails: {
                     ...pdItem,
@@ -176,25 +234,35 @@ export const OrderEntryProvider = ({ children }) => {
                     sleeveLength: pdItem.sleeveLength || '',
                     shirtLength: pdItem.shirtLength || '',
                     matchingCap: pdItem.matchingCap || false,
-                    matchingCapQty: pdItem.matchingCapQty || 0
+                    matchingCapQty: pdItem.matchingCapQty || 0,
+                    alteration: pdItem.alteration || { trouserLength: '', shirtLength: '', sleeveLength: '' }
                   },
                   customization: {
                     nameSpelling: custItem.nameSpelling || '',
                     nameColor: custItem.nameColor || '',
                     logoColor: custItem.logoColor || '',
                     logoPlacement: custItem.logoPlacement || '',
-                    designNotes: custItem.designNotes || ''
+                    designNotes: custItem.designNotes || '',
+                    designReference: custItem.designReference || '',
+                    additionalFeatures: custItem.additionalFeatures || [],
+                    articleNames: custItem.articleNames || [],
+                    logos: custItem.logos || []
                   },
                   sizeData: sizeDataObj,
                   totalPrice: parseFloat(item.totalPrice) || 0,
                   logoCharges: parseFloat(item.logoCharges) || 0,
                   namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
-                  customizationPrice: parseFloat(item.customizationPrice) || 0
+                  customizationPrice: parseFloat(item.customizationPrice) || 0,
+                  capCharges: parseInt(item.capCharges) || 0
                 };
-              }));
+              });
+              setCartItems(mapped);
             }
           }
-        } catch (e) { console.error('Error loading order for verification return:', e); }
+        } catch (e) {
+          console.error('Error loading order for verification return:', e);
+          setEditOrderError('Failed to load order. Please try again or contact support.');
+        }
       })();
     }
   }, [searchParams]);

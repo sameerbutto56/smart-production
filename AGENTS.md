@@ -203,6 +203,15 @@
 - **Fix**: Added `const token = sessionStorage.getItem('token'); if (!token) return;` at the start of the theme-loading `useEffect` in `ThemeContext.jsx:33` — skips the API call entirely when there's no auth token.
 - **Verification**: Build passes with 0 errors. Main bundle hash changed from `index-CNRAy873.js` to `index-CgJibzYQ.js`. Deployed to production. Commit `b969693`.
 
+### Fixed This Session — Return from Verification Complete Auto-Populate
+- **Root cause**: `OrderEntryContext.jsx:154-168` pre-filled only ~12 formData fields when loading an order from verification return. Dozens of fields were missing: `orderNumber`, `paymentStatus`, `deliveryCharges`, `engravingInstructions`, `skipEngraving`, `instructionNotes`, `shopifyOrderDate`, `matchingCap`, `sleeveLength`, `shirtLength`, `gender`, `femaleOptions`, `fabricType`, `color`, `size`, `productType`. The `logoEntries` and `articleNameEntries` were never initialized from the original order's customization data.
+- **Fix 1 – Complete formData pre-fill** (`OrderEntryContext.jsx`): Rewrote the `fromVerification` pre-fill block (lines 150-260) to populate ALL order-level fields including `orderNumber`, `paymentStatus`, `deliveryCharges`, `engravingInstructions`, `skipEngraving` (derived from `engravingRequired`), `instructionNotes`, `shopifyOrderDate` (ISO-converted), `matchingCap`/`matchingCapQty`, `sleeveLength`/`shirtLength`, `gender`, `femaleOptions`, `fabricType`, `color`, `size`, and `productType` (first product's details as defaults).
+- **Fix 2 – logoEntries & articleNameEntries pre-fill** (`OrderEntryContext.jsx`): Added logic to parse `found.customization` (handling both string and object) and set `logoEntries` from `custData.logos` or fallback to `{ name: found.logoName, design: found.logoDesign }`. Sets `articleNameEntries` from `custData.articleNames` or `[custData.nameSpelling]`.
+- **Fix 3 – Expanded cart items** (`OrderEntryContext.jsx`): Mapped ALL fields per cart item including `alteration`, `capCharges`, additional customization fields (`designReference`, `additionalFeatures`, `articleNames`, `logos`), plus order-level context fields (`type`, `priority`, `advancePaid`, `advanceAmount`).
+- **Fix 4 – Existing products display in Product tab** (`ProductSelectionTab.jsx`): Added inline cart items section at top of the tab when `fromVerification && originalOrder` — shows all existing products with product name/color/size/quantity/price, Edit (pencil) and Remove (trash) buttons per item, and a helpful hint "Add new products below or edit existing ones above".
+- **Fix 5 – Error/fallback handling**: ID fetch fallback chain (`/api/orders/:editOrderId` → `/api/orders/track/:orderNumber`) with error state in loading screen (`editOrderError` displays AlertCircle message instead of spinning forever).
+- **Verification**: Build passes with 0 errors.
+
 ## Key Decisions
 - Only one React version (19.2.6) must exist in the workspace — version mismatch caused dedupe workaround which triggered TDZ error in Vite production bundle.
 - `resolve.dedupe` is no longer needed because React versions are now consistent across all workspaces.
@@ -233,7 +242,6 @@
 
 ## Critical Context
 - Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice; `c6431c0` — POS-Outlet integration (pre-fill, deliver, send to outlet, order number on receipt)
-- Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
 - Cap pricing is hardcoded `capUnitPrice = 500`.
