@@ -89,13 +89,19 @@ const getCashSummary = async (req, res) => {
       where: { outletName: outlet, createdAt: { gte: dateFrom, lte: dateTo } },
       _sum: { amount: true }
     });
+    // Total bank deposits in range (cash moved to bank — deducted from till)
+    const bankDepositAgg = await prisma.bankDeposit.aggregate({
+      where: { outletName: outlet, createdAt: { gte: dateFrom, lte: dateTo } },
+      _sum: { amount: true }
+    });
     const totalCashCollected = (cashSalesAgg._sum.grandTotal || 0) + (cashOnlineAgg._sum.cashAmount || 0);
     const totalCashRefunded = cashRefundedAgg._sum.refundAmount || 0;
     const totalExpenses = journalAgg._sum.amount || 0;
+    const totalBankDeposits = bankDepositAgg._sum.amount || 0;
     const netCash = totalCashCollected - totalCashRefunded;
-    const availableCash = netCash - totalExpenses;
+    const availableCash = netCash - totalExpenses - totalBankDeposits;
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.json({ totalCashCollected, totalCashRefunded, totalExpenses, netCash, availableCash });
+    res.json({ totalCashCollected, totalCashRefunded, totalExpenses, totalBankDeposits, netCash, availableCash });
   } catch (error) {
     res.status(500).json({ message: 'Failed to get cash summary', error: error.message });
   }

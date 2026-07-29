@@ -119,6 +119,8 @@ const BankDepositPage = () => {
       setAmount('');
       setNotes('');
       fetchDeposits();
+      // Notify dashboard to refresh cash balance
+      try { new BroadcastChannel('smart-production').postMessage('bank-deposit-saved'); } catch (_) {}
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to record deposit');
     } finally {

@@ -810,11 +810,31 @@ const getSalesDashboard = async (req, res) => {
     });
     const totalJournalExpenses = journalAgg._sum.amount || 0;
 
+    // Fetch bank deposits in the same range — deducted from cash in till
+    const bankDepositAgg = await prisma.bankDeposit.aggregate({
+      where: {
+        ...(outlet ? { outletName: outlet } : {}),
+        ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
+      },
+      _sum: { amount: true }
+    });
+    const totalBankDeposits = bankDepositAgg._sum.amount || 0;
+
+    // Fetch bank deposits list for display
+    const bankDeposits = await prisma.bankDeposit.findMany({
+      where: {
+        ...(outlet ? { outletName: outlet } : {}),
+        ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
     const paymentBreakdown = KNOWN_METHODS.map(method => {
       const gross = paymentTotals[method] || 0;
       const ret = returnsByMethod[method] || 0;
       let net = gross - ret;
-      if (method === 'CASH') net -= totalJournalExpenses;
+      if (method === 'CASH') net -= (totalJournalExpenses + totalBankDeposits);
       return { method, gross, returns: ret, net };
     });
 
@@ -947,6 +967,8 @@ const getSalesDashboard = async (req, res) => {
       netRevenue,
       totalDiscount,
       totalJournalExpenses,
+      totalBankDeposits,
+      bankDeposits,
       paymentBreakdown,
       balanceOrders,
       highestSalesDay,

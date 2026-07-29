@@ -97,6 +97,7 @@ const OutletPOSDashboard = ({ outlet }) => {
       const bc = new BroadcastChannel('smart-production');
       bc.onmessage = (e) => {
         if (e.data === 'journal-entry-saved' || e.data?.type === 'journal-entry-saved') debouncedFetchJournal();
+        if (e.data === 'bank-deposit-saved' || e.data?.type === 'bank-deposit-saved') { debouncedFetchJournal(); refresh(); }
       };
       journalRef.current = bc;
     } catch (_) {}
@@ -111,7 +112,8 @@ const OutletPOSDashboard = ({ outlet }) => {
     { icon: CheckCircle, label: 'Completed Orders', value: (dashboard.completedOrders || 0), sub: 'POS + Standard Completed', color: 'from-emerald-600 to-teal-600' },
     { icon: Clock, label: 'Pending Orders', value: dashboard.pendingOrders || 0, sub: 'Awaiting production/dispatch', color: 'from-amber-600 to-orange-600' },
     { icon: XCircle, label: 'Cancelled Orders', value: dashboard.cancelledOrders || 0, sub: 'Rejected / Cancelled', color: 'from-red-600 to-pink-600' },
-    { icon: FileText, label: 'General Entry Deduction', value: formatCurrency(dashboard.totalJournalExpenses || 0), sub: `Available Cash: ${formatCurrency((dashboard.totalSales || 0) - (dashboard.totalJournalExpenses || 0))}`, color: 'from-orange-600 to-red-600' }
+    { icon: FileText, label: 'General Entry Deduction', value: formatCurrency(dashboard.totalJournalExpenses || 0), sub: `Bank Deposits: ${formatCurrency(dashboard.totalBankDeposits || 0)}`, color: 'from-orange-600 to-red-600' },
+    { icon: DollarSign, label: 'Bank Deposited', value: formatCurrency(dashboard.totalBankDeposits || 0), sub: `${(dashboard.bankDeposits || []).length} deposits`, color: 'from-blue-600 to-indigo-600' }
   ] : [];
 
   return (
@@ -148,6 +150,8 @@ const OutletPOSDashboard = ({ outlet }) => {
           rows.push(['Completed', dashboard.completedOrders || 0].join(','));
           rows.push(['Pending', dashboard.pendingOrders || 0].join(','));
           rows.push(['Cancelled', dashboard.cancelledOrders || 0].join(','));
+          rows.push(['Bank Deposits', dashboard.totalBankDeposits || 0].join(','));
+          rows.push('');
           rows.push('');
           rows.push(['Payment Method', 'Gross', 'Net'].join(','));
           (dashboard.paymentBreakdown || []).forEach(p => rows.push([p.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : p.method, p.gross, p.net].join(',')));
@@ -188,6 +192,9 @@ const OutletPOSDashboard = ({ outlet }) => {
             </div>
             <h2>Payment Methods</h2>
             <table><tr><th>Method</th><th>Gross</th><th>Net</th></tr>${pmRows}</table>
+            <h2>Bank Deposits</h2>
+            <p>Total Bank Deposits: ₨${(dashboard.totalBankDeposits || 0).toLocaleString()}</p>
+            <table><tr><th>Employee</th><th>Slip #</th><th>Amount</th><th>Date</th></tr>${(dashboard.bankDeposits || []).map(d => `<tr><td>${d.employeeName}</td><td>${d.slipNumber}</td><td>₨${(d.amount || 0).toLocaleString()}</td><td>${new Date(d.createdAt).toLocaleDateString()}</td></tr>`).join('')}</table>
             <h2>Sales Trend</h2>
             <table><tr><th>Date</th><th>Sales</th></tr>${trendRows}</table>
             <h2>Top Products</h2>
@@ -377,19 +384,54 @@ const OutletPOSDashboard = ({ outlet }) => {
             </div>
           )}
 
+          {/* Bank Deposits */}
+          {dashboard.bankDeposits && dashboard.bankDeposits.length > 0 && (
+            <div className="bg-gray-900 border border-indigo-800/50 rounded-2xl p-4">
+              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <DollarSign size={14} /> Bank Deposits
+              </h3>
+              <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800">
+                <span className="text-xs text-gray-400 font-bold">Total Deposited:</span>
+                <span className="text-sm font-black text-indigo-400">{formatCurrency(dashboard.totalBankDeposits)}</span>
+              </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {dashboard.bankDeposits.slice(0, 10).map(d => (
+                  <div key={d.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <User size={12} className="text-indigo-400" />
+                        <p className="font-black text-white">{d.employeeName}</p>
+                      </div>
+                      <p className="text-[9px] text-gray-500">{new Date(d.createdAt).toLocaleString('en-PK')}</p>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">Slip: {d.slipNumber}</span>
+                      <span className="font-black text-indigo-400">-{formatCurrency(d.amount)}</span>
+                    </div>
+                    {d.notes && <p className="text-[9px] text-gray-600 italic mt-0.5">{d.notes}</p>}
+                  </div>
+                ))}
+                {dashboard.bankDeposits.length > 10 && (
+                  <p className="text-center text-[10px] text-gray-600 pt-1">+ {dashboard.bankDeposits.length - 10} more deposits</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Journal Entries */}
           <div className="bg-gray-900 border border-blue-800/50 rounded-2xl p-4">
             <h3 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
               <FileText size={14} /> Journal Entries — Cash Expenses
             </h3>
             {cashSummary && (
-              <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800">
+              <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800 flex-wrap">
                 <DollarSign size={14} className="text-emerald-400" />
                 <span className="text-xs text-gray-400 font-bold">Available Cash:</span>
                 <span className={`text-sm font-black ${cashSummary.availableCash >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {formatCurrency(cashSummary.availableCash)}
                 </span>
-                <span className="text-[10px] text-gray-600">(Expenses: {formatCurrency(cashSummary.totalExpenses)})</span>
+                <span className="text-[10px] text-gray-600">Expenses: -{formatCurrency(cashSummary.totalExpenses)}</span>
+                <span className="text-[10px] text-gray-600">Bank Dep: -{formatCurrency(cashSummary.totalBankDeposits || 0)}</span>
               </div>
             )}
             {journalLoading ? (

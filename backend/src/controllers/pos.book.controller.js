@@ -78,7 +78,7 @@ const getBookSummary = async (req, res) => {
     const dayFilter = { gte: dayStart, lte: endTime };
 
     // Parallel queries
-    const [sales, faisalTakes, returns, journals, balancePayments] = await Promise.all([
+    const [sales, faisalTakes, returns, journals, balancePayments, bankDeposits] = await Promise.all([
       // Sales in day range (matches Dashboard's cash summary)
       prisma.posSale.findMany({
         where: { outletName: outlet, createdAt: dayFilter, faisalTake: { not: true }, refundedAt: null },
@@ -106,6 +106,11 @@ const getBookSummary = async (req, res) => {
           paidAt: dayFilter,
         },
         orderBy: { paidAt: 'asc' },
+      }),
+      // Bank deposits in day range
+      prisma.bankDeposit.findMany({
+        where: { outletName: outlet, createdAt: dayFilter },
+        orderBy: { createdAt: 'asc' },
       }),
     ]);
 
@@ -219,6 +224,9 @@ const getBookSummary = async (req, res) => {
     // Journal entries total
     const totalJournalEntries = journals.reduce((s, j) => s + j.amount, 0);
 
+    // Bank deposits total — cash moved to bank, deducted from till
+    const totalBankDeposits = bankDeposits.reduce((s, d) => s + d.amount, 0);
+
     // Totals — Cash+Online cash portion is included in cash, online portion in online
     const totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH;
     const totalCardSales = paymentSummary.CARD;
@@ -241,11 +249,11 @@ const getBookSummary = async (req, res) => {
     // Available cash — using raw cash amounts to match Dashboard
     // returnSummary.CASH includes CASH_ONLINE cash returns portion (necessary for till calculation)
     const totalCashRefunded = returnSummary.CASH;
-    const availableCash = rawCashCollected - totalJournalEntries - totalCashRefunded;
+    const availableCash = rawCashCollected - totalJournalEntries - totalCashRefunded - totalBankDeposits;
 
     // Payment breakdown — ONLINE returns are pure (no CASH_ONLINE portion) to match non-overlapping Payment Summary
     const paymentBreakdown = [
-      { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, net: rawCashCollected - totalJournalEntries - returnSummary.CASH },
+      { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, bankDeposits: totalBankDeposits, net: rawCashCollected - totalJournalEntries - returnSummary.CASH - totalBankDeposits },
       { method: 'CARD', gross: totalCardSales, returns: returnSummary.CARD, journalExpenses: 0, net: totalCardSales - returnSummary.CARD },
       { method: 'ONLINE', gross: totalOnlineSales, returns: returnSummary.ONLINE, journalExpenses: 0, net: totalOnlineSales - returnSummary.ONLINE },
     ];
@@ -295,6 +303,8 @@ const getBookSummary = async (req, res) => {
       totalReturnsCount: returns.length,
       totalJournalCount: journals.length,
       totalBalancePaymentCount: balancePayments.length,
+      totalBankDeposits,
+      bankDeposits,
       sales, // full sale objects for drill-down
     };
 
