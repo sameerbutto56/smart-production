@@ -203,6 +203,11 @@
 - **Fix**: Added `const token = sessionStorage.getItem('token'); if (!token) return;` at the start of the theme-loading `useEffect` in `ThemeContext.jsx:33` — skips the API call entirely when there's no auth token.
 - **Verification**: Build passes with 0 errors.
 
+### Fixed This Session — Resubmit After Verification Returns 500
+- **Root cause**: `resubmitFromVerification` included `'items'` in the `updatableFields` array. The loop `updatableFields.forEach(f => { if (updateData[f] !== undefined) payload[f] = updateData[f]; })` added `items: [...]` to the payload, but `items` is NOT a valid Prisma field on the Order model. Prisma threw `Unknown argument 'items'` on `tx.order.update()`.
+- **Fix**: Removed `'items'` from `updatableFields`. The `items` data is still processed in the `if (updateData.items)` block to build `payload.productDetails` (a valid Json field), but the raw `items` array no longer leaks into the Prisma update payload.
+- **Note**: This was a pre-existing bug introduced when `resubmitFromVerification` was created. It only manifests when items are included in the request body (the normal resubmit flow). My advance payment changes to `returnToFaisal` didn't cause it.
+
 ### Fixed This Session — Advance Payment Support in Return to Faisal
 - **Problem**: The "Return to Faisal" modal (VerificationPage.jsx) had no advance payment input — verifier could not enter or update advance amount before returning, unlike the "Verify" modal which had full advance payment support.
 - **Fix 1 – Frontend** (`VerificationPage.jsx`): Added `returnAdvanceReceived` state, pre-filled with `order.advanceAmount` when opening return modal. Added advance amount input + remaining balance display matching the Verify modal. Passes `advanceAmountReceived` in the POST body.
