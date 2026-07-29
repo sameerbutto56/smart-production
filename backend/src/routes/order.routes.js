@@ -35,6 +35,7 @@ const {
   updateDispatchStatus,
   acceptTask,
   getOrderTimeline,
+  getOrderPerformance,
   getOutletAnalytics,
   updateProductAvailability,
   toggleProductVerification,
@@ -86,6 +87,9 @@ router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN'
 
 // Control Center: Get production analytics
 router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), getAnalytics);
+
+// Order Performance (date-filtered department counts)
+router.get('/performance', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getOrderPerformance);
 
 // Send order for delivery (from AllOrders page)
 router.put('/:orderId/send-for-delivery', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), sendForDelivery);

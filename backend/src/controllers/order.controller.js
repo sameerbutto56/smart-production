@@ -3406,6 +3406,129 @@ const trackOrder = async (req, res) => {
   }
 };
 
+// GET /api/orders/performance — date-filtered department order counts
+const getOrderPerformance = async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const dateFrom = from ? new Date(from) : new Date('2000-01-01');
+    const dateTo = to ? new Date(to + 'T23:59:59.999Z') : new Date('2100-01-01');
+
+    // Faisal: orders created in date range
+    const faisalEntered = await prisma.order.count({
+      where: { createdAt: { gte: dateFrom, lte: dateTo } }
+    });
+
+    // Helper: count stage records by date field + status
+    const stageCount = (stageName, dateField, status) => {
+      const where = { stageName };
+      if (dateField === 'startedAt') {
+        where.startedAt = { gte: dateFrom, lte: dateTo };
+        where.status = 'IN_PROGRESS';
+      } else if (dateField === 'completedAt') {
+        where.completedAt = { gte: dateFrom, lte: dateTo };
+        where.status = 'COMPLETED';
+      } else {
+        where.createdAt = { gte: dateFrom, lte: dateTo };
+        where.status = 'PENDING';
+      }
+      return prisma.orderStage.count({ where });
+    };
+
+    // Store
+    const [storeAccepted, storeSentForward, storePending] = await Promise.all([
+      stageCount('STORE', 'startedAt'),
+      stageCount('STORE', 'completedAt'),
+      stageCount('STORE', 'createdAt'),
+    ]);
+
+    // Logo
+    const [logoAccepted, logoSentForward, logoPending] = await Promise.all([
+      stageCount('LOGO_DESIGN', 'startedAt'),
+      stageCount('LOGO_DESIGN', 'completedAt'),
+      stageCount('LOGO_DESIGN', 'createdAt'),
+    ]);
+
+    // Production (PRODUCTION_ACCEPTANCE + PRODUCTION)
+    const [prodAccepted, prodSentForward, prodPending] = await Promise.all([
+      prisma.orderStage.count({
+        where: {
+          stageName: { in: ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
+          startedAt: { gte: dateFrom, lte: dateTo },
+          status: 'IN_PROGRESS'
+        }
+      }),
+      prisma.orderStage.count({
+        where: {
+          stageName: { in: ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
+          completedAt: { gte: dateFrom, lte: dateTo },
+          status: 'COMPLETED'
+        }
+      }),
+      prisma.orderStage.count({
+        where: {
+          stageName: { in: ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
+          createdAt: { gte: dateFrom, lte: dateTo },
+          status: 'PENDING'
+        }
+      }),
+    ]);
+
+    // Dispatch
+    const [dispatchReceived, dispatchDispatched, dispatchPending] = await Promise.all([
+      prisma.orderStage.count({
+        where: {
+          stageName: 'DISPATCH',
+          createdAt: { gte: dateFrom, lte: dateTo }
+        }
+      }),
+      stageCount('DISPATCH', 'completedAt'),
+      prisma.orderStage.count({
+        where: {
+          stageName: 'DISPATCH',
+          createdAt: { gte: dateFrom, lte: dateTo },
+          status: 'PENDING'
+        }
+      }),
+    ]);
+
+    // Delivery (OUT_FOR_DELIVERY)
+    const [deliveryAssigned, deliveryDelivered, deliveryReturned, deliveryPending] = await Promise.all([
+      prisma.orderStage.count({
+        where: { stageName: 'OUT_FOR_DELIVERY', createdAt: { gte: dateFrom, lte: dateTo } }
+      }),
+      prisma.order.count({
+        where: {
+          deliveredAt: { gte: dateFrom, lte: dateTo }
+        }
+      }),
+      prisma.order.count({
+        where: {
+          returnedAt: { gte: dateFrom, lte: dateTo }
+        }
+      }),
+      prisma.orderStage.count({
+        where: {
+          stageName: 'OUT_FOR_DELIVERY',
+          createdAt: { gte: dateFrom, lte: dateTo },
+          status: 'PENDING'
+        }
+      }),
+    ]);
+
+    res.json({
+      faisal: { entered: faisalEntered },
+      store: { accepted: storeAccepted, sentForward: storeSentForward, pending: storePending },
+      logo: { accepted: logoAccepted, sentForward: logoSentForward, pending: logoPending },
+      production: { accepted: prodAccepted, sentForward: prodSentForward, pending: prodPending },
+      dispatch: { received: dispatchReceived, dispatched: dispatchDispatched, pending: dispatchPending },
+      delivery: { assigned: deliveryAssigned, delivered: deliveryDelivered, returned: deliveryReturned, pending: deliveryPending }
+    });
+  } catch (error) {
+    console.error('[getOrderPerformance] error:', error.message);
+    res.status(500).json({ message: 'Failed to get order performance', error: error.message });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
@@ -3446,5 +3569,6 @@ module.exports = {
   updateProductAvailability,
   toggleProductVerification,
   trackOrder,
-  getRolesForStage
+  getRolesForStage,
+  getOrderPerformance
 };

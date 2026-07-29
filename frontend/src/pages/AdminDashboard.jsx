@@ -57,6 +57,7 @@ import OnlineStoreCard from '../components/OnlineStoreCard';
 import AlterationTrackingCard from '../components/AlterationTrackingCard';
 import OutletDetailedCard from '../components/OutletDetailedCard';
 import AdminFeedbackDashboard from '../components/AdminFeedbackDashboard';
+import OrderPerformanceCard from '../components/OrderPerformanceCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
@@ -562,6 +563,7 @@ const AdminDashboard = () => {
               { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Complete 360° operational dashboard — sales, orders, inventory, transfers & more', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', glow: 'hover:shadow-teal-500/20', outletName: 'Abbottabad' },
               { id: 'online_store', label: 'Online Store', desc: 'Online orders, revenue analytics, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20' },
               { id: 'customer_feedback', label: 'Customer Feedback', desc: 'QR feedback system, customer ratings, satisfaction analytics & feedback management', icon: MessageSquare, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', glow: 'hover:shadow-yellow-500/20' },
+              { id: 'order_performance', label: 'Order Performance', desc: 'Department-wise operational counts — Faisal, Store, Logo, Production, Dispatch & Delivery', icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', glow: 'hover:shadow-blue-500/20' },
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
@@ -609,6 +611,7 @@ const AdminDashboard = () => {
                   {activeTab === 'outlet_jail' && 'Jail Road Operations'}
                   {activeTab === 'outlet_abbottabad' && 'Abbottabad Operations'}
                   {activeTab === 'customer_feedback' && 'QR Feedback Management & Analytics'}
+                  {activeTab === 'order_performance' && 'Department-wise Order Performance Analytics'}
                 </p>
               </div>
             </div>
@@ -961,6 +964,11 @@ const AdminDashboard = () => {
             {/* Alterations Tab */}
             {activeTab === 'alterations' && (
               <AlterationTrackingCard />
+            )}
+
+            {/* Order Performance Tab */}
+            {activeTab === 'order_performance' && (
+              <OrderPerformanceCard activeTab={activeTab} />
             )}
 
             {/* Order Change Requests Tab */}
