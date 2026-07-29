@@ -102,10 +102,9 @@ export const NotificationProvider = ({ children }) => {
     };
   }, [user, fetchUnreadCounts]);
 
-  // Polling fallback for Vercel (no socket)
+  // Polling fallback — ensures notifications arrive even if socket events are missed
   useEffect(() => {
     if (!user?.role) return;
-    if (!isVercel) return;
 
     const poll = () => {
       fetchUnreadCounts();
@@ -113,7 +112,7 @@ export const NotificationProvider = ({ children }) => {
     poll();
     pollingRef.current = setInterval(poll, 30000);
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [user?.role, isVercel, fetchUnreadCounts]);
+  }, [user?.role, fetchUnreadCounts]);
 
   const value = {
     unreadCounts,

@@ -2412,7 +2412,8 @@ const getUnseenOrders = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: {
         currentStage: { in: relevantStages },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+        stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
       },
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
@@ -3491,8 +3492,25 @@ const getOrderPerformance = async (req, res) => {
       }),
     ]);
 
+    // Inventory Verification
+    const [verificationVerified, verificationPendingCount, verificationReturned] = await Promise.all([
+      prisma.order.count({
+        where: { verifiedAt: { gte: dateFrom, lte: dateTo } }
+      }),
+      prisma.order.count({
+        where: {
+          goForVerification: true,
+          verifiedAt: null,
+          createdAt: { gte: dateFrom, lte: dateTo }
+        }
+      }),
+      prisma.order.count({
+        where: { verificationReturnedAt: { gte: dateFrom, lte: dateTo } }
+      }),
+    ]);
+
     // Delivery (OUT_FOR_DELIVERY)
-    const [deliveryAssigned, deliveryDelivered, deliveryReturned, deliveryPending] = await Promise.all([
+    const [deliveryAssigned, deliveryDelivered, deliveryReturnedCount, deliveryPending] = await Promise.all([
       prisma.orderStage.count({
         where: { stageName: 'OUT_FOR_DELIVERY', createdAt: { gte: dateFrom, lte: dateTo } }
       }),
@@ -3517,11 +3535,12 @@ const getOrderPerformance = async (req, res) => {
 
     res.json({
       faisal: { entered: faisalEntered },
+      verification: { verified: verificationVerified, pendingVerification: verificationPendingCount, returned: verificationReturned },
       store: { accepted: storeAccepted, sentForward: storeSentForward, pending: storePending },
       logo: { accepted: logoAccepted, sentForward: logoSentForward, pending: logoPending },
       production: { accepted: prodAccepted, sentForward: prodSentForward, pending: prodPending },
       dispatch: { received: dispatchReceived, dispatched: dispatchDispatched, pending: dispatchPending },
-      delivery: { assigned: deliveryAssigned, delivered: deliveryDelivered, returned: deliveryReturned, pending: deliveryPending }
+      delivery: { assigned: deliveryAssigned, delivered: deliveryDelivered, returned: deliveryReturnedCount, pending: deliveryPending }
     });
   } catch (error) {
     console.error('[getOrderPerformance] error:', error.message);

@@ -4,7 +4,7 @@ import api from '../services/api';
 import useCache from '../hooks/useCache';
 import {
   BarChart3, RefreshCw, Calendar, ChevronDown, Users, Store, Palette,
-  Factory, Package, Truck, Clock, CheckCircle2, XCircle, ArrowRight
+  Factory, Package, Truck, Clock, CheckCircle2, XCircle, ArrowRight, Shield
 } from 'lucide-react';
 
 const FILTERS = [
@@ -49,6 +49,11 @@ function getDateRange(filter, customFrom, customTo) {
 const DEPARTMENTS = [
   { key: 'faisal', label: 'Faisal Order Entry', icon: Users, color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/10', metrics: [
     { key: 'entered', label: 'Orders Entered' }
+  ]},
+  { key: 'verification', label: 'Inventory Verification', icon: Shield, color: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-500/10', metrics: [
+    { key: 'verified', label: 'Verified' },
+    { key: 'pendingVerification', label: 'Pending' },
+    { key: 'returned', label: 'Returned' }
   ]},
   { key: 'store', label: 'Store Performance', icon: Store, color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10', metrics: [
     { key: 'accepted', label: 'Accepted' },
@@ -221,17 +226,17 @@ export default function OrderPerformanceCard({ activeTab }) {
                 <div className="space-y-1.5">
                   {d.metrics.map(m => {
                     const val = deptData[m.key] ?? 0;
-                    const accent = m.key === 'pending' ? 'bg-amber-500/10 border border-amber-500/20' :
+                    const accent = m.key === 'pending' || m.key === 'pendingVerification' ? 'bg-amber-500/10 border border-amber-500/20' :
                       m.key === 'accepted' || m.key === 'received' || m.key === 'assigned' || m.key === 'entered' ? 'bg-blue-500/10 border border-blue-500/20' :
-                      m.key === 'sentForward' || m.key === 'dispatched' || m.key === 'delivered' ? 'bg-emerald-500/10 border border-emerald-500/20' :
+                      m.key === 'sentForward' || m.key === 'dispatched' || m.key === 'delivered' || m.key === 'verified' ? 'bg-emerald-500/10 border border-emerald-500/20' :
                       m.key === 'returned' ? 'bg-red-500/10 border border-red-500/20' :
                       'bg-gray-500/10 border border-gray-500/20';
                     return (
                       <div key={m.key} className={`flex items-center justify-between px-3 py-2 rounded-lg ${accent}`}>
                         <div className="flex items-center gap-2">
-                          {m.key === 'pending' && <Clock size={12} className="text-amber-400" />}
+                          {(m.key === 'pending' || m.key === 'pendingVerification') && <Clock size={12} className="text-amber-400" />}
                           {m.key === 'accepted' && <CheckCircle2 size={12} className="text-blue-400" />}
-                          {(m.key === 'sentForward' || m.key === 'dispatched' || m.key === 'delivered') && <ArrowRight size={12} className="text-emerald-400" />}
+                          {(m.key === 'sentForward' || m.key === 'dispatched' || m.key === 'delivered' || m.key === 'verified') && <CheckCircle2 size={12} className="text-emerald-400" />}
                           {m.key === 'returned' && <XCircle size={12} className="text-red-400" />}
                           {m.key === 'entered' && <Users size={12} className="text-blue-400" />}
                           {m.key === 'received' && <Package size={12} className="text-blue-400" />}

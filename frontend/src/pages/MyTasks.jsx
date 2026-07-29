@@ -164,7 +164,7 @@ const MyTasks = () => {
     }
   };
 
-  // Listen for stage-rejected toasts only (no auto-refresh)
+  // Listen for real-time events that should trigger a task refresh
   useEffect(() => {
     const onStageRejected = (data) => {
       toast.error(`Task Rejected: Order #${data.orderId.substring(0, 8)}`, {
@@ -172,12 +172,34 @@ const MyTasks = () => {
         icon: <AlertCircle className="text-red-500" />
       });
     };
+    const onOrderVerified = () => { refreshTasks(); };
+    const onOrderUpdated = () => { refreshTasks(); };
+    const onNewNotification = (data) => {
+      if (!data.role || data.role === user?.role) refreshTasks();
+    };
     socket.on('stage-rejected', onStageRejected);
-    return () => { socket.off('stage-rejected', onStageRejected); };
-  }, []);
+    socket.on('order-verified', onOrderVerified);
+    socket.on('order-updated', onOrderUpdated);
+    socket.on('notification:new', onNewNotification);
+    return () => {
+      socket.off('stage-rejected', onStageRejected);
+      socket.off('order-verified', onOrderVerified);
+      socket.off('order-updated', onOrderUpdated);
+      socket.off('notification:new', onNewNotification);
+    };
+  }, [user?.role]);
 
   // Refresh once on mount
   useEffect(() => { refreshTasks(); }, []);
+
+  // Polling fallback for environments where socket events may be missed
+  useEffect(() => {
+    if (!user?.role) return;
+    const poll = () => refreshTasks();
+    poll();
+    const id = setInterval(poll, 30000);
+    return () => clearInterval(id);
+  }, [user?.role]);
 
   // Fetch alteration/engraving tasks when those tabs are selected
   useEffect(() => {
