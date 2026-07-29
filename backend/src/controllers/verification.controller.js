@@ -202,7 +202,7 @@ const markPendingVerification = async (req, res) => {
 const returnToFaisal = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { returnNote } = req.body;
+    const { returnNote, advanceAmountReceived } = req.body;
     const verifierName = req.user?.name || 'Unknown';
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -211,11 +211,15 @@ const returnToFaisal = async (req, res) => {
     if (order.verifiedAt) return res.status(400).json({ message: 'Order already verified, cannot return' });
     if (order.verificationReturnedAt) return res.status(400).json({ message: 'Order already returned to Faisal' });
 
+    const advanceReceived = parseFloat(advanceAmountReceived) || 0;
+
     await prisma.order.update({
       where: { id: orderId },
       data: {
         verificationReturnedAt: new Date(),
-        verificationReturnNote: returnNote || 'Changes requested during verification'
+        verificationReturnNote: returnNote || 'Changes requested during verification',
+        advanceAmount: advanceReceived,
+        advancePaid: advanceReceived > 0
       }
     });
 
@@ -223,7 +227,7 @@ const returnToFaisal = async (req, res) => {
       data: {
         orderId,
         action: 'RETURNED_FOR_CORRECTION',
-        details: `Returned to Faisal by ${verifierName} for corrections. Note: ${returnNote || 'N/A'}`,
+        details: `Returned to Faisal by ${verifierName} for corrections. Advance: PKR ${advanceReceived.toLocaleString()}. Note: ${returnNote || 'N/A'}`,
         performedBy: req.user?.id || 'system'
       }
     }).catch(e => console.error('Audit log failed:', e.message));

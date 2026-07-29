@@ -201,7 +201,14 @@
 ### Fixed This Session — QR Code /feedback Redirects to Login (ThemeProvider Auth Redirect)
 - **Root cause**: `ThemeProvider` called `api.get('/api/users/me/theme')` on mount for ALL users — including unauthenticated visitors scanning the QR code. The server returned 401 → `api.js` interceptor caught it → `window.location.href = '/login'`. Since `ThemeProvider` wraps the entire app (including the `/feedback` route which is outside `ProtectedRoute`), every unauthenticated page load triggered a 401 redirect.
 - **Fix**: Added `const token = sessionStorage.getItem('token'); if (!token) return;` at the start of the theme-loading `useEffect` in `ThemeContext.jsx:33` — skips the API call entirely when there's no auth token.
-- **Verification**: Build passes with 0 errors. Main bundle hash changed from `index-CNRAy873.js` to `index-CgJibzYQ.js`. Deployed to production. Commit `b969693`.
+- **Verification**: Build passes with 0 errors.
+
+### Fixed This Session — Advance Payment Support in Return to Faisal
+- **Problem**: The "Return to Faisal" modal (VerificationPage.jsx) had no advance payment input — verifier could not enter or update advance amount before returning, unlike the "Verify" modal which had full advance payment support.
+- **Fix 1 – Frontend** (`VerificationPage.jsx`): Added `returnAdvanceReceived` state, pre-filled with `order.advanceAmount` when opening return modal. Added advance amount input + remaining balance display matching the Verify modal. Passes `advanceAmountReceived` in the POST body.
+- **Fix 2 – Backend** (`verification.controller.js:returnToFaisal`): Accepts `advanceAmountReceived` from request body, saves to `advanceAmount` and `advancePaid` fields on the order. Updated audit log to include advance amount.
+- **Data Sync**: Advance payment saved upon return → automatically appears pre-filled when Faisal opens via Return from Verification → Add Order & Resubmit (the OrderEntryContext already loads `advanceAmount` from the order). Remaining balance recalculates automatically.
+- **Verification**: Frontend build passes with 0 errors. Backend requires no syntax errors (verified via `node -e require`).
 
 ### Fixed This Session — Return from Verification Complete Auto-Populate
 - **Root cause**: `OrderEntryContext.jsx:154-168` pre-filled only ~12 formData fields when loading an order from verification return. Dozens of fields were missing: `orderNumber`, `paymentStatus`, `deliveryCharges`, `engravingInstructions`, `skipEngraving`, `instructionNotes`, `shopifyOrderDate`, `matchingCap`, `sleeveLength`, `shirtLength`, `gender`, `femaleOptions`, `fabricType`, `color`, `size`, `productType`. The `logoEntries` and `articleNameEntries` were never initialized from the original order's customization data.

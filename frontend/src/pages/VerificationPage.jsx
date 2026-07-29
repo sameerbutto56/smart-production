@@ -19,6 +19,7 @@ const VerificationPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [returnModal, setReturnModal] = useState(null);
   const [returnNote, setReturnNote] = useState('');
+  const [returnAdvanceReceived, setReturnAdvanceReceived] = useState('');
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -63,9 +64,12 @@ const VerificationPage = () => {
     if (!returnModal) return;
     setSubmitting(true);
     try {
-      await api.post(`/api/verification/${returnModal.id}/return-to-faisal`, { returnNote });
+      await api.post(`/api/verification/${returnModal.id}/return-to-faisal`, {
+        returnNote,
+        advanceAmountReceived: parseFloat(returnAdvanceReceived) || 0
+      });
       toast.success('Order returned to Faisal for corrections');
-      setReturnModal(null); setReturnNote('');
+      setReturnModal(null); setReturnNote(''); setReturnAdvanceReceived('');
       fetchPending();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to return order'); }
     setSubmitting(false);
@@ -372,7 +376,7 @@ const VerificationPage = () => {
                             className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
                             <CheckCircle size={16} /> Verify & Send to Store
                           </button>
-                          <button onClick={() => { setReturnModal(order); setReturnNote(''); }}
+                          <button onClick={() => { setReturnModal(order); setReturnNote(''); setReturnAdvanceReceived(order.advanceAmount?.toString() || ''); }}
                             className="bg-amber-600 hover:bg-amber-500 text-white font-black py-3 px-5 rounded-xl text-sm transition-all flex items-center gap-2">
                             <MessageSquare size={16} /> Changes Needed
                           </button>
@@ -438,13 +442,25 @@ const VerificationPage = () => {
             </div>
             <p className="text-sm text-gray-400">Order: <span className="text-white font-black">{returnModal.orderNumber}</span></p>
             <p className="text-xs text-gray-500">Record what changes the customer requested. The order will be sent back to Faisal for corrections.</p>
+            <div className="bg-gray-900 rounded-xl p-3 space-y-1">
+              <div className="flex justify-between text-sm"><span className="text-gray-400">Total Amount</span><span className="font-black text-white">{formatCurrency(returnModal.totalPrice)}</span></div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 block mb-1">Advance Payment Received (PKR)</label>
+              <input type="number" value={returnAdvanceReceived} onChange={e => setReturnAdvanceReceived(e.target.value)} min="0"
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-black text-lg outline-none focus:border-amber-500" />
+            </div>
+            <div className="bg-gray-900 rounded-xl p-3 flex justify-between items-center">
+              <span className="text-sm text-gray-400">Remaining Balance</span>
+              <span className="text-lg font-black text-amber-400">{formatCurrency((returnModal.totalPrice || 0) - (parseFloat(returnAdvanceReceived) || 0))}</span>
+            </div>
             <div>
               <label className="text-xs font-bold text-gray-400 block mb-1">Changes Requested *</label>
               <textarea value={returnNote} onChange={e => setReturnNote(e.target.value)} rows={4} placeholder="e.g. Change scrub color to Navy Blue. Increase sleeve length by 2 inches."
                 className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-amber-500 resize-none" />
             </div>
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
-              <p className="text-[10px] text-amber-400 font-bold">Changes will be recorded in the order notes. Faisal will update the order after reviewing your notes.</p>
+              <p className="text-[10px] text-amber-400 font-bold">Advance payment will be saved and will appear when Faisal opens the order for resubmission.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setReturnModal(null)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 font-black py-3 rounded-xl text-sm transition-all">Cancel</button>
