@@ -185,11 +185,11 @@ exports.getFinancial = async (req, res) => {
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
     const expenseMap = {};
-    const expenseEntries = await prisma.journalEntry.findMany({ where: { ...df, ...branchFilter }, select: { amount: true, description: true, category: true } });
+    const expenseEntries = await prisma.journalEntry.findMany({ where: { ...df, ...branchFilter }, select: { amount: true, expenseTitle: true } });
     for (const e of expenseEntries) {
-      const cat = e.category || 'Other';
-      if (!expenseMap[cat]) expenseMap[cat] = 0;
-      expenseMap[cat] += e.amount || 0;
+      const title = e.expenseTitle || 'Other';
+      if (!expenseMap[title]) expenseMap[title] = 0;
+      expenseMap[title] += e.amount || 0;
     }
     const expenseBreakdown = Object.entries(expenseMap).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
 
@@ -468,7 +468,12 @@ exports.getEmployees = async (req, res) => {
     const best = employees.length > 0 ? employees[0].name : null;
     const lowest = employees.length > 0 ? employees[employees.length - 1].name : null;
 
-    const auditLogs = await prisma.auditLog.findMany({ where: { ...df, performedBy: { not: null } }, select: { performedBy: true, action: true, timestamp: true } });
+    const { start, end } = getDateRange(range, dateFrom, dateTo);
+    const auditWhere = {};
+    if (start) auditWhere.timestamp = { ...auditWhere.timestamp || {}, gte: start };
+    if (end) auditWhere.timestamp = { ...auditWhere.timestamp || {}, lte: end };
+    if (Object.keys(auditWhere).length === 0) delete auditWhere.timestamp;
+    const auditLogs = await prisma.auditLog.findMany({ where: { ...auditWhere, performedBy: { not: null } }, select: { performedBy: true, action: true, timestamp: true } });
     const perfMap = {};
     for (const log of auditLogs) {
       const name = log.performedBy || 'Unknown';
