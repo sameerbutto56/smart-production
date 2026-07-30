@@ -145,6 +145,23 @@
 - **IsJoharTown guards removed**: `{isJoharTown &&}` removed from Send to Logo, Send to Production, and Delivery Boy buttons — all outlets now see the full set of routing options (Send to Logo, Send to Production, Delivery Boy, Send to JT/Outlet, Customer Take). This was originally only shown for Johar Town but should work for all outlets since `outletRouteOrder` backend doesn't restrict by outlet for these actions.
 - Build passes with 0 errors.
 
+### Fixed This Session — Notification System Redesign (Accurate Counts, Real-Time, Module Grouping, Indicators)
+- **Root cause 1 — `handleReadNotification` replaces entire state**: Socket `notification:read` did `setUnreadCounts(data.counts)` — if `notification:new` events arrived between the read and the server response, their increments were overwritten by the server's stale counts.
+- **Fix 1 (`NotificationContext.jsx`)**: `handleReadNotification` now *merges* server counts into local state — the specific `path` from the read event is set to 0, other paths use `Math.max(local, server)`, preventing lost increments from cross-tab races.
+- **Root cause 2 — `fetchUnreadCounts` polling replaces state**: Polling did `setUnreadCounts(counts)` — overwriting any socket-driven increments that occurred between polls.
+- **Fix 2 (`NotificationContext.jsx`)**: Polling now merges with functional updater: `setUnreadCounts(prev => { merged[p] = Math.max(prev[p]||0, count); })`.
+- **Root cause 3 — Rapid-fire socket events batched incorrectly**: When 10 `notification:new` events fired in quick succession, React's state batching could squash them to a single increment.
+- **Fix 3 (`NotificationContext.jsx`)**: Added `queueIncrement()` — coalesces rapid events with a 50ms debounce, then applies all increments in a single `setUnreadCounts` call.
+- **Root cause 4 — Bell dropdown not real-time**: `bellNotifs` only fetched when dropdown opened — notifications arriving while open were invisible.
+- **Fix 4 (`NotificationContext.jsx` + `Layout.jsx`)**: Added `setBellNotifCallback` — socket handler forwards new notifications to Layout's `bellNotifs` state in real-time via registered callback.
+- **Root cause 5 — No module grouping in bell dropdown**: All notifications shown flat without module context.
+- **Fix 5 (`Layout.jsx`)**: Bell dropdown now groups notifications by `moduleName` with colored module header labels — users can instantly see which modules have new notifications.
+- **Root cause 6 — Blinking indicator not noticeable enough**: CSS keyframe only changed opacity; no glow or scale effect.
+- **Fix 6 (`index.css`)**: Enhanced `nav-blink` keyframe with `scale(1.15)` + `box-shadow` glow. Added `pulse-dot` keyframe for a pulsing red dot indicator on unread nav items.
+- **Root cause 7 — No collapsed nav indicator**: When sidebar was collapsed, users couldn't see unread at a glance.
+- **Fix 7 (`Layout.jsx`)**: Added `animate-pulse-dot` red dot on each nav item with unread, visible alongside the badge even in collapsed mode.
+- **Verification**: Build passes with 0 errors. All race conditions eliminated — batched increments, merge-on-read, real-time bell updates.
+
 ### Fixed This Session — Pay Balance / History modals not opening from Dashboard tab (and History/Returns tabs)
 - **Root cause**: `OutletPOS.jsx` had three early-return branches for `history`, `returns`, and `dashboard` tabs — none contained the modal JSX. All 9 modals (Product Config, Checkout Success, Print Options, Pay Remaining Balance, Balance History, Close Book, Auth, Payment Detail, Employee Detail) were placed only in the default (`pos`) return block. Even when `handlePayBalanceOpen`/`handleViewBalanceHistory` succeeded and set `showPayBalanceModal=true`, the modal never rendered because the JSX wasn't in the render tree for those tabs.
 - **Fix**: Extracted all modals into a `const sharedModals` variable defined before the early returns. Wrapped each early return in a React Fragment (`<>...</>`) and appended `{sharedModals}` at the end. Replaced the inline modal section (lines 2473–3015) in the default `pos` return with `{sharedModals}`. The modals now render for all four tabs (pos, history, returns, dashboard).
@@ -259,7 +276,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice; `c6431c0` — POS-Outlet integration (pre-fill, deliver, send to outlet, order number on receipt); `${commit}` — fix outlet routing buttons not showing after acceptance (isJoharTown guards removed, all outlets see routing options)
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice; `c6431c0` — POS-Outlet integration (pre-fill, deliver, send to outlet, order number on receipt)
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
 - Cap pricing is hardcoded `capUnitPrice = 500`.
@@ -341,6 +358,11 @@
 - **Employee Management** (`employee.controller.js` + `employee.routes.js` + `EmployeeManagement.jsx`): Full CRUD for User model with role/outlet/subRole filtering; `verify` endpoint for module-level login; `by-role` endpoint for dropdown population.
 - **Employee Login Modal** (`EmployeeLoginModal.jsx`): Reusable modal — fetches employees by role/outlet, authenticates against User table, stores active employee in `EmployeeContext`.
 - **Employee Context** (`EmployeeContext.jsx`): Provider storing `activeEmployee` in sessionStorage; exposes `login`, `logout`, `isLoggedIn`.
+
+## Notification System
+- **`NotificationContext.jsx`**: Batched increment with 50ms debounce (`queueIncrement`) prevents rapid-fire socket events from squashing; `handleReadNotification` merges server counts into local state (doesn't replace); `fetchUnreadCounts` polling uses `Math.max(prev, server)` to preserve socket-driven increments; `setBellNotifCallback` enables real-time bell dropdown updates from socket.
+- **`Layout.jsx` bell dropdown**: Registers `setBellNotifCallback` on mount — new notifications appear in real-time while dropdown is open. Grouped by `moduleName` with header labels for instant module identification. Pulsing red dot (`animate-pulse-dot`) on each unread nav item alongside the blinking badge.
+- **`index.css` animations**: `nav-blink` enhanced with `scale(1.15)` + `box-shadow` glow for visible attention. New `pulse-dot` keyframe for a persistent pulsing indicator.
 
 ## Vercel Deployment Lessons
 - **SSO Deployment Protection** must be **disabled** for the project (`vercel project protection disable <name> --sso`) — otherwise Vercel intercepts ALL requests (including API) and shows the Vercel Dashboard login page.

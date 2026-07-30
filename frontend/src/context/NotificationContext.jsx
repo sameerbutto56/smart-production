@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import socket from '../socket';
 import api from '../services/api';
 import { useAuth } from './AuthContext';
+import toast from 'react-hot-toast';
 
 const NotificationContext = createContext();
 
@@ -59,6 +60,38 @@ export const NotificationProvider = ({ children }) => {
         for (const item of batch) {
           bellNotifCallbackRef.current(item.data);
         }
+      }
+      // Show a single toast per unique module in the batch
+      const modules = {};
+      for (const item of batch) {
+        const key = item.data?.moduleName || item.data?.path || 'Notification';
+        if (!modules[key]) {
+          modules[key] = { count: 0, item };
+        }
+        modules[key].count++;
+      }
+      for (const [mod, info] of Object.entries(modules)) {
+        const n = info.item.data || info.item;
+        const count = info.count;
+        const label = count > 1 ? `${count} new` : 'New';
+        toast(
+          <div style={{ fontSize: 12, fontWeight: 700 }}>
+            <span style={{ color: '#f87171' }}>{mod}</span>
+            <br />
+            <span style={{ color: '#fff' }}>{n.title || label} {count > 1 ? 'notifications' : ''}</span>
+          </div>,
+          {
+            duration: 4000,
+            style: {
+              background: '#1f2937',
+              color: '#fff',
+              border: '1px solid #374151',
+              borderRadius: 12,
+              padding: '8px 14px'
+            },
+            position: 'top-right'
+          }
+        );
       }
     }, 50);
   }, []);
@@ -139,7 +172,12 @@ export const NotificationProvider = ({ children }) => {
       // Use batched increment to handle rapid-fire events correctly
       queueIncrement(path, data);
 
-      playNotificationSound();
+      // Play sound with cooldown
+      const now = Date.now();
+      if (now - notifSoundCooldown.current > 3000) {
+        playNotificationSound();
+        notifSoundCooldown.current = now;
+      }
     };
 
     const handleReadNotification = (data) => {

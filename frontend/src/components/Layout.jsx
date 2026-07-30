@@ -218,7 +218,9 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
               className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  : hasBadge
+                    ? 'text-gray-400 bg-red-900/10 hover:bg-red-900/20 hover:text-white'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
               title={isCollapsed ? t(item.name) : ""}
             >
@@ -230,9 +232,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
                 <span className={`${isCollapsed ? 'absolute -top-1 -right-1' : ''} ${hasBadge && notifCount > 0 ? 'animate-nav-blink' : ''} bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight shadow-lg shadow-red-500/30`}>
                   {badgeCount > 99 ? '99+' : badgeCount}
                 </span>
-              )}
-              {!isCollapsed && hasBadge && (
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse-dot shrink-0" />
               )}
             </Link>
             );
