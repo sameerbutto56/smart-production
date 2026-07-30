@@ -6,6 +6,7 @@ const {
   deliverOrder,
   noResponse,
   returnOrder,
+  deliverToOutlet,
   getDeliveryCharges,
   clearDeliveryCharges,
   getCODSummary,
@@ -23,6 +24,7 @@ router.put('/:orderId/accept', auth, acceptDelivery);
 router.put('/:orderId/deliver', auth, deliverOrder);
 router.put('/:orderId/no-response', auth, noResponse);
 router.put('/:orderId/return', auth, returnOrder);
+router.put('/:orderId/deliver-to-outlet', auth, deliverToOutlet);
 router.get('/charges', auth, getDeliveryCharges);
 router.post('/charges/clear', auth, clearDeliveryCharges);
 router.get('/cod', auth, getCODSummary);

@@ -165,6 +165,9 @@ const OutletDashboard = () => {
   const [alterationTasks, setAlterationTasks] = useState([]);
   const [alterationTasksLoading, setAlterationTasksLoading] = useState(false);
 
+  const [inDispatchOrders, setInDispatchOrders] = useState([]);
+  const [inDispatchLoading, setInDispatchLoading] = useState(false);
+
   const fetchAnalytics = useCallback(async (preset) => {
     setAnalyticsLoading(true);
     setAnalyticsError(null);
@@ -219,6 +222,31 @@ const OutletDashboard = () => {
     }
   }, []);
 
+  const fetchInDispatchOrders = useCallback(async () => {
+    setInDispatchLoading(true);
+    try {
+      const res = await api.get('/api/outlet-orders/in-dispatch');
+      setInDispatchOrders(res.data);
+    } catch (e) {
+      console.error('In Dispatch error:', e);
+    } finally {
+      setInDispatchLoading(false);
+    }
+  }, []);
+
+  const handleInDispatchRoute = async (orderId, action) => {
+    setActionLoading(orderId + action);
+    try {
+      await api.post(`/api/outlet-orders/${orderId}/outlet-route`, { action });
+      toast.success('Order routed');
+      fetchInDispatchOrders();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Route failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleAlterationDone = async (alterationId) => {
     setActionLoading(alterationId + 'done');
     try {
@@ -238,7 +266,8 @@ const OutletDashboard = () => {
       fetchRecentOrders();
     }
     if (activeTab === 'tasks') { fetchTasks(); fetchAlterationTasks(); }
-  }, [activeTab, datePreset, fetchAnalytics, fetchRecentOrders, fetchTasks, fetchAlterationTasks]);
+    if (activeTab === 'in-dispatch') { fetchInDispatchOrders(); }
+  }, [activeTab, datePreset, fetchAnalytics, fetchRecentOrders, fetchTasks, fetchAlterationTasks, fetchInDispatchOrders]);
 
   useEffect(() => {
     if (!showTabDropdown) return;
@@ -388,6 +417,7 @@ const OutletDashboard = () => {
     { id: 'pos-dashboard', label: 'POS Dashboard', icon: BarChart3 },
     { id: 'invoices', label: 'Total Invoices', icon: DollarSign },
     { id: 'tracking', label: 'Order Track', icon: Search },
+    { id: 'in-dispatch', label: 'In Dispatch', icon: Truck, badge: inDispatchOrders.length },
     { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length + alterationTasks.length },
     { id: 'registers', label: 'Registers', icon: Clock }
   ];
@@ -763,6 +793,82 @@ const OutletDashboard = () => {
                 </div>
               </div>
             </motion.div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'in-dispatch' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-400">{inDispatchOrders.length} order{inDispatchOrders.length !== 1 ? 's' : ''} in dispatch</p>
+            <button onClick={fetchInDispatchOrders} className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all border border-gray-700/50">
+              <RefreshCcw size={14} /> Refresh
+            </button>
+          </div>
+
+          {inDispatchLoading ? (
+            <div className="space-y-3">
+              {[1,2,3].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-32" />)}
+            </div>
+          ) : inDispatchOrders.length === 0 ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-2xl p-12 text-center shadow-lg">
+              <Package className="mx-auto text-gray-600 mb-3" size={48} />
+              <p className="text-gray-500 font-bold">No orders in dispatch</p>
+              <p className="text-xs text-gray-600 mt-1">Orders routed to In Dispatch will appear here</p>
+            </motion.div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {inDispatchOrders.map(order => {
+                const products = order.productDetails || [];
+                return (
+                  <motion.div key={order.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                    className="bg-gray-900/80 backdrop-blur-sm border border-violet-500/20 rounded-2xl p-6 space-y-4 shadow-lg">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-lg font-black text-white">{order.orderNumber}</p>
+                        <p className="text-sm text-gray-400">{order.customerName}</p>
+                        {order.customerPhone && <p className="text-xs text-gray-500">{order.customerPhone}</p>}
+                      </div>
+                      <span className="px-3 py-1 bg-violet-500/20 text-violet-400 text-xs font-bold rounded-full">IN DISPATCH</span>
+                    </div>
+                    {products.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">Products</p>
+                        {products.map((p, i) => (
+                          <p key={i} className="text-xs text-gray-300">{p.name} {p.color ? `(${p.color}` : ''}{p.size ? ` / ${p.size}` : ''}{p.color || p.size ? ')' : ''} × {p.quantity || 1}</p>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <Calendar size={12} />
+                      {new Date(order.createdAt).toLocaleDateString('en-PK')}
+                      {order.totalPrice > 0 && <span className="ml-auto font-bold text-white">₨{order.totalPrice.toLocaleString()}</span>}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-800">
+                      <button onClick={() => handleInDispatchRoute(order.id, 'sendToEnamelsDelivery')} disabled={actionLoading === order.id + 'sendToEnamelsDelivery'}
+                        className="flex items-center justify-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                        {actionLoading === order.id + 'sendToEnamelsDelivery' ? <RefreshCcw className="animate-spin" size={14} /> : <Truck size={14} />} Delivery Boy
+                      </button>
+                      <button onClick={() => handleInDispatchRoute(order.id, 'sendToOutlet', 'Jail Road Outlet')} disabled={actionLoading === order.id + 'sendToOutlet'}
+                        className="flex items-center justify-center gap-2 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                        {actionLoading === order.id + 'sendToOutlet' ? <RefreshCcw className="animate-spin" size={14} /> : <Send size={14} />} To Dispatch
+                      </button>
+                      <button onClick={() => handleInDispatchRoute(order.id, 'customerTakeDeliver')} disabled={actionLoading === order.id + 'customerTakeDeliver'}
+                        className="flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                        {actionLoading === order.id + 'customerTakeDeliver' ? <RefreshCcw className="animate-spin" size={14} /> : <UserCheck size={14} />} Customer
+                      </button>
+                    </div>
+                    <div className="flex gap-1 text-[10px] text-gray-600 justify-center">
+                      <span className="flex items-center gap-1"><Truck size={10} className="text-cyan-400" /> Delivery Boy</span>
+                      <span className="mx-1">|</span>
+                      <span className="flex items-center gap-1"><Send size={10} className="text-emerald-400" /> To Dispatch</span>
+                      <span className="mx-1">|</span>
+                      <span className="flex items-center gap-1"><UserCheck size={10} className="text-violet-400" /> Customer Take</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

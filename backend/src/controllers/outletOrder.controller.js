@@ -936,7 +936,7 @@ const outletRouteOrder = async (req, res) => {
       }
     }
 
-    const validActions = ['sendToLogo', 'sendToProduction', 'sendToEnamelsDelivery', 'sendToOutlet', 'customerTakeDeliver'];
+    const validActions = ['sendToLogo', 'sendToProduction', 'sendToEnamelsDelivery', 'sendToOutlet', 'sendToInDispatch', 'customerTakeDeliver'];
     if (!validActions.includes(action)) {
       return res.status(400).json({ message: `Invalid action. Valid: ${validActions.join(', ')}` });
     }
@@ -947,13 +947,14 @@ const outletRouteOrder = async (req, res) => {
       sendToProduction: 'PRODUCTION_ACCEPTANCE',
       sendToEnamelsDelivery: 'ENAMELS_DELIVERY',
       sendToOutlet: 'OUTLET_RECEIVE',
+      sendToInDispatch: 'IN_DISPATCH',
       customerTakeDeliver: null // no next stage — marks complete
     };
 
     const destinationStage = actionStageMap[action];
     const currentStage = order.stages.find(s =>
       ['PENDING', 'IN_PROGRESS'].includes(s.status) &&
-      ['ORDER_ENTRY', 'OUTLET_RECEIVE', 'ENAMELS_DELIVERY'].includes(s.stageName)
+      ['ORDER_ENTRY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'ENAMELS_DELIVERY'].includes(s.stageName)
     );
     if (!currentStage) return res.status(400).json({ message: 'No active stage found for routing' });
 
@@ -1029,6 +1030,7 @@ const outletRouteOrder = async (req, res) => {
       LOGO_DESIGN: ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
       PRODUCTION_ACCEPTANCE: ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'],
       ENAMELS_DELIVERY: ['DELIVERY_BOY'],
+      IN_DISPATCH: ['OUTLET'],
       OUTLET_RECEIVE: ['OUTLET']
     };
     const roles = recipientRoles[destinationStage] || ['OUTLET'];
@@ -1087,4 +1089,31 @@ const outletRouteOrder = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder };
+// GET /api/outlet-orders/in-dispatch — fetch IN_DISPATCH orders for a given outlet
+const getInDispatchOrders = async (req, res) => {
+  try {
+    const outletName = getOutletName(req);
+    if (!outletName) return res.status(400).json({ message: 'Outlet name required' });
+
+    const orders = await prisma.order.findMany({
+      where: {
+        currentStage: 'IN_DISPATCH',
+        outletName: { contains: outletName, mode: 'insensitive' },
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+        stages: { some: { stageName: 'IN_DISPATCH', status: { in: ['PENDING', 'IN_PROGRESS'] } } }
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, createdAt: true } },
+        createdBy: { select: { name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(orders);
+  } catch (error) {
+    console.error('getInDispatchOrders error:', error);
+    res.status(500).json({ message: 'Error fetching In Dispatch orders', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders };

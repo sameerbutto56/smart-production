@@ -270,6 +270,67 @@ const returnOrder = async (req, res) => {
   }
 };
 
+// PUT /api/delivery/:orderId/deliver-to-outlet — Delivery Boy delivers to a specific outlet (e.g., Jail Road)
+const deliverToOutlet = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { targetOutlet, riderName } = req.body;
+    if (!targetOutlet) return res.status(400).json({ message: 'Target outlet name is required' });
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date();
+
+    // Complete any active ENAMELS_DELIVERY or OUT_FOR_DELIVERY stage
+    const activeStage = order.stages?.find(s =>
+      ['ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY'].includes(s.stageName) &&
+      ['PENDING', 'IN_PROGRESS'].includes(s.status)
+    );
+    if (activeStage) {
+      await prisma.orderStage.update({
+        where: { id: activeStage.id },
+        data: { status: 'COMPLETED', completedAt: now }
+      });
+    }
+
+    // Create OUTLET_RECEIVE stage for the target outlet
+    await prisma.orderStage.create({
+      data: { orderId, stageName: 'OUTLET_RECEIVE', status: 'PENDING' }
+    });
+
+    // Update order: set stage to OUTLET_RECEIVE, outlet to target outlet
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: 'OUTLET_RECEIVE', outletName: targetOutlet }
+    });
+
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: activeStage?.stageName || 'ENAMELS_DELIVERY', newStage: 'OUTLET_RECEIVE', sentToStage: 'OUTLET_RECEIVE', remarks: `Delivered to ${targetOutlet} by ${riderName || 'Delivery Boy'}` }
+    });
+
+    await prisma.auditLog.create({
+      data: { orderId, action: 'DELIVERED_TO_OUTLET', details: `Delivery Boy delivered to ${targetOutlet}`, performedBy: req.user?.id || 'SYSTEM' }
+    });
+
+    await notify.create(req, {
+      type: 'delivered_to_outlet', moduleName: 'My Tasks', path: '/tasks',
+      role: 'OUTLET', title: 'Order Delivered to Outlet',
+      message: `Order #${order.orderNumber} delivered to ${targetOutlet}`,
+      orderId: order.id, orderNumber: order.orderNumber,
+      customerName: order.customerName, action: 'Delivered to Outlet',
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId });
+
+    res.json({ message: `Order delivered to ${targetOutlet} outlet` });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to deliver to outlet', error: error.message });
+  }
+};
+
 // GET /api/delivery/charges — delivery boy's earnings ledger
 const getDeliveryCharges = async (req, res) => {
   try {
@@ -767,6 +828,7 @@ module.exports = {
   deliverOrder,
   noResponse,
   returnOrder,
+  deliverToOutlet,
   getDeliveryCharges,
   clearDeliveryCharges,
   getCODSummary,

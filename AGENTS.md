@@ -139,6 +139,12 @@
 ### Blocked
 - (none)
 
+### Fixed This Session — Outlet Routing Buttons Not Showing After Acceptance
+- **Root cause**: `OrderCard.jsx` line 1864 had `['ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (dispatch UI) : (OUT_FOR_DELIVERY / ORDER_ENTRY+OUTLET / OUTLET_RECEIVE / fallback)`. The outlet routing buttons were in the **ELSE** branch of this ternary, meaning when `currentStage.stageName === 'ORDER_ENTRY'` the TRUE branch (dispatch UI) would render and the ELSE branch (containing the outlet routing buttons at line 2022) was never reached.
+- **Fix**: Restructured condition at line 1864 to `['ORDER_ENTRY', 'OUTLET'].includes(stageName) ? userRole === 'OUTLET' ? (outlet routing) : (dispatch UI) : (OUT_FOR_DELIVERY / OUTLET_RECEIVE / fallback)`. Now when outlet users see an ORDER_ENTRY stage order, routing buttons render directly instead of the dispatch UI.
+- **IsJoharTown guards removed**: `{isJoharTown &&}` removed from Send to Logo, Send to Production, and Delivery Boy buttons — all outlets now see the full set of routing options (Send to Logo, Send to Production, Delivery Boy, Send to JT/Outlet, Customer Take). This was originally only shown for Johar Town but should work for all outlets since `outletRouteOrder` backend doesn't restrict by outlet for these actions.
+- Build passes with 0 errors.
+
 ### Fixed This Session — Pay Balance / History modals not opening from Dashboard tab (and History/Returns tabs)
 - **Root cause**: `OutletPOS.jsx` had three early-return branches for `history`, `returns`, and `dashboard` tabs — none contained the modal JSX. All 9 modals (Product Config, Checkout Success, Print Options, Pay Remaining Balance, Balance History, Close Book, Auth, Payment Detail, Employee Detail) were placed only in the default (`pos`) return block. Even when `handlePayBalanceOpen`/`handleViewBalanceHistory` succeeded and set `showPayBalanceModal=true`, the modal never rendered because the JSX wasn't in the render tree for those tabs.
 - **Fix**: Extracted all modals into a `const sharedModals` variable defined before the early returns. Wrapped each early return in a React Fragment (`<>...</>`) and appended `{sharedModals}` at the end. Replaced the inline modal section (lines 2473–3015) in the default `pos` return with `{sharedModals}`. The modals now render for all four tabs (pos, history, returns, dashboard).
@@ -253,7 +259,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice; `c6431c0` — POS-Outlet integration (pre-fill, deliver, send to outlet, order number on receipt)
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice; `c6431c0` — POS-Outlet integration (pre-fill, deliver, send to outlet, order number on receipt); `${commit}` — fix outlet routing buttons not showing after acceptance (isJoharTown guards removed, all outlets see routing options)
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
 - Cap pricing is hardcoded `capUnitPrice = 500`.
@@ -288,6 +294,8 @@
 - Voice upload must NOT set `Content-Type: multipart/form-data` manually — Axios sets boundary automatically.
 - React workspace unified to `react@19.2.6` / `react-dom@19.2.6` — `resolve.dedupe` removed from Vite config.
 - **OrderCard.jsx:14 stage fallback**: When `order.stages` has no entry matching `order.currentStage`, creates synthetic `{ stageName: order.currentStage, status: 'PENDING', id: null }` to prevent wrong button rendering. Old cleanup script deleted ~142 stage records from DB — recreated via one-time script (since deleted).
+- **OrderCard.jsx:1864 routing fix**: `['ORDER_ENTRY', 'OUTLET'].includes(stageName) ? userRole === 'OUTLET' ? routingButtons : dispatchUI : OUT_FOR_DELIVERY/OUTLET_RECEIVE/fallback` — previously the OUTLET routing section at line 2022 was in the ELSE branch (unreachable when stage === ORDER_ENTRY).
+- **All outlets see routing buttons**: `{isJoharTown &&}` guards removed from Send to Logo, Send to Production, Delivery Boy — all outlets now see full routing options.
 
 ## Relevant Files
 - `backend/prisma/schema.prisma`: PosSale + PosBalancePayment models; Client model with `measurementChart`, `sizeDetails`, `standardSizes`; Order model with `invoiceNumber String? @unique`; InvoiceSequence model
@@ -314,7 +322,7 @@
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
 - `frontend/src/utils/printReport.js`: `printJobSheet` — now flattens Outlet per-product sizeData and displays measurement values grid
 - `frontend/src/pages/AllOrders.jsx`: Job Sheet modal — Outlet per-product sizeData flattening, clean filter, per-product name lookup for multi-item inline
-- `frontend/src/components/OrderCard.jsx`: Full Sheet modal + PRODUCTION card — Outlet per-product flattening, dynamic measurement table (replaced hardcoded 6-field). Stage fallback at line 14 creates synthetic stage when DB has no entry matching `order.currentStage`.
+- `frontend/src/components/OrderCard.jsx`: Full Sheet modal + PRODUCTION card — Outlet per-product flattening, dynamic measurement table (replaced hardcoded 6-field). Stage fallback at line 14 creates synthetic stage when DB has no entry matching `order.currentStage`. Outlet routing condition at line 1864 fixed — `isOutlet ? routingButtons : dispatchUI` replaces broken `['ORDER_ENTRY','OUTLET'] ? dispatchUI ELSE {routing in unreachable branch}`.
 - `frontend/src/pages/OutletDashboard.jsx`: State-based tab switching with dropdown menu — Dashboard, POS Dashboard, Total Invoices, Order Track, Tasks tabs
 - `frontend/src/components/OutletPOSDashboard.jsx`: Standalone POS dashboard component (KPIs, charts, payment breakdown, top products, recent sales, Faisal Takes, date presets + custom range)
 - `frontend/src/components/OutletInvoiceHistory.jsx`: Standalone invoice history (search, date range, All/Paid/Balance filters, expanded details, Print, Pay Balance modal, Payment History modal, receipt modals, Excel download; uses backend-computed `_balanceRemaining`/`_balanceStatus`)

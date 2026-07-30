@@ -106,6 +106,26 @@ const BasicInfoTab = () => {
             </div>
           </div>
         </div>
+          <div className="col-span-1 md:col-span-2 space-y-3">
+            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ڈیلیوری کی قسم' : 'Delivery Type'}</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { value: 'DELIVERY', label: useUrdu ? 'ڈیلیوری' : 'Delivery', icon: '🚚' },
+                { value: 'SELF_COLLECTION', label: useUrdu ? 'خود لینا' : 'Self Collection', icon: '🏪' }
+              ].map(dt => (
+                <button key={dt.value} type="button"
+                  onClick={() => setFormData({ ...formData, deliveryType: dt.value })}
+                  className={`flex items-center gap-3 p-4 rounded-xl border-2 font-black text-sm transition-all ${
+                    formData.deliveryType === dt.value
+                      ? 'border-blue-500/60 bg-blue-500/10 text-blue-400 shadow-lg'
+                      : 'border-gray-700/50 bg-gray-900 text-gray-500 hover:border-gray-600 hover:text-gray-300'
+                  }`}>
+                  <span className="text-lg">{dt.icon}</span>
+                  <span>{dt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           <div className="space-y-4">
             <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شاپیفائے آرڈر کی تاریخ' : 'Shopify Order Date (Optional)'}</label>

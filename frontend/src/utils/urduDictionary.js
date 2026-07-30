@@ -384,7 +384,11 @@ const urduDictionary = {
   // ==========================================================================
 
   // Gender
-  // Gender removed — use translateGender() instead
+  'Male': 'مرد',
+  'Men': 'مین',
+  'Female': 'عورت',
+  'Women': 'ویمن',
+  'Unisex': 'یونیسیکس',
 
   // Fit / Sleeve / Length
   'Full': 'فل',
@@ -397,6 +401,9 @@ const urduDictionary = {
 
   // Product Types
   'Bag': 'بیگ',
+  'Bellbottoms': 'بیل باٹم',
+  'Bellbottom': 'بیل باٹم',
+  'Belt': 'بیلٹ',
   'Bottle': 'بوٹل',
   'Cap': 'کیپ',
   'Caps': 'کیپس',
@@ -828,6 +835,25 @@ export function toUrduName(text) {
       const sep = w.match(/[-/_.]+/);
       return parts.map(p => dictLookup(p) || p).join(sep ? sep[0] : '-');
     }
+    // 4. Try splitting camelCase or ALLCAPS concatenated words
+    //    camelCase: "NavyNova" → ["Navy", "Nova"]
+    const camelParts = w.split(/(?<=[a-z])(?=[A-Z])/);
+    if (camelParts.length > 1) {
+      const translated = camelParts.map(p => dictLookup(p) || p);
+      if (translated.some((t, i) => t !== camelParts[i])) return translated.join('');
+    }
+    //    ALLCAPS concatenated: "NAVYNOVA" → find longest dictionary prefix
+    if (w === w.toUpperCase() && w.length > 2) {
+      for (let i = w.length - 2; i >= 1; i--) {
+        const prefix = w.slice(0, i);
+        const suffix = w.slice(i);
+        const pTrans = dictLookup(prefix);
+        if (pTrans) {
+          const sTrans = dictLookup(suffix);
+          if (sTrans) return pTrans + ' ' + sTrans;
+        }
+      }
+    }
     return w;
   }).join(' ');
 }
@@ -840,8 +866,10 @@ export function translateGender(gender, isUrdu) {
   if (!isUrdu || !gender) return gender;
   const g = String(gender).trim();
   const lower = g.toLowerCase();
-  if (lower === 'male' || lower === 'men') return 'مرد';
-  if (lower === 'female' || lower === 'women') return 'عورت';
+  if (lower === 'male') return 'مرد';
+  if (lower === 'men') return 'مین';
+  if (lower === 'female') return 'عورت';
+  if (lower === 'women') return 'ویمن';
   if (lower === 'unisex') return 'یونی سیکس';
   return g;
 }

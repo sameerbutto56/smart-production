@@ -669,6 +669,15 @@ const AllOrders = () => {
                         {order.city && (
                           <span className="ml-2 text-amber-400 font-black bg-amber-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider">📍 {order.city}</span>
                         )}
+                        {order.deliveryType && (
+                          <span className={`ml-2 font-black px-1.5 py-0.5 rounded uppercase tracking-wider text-[10px] ${
+                            order.deliveryType === 'DELIVERY'
+                              ? 'text-blue-400 bg-blue-500/10'
+                              : 'text-purple-400 bg-purple-500/10'
+                          }`}>
+                            {order.deliveryType === 'DELIVERY' ? '🚚 Delivery' : '🏪 Self Collection'}
+                          </span>
+                        )}
                         {order.shopifyOrderDate && (
                           <span className="text-purple-400 ml-2 font-black">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
                         )}
@@ -857,6 +866,15 @@ const AllOrders = () => {
                     {selectedOrder.city && (
                       <span className="ml-3 text-amber-400 font-black text-sm md:text-base bg-amber-500/10 px-2 py-0.5 rounded-lg uppercase tracking-wider">
                         📍 {selectedOrder.city}
+                      </span>
+                    )}
+                    {selectedOrder.deliveryType && (
+                      <span className={`ml-3 font-black text-xs md:text-sm px-2 py-0.5 rounded-lg uppercase tracking-wider ${
+                        selectedOrder.deliveryType === 'DELIVERY'
+                          ? 'text-blue-400 bg-blue-500/10'
+                          : 'text-purple-400 bg-purple-500/10'
+                      }`}>
+                        {selectedOrder.deliveryType === 'DELIVERY' ? '🚚 Delivery' : '🏪 Self Collection'}
                       </span>
                     )}
                     {selectedOrder.shopifyOrderDate && (
@@ -1125,7 +1143,7 @@ const AllOrders = () => {
                     const en = selectedOrder.engravingNames ? (typeof selectedOrder.engravingNames === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingNames); } catch { return []; } })() : selectedOrder.engravingNames) : [];
                     const el = selectedOrder.engravingLogos ? (typeof selectedOrder.engravingLogos === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingLogos); } catch { return []; } })() : selectedOrder.engravingLogos) : [];
                     const hasEng = en.length > 0 || el.length > 0 || selectedOrder.engravingText || selectedOrder.engravingInstructions || selectedOrder.logoRequired || selectedOrder.logoDesign || selectedOrder.instructionNotes;
-                    if (!hasEng) return null;
+                    if (!hasEng || selectedOrder.outletName) return null;
                     return (
                       <section className="bg-purple-600/5 p-4 md:p-8 rounded-[2rem] border border-purple-500/10 mt-4">
                         <h4 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.3em] mb-6">ENGRAVING</h4>

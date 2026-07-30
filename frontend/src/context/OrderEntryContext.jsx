@@ -52,7 +52,7 @@ const INITIAL_FORM_DATA = {
   customRequirements: '', customSpecifications: '',
   engravingType: '', skipEngraving: true, engravingInstructions: '',
   logoDesign: '', logoName: '', nameSpelling: '', nameColor: '', customColor: '', logoColor: '', logoPlacement: '',
-  logoCharges: '', namePrintingCharges: '', customizationPrice: '', deliveryCharges: '',
+  logoCharges: '', namePrintingCharges: '', customizationPrice: '', deliveryCharges: '', deliveryType: 'DELIVERY',
   designNotes: '', designReference: '', additionalFeatures: [],
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
     shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
@@ -83,6 +83,18 @@ export const OrderEntryProvider = ({ children }) => {
   const useUrdu = isUrdu;
   const isOutlet = user?.role === 'OUTLET';
 
+  // Initialize edit mode + verification state from URL params immediately
+  // (not in useEffect) so the first render has correct state — no flash of empty form
+  // Use window.location.search to read params synchronously (useSearchParams may
+  // not be ready on the first render in some React Router v7 configurations)
+  const urlParams = new URLSearchParams(window.location.search);
+  const rawFromVerification = urlParams.get('fromVerification');
+  const rawEditOrderId = urlParams.get('editOrderId');
+  const urlFromVerification = rawFromVerification === 'true';
+  const urlEditOrderId = (rawEditOrderId && rawEditOrderId !== 'undefined' && rawEditOrderId !== 'null') ? rawEditOrderId : null;
+  const urlEdit = urlParams.get('edit') === '1';
+  console.log('[OrderEntryContext] URL params:', { rawFromVerification, rawEditOrderId, urlFromVerification, urlEditOrderId, urlEdit, href: window.location.href });
+
   const [activeTab, setActiveTab] = useState('basic');
   const [inventory, setInventory] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -95,8 +107,8 @@ export const OrderEntryProvider = ({ children }) => {
   const [colorSearchTerm, setColorSearchTerm] = useState('');
   const [expandedProducts, setExpandedProducts] = useState({});
   const [showReview, setShowReview] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editOrderId, setEditOrderId] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(urlEdit || urlFromVerification);
+  const [editOrderId, setEditOrderId] = useState(urlFromVerification ? urlEditOrderId : null);
   const [originalOrder, setOriginalOrder] = useState(null);
   const [showEditReview, setShowEditReview] = useState(false);
   const [editReason, setEditReason] = useState('');
@@ -112,7 +124,7 @@ export const OrderEntryProvider = ({ children }) => {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [goForVerification, setGoForVerification] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [fromVerification, setFromVerification] = useState(false);
+  const [fromVerification, setFromVerification] = useState(urlFromVerification && !!urlEditOrderId);
   const dateInputRef = useRef(null);
 
   const t = useCallback((key) => {
@@ -122,9 +134,10 @@ export const OrderEntryProvider = ({ children }) => {
   }, [isUrdu]);
 
   useEffect(() => {
-    if (searchParams.get('edit') === '1') setIsEditMode(true);
-    const verifReturn = searchParams.get('fromVerification');
-    const editId = searchParams.get('editOrderId');
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('edit') === '1') setIsEditMode(true);
+    const verifReturn = sp.get('fromVerification');
+    const editId = sp.get('editOrderId');
     if (verifReturn === 'true' && editId) {
       setFromVerification(true);
       setIsEditMode(true);
@@ -139,7 +152,7 @@ export const OrderEntryProvider = ({ children }) => {
             found = res.data;
           } catch (idErr) {
             // Fallback: try fetching by order number
-            const orderNum = searchParams.get('orderNumber');
+            const orderNum = sp.get('orderNumber');
             if (orderNum) {
               try {
                 const trackRes = await api.get(`/api/orders/track/${orderNum}`);
@@ -147,127 +160,129 @@ export const OrderEntryProvider = ({ children }) => {
               } catch (trackErr) {}
             }
           }
-          if (found) {
-            setEditOrderData(found);
-            setOriginalOrder(found);
-            // Parse customization
-            let custData = {};
-            try { custData = found.customization ? (typeof found.customization === 'string' ? JSON.parse(found.customization) : found.customization) : {}; } catch { custData = {}; }
-            // Pre-fill form data — ALL order-level fields
-            const firstPd = Array.isArray(found.productDetails) && found.productDetails.length > 0
-              ? (found.productDetails[0].productDetails || found.productDetails[0])
-              : {};
-            // Parse instructionNotes to extract measurement special note (stored concatenated on submit)
-            const _instRaw = found.instructionNotes || '';
-            const _sep = '\n---\n';
-            const _sepIdx = _instRaw.indexOf(_sep);
-            const _loadedInstNote = _sepIdx !== -1 ? _instRaw.substring(0, _sepIdx) : _instRaw;
-            const _loadedMeasNote = _sepIdx !== -1 ? _instRaw.substring(_sepIdx + _sep.length) : '';
-            setFormData(prev => ({
-              ...prev,
-              orderNumber: found.orderNumber || '',
-              customerName: found.customerName || '',
-              customerPhone: found.customerPhone || '',
-              address: found.address || '',
-              city: found.city || '',
-              type: found.type || 'STANDARD',
-              priority: found.priority || 'NORMAL',
-              advancePaid: !!found.advancePaid,
-              advanceAmount: found.advanceAmount || '',
-              paymentStatus: found.paymentStatus || 'PENDING',
-              totalPrice: found.totalPrice || '',
-              quantity: found.quantity || 1,
-              deliveryCharges: found.deliveryCharges || '',
-              shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
-              instructionNotes: _loadedInstNote,
-              measurements: { ...prev.measurements, specialNote: _loadedMeasNote },
-              // Engraving / branding (order-level)
-              logoDesign: found.logoDesign || '',
-              logoName: found.logoName || '',
-              engravingInstructions: found.engravingInstructions || '',
-              skipEngraving: found.engravingRequired === undefined ? true : !found.engravingRequired,
-              logoCharges: found.logoCharges?.toString() || '',
-              namePrintingCharges: found.namePrintingCharges?.toString() || '',
-              customizationPrice: found.customizationPrice?.toString() || '',
-              // First product's selection fields as defaults
-              productType: firstPd.productType || firstPd.name || '',
-              fabricType: firstPd.fabricType || '',
-              color: firstPd.color || '',
-              size: firstPd.size || '',
-              gender: firstPd.gender || found.gender || 'Male',
-              femaleOptions: firstPd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
-              sleeveLength: firstPd.sleeveLength || '',
-              shirtLength: firstPd.shirtLength || '',
-              matchingCap: firstPd.matchingCap || false,
-              matchingCapQty: firstPd.matchingCapQty || 0
-            }));
-            // Pre-fill logoEntries and articleNameEntries from customization
-            if (custData.logos && Array.isArray(custData.logos) && custData.logos.length > 0) {
-              setLogoEntries(custData.logos);
-            } else if (found.logoName || found.logoDesign) {
-              setLogoEntries([{ name: found.logoName || '', design: found.logoDesign || '' }]);
-            }
-            if (custData.articleNames && Array.isArray(custData.articleNames) && custData.articleNames.length > 0) {
-              setArticleNameEntries(custData.articleNames);
-            } else if (custData.nameSpelling) {
-              setArticleNameEntries([custData.nameSpelling]);
-            }
-            // Pre-fill cart items from productDetails
-            let pd = [];
-            try { pd = found.productDetails; } catch { pd = []; }
-            if (Array.isArray(pd) && pd.length > 0) {
-              const mapped = pd.map(item => {
-                const pdItem = item.productDetails || item;
-                const custItem = item.customization || {};
-                const sizeDataObj = item.sizeData || {};
-                return {
-                  orderNumber: found.orderNumber,
-                  customerName: found.customerName,
-                  customerPhone: found.customerPhone,
-                  address: found.address,
-                  city: found.city,
-                  type: found.type,
-                  priority: found.priority,
-                  advancePaid: found.advancePaid,
-                  advanceAmount: found.advanceAmount || '',
-                  logoDesign: found.logoDesign || '',
-                  logoName: found.logoName || '',
-                  quantity: item.quantity || 1,
-                  productDetails: {
-                    ...pdItem,
-                    productType: pdItem.productType || '',
-                    fabricType: pdItem.fabricType || '',
-                    color: pdItem.color || '',
-                    size: pdItem.size || '',
-                    gender: pdItem.gender || 'Male',
-                    femaleOptions: pdItem.femaleOptions || null,
-                    sleeveLength: pdItem.sleeveLength || '',
-                    shirtLength: pdItem.shirtLength || '',
-                    matchingCap: pdItem.matchingCap || false,
-                    matchingCapQty: pdItem.matchingCapQty || 0,
-                    alteration: pdItem.alteration || { trouserLength: '', shirtLength: '', sleeveLength: '' }
-                  },
-                  customization: {
-                    nameSpelling: custItem.nameSpelling || '',
-                    nameColor: custItem.nameColor || '',
-                    logoColor: custItem.logoColor || '',
-                    logoPlacement: custItem.logoPlacement || '',
-                    designNotes: custItem.designNotes || '',
-                    designReference: custItem.designReference || '',
-                    additionalFeatures: custItem.additionalFeatures || [],
-                    articleNames: custItem.articleNames || [],
-                    logos: custItem.logos || []
-                  },
-                  sizeData: sizeDataObj,
-                  totalPrice: parseFloat(item.totalPrice) || 0,
-                  logoCharges: parseFloat(item.logoCharges) || 0,
-                  namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
-                  customizationPrice: parseFloat(item.customizationPrice) || 0,
-                  capCharges: parseInt(item.capCharges) || 0
-                };
-              });
-              setCartItems(mapped);
-            }
+          if (!found) {
+            setEditOrderError('Could not load order. Please check the order ID and try again.');
+            return;
+          }
+          setEditOrderData(found);
+          setOriginalOrder(found);
+          // Parse customization
+          let custData = {};
+          try { custData = found.customization ? (typeof found.customization === 'string' ? JSON.parse(found.customization) : found.customization) : {}; } catch { custData = {}; }
+          // Pre-fill form data — ALL order-level fields
+          const firstPd = Array.isArray(found.productDetails) && found.productDetails.length > 0
+            ? (found.productDetails[0].productDetails || found.productDetails[0])
+            : {};
+          // Parse instructionNotes to extract measurement special note (stored concatenated on submit)
+          const _instRaw = found.instructionNotes || '';
+          const _sep = '\n---\n';
+          const _sepIdx = _instRaw.indexOf(_sep);
+          const _loadedInstNote = _sepIdx !== -1 ? _instRaw.substring(0, _sepIdx) : _instRaw;
+          const _loadedMeasNote = _sepIdx !== -1 ? _instRaw.substring(_sepIdx + _sep.length) : '';
+          setFormData(prev => ({
+            ...prev,
+            orderNumber: found.orderNumber || '',
+            customerName: found.customerName || '',
+            customerPhone: found.customerPhone || '',
+            address: found.address || '',
+            city: found.city || '',
+            type: found.type || 'STANDARD',
+            priority: found.priority || 'NORMAL',
+            advancePaid: !!found.advancePaid,
+            advanceAmount: found.advanceAmount || '',
+            paymentStatus: found.paymentStatus || 'PENDING',
+            totalPrice: found.totalPrice || '',
+            quantity: found.quantity || 1,
+            deliveryCharges: found.deliveryCharges || '',
+            shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
+            instructionNotes: _loadedInstNote,
+            measurements: { ...prev.measurements, specialNote: _loadedMeasNote },
+            // Engraving / branding (order-level)
+            logoDesign: found.logoDesign || '',
+            logoName: found.logoName || '',
+            engravingInstructions: found.engravingInstructions || '',
+            skipEngraving: found.engravingRequired === undefined ? true : !found.engravingRequired,
+            logoCharges: found.logoCharges?.toString() || '',
+            namePrintingCharges: found.namePrintingCharges?.toString() || '',
+            customizationPrice: found.customizationPrice?.toString() || '',
+            // First product's selection fields as defaults
+            productType: firstPd.productType || firstPd.name || '',
+            fabricType: firstPd.fabricType || '',
+            color: firstPd.color || '',
+            size: firstPd.size || '',
+            gender: firstPd.gender || found.gender || 'Male',
+            femaleOptions: firstPd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+            sleeveLength: firstPd.sleeveLength || '',
+            shirtLength: firstPd.shirtLength || '',
+            matchingCap: firstPd.matchingCap || false,
+            matchingCapQty: firstPd.matchingCapQty || 0
+          }));
+          // Pre-fill logoEntries and articleNameEntries from customization
+          if (custData.logos && Array.isArray(custData.logos) && custData.logos.length > 0) {
+            setLogoEntries(custData.logos);
+          } else if (found.logoName || found.logoDesign) {
+            setLogoEntries([{ name: found.logoName || '', design: found.logoDesign || '' }]);
+          }
+          if (custData.articleNames && Array.isArray(custData.articleNames) && custData.articleNames.length > 0) {
+            setArticleNameEntries(custData.articleNames);
+          } else if (custData.nameSpelling) {
+            setArticleNameEntries([custData.nameSpelling]);
+          }
+          // Pre-fill cart items from productDetails
+          let pd = [];
+          try { pd = found.productDetails; } catch { pd = []; }
+          if (Array.isArray(pd) && pd.length > 0) {
+            const mapped = pd.map(item => {
+              const pdItem = item.productDetails || item;
+              const custItem = item.customization || {};
+              const sizeDataObj = item.sizeData || {};
+              return {
+                orderNumber: found.orderNumber,
+                customerName: found.customerName,
+                customerPhone: found.customerPhone,
+                address: found.address,
+                city: found.city,
+                type: found.type,
+                priority: found.priority,
+                advancePaid: found.advancePaid,
+                advanceAmount: found.advanceAmount || '',
+                logoDesign: found.logoDesign || '',
+                logoName: found.logoName || '',
+                quantity: item.quantity || 1,
+                productDetails: {
+                  ...pdItem,
+                  productType: pdItem.productType || '',
+                  fabricType: pdItem.fabricType || '',
+                  color: pdItem.color || '',
+                  size: pdItem.size || '',
+                  gender: pdItem.gender || 'Male',
+                  femaleOptions: pdItem.femaleOptions || null,
+                  sleeveLength: pdItem.sleeveLength || '',
+                  shirtLength: pdItem.shirtLength || '',
+                  matchingCap: pdItem.matchingCap || false,
+                  matchingCapQty: pdItem.matchingCapQty || 0,
+                  alteration: pdItem.alteration || { trouserLength: '', shirtLength: '', sleeveLength: '' }
+                },
+                customization: {
+                  nameSpelling: custItem.nameSpelling || '',
+                  nameColor: custItem.nameColor || '',
+                  logoColor: custItem.logoColor || '',
+                  logoPlacement: custItem.logoPlacement || '',
+                  designNotes: custItem.designNotes || '',
+                  designReference: custItem.designReference || '',
+                  additionalFeatures: custItem.additionalFeatures || [],
+                  articleNames: custItem.articleNames || [],
+                  logos: custItem.logos || []
+                },
+                sizeData: sizeDataObj,
+                totalPrice: parseFloat(item.totalPrice) || 0,
+                logoCharges: parseFloat(item.logoCharges) || 0,
+                namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+                customizationPrice: parseFloat(item.customizationPrice) || 0,
+                capCharges: parseInt(item.capCharges) || 0
+              };
+            });
+            setCartItems(mapped);
           }
         } catch (e) {
           console.error('Error loading order for verification return:', e);
@@ -275,7 +290,7 @@ export const OrderEntryProvider = ({ children }) => {
         }
       })();
     }
-  }, [searchParams]);
+  }, []);
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -478,6 +493,7 @@ export const OrderEntryProvider = ({ children }) => {
             customizationPrice: cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0),
             shopifyOrderDate: formData.shopifyOrderDate || null,
             deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
+            deliveryType: formData.deliveryType || 'DELIVERY',
             engravingInstructions: formData.engravingInstructions || null,
             engravingRequired: !formData.skipEngraving,
             instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null
@@ -648,7 +664,8 @@ export const OrderEntryProvider = ({ children }) => {
         logoCharges: cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0),
         namePrintingCharges: cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0),
         customizationPrice: cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0),
-        deliveryCharges: calcDelivery, discount: parseFloat(formData.adjDiscount) || 0,
+        deliveryCharges: calcDelivery, deliveryType: formData.deliveryType || 'DELIVERY',
+        discount: parseFloat(formData.adjDiscount) || 0,
         items: finalItems, productDetails: finalItems[0].productDetails,
         customization: finalItems[0].customization, sizeData: finalItems[0].sizeData,
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),

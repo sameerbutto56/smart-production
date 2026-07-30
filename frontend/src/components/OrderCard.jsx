@@ -16,7 +16,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const stageFromDb = order.stages?.find(s => s.stageName === order.currentStage);
   const currentStage = stageFromDb || (order.currentStage ? { stageName: order.currentStage, status: 'PENDING', id: null } : null) || order.stages?.[0];
 
-  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'].includes(userRole);
+  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'].includes(userRole);
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const priceDisplay = (v) => showPrice ? `₨${(v || 0).toLocaleString()}` : '★ ★ ★';
   const [timeLeft, setTimeLeft] = useState('');
@@ -915,6 +915,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div><span className="text-gray-500">Phone:</span> <span className="text-white font-bold">{order.customerPhone || '—'}</span></div>
                   {order.address && <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="text-white font-bold">{order.address}</span></div>}
                   {order.city && <div><span className="text-gray-500">City:</span> <span className="text-white font-bold">{order.city}</span></div>}
+                  {order.deliveryType && <div><span className="text-gray-500">Delivery:</span> <span className="text-white font-bold">{order.deliveryType === 'DELIVERY' ? '🚚 Delivery' : '🏪 Self Collection'}</span></div>}
                   <div><span className="text-gray-500">Order #:</span> <span className="text-white font-bold">{order.orderNumber || order.id?.slice(0, 8)}</span></div>
                   <div><span className="text-gray-500">Order Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
                   <div><span className="text-gray-500">Priority:</span> <span className="text-white font-bold">{order.priority || 'NORMAL'}</span></div>
@@ -1861,94 +1862,171 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </button>
                   </>
                 ) : ['ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (
-                  <>
-                    <div className="w-full space-y-2">
-                      <label className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Truck size={12} />
-                        Dispatch Method
-                        <span className="px-1 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[9px] tracking-wider">SELECT</span>
-                      </label>
-                      <select
-                        className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-blue-500 transition-all text-white text-xs font-bold appearance-none"
-                        value={nextStage}
-                        onChange={(e) => setNextStage(e.target.value)}
-                      >
-                        <option value="">Select dispatch method...</option>
-                        <option value="DISPATCH">Normal Delivery</option>
-                        <option value="DISPATCH_TCS">TCS</option>
-                        <option value="DISPATCH_RIDER">Rider / Delivery Boy</option>
-                        <option value="DISPATCH_COURIER">Courier Service</option>
-                        <option disabled className="border-t border-gray-800">──────────</option>
-                        <option value="HOLD">Hold Order</option>
-                        <option value="PRODUCTION">Return to Production</option>
-                      </select>  
+                  userRole === 'OUTLET' ? (
+                    <div className="w-full space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handleOutletRoute('sendToLogo')} disabled={outletRoutingLoading}
+                          className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                          <Palette size={14} /><span>Send to Logo</span>
+                        </button>
+                        <button onClick={() => handleOutletRoute('sendToProduction')} disabled={outletRoutingLoading}
+                          className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                          <Factory size={14} /><span>Send to Production</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-full space-y-2">
+                        <label className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <Truck size={12} />
+                          Dispatch Method
+                          <span className="px-1 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[9px] tracking-wider">SELECT</span>
+                        </label>
+                        <select
+                          className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-blue-500 transition-all text-white text-xs font-bold appearance-none"
+                          value={nextStage}
+                          onChange={(e) => setNextStage(e.target.value)}
+                        >
+                          <option value="">Select dispatch method...</option>
+                          <option value="DISPATCH">Normal Delivery</option>
+                          <option value="DISPATCH_TCS">TCS</option>
+                          <option value="DISPATCH_RIDER">Rider / Delivery Boy</option>
+                          <option value="DISPATCH_COURIER">Courier Service</option>
+                          <option disabled className="border-t border-gray-800">──────────</option>
+                          <option value="HOLD">Hold Order</option>
+                          <option value="PRODUCTION">Return to Production</option>
+                        </select>  
+                        <button
+                          onClick={() => {
+                            const dispatchMethod = {
+                              'DISPATCH': 'Normal Delivery',
+                              'DISPATCH_TCS': 'TCS',
+                              'DISPATCH_RIDER': 'Rider / Delivery Boy',
+                              'DISPATCH_COURIER': 'Courier Service',
+                              'HOLD': 'Hold',
+                              'PRODUCTION': 'Return to Production'
+                            }[nextStage] || '';
+                            const confirmMsg = dispatchMethod === 'Hold'
+                              ? 'Place order on HOLD?'
+                              : dispatchMethod === 'Return to Production'
+                                ? 'Return order back to production?'
+                                : `Send for dispatch via ${dispatchMethod}?`;
+                            if (!nextStage) return alert('Please select dispatch method');
+                            if (window.confirm(confirmMsg)) {
+                              const next = nextStage.startsWith('DISPATCH_') ? 'DISPATCH' : nextStage;
+                              const remarks = nextStage.startsWith('DISPATCH_')
+                                ? `Dispatched via ${dispatchMethod}`
+                                : dispatchMethod === 'Hold'
+                                  ? 'Hold / Pending by Store'
+                                  : 'Returned to Production by Store';
+                              onUpdateStage(order.id, currentStage.id, 'request', { nextStage: next, remarks, dispatchMethod: dispatchMethod === 'Normal Delivery' ? undefined : dispatchMethod });
+                            }
+                          }}
+                          className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 ${
+                            nextStage && !nextStage.startsWith('HOLD') && nextStage !== 'PRODUCTION'
+                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/20'
+                              : nextStage === 'HOLD'
+                                ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white shadow-lg shadow-yellow-900/20'
+                                : nextStage === 'PRODUCTION'
+                                  ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-900/20'
+                                  : 'bg-gray-800 text-gray-500'
+                          }`}
+                        >
+                          <ChevronRight size={12} />
+                          <span>{nextStage === 'HOLD' ? 'Place on Hold' : nextStage === 'PRODUCTION' ? 'Return to Production' : 'Confirm & Dispatch'}</span>
+                        </button>
+                      </div>
                       <button
-                        onClick={() => {
-                          const dispatchMethod = {
-                            'DISPATCH': 'Normal Delivery',
-                            'DISPATCH_TCS': 'TCS',
-                            'DISPATCH_RIDER': 'Rider / Delivery Boy',
-                            'DISPATCH_COURIER': 'Courier Service',
-                            'HOLD': 'Hold',
-                            'PRODUCTION': 'Return to Production'
-                          }[nextStage] || '';
-                          const confirmMsg = dispatchMethod === 'Hold'
-                            ? 'Place order on HOLD?'
-                            : dispatchMethod === 'Return to Production'
-                              ? 'Return order back to production?'
-                              : `Send for dispatch via ${dispatchMethod}?`;
-                          if (!nextStage) return alert('Please select dispatch method');
-                          if (window.confirm(confirmMsg)) {
-                            const next = nextStage.startsWith('DISPATCH_') ? 'DISPATCH' : nextStage;
-                            const remarks = nextStage.startsWith('DISPATCH_')
-                              ? `Dispatched via ${dispatchMethod}`
-                              : dispatchMethod === 'Hold'
-                                ? 'Hold / Pending by Store'
-                                : 'Returned to Production by Store';
-                            onUpdateStage(order.id, currentStage.id, 'request', { nextStage: next, remarks, dispatchMethod: dispatchMethod === 'Normal Delivery' ? undefined : dispatchMethod });
+                        onClick={async () => {
+                          try {
+                                                 const res = await api.get(`/api/orders/${order.id}/routing-history`);
+                            const history = res.data;
+                            const prodFiltered = history.filter(h =>
+                              h.previousStage === 'PRODUCTION' || h.newStage === 'PRODUCTION' ||
+                              h.previousStage === 'STORE_RECEIVE' || h.newStage === 'STORE_RECEIVE'
+                            );
+                            const display = (prodFiltered.length > 0 ? prodFiltered : history);
+                            const historyStr = display.map((h, i) =>
+                              `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${new Date(h.createdAt).toLocaleString()})${h.remarks ? ': ' + h.remarks : ''}`
+                            ).join('\n');
+                            alert(historyStr || 'No production history found for this order.');
+                          } catch (err) {
+                            alert('Error fetching production history');
                           }
                         }}
-                        className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 ${
-                          nextStage && !nextStage.startsWith('HOLD') && nextStage !== 'PRODUCTION'
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/20'
-                            : nextStage === 'HOLD'
-                              ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white shadow-lg shadow-yellow-900/20'
-                              : nextStage === 'PRODUCTION'
-                                ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-900/20'
-                                : 'bg-gray-800 text-gray-500'
-                        }`}
+                        className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-purple-600/10 hover:bg-purple-600/20 rounded-xl border border-purple-500/20 text-xs font-black uppercase tracking-wider text-purple-400 transition-all"
                       >
-                        <ChevronRight size={12} />
-                        <span>{nextStage === 'HOLD' ? 'Place on Hold' : nextStage === 'PRODUCTION' ? 'Return to Production' : 'Confirm & Dispatch'}</span>
+                        <History size={12} />
+                        View Production History
                       </button>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        try {
-                                               const res = await api.get(`/api/orders/${order.id}/routing-history`);
-                          const history = res.data;
-                          const prodFiltered = history.filter(h =>
-                            h.previousStage === 'PRODUCTION' || h.newStage === 'PRODUCTION' ||
-                            h.previousStage === 'STORE_RECEIVE' || h.newStage === 'STORE_RECEIVE'
-                          );
-                          const display = (prodFiltered.length > 0 ? prodFiltered : history);
-                          const historyStr = display.map((h, i) =>
-                            `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${new Date(h.createdAt).toLocaleString()})${h.remarks ? ': ' + h.remarks : ''}`
-                          ).join('\n');
-                          alert(historyStr || 'No production history found for this order.');
-                        } catch (err) {
-                          alert('Error fetching production history');
-                        }
-                      }}
-                      className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-purple-600/10 hover:bg-purple-600/20 rounded-xl border border-purple-500/20 text-xs font-black uppercase tracking-wider text-purple-400 transition-all"
-                    >
-                      <History size={12} />
-                      View Production History
-                    </button>
-                  </>
+                    </>
+                  )
                 ) : (
                   <div className="w-full">
-                    {currentStage?.stageName === 'OUT_FOR_DELIVERY' ? (
+                    {currentStage?.stageName === 'ENAMELS_DELIVERY' ? (
+                      <div className="flex flex-col gap-2 w-full">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Deliver to customer (cash on delivery)?')) {
+                                api.put(`/api/delivery/${order.id}/deliver`, {
+                                  paymentMethod: 'CASH',
+                                  cashAmount: order.totalPrice || 0,
+                                  onlineAmount: 0,
+                                  riderName: userRole
+                                }).then(() => { toast.success('Delivered'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              }
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
+                          >
+                            <CheckCircle size={12} className="mx-auto mb-0.5" />
+                            DELIVER
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const targetOutlet = prompt('Deliver to which outlet? (Jail Road Outlet / Abbottabad Outlet)');
+                              if (targetOutlet) {
+                                try {
+                                  await api.put(`/api/delivery/${order.id}/deliver-to-outlet`, { targetOutlet, riderName: userRole });
+                                  toast.success(`Delivered to ${targetOutlet}`);
+                                } catch (err) {
+                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                }
+                              }
+                            }}
+                            className="bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
+                          >
+                            <MapPin size={12} className="mx-auto mb-0.5" />
+                            DELIVER TO OUTLET
+                          </button>
+                          <button
+                            onClick={() => {
+                              const reason = prompt('Reason for no response?');
+                              if (reason !== null) {
+                                api.put(`/api/delivery/${order.id}/no-response`, { riderName: userRole }).then(() => { toast.success('No response logged'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              }
+                            }}
+                            className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
+                          >
+                            <Clock size={12} className="mx-auto mb-0.5" />
+                            NO RESPONSE
+                          </button>
+                          <button
+                            onClick={() => {
+                              const reason = prompt('Reason for return?');
+                              if (reason !== null) {
+                                api.put(`/api/delivery/${order.id}/return`, { riderName: userRole, reason }).then(() => { toast.success('Returned to dispatch'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              }
+                            }}
+                            className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-red-500/20 active:scale-95"
+                          >
+                            <RotateCcw size={12} className="mx-auto mb-0.5" />
+                            RETURN
+                          </button>
+                        </div>
+                      </div>
+                    ) : currentStage?.stageName === 'OUT_FOR_DELIVERY' ? (
                       <div className="flex flex-col gap-2 w-full">
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           <button
@@ -2018,64 +2096,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           REPORT PROBLEM
                         </button>
                       </div>
-                    ) : currentStage?.stageName === 'ORDER_ENTRY' && userRole === 'OUTLET' ? (
-                      <div className="w-full space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          {isJoharTown && (
-                            <>
-                              <button onClick={() => handleOutletRoute('sendToLogo')} disabled={outletRoutingLoading}
-                                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                                <Palette size={14} /><span>Send to Logo</span>
-                              </button>
-                              <button onClick={() => handleOutletRoute('sendToProduction')} disabled={outletRoutingLoading}
-                                className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                                <Factory size={14} /><span>Send to Production</span>
-                              </button>
-                            </>
-                          )}
-                          {isJoharTown && (
-                            <button onClick={() => handleOutletRoute('sendToEnamelsDelivery')} disabled={outletRoutingLoading}
-                              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                              <Truck size={14} /><span>Delivery Boy</span>
-                            </button>
-                          )}
-                          {isJoharTown && (
-                            <div className="relative">
-                              <select
-                                value={outletRoutingTarget || ''}
-                                onChange={(e) => {
-                                  setOutletRoutingTarget(e.target.value);
-                                  if (e.target.value) handleOutletRoute('sendToOutlet', e.target.value);
-                                }}
-                                disabled={outletRoutingLoading}
-                                className="w-full bg-gradient-to-r from-emerald-700 to-teal-700 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-center appearance-none cursor-pointer disabled:opacity-50"
-                              >
-                                <option value="" className="bg-gray-900 text-gray-400">Send to...</option>
-                                {!isJailRoad && <option value="Jail Road Outlet" className="bg-gray-900 text-white">Jail Road Outlet</option>}
-                                {!isAbbottabad && <option value="Abbottabad Outlet" className="bg-gray-900 text-white">Abbottabad Outlet</option>}
-                                {!isJoharTown && <option value="Johar Town Outlet" className="bg-gray-900 text-white">Johar Town Outlet</option>}
-                              </select>
-                            </div>
-                          )}
-                          {isJailRoad && (
-                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                              <Send size={14} /><span>Send to JT</span>
-                            </button>
-                          )}
-                          {isAbbottabad && (
-                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                              <Send size={14} /><span>Send to JT</span>
-                            </button>
-                          )}
-                          <button onClick={() => handleOutletRoute('customerTakeDeliver')} disabled={outletRoutingLoading}
-                            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                            <UserCheck size={14} /><span>Customer Take</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : currentStage?.stageName === 'OUTLET_RECEIVE' ? (
+                    ) : currentStage?.stageName === 'IN_DISPATCH' ? (
                       <div className="w-full space-y-3">
                         <div className="grid grid-cols-2 gap-2">
                           {isJoharTown && (
@@ -2084,34 +2105,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
                                 <Truck size={14} /><span>Delivery Boy</span>
                               </button>
-                              <div className="relative">
-                                <select
-                                  value={outletRoutingTarget || ''}
-                                  onChange={(e) => {
-                                    setOutletRoutingTarget(e.target.value);
-                                    if (e.target.value) handleOutletRoute('sendToOutlet', e.target.value);
-                                  }}
-                                  disabled={outletRoutingLoading}
-                                  className="w-full bg-gradient-to-r from-emerald-700 to-teal-700 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-center appearance-none cursor-pointer disabled:opacity-50"
-                                >
-                                  <option value="" className="bg-gray-900 text-gray-400">Send to...</option>
-                                  <option value="Jail Road Outlet" className="bg-gray-900 text-white">Jail Road</option>
-                                  <option value="Abbottabad Outlet" className="bg-gray-900 text-white">Abbottabad</option>
-                                </select>
-                              </div>
+                              <button onClick={() => handleOutletRoute('sendToOutlet', 'Jail Road Outlet')} disabled={outletRoutingLoading}
+                                className="bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                                <Send size={14} /><span>To Dispatch</span>
+                              </button>
                             </>
-                          )}
-                          {isJailRoad && (
-                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                              <Send size={14} /><span>Send to JT</span>
-                            </button>
-                          )}
-                          {isAbbottabad && (
-                            <button onClick={() => handleOutletRoute('sendToOutlet', 'Johar Town Outlet')} disabled={outletRoutingLoading}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                              <Send size={14} /><span>Send to JT</span>
-                            </button>
                           )}
                           <button onClick={() => handleOutletRoute('customerTakeDeliver')} disabled={outletRoutingLoading}
                             className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
@@ -2120,7 +2118,31 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                         <button
                           onClick={() => setShowProblemModal(true)}
-                          className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95"
+                          className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95"
+                        >
+                          <AlertCircle size={14} />
+                          <span>Report Problem</span>
+                        </button>
+                      </div>
+                    ) : currentStage?.stageName === 'OUTLET_RECEIVE' ? (
+                      <div className="w-full space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          {isJoharTown && (
+                            <>
+                              <button onClick={() => handleOutletRoute('sendToInDispatch')} disabled={outletRoutingLoading}
+                                className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                                <Truck size={14} /><span>Send to In Dispatch</span>
+                              </button>
+                            </>
+                          )}
+                          <button onClick={() => handleOutletRoute('customerTakeDeliver')} disabled={outletRoutingLoading}
+                            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                            <UserCheck size={14} /><span>Customer Take</span>
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setShowProblemModal(true)}
+                          className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95"
                         >
                           <AlertCircle size={14} />
                           <span>Report Problem</span>
@@ -2467,7 +2489,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   const en = order.engravingNames ? (typeof order.engravingNames === 'string' ? (() => { try { return JSON.parse(order.engravingNames); } catch { return []; } })() : order.engravingNames) : [];
                   const el = order.engravingLogos ? (typeof order.engravingLogos === 'string' ? (() => { try { return JSON.parse(order.engravingLogos); } catch { return []; } })() : order.engravingLogos) : [];
                   const hasEng = en.length > 0 || el.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || order.logoDesign || order.instructionNotes;
-                  if (!hasEng) return null;
+                  if (!hasEng || order.outletName) return null;
                   return (
                     <section className="bg-purple-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-purple-500/10 mt-4">
                       <h4 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.3em] mb-6">ENGRAVING</h4>

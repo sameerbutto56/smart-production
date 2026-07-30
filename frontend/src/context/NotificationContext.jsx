@@ -30,6 +30,38 @@ export const NotificationProvider = ({ children }) => {
   const pollingRef = useRef(null);
   const prevCountsRef = useRef({});
   const notifSoundCooldown = useRef(0);
+  const notifQueueRef = useRef([]);
+  const queueTimerRef = useRef(null);
+  const bellNotifCallbackRef = useRef(null);
+
+  // Allow Layout to register a callback for real-time bell updates
+  const setBellNotifCallback = useCallback((cb) => {
+    bellNotifCallbackRef.current = cb;
+  }, []);
+
+  // Batched update: coalesce rapid events into a single setState
+  const queueIncrement = useCallback((path, data) => {
+    notifQueueRef.current.push({ path, data });
+    if (queueTimerRef.current) clearTimeout(queueTimerRef.current);
+    queueTimerRef.current = setTimeout(() => {
+      const batch = [...notifQueueRef.current];
+      notifQueueRef.current = [];
+      setUnreadCounts(prev => {
+        const next = { ...prev };
+        for (const item of batch) {
+          next[item.path] = (next[item.path] || 0) + 1;
+        }
+        prevCountsRef.current = next;
+        return next;
+      });
+      // Forward to bell callback if registered
+      if (bellNotifCallbackRef.current) {
+        for (const item of batch) {
+          bellNotifCallbackRef.current(item.data);
+        }
+      }
+    }, 50);
+  }, []);
 
   const fetchUnreadCounts = useCallback(async () => {
     if (!user?.role) return;
@@ -38,10 +70,10 @@ export const NotificationProvider = ({ children }) => {
       const counts = res.data.counts || {};
       const prev = prevCountsRef.current;
 
-      // Detect new notifications via delta comparison
-      const now = Date.now();
+      // Compare total to detect new notifications for sound/popup
       let totalBefore = Object.values(prev).reduce((a, b) => a + b, 0);
       let totalAfter = Object.values(counts).reduce((a, b) => a + b, 0);
+      const now = Date.now();
       for (const [path, count] of Object.entries(counts)) {
         const prevCount = prev[path] || 0;
         if (count > prevCount && now - notifSoundCooldown.current > 5000) {
@@ -55,8 +87,16 @@ export const NotificationProvider = ({ children }) => {
         console.log('[Notif] delta:', totalBefore, '→', totalAfter, counts);
       }
 
-      prevCountsRef.current = counts;
-      setUnreadCounts(counts);
+      // Merge poll results with current state — KEEP the higher count per path
+      // This prevents polling from overwriting socket-driven increments
+      setUnreadCounts(prev => {
+        const merged = { ...prev };
+        for (const [path, count] of Object.entries(counts)) {
+          merged[path] = Math.max(prev[path] || 0, count);
+        }
+        prevCountsRef.current = merged;
+        return merged;
+      });
     } catch (e) { console.warn('[Notif] fetchCounts error:', e?.message || e); }
   }, [user?.role]);
 
@@ -87,7 +127,7 @@ export const NotificationProvider = ({ children }) => {
     } catch (e) { /* silent */ }
   }, [user?.role]);
 
-  // Socket listener for real-time notifications (optimization — fires instantly when socket works)
+  // Socket listener for real-time notifications
   useEffect(() => {
     if (!user?.role) return;
 
@@ -96,21 +136,31 @@ export const NotificationProvider = ({ children }) => {
       const path = data.path;
       if (!path) return;
 
-      setUnreadCounts(prev => {
-        const next = { ...prev, [path]: (prev[path] || 0) + 1 };
-        prevCountsRef.current = next;
-        return next;
-      });
+      // Use batched increment to handle rapid-fire events correctly
+      queueIncrement(path, data);
 
       playNotificationSound();
     };
 
     const handleReadNotification = (data) => {
       if (data.role && data.role !== user.role) return;
-      if (data.counts) {
-        prevCountsRef.current = data.counts;
-        setUnreadCounts(data.counts);
-      }
+      setUnreadCounts(prev => {
+        const next = { ...prev };
+        if (data.path) {
+          next[data.path] = 0;
+        }
+        // For paths in server response, merge — keep local if higher
+        // (local may have received new notifications since the read)
+        if (data.counts) {
+          for (const [p, c] of Object.entries(data.counts)) {
+            if (p !== data.path) {
+              next[p] = c;
+            }
+          }
+        }
+        prevCountsRef.current = next;
+        return next;
+      });
     };
 
     socket.on('notification:new', handleNewNotification);
@@ -121,10 +171,11 @@ export const NotificationProvider = ({ children }) => {
     return () => {
       socket.off('notification:new', handleNewNotification);
       socket.off('notification:read', handleReadNotification);
+      if (queueTimerRef.current) clearTimeout(queueTimerRef.current);
     };
-  }, [user, fetchUnreadCounts]);
+  }, [user, fetchUnreadCounts, queueIncrement]);
 
-  // Core polling — 3s interval for near-real-time badge/sound on all environments (Vercel/localhost)
+  // Core polling — 15s interval
   useEffect(() => {
     if (!user?.role) return;
 
@@ -139,7 +190,7 @@ export const NotificationProvider = ({ children }) => {
     };
   }, [user?.role, fetchUnreadCounts]);
 
-  // Tab focus handler — fetch immediately when user returns to the tab
+  // Tab focus handler
   useEffect(() => {
     if (!user?.role) return;
     const onFocus = () => { fetchUnreadCounts(); };
@@ -153,7 +204,8 @@ export const NotificationProvider = ({ children }) => {
     loading,
     markModuleRead,
     fetchNotifications,
-    fetchUnreadCounts
+    fetchUnreadCounts,
+    setBellNotifCallback
   };
 
   return (

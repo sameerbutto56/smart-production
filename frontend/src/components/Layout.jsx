@@ -231,6 +231,9 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
                   {badgeCount > 99 ? '99+' : badgeCount}
                 </span>
               )}
+              {!isCollapsed && hasBadge && (
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse-dot shrink-0" />
+              )}
             </Link>
             );
           })}
@@ -369,7 +372,7 @@ const Layout = () => {
 
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [globalSearch, setLocalSearch] = useState('');
-  const { unreadCounts, markModuleRead } = useNotifications();
+  const { unreadCounts, markModuleRead, setBellNotifCallback } = useNotifications();
   const [bellOpen, setBellOpen] = useState(false);
   const [bellNotifs, setBellNotifs] = useState([]);
   const bellRef = useRef(null);
@@ -378,10 +381,20 @@ const Layout = () => {
 
   const fetchBellNotifs = useCallback(async () => {
     try {
-      const res = await api.get('/api/notifications?limit=5&unread=true');
+      const res = await api.get('/api/notifications?limit=10&unread=true');
       setBellNotifs(res.data.notifications || []);
     } catch (e) { /* silent */ }
   }, []);
+
+  // Register callback for real-time bell notification updates from socket
+  useEffect(() => {
+    setBellNotifCallback((data) => {
+      setBellNotifs(prev => {
+        if (prev.some(n => n.id === data.id)) return prev;
+        return [data, ...prev].slice(0, 10);
+      });
+    });
+  }, [setBellNotifCallback]);
 
   useEffect(() => {
     if (!bellOpen) return;
@@ -642,29 +655,44 @@ const Layout = () => {
                   {bellNotifs.length === 0 ? (
                     <div className="text-center py-10 text-gray-500 font-bold text-xs">No unread notifications</div>
                   ) : (
-                    bellNotifs.map(n => (
-                      <button
-                        key={n.id}
-                        onClick={() => {
-                          setBellOpen(false);
-                          markModuleRead(n.path);
-                          if (n.path) navigate(n.path);
-                        }}
-                        className="w-full text-left px-4 py-3 border-b hover:bg-gray-800/50 transition-colors last:border-b-0" style={{ borderColor: 'var(--glass-border)' }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-black text-white uppercase tracking-wider truncate">{n.title}</div>
-                            <div className="text-[11px] text-gray-400 font-medium mt-0.5 line-clamp-2">{n.message}</div>
-                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-500 font-bold">
-                              <span>{new Date(n.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
-                              {n.employeeName && <><span>·</span><span>{n.employeeName}</span></>}
-                            </div>
+                    (() => {
+                      const grouped = {};
+                      bellNotifs.forEach(n => {
+                        const key = n.moduleName || 'Other';
+                        if (!grouped[key]) grouped[key] = [];
+                        grouped[key].push(n);
+                      });
+                      return Object.entries(grouped).map(([module, notifs]) => (
+                        <div key={module}>
+                          <div className="px-4 py-2 text-[10px] font-black text-gray-500 uppercase tracking-widest bg-gray-900/50 border-b" style={{ borderColor: 'var(--glass-border)' }}>
+                            {module}
                           </div>
+                          {notifs.map(n => (
+                            <button
+                              key={n.id}
+                              onClick={() => {
+                                setBellOpen(false);
+                                markModuleRead(n.path);
+                                if (n.path) navigate(n.path);
+                              }}
+                              className="w-full text-left px-4 py-3 border-b hover:bg-gray-800/50 transition-colors last:border-b-0" style={{ borderColor: 'var(--glass-border)' }}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-black text-white uppercase tracking-wider truncate">{n.title}</div>
+                                  <div className="text-[11px] text-gray-400 font-medium mt-0.5 line-clamp-2">{n.message}</div>
+                                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-500 font-bold">
+                                    <span>{new Date(n.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                                    {n.employeeName && <><span>·</span><span>{n.employeeName}</span></>}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
                         </div>
-                      </button>
-                    ))
+                      ));
+                    })()
                   )}
                 </div>
               )}

@@ -36,10 +36,11 @@ const STAGE_LABELS = {
   LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production Acceptance',
   PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
   DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered',
-  ENAMELS_DELIVERY: 'Enamels Delivery', OUTLET_RECEIVE: 'Outlet Receive'
+  ENAMELS_DELIVERY: 'Enamels Delivery', OUTLET_RECEIVE: 'Outlet Receive',
+  IN_DISPATCH: 'In Dispatch'
 };
  
-const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'OUTLET_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'];
 
 // Validates forward-only stage transitions to prevent routing loops
 const validateStageTransition = (fromStage, toStage, orderType) => {
@@ -52,7 +53,8 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
     'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
     'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] },
     'ORDER_ENTRY': { 'STANDARD': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] },
-    'OUTLET_RECEIVE': { 'STANDARD': ['ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['ENAMELS_DELIVERY', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] },
+    'OUTLET_RECEIVE': { 'STANDARD': ['ENAMELS_DELIVERY', 'IN_DISPATCH', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['ENAMELS_DELIVERY', 'IN_DISPATCH', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['ENAMELS_DELIVERY', 'IN_DISPATCH', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] },
+    'IN_DISPATCH': { 'STANDARD': ['ENAMELS_DELIVERY', 'DISPATCH', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['ENAMELS_DELIVERY', 'DISPATCH', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['ENAMELS_DELIVERY', 'DISPATCH', 'OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] },
     'ENAMELS_DELIVERY': { 'STANDARD': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] }
   };
 
@@ -63,7 +65,7 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
   return { valid: true, expected: toStage };
 };
 
-const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'ENAMELS_DELIVERY'];
+const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'ENAMELS_DELIVERY'];
 
 const getRolesForStage = (stageName) => {
   const map = {
@@ -74,6 +76,7 @@ const getRolesForStage = (stageName) => {
     'PRODUCTION': ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'],
     'STORE_RECEIVE': ['STORE', 'STORE_EMPLOYEE'],
     'OUTLET_RECEIVE': ['OUTLET'],
+    'IN_DISPATCH': ['OUTLET'],
     'DISPATCH': ['DISPATCH', 'MAIN_EMPLOYEE'],
     'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY', 'DELIVERY_BOY'],
     'ENAMELS_DELIVERY': ['DELIVERY_BOY'],
@@ -2369,7 +2372,7 @@ const getRolesForStageBasedOnRole = (role) => {
     'MAIN_EMPLOYEE': ['DISPATCH'],
     'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY'],
     'DELIVERY_BOY': ['ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY'],
-    'OUTLET': ['ORDER_ENTRY', 'OUTLET_RECEIVE'],
+    'OUTLET': ['ORDER_ENTRY', 'OUTLET_RECEIVE', 'IN_DISPATCH'],
   };
   return map[role] || [];
 };
@@ -2442,7 +2445,7 @@ const getUnseenOrders = async (req, res) => {
       stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
     };
     // Filter by outlet name for OUTLET role so each outlet only sees its own orders
-    // Normalize user name using same logic as getOutletName() in outletOrder.controller.js
+    // Johar Town also sees Jail Road orders (auto-routing from Jail Road)
     if (userRole === 'OUTLET' && req.user?.name) {
       const rawName = req.user.name.toLowerCase();
       let normalizedName = 'Unknown';
@@ -2450,7 +2453,12 @@ const getUnseenOrders = async (req, res) => {
       else if (rawName.includes('jail')) normalizedName = 'Jail Road';
       else if (rawName.includes('abbottabad')) normalizedName = 'Abbottabad';
       else normalizedName = req.user.name;
-      whereClause.outletName = { contains: normalizedName, mode: 'insensitive' };
+      if (normalizedName === 'Johar Town') {
+        // Johar Town sees both Johar Town and Jail Road orders in tasks
+        whereClause.outletName = { in: ['Johar Town', 'Jail Road'] };
+      } else {
+        whereClause.outletName = { contains: normalizedName, mode: 'insensitive' };
+      }
     }
     const orders = await prisma.order.findMany({
       where: whereClause,

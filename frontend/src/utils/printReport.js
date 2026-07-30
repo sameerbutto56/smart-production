@@ -1201,15 +1201,19 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     'URGENT': isUrdu ? 'ارجنٹ' : 'URGENT',
     'OUTLET': isUrdu ? 'آؤٹ لیٹ' : 'OUTLET',
     'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
+    'DELIVERY': isUrdu ? 'ڈلیوری' : 'DELIVERY',
+    'SELF_COLLECTION': isUrdu ? 'خود لینا' : 'SELF COLLECTION',
   };
   const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(order.advanceAmount || 0) > 0 ? `COD: ${currency(Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)))}` : 'CASH ON DELIVERY';
-  [order.type, order.priority, order.outletName || order.source, _payLabel].filter(Boolean).forEach(label => {
+  [order.type, order.priority, order.outletName || order.source, _payLabel, order.deliveryType].filter(Boolean).forEach(label => {
     let color = '#6b7280';
     if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
     else if (label === 'SUPER_URGENT') color = '#dc2626';
     else if (label === 'URGENT') color = '#d97706';
     else if (label === 'OUTLET') color = '#7c3aed';
     else if (label === 'CASH ON DELIVERY') color = '#dc2626';
+    else if (label === 'DELIVERY') color = '#2563eb';
+    else if (label === 'SELF_COLLECTION') color = '#8b5cf6';
     const displayLabel = badgeLabels[label] || pu(label);
     win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:20px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40"${isUrdu ? ' class="urdu-text"' : ''}>${displayLabel}</span>`);
   });
@@ -1234,7 +1238,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       const verified = productVerification[String(idx)] === true;
-      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${p.productType || p.name || '—'}</td>`);
+      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(p.productType || p.name || '—')}</td>`);
       // Fabric & Color column (no size mixed in)
       const fcParts = [vu(p.fabricType), vu(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
@@ -1257,7 +1261,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     const singleVerified = productVerification['0'] === true;
-    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${firstProduct.productType || firstProduct.name || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(firstProduct.productType || firstProduct.name || '—')}</td>`);
     const fcParts = [vu(firstProduct.fabricType), vu(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
     const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
@@ -1317,7 +1321,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       if (hasAnyNote) {
         productNotes.forEach((pn) => {
           const noteDisplay = isUrdu ? romanToUrdu(pn.note) : pn.note;
-          const productNameDisplay = isUrdu ? romanToUrdu(pn.name) : pn.name;
+          const productNameDisplay = isUrdu ? pu(pn.name) : pn.name;
           win.document.write(`<div style="background:#dbeafe;border-${borderAccent}:4px solid #3b82f6;padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues || measSpecialNote) ? '6px' : '0'}">`);
           win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#1e40af;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote} — ${productNameDisplay}</p>`);
           win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
@@ -1400,7 +1404,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
-            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${p.productType || p.name || 'Item ' + (idx + 1)}</span>`);
+            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name || 'Item ' + (idx + 1))}</span>`);
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 
@@ -1455,8 +1459,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`</div>`);
         });
       }
-      // Outlet-style engraving (order-level fields)
-      if (outHasEngraving) {
+      // Outlet-style engraving (order-level fields) — hidden for outlet orders
+      if (outHasEngraving && !order.outletName) {
         win.document.write(`<div style="border:2px solid #7c3aed40;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
         win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #7c3aed20">`);
         win.document.write(`<span style="background:#7c3aed;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">✦</span>`);
@@ -1572,7 +1576,7 @@ export function printDispatchSheet(order) {
       const extras = [slVal ? `${isUrdu ? 'بازو' : 'Sleeve'}: ${pu(slVal)}` : null, shVal ? `${isUrdu ? 'لمبائی' : 'Length'}: ${pu(shVal)}` : null].filter(Boolean).join(' | ');
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${p.productType || p.name || '—'}</td>`);
+      win.document.write(`<td style="font-weight:700">${pu(p.productType || p.name || '—')}</td>`);
       win.document.write(`<td>${[vu(p.fabricType), vu(p.color), p.size, genDisplay(p.gender)].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
@@ -1582,7 +1586,7 @@ export function printDispatchSheet(order) {
   } else {
     win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${firstProduct.productType || firstProduct.name || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name || '—')}</td>`);
     win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
