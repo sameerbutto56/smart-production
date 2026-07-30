@@ -95,7 +95,7 @@ exports.getSales = async (req, res) => {
 
     const allSales = await prisma.posSale.findMany({
       where: { ...df, ...branchFilter, faisalTake: { not: true } },
-      include: { items: true, balancePayments: { select: { amountPaidNow: true, paymentMethod: true, createdAt: true } } },
+      include: { items: true, balancePayments: { select: { amountPaidNow: true, paymentMethod: true, paidAt: true } } },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -358,7 +358,7 @@ exports.getProducts = async (req, res) => {
 // =========================== INVENTORY ANALYTICS ===========================
 exports.getInventory = async (req, res) => {
   try {
-    const items = await prisma.inventoryItem.findMany({ include: { variants: true }, orderBy: { createdAt: 'desc' } });
+    const items = await prisma.inventoryItem.findMany({ orderBy: { createdAt: 'desc' } });
     const totalItems = items.length;
     let totalStock = 0, totalValue = 0;
     for (const item of items) {
@@ -419,13 +419,11 @@ exports.getProduction = async (req, res) => {
     const df = dateFilter(range, dateFrom, dateTo);
 
     const [records, orders] = await Promise.all([
-      prisma.productionRecord.findMany({ where: df, select: { quantity: true, totalCost: true, createdAt: true, productName: true, unitName: true } }),
+      prisma.productionRecord.findMany({ where: df, select: { quantity: true, totalCost: true, createdAt: true, productName: true } }),
       prisma.order.findMany({ where: { ...df, currentStage: { in: ['PRODUCTION', 'PRODUCTION_ACCEPTANCE', 'STORE_RECEIVE'] } }, select: { id: true, productDetails: true, createdAt: true } })
     ]);
 
     const totalUnits = records.reduce((s, r) => s + (r.quantity || 0), 0);
-    const unit1 = records.filter(r => r.unitName === 'Unit 1' || !r.unitName).reduce((s, r) => s + (r.quantity || 0), 0);
-    const unit2 = records.filter(r => r.unitName === 'Unit 2').reduce((s, r) => s + (r.quantity || 0), 0);
     const totalCost = records.reduce((s, r) => s + (r.totalCost || 0), 0);
 
     const warehouseReceipts = await prisma.inventoryItem.findMany({
@@ -443,7 +441,7 @@ exports.getProduction = async (req, res) => {
     }
     const dailyProduction = Object.entries(dayMap).map(([date, d]) => ({ date, ...d })).sort((a, b) => a.date.localeCompare(b.date));
 
-    res.json({ totalUnits, unit1Output: unit1, unit2Output: unit2, totalCost, unitsReceived, dailyProduction });
+    res.json({ totalUnits, totalCost, unitsReceived, dailyProduction });
   } catch (error) {
     res.status(500).json({ message: 'CEO production error', error: error.message });
   }
