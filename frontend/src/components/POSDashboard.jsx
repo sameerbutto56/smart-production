@@ -314,7 +314,7 @@ const POSDashboard = () => {
               <div className="space-y-2">
                 {dashboard.bestSellingProducts && dashboard.bestSellingProducts.map((p, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                    <span className="font-black text-white">{isUrdu ? toUrduName(p.name) : p.name}</span>
+                    <span className="font-black text-white">{p.name}</span>
                     <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">{p.qty} sold</span>
                   </div>
                 ))}
@@ -386,7 +386,7 @@ const POSDashboard = () => {
                     <div className="mt-1.5 space-y-0.5">
                       {ft.items && ft.items.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between text-[10px] text-gray-400">
-                          <span>{isUrdu ? toUrduName(item.productName) : item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${isUrdu ? toUrduName(item.color) : item.color}]` : ''}</span>
+                          <span>{item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${isUrdu ? toUrduName(item.color) : item.color}]` : ''}</span>
                           <span className="font-bold text-white">x{item.quantity}</span>
                         </div>
                       ))}

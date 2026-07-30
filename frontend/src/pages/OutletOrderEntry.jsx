@@ -2,16 +2,10 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, Send, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle } from 'lucide-react';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const STEPS = ['Customer', 'Products', 'Engraving', 'Measurements', 'Destination', 'Review'];
-
-const DESTINATIONS = [
-  { value: 'STORE', label: 'Send to Store', desc: 'Route directly to Store' },
-  { value: 'LOGO_DESIGN', label: 'Send to Logo Department', desc: 'Logo team receives immediately' },
-  { value: 'PRODUCTION', label: 'Send to Production', desc: 'Production receives immediately' }
-];
+const STEPS = ['Customer', 'Products', 'Engraving', 'Measurements', 'Review'];
 
 const SLEEVE_LENGTH_OPTIONS = [
   { value: 'full', label: 'Full', labelUrdu: 'پوری بازو' },
@@ -108,7 +102,6 @@ const OutletOrderEntry = () => {
   const [clientMeasurementChart, setClientMeasurementChart] = useState('');
 
   const [advanceAmount, setAdvanceAmount] = useState(0);
-  const [destination, setDestination] = useState('');
   const [priority, setPriority] = useState('NORMAL');
 
   const [submitting, setSubmitting] = useState(false);
@@ -316,11 +309,10 @@ const OutletOrderEntry = () => {
       case 1: return products.length > 0;
       case 2: return true;
       case 3: return true;
-      case 4: return destination.length > 0;
-      case 5: return true;
+      case 4: return true;
       default: return false;
     }
-  }, [step, customerMode, lookedUp, clientData, customer, products, destination, orderNumber]);
+  }, [step, customerMode, lookedUp, clientData, customer, products, orderNumber]);
 
   const nextStep = () => { if (canProceed) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
@@ -345,7 +337,6 @@ const OutletOrderEntry = () => {
 
   const handleSubmit = async () => {
     if (products.length === 0) return toast.error('Add at least one product');
-    if (!destination) return toast.error('Select an order destination');
     setSubmitting(true);
     try {
       const engravingNames = engravingLines.filter(l => l.trim());
@@ -390,7 +381,6 @@ const OutletOrderEntry = () => {
         standardSize: sizingMode === 'standard' ? selectedStandardSize : null,
         measurementChart: sizingMode === 'custom' ? 'Custom Measurements' : (selectedStandardSize || null),
         advanceAmount: advance,
-        orderDestination: destination,
         placedBy: user?.name || user?.id || null,
         priority
       };
@@ -428,7 +418,6 @@ const OutletOrderEntry = () => {
     setSizeData({});
     setClientMeasurements({});
     setAdvanceAmount(0);
-    setDestination('');
     setPriority('NORMAL');
     setSubmitted(false);
     setCreatedOrder(null);
@@ -449,7 +438,6 @@ const OutletOrderEntry = () => {
           <h2 className="text-2xl font-black text-white">Order Placed!</h2>
           <p className="text-lg font-bold text-blue-400">{createdOrder?.orderNumber}</p>
           {createdOrder?.invoiceNumber && <p className="text-sm font-bold text-amber-400">Invoice: {createdOrder.invoiceNumber}</p>}
-          <p className="text-sm font-bold text-gray-400">Routed to: {DESTINATIONS.find(d => d.value === destination)?.label || destination}</p>
           {priority !== 'NORMAL' && <p className="text-xs font-bold text-red-400">Priority: {PRIORITY_OPTIONS.find(p => p.value === priority)?.label}</p>}
           {customerMode === 'new' && (
             <p className="text-xs font-bold text-emerald-400">Customer saved to Client Registration</p>
@@ -992,46 +980,8 @@ const OutletOrderEntry = () => {
           </div>
         )}
 
-        {/* ═══════════════════ Step 4: Destination ═══════════════════ */}
+        {/* ═══════════════════ Step 4: Review & Place ═══════════════════ */}
         {step === 4 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><Send size={18} />Order Destination</h2>
-            <p className="text-xs font-bold text-gray-500">Choose where this order should be sent.</p>
-            <div className="space-y-2">
-              {DESTINATIONS.map(d => (
-                <button key={d.value} onClick={() => setDestination(d.value)}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                    destination === d.value ? 'border-amber-500 bg-amber-900/20' : 'border-gray-700 bg-gray-800 hover:bg-gray-750'
-                  }`}>
-                  <p className="text-sm font-black text-white">{d.label}</p>
-                  <p className="text-xs font-bold text-gray-400">{d.desc}</p>
-                </button>
-              ))}
-            </div>
-            <div className="bg-gray-800 rounded-xl p-4 space-y-3">
-              <label className="text-xs font-bold text-gray-400 block">Order Priority</label>
-              <div className="space-y-2">
-                {PRIORITY_OPTIONS.map(p => (
-                  <button key={p.value} onClick={() => setPriority(p.value)}
-                    className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-center justify-between ${
-                      priority === p.value
-                        ? p.value === 'SUPER_URGENT' ? 'border-red-500 bg-red-900/20' : p.value === 'URGENT' ? 'border-orange-500 bg-orange-900/20' : 'border-emerald-500 bg-emerald-900/20'
-                        : 'border-gray-700 bg-gray-800 hover:bg-gray-750'
-                    }`}>
-                    <div>
-                      <p className={`text-sm font-black ${p.value === 'SUPER_URGENT' ? 'text-red-400' : p.value === 'URGENT' ? 'text-orange-400' : 'text-white'}`}>{p.label}</p>
-                      <p className="text-[10px] font-bold text-gray-400">{p.desc}</p>
-                    </div>
-                    {priority === p.value && <CheckCircle size={16} className={p.value === 'SUPER_URGENT' ? 'text-red-400' : p.value === 'URGENT' ? 'text-orange-400' : 'text-emerald-400'} />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════ Step 5: Review & Place ═══════════════════ */}
-        {step === 5 && (
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><CheckCircle size={18} />Review & Place Order</h2>
 
@@ -1044,7 +994,6 @@ const OutletOrderEntry = () => {
               {priority !== 'NORMAL' && (
                 <p className="text-gray-400">Priority: <span className={`font-black ${priority === 'SUPER_URGENT' ? 'text-red-400' : 'text-orange-400'}`}>{PRIORITY_OPTIONS.find(p => p.value === priority)?.label}</span></p>
               )}
-              <p className="text-gray-400">Destination: <span className="text-white font-black">{DESTINATIONS.find(d => d.value === destination)?.label}</span></p>
               {customerMode === 'new' && !clientData && (
                 <p className="text-[10px] font-bold text-emerald-400 mt-1">New customer — will be saved to Client Registration</p>
               )}
@@ -1164,7 +1113,6 @@ const OutletOrderEntry = () => {
             <div className="text-xs font-bold space-y-0.5 border-b border-gray-200 pb-2">
               <p>Customer: {customer.name} — {customer.phone}</p>
               {customer.address && <p>Address: {customer.address}{customer.city ? `, ${customer.city}` : ''}</p>}
-              <p>Destination: {DESTINATIONS.find(d => d.value === destination)?.label}</p>
             </div>
             <table className="w-full text-xs border-collapse">
               <thead>

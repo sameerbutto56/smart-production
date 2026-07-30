@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { toUrduName } from '../utils/urduDictionary';
+import { toUrduName, translateGender } from '../utils/urduDictionary';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
@@ -320,15 +320,15 @@ const DispatchPage = () => {
       doc.write(`<table><thead><tr><th>#</th><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
       allItems.forEach((item, idx) => {
         const p = item.productDetails || item || {};
-        const pName = isUrdu ? toUrduName(p.productType || p.name || '—') : (p.productType || p.name || '—');
+        const pName = p.productType || p.name || '—';
         const pColor = isUrdu ? toUrduName(p.color) : p.color;
-        doc.write(`<tr><td style="font-weight:700">${idx + 1}</td><td style="font-weight:700">${pName}</td><td>${[p.fabricType, pColor, p.size, p.gender].filter(Boolean).join(' • ') || '—'}</td><td style="text-align:center;font-weight:700">${item.quantity || 1}</td><td style="text-align:right;font-weight:700">₨${parseFloat(item.totalPrice || 0).toLocaleString()}</td></tr>`);
+        doc.write(`<tr><td style="font-weight:700">${idx + 1}</td><td style="font-weight:700">${pName}</td><td>${[p.fabricType, pColor, p.size, translateGender(p.gender, isUrdu)].filter(Boolean).join(' • ') || '—'}</td><td style="text-align:center;font-weight:700">${item.quantity || 1}</td><td style="text-align:right;font-weight:700">₨${parseFloat(item.totalPrice || 0).toLocaleString()}</td></tr>`);
       });
       doc.write(`</tbody></table>`);
     } else {
-      const fpName = isUrdu ? toUrduName(firstProduct.productType || firstProduct.name || '—') : (firstProduct.productType || firstProduct.name || '—');
+      const fpName = firstProduct.productType || firstProduct.name || '—';
       const fpColor = isUrdu ? toUrduName(firstProduct.color) : firstProduct.color;
-      doc.write(`<div style="padding:4px 6px;margin-bottom:4px"><p style="font-size:12px;font-weight:900;margin:0">${fpName}</p><p style="font-size:11px;margin:0">${[firstProduct.fabricType, fpColor, firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</p><p style="font-size:11px;font-weight:700;margin:2px 0 0">Qty: 1 | ₨${parseFloat(order.totalPrice || 0).toLocaleString()}</p></div>`);
+      doc.write(`<div style="padding:4px 6px;margin-bottom:4px"><p style="font-size:12px;font-weight:900;margin:0">${fpName}</p><p style="font-size:11px;margin:0">${[firstProduct.fabricType, fpColor, firstProduct.size, translateGender(firstProduct.gender, isUrdu)].filter(Boolean).join(' • ') || '—'}</p><p style="font-size:11px;font-weight:700;margin:2px 0 0">Qty: 1 | ₨${parseFloat(order.totalPrice || 0).toLocaleString()}</p></div>`);
     }
     if (officerName) {
       doc.write(`<div style="margin-top:6px;border-top:2px solid #000;padding-top:4px;text-align:center">`);

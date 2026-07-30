@@ -59,7 +59,7 @@ const POSProducts = () => {
                   <Package size={24} className="text-gray-600" />
                 </div>
               )}
-              <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{isUrdu ? toUrduName(g.name) : g.name}</p>
+              <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{g.name}</p>
               {g.variants.length > 1 && (
                 <span className="inline-block text-[7px] font-bold text-blue-400 bg-blue-900/30 rounded-full px-1.5 py-0.5 mb-0.5">{g.variants.length} variants</span>
               )}

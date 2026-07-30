@@ -266,7 +266,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                   <div key={i} className="flex items-center gap-1.5">
                     <span className="text-[10px] font-black text-blue-400 bg-blue-500/20 px-1 rounded">{i + 1}</span>
                     <p className="font-black theme-text-primary text-sm truncate">
-                      {isUrdu ? toUrduName(p.productType || p.name || '—') : (p.productType || p.name || '—')}
+                      {p.productType || p.name || '—'}
                       {p.color ? <span className="text-xs text-gray-500"> ({p.color})</span> : null}
                     </p>
                   </div>
@@ -479,7 +479,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                   const productCost = Number(order.productCost || 0);
                   const grossProfit = Number(order.grossProfit || 0);
                   const lines = [];
-                  lines.push({ label: 'Products', value: pdArr.map(p => isUrdu ? toUrduName(p.productType || p.name) : (p.productType || p.name)).join(', ') || '—', isText: true });
+                  lines.push({ label: 'Products', value: pdArr.map(p => (p.productType || p.name)).join(', ') || '—', isText: true });
                   lines.push({ label: 'Subtotal', value: subtotal || Number(order.totalPrice || 0) - delivery - customization - logo - namePrint });
                   lines.push({ label: 'Quantity', value: totalQty || order.quantity || 1 });
                   if (delivery > 0) lines.push({ label: 'Delivery Charges', value: delivery });

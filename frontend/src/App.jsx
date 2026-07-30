@@ -51,6 +51,7 @@ const ReturnedFromVerification = lazy(() => import('./pages/ReturnedFromVerifica
 const ReturnExchangePage = lazy(() => import('./pages/ReturnExchangePage'));
 const CustomerFeedbackForm = lazy(() => import('./pages/CustomerFeedbackForm'));
 const NotificationHistory = lazy(() => import('./pages/NotificationHistory'));
+const CEODashboard = lazy(() => import('./pages/CEODashboard'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -74,6 +75,7 @@ const AuthRedirectHandler = () => {
   if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
   if (role === 'STORE') return <Navigate to="/warehouse" replace={true} />;
   if (role === 'INVENTORY_VIEW') return <Navigate to="/order-track" replace={true} />;
+  if (role === 'CEO') return <Navigate to="/ceo-dashboard" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;
 };
@@ -158,6 +160,7 @@ function App() {
                   <Route path="returned-from-verification" element={<ReturnedFromVerification />} />
                   <Route path="return-exchange" element={<ReturnExchangePage />} />
                   <Route path="notifications" element={<NotificationHistory />} />
+                  <Route path="ceo-dashboard" element={<CEODashboard />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

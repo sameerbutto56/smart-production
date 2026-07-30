@@ -491,7 +491,7 @@ export const WarehousePOSProvider = ({ children }) => {
       ${sale.customerName ? `<p>Customer: ${sale.customerName}${sale.customerPhone ? ` (${sale.customerPhone})` : ''}</p>` : ''}
       <table><tr><th>ITEM</th><th class="right">QTY×PRICE</th><th class="right">TOTAL</th></tr>
       ${(sale.items || []).map(item => { const iur = (() => { try { return localStorage.getItem('opencode_language') === 'ur'; } catch { return false; } })(); return `<tr>
-        <td>${iur ? toUrduName(item.productName) : item.productName}${item.color ? ` (${iur ? toUrduName(item.color) : item.color})` : ''}${item.size ? ` / ${item.size}` : ''}</td>
+        <td>${item.productName}${item.color ? ` (${iur ? toUrduName(item.color) : item.color})` : ''}${item.size ? ` / ${item.size}` : ''}</td>
         <td class="right">${item.quantity}×${formatCurrency(item.unitPrice)}</td>
         <td class="right">${formatCurrency(item.lineTotal)}</td>
       </tr>`;}).join('')}

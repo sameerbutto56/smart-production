@@ -384,10 +384,7 @@ const urduDictionary = {
   // ==========================================================================
 
   // Gender
-  'Female': 'فیمیل',
-  'Male': 'میل',
-  'Men': 'مین',
-  'Unisex': 'یونی سیکس',
+  // Gender removed — use translateGender() instead
 
   // Fit / Sleeve / Length
   'Full': 'فل',
@@ -756,7 +753,7 @@ const urduDictionary = {
   'Vat': 'ویٹ',
   'Velora': 'ویلورا',
   'Wash': 'واش',
-  'Women': 'ویمن',
+  // Women removed — use translateGender()
   'Work': 'ورک',
   '2pcs': 'ٹو پیس',
   '3pcs': 'تھری پیس',
@@ -833,6 +830,20 @@ export function toUrduName(text) {
     }
     return w;
   }).join(' ');
+}
+
+/**
+ * translateGender — only translates gender words (Male/Female/Men/Women/Unisex)
+ * to proper Urdu. All other text passes through unchanged.
+ */
+export function translateGender(gender, isUrdu) {
+  if (!isUrdu || !gender) return gender;
+  const g = String(gender).trim();
+  const lower = g.toLowerCase();
+  if (lower === 'male' || lower === 'men') return 'مرد';
+  if (lower === 'female' || lower === 'women') return 'عورت';
+  if (lower === 'unisex') return 'یونی سیکس';
+  return g;
 }
 
 export default urduDictionary;

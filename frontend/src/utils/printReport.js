@@ -1234,7 +1234,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       const verified = productVerification[String(idx)] === true;
-      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(p.productType || p.name) || '—'}</td>`);
+      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${p.productType || p.name || '—'}</td>`);
       // Fabric & Color column (no size mixed in)
       const fcParts = [vu(p.fabricType), vu(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
@@ -1257,7 +1257,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     const singleVerified = productVerification['0'] === true;
-    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${firstProduct.productType || firstProduct.name || '—'}</td>`);
     const fcParts = [vu(firstProduct.fabricType), vu(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
     const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
@@ -1400,7 +1400,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
-            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
+            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${p.productType || p.name || 'Item ' + (idx + 1)}</span>`);
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 
@@ -1572,8 +1572,8 @@ export function printDispatchSheet(order) {
       const extras = [slVal ? `${isUrdu ? 'بازو' : 'Sleeve'}: ${pu(slVal)}` : null, shVal ? `${isUrdu ? 'لمبائی' : 'Length'}: ${pu(shVal)}` : null].filter(Boolean).join(' | ');
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${pu(p.productType || p.name) || '—'}</td>`);
-      win.document.write(`<td>${[vu(p.fabricType), vu(p.color), p.size, p.gender].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
+      win.document.write(`<td style="font-weight:700">${p.productType || p.name || '—'}</td>`);
+      win.document.write(`<td>${[vu(p.fabricType), vu(p.color), p.size, genDisplay(p.gender)].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
       win.document.write(`</tr>`);
@@ -1582,7 +1582,7 @@ export function printDispatchSheet(order) {
   } else {
     win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${firstProduct.productType || firstProduct.name || '—'}</td>`);
     win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);

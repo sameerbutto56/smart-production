@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import socket from '../socket';
+import socket, { resetSocket, connectSocket } from '../socket';
 
 const AuthContext = createContext();
 
@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       sessionStorage.setItem('token', token);
       sessionStorage.setItem('user', JSON.stringify(user));
+      connectSocket(token);
       setUser(user);
       joinRoleRoom(user.role);
       return { success: true };
@@ -38,6 +39,7 @@ export const AuthProvider = ({ children }) => {
   }, [joinRoleRoom]);
 
   const logout = useCallback(() => {
+    resetSocket();
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
     setUser(null);

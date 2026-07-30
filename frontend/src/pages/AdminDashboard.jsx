@@ -1107,7 +1107,7 @@ const AdminDashboard = () => {
                                         <div key={i} className="flex items-center gap-2 py-1.5 border-b border-red-500/10 last:border-0">
                                           <span className="text-xs md:text-sm font-black text-red-400 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-xs font-bold theme-text-primary">{isUrdu ? toUrduName(p.name) : p.name}</p>
+                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
                                             {(p.color || p.size) && (
                                               <p className="text-[9px] theme-text-muted">
                                                 {[isUrdu ? toUrduName(p.color) : p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
@@ -1126,7 +1126,7 @@ const AdminDashboard = () => {
                                         <div key={i} className="flex items-center gap-2 py-1.5 border-b border-emerald-500/10 last:border-0">
                                           <span className="text-xs md:text-sm font-black text-emerald-400 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-xs font-bold theme-text-primary">{isUrdu ? toUrduName(p.name) : p.name}</p>
+                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
                                             {(p.color || p.size) && (
                                               <p className="text-[9px] theme-text-muted">
                                                 {[isUrdu ? toUrduName(p.color) : p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
@@ -1145,12 +1145,12 @@ const AdminDashboard = () => {
                                     <div className="space-y-1">
                                       {currentProducts.map((p, i) => (
                                         <p key={i} className="text-xs font-bold text-green-400">
-                                          +{p.qty} {isUrdu ? toUrduName(p.name) : p.name} {p.color ? `(${isUrdu ? toUrduName(p.color) : p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
+                                          +{p.qty} {p.name} {p.color ? `(${isUrdu ? toUrduName(p.color) : p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
                                         </p>
                                       ))}
                                       {requestedProducts.map((p, i) => (
                                         <p key={i} className="text-xs font-bold text-red-400">
-                                          -{p.qty} {isUrdu ? toUrduName(p.name) : p.name} {p.color ? `(${isUrdu ? toUrduName(p.color) : p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
+                                          -{p.qty} {p.name} {p.color ? `(${isUrdu ? toUrduName(p.color) : p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
                                         </p>
                                       ))}
                                     </div>

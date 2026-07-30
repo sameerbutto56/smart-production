@@ -797,7 +797,7 @@ const OnlineStoreCard = ({ activeTab }) => {
                       ]})}>
                       <div className="flex items-center gap-3">
                         <span className="theme-text-muted text-xs w-6 text-right">{i + 1}.</span>
-                        <span className="theme-text-primary text-xs font-bold">{toUrduName(p.name)}</span>
+                        <span className="theme-text-primary text-xs font-bold">{p.name}</span>
                       </div>
                       <div className="flex items-center gap-4">
                         <span className="theme-text-secondary text-xs">{p.totalOrders} orders</span>

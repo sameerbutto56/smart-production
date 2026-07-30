@@ -80,7 +80,7 @@ const POSReturns = () => {
                   <div className="flex flex-wrap gap-1 mb-3">
                     {(lookedUpReturnSale.items || []).map((item, idx) => (
                       <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
-                        {isUrdu ? toUrduName(item.productName) : item.productName} {item.color ? `(${isUrdu ? toUrduName(item.color) : item.color})` : ''} x{item.quantity}
+                        {item.productName} {item.color ? `(${isUrdu ? toUrduName(item.color) : item.color})` : ''} x{item.quantity}
                       </span>
                     ))}
                   </div>
@@ -117,7 +117,7 @@ const POSReturns = () => {
                     return (
                       <div key={p.id} className="bg-gray-800/50 rounded-xl p-3 flex items-center gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-white truncate">{isUrdu ? toUrduName(p.name) : p.name}</p>
+                          <p className="text-xs font-bold text-white truncate">{p.name}</p>
                           <p className="text-[9px] text-gray-400">
                             {[isUrdu ? toUrduName(p.color) : p.color, p.size].filter(Boolean).join(' • ') || 'Standard'}
                             {p.stock != null && <span className="ml-2 text-gray-500">Stock: {p.stock}</span>}
@@ -186,7 +186,7 @@ const POSReturns = () => {
                     <div className="flex flex-wrap gap-1">
                       {(s.items || []).map((item, idx) => (
                         <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
-                          {isUrdu ? toUrduName(item.productName) : item.productName} {item.color ? `(${isUrdu ? toUrduName(item.color) : item.color})` : ''} x{item.quantity}
+                          {item.productName} {item.color ? `(${isUrdu ? toUrduName(item.color) : item.color})` : ''} x{item.quantity}
                         </span>
                       ))}
                     </div>
@@ -204,7 +204,7 @@ const POSReturns = () => {
                 {returns.map(r => (
                   <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
                     <div>
-                      <p className="text-xs font-bold text-white">{isUrdu ? toUrduName(r._variant?.product?.name || 'Unknown') : (r._variant?.product?.name || 'Unknown')} {r._variant?.color && `(${isUrdu ? toUrduName(r._variant.color) : r._variant.color})`}</p>
+                      <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${isUrdu ? toUrduName(r._variant.color) : r._variant.color})`}</p>
                       <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {new Date(r.createdAt).toLocaleString()}</p>
                     </div>
                     <p className="text-xs font-bold text-red-400">-{formatCurrency(r.refundAmount)}</p>
@@ -222,7 +222,7 @@ const POSReturns = () => {
             {returnCart.map((item, i) => (
               <div key={i} className="flex items-center gap-2 bg-gray-800/60 rounded-xl px-3 py-2 border border-gray-700/50">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{isUrdu ? toUrduName(item.productName) : item.productName}</p>
+                  <p className="text-xs font-bold text-white truncate">{item.productName}</p>
                   <p className="text-[9px] text-gray-500">{[isUrdu ? toUrduName(item.color) : item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}</p>
                 </div>
                 <div className="flex items-center gap-1">

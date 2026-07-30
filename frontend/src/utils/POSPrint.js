@@ -90,7 +90,7 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
       const newItems = (sale.items || []).filter(i => !i.isExchange);
       (newItems.length > 0 ? newItems : sale.items).forEach(item => {
         const isUrd = isUrduReceipt();
-        const name = isUrd ? toUrduName(item.productName || '') : (item.productName || '');
+        const name = item.productName || '';
         const variantParts = [isUrd ? toUrduName(item.color) : item.color, item.size].filter(Boolean);
         doc.write('<div class="item">');
         doc.write(`<div class="item-name">${name}</div>`);
@@ -117,7 +117,7 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
         doc.write('<div style="margin-top:8px;padding-top:6px;border-top:2px solid #c00;"><p style="font-size:14px;font-weight:900;color:#c00;text-align:center;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Exchange / Returned Items</p>');
         exchangeItems.forEach(item => {
           const isUrd = isUrduReceipt();
-          const name = isUrd ? toUrduName(item.productName || '') : (item.productName || '');
+          const name = item.productName || '';
           const variantParts = [isUrd ? toUrduName(item.color) : item.color, item.size].filter(Boolean);
           doc.write('<div class="item">');
           doc.write(`<div class="item-name">${name}</div>`);

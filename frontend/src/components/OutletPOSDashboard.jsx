@@ -178,7 +178,7 @@ const OutletPOSDashboard = ({ outlet }) => {
           if (!printW) return;
           const pmRows = (dashboard.paymentBreakdown || []).map(p => `<tr><td>${p.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : p.method}</td><td>₨${(p.gross || 0).toLocaleString()}</td><td>₨${(p.net || 0).toLocaleString()}</td></tr>`).join('');
           const trendRows = (dashboard.reportData || []).map(d => `<tr><td>${d.date}</td><td>₨${(d.sales || 0).toLocaleString()}</td></tr>`).join('');
-          const topRows = (dashboard.bestSellingProducts || []).map(p => `<tr><td>${isUrdu ? toUrduName(p.name) : p.name}</td><td>${p.qty}</td></tr>`).join('');
+          const topRows = (dashboard.bestSellingProducts || []).map(p => `<tr><td>${p.name}</td><td>${p.qty}</td></tr>`).join('');
           printW.document.write(`<!DOCTYPE html><html><head><title>POS Dashboard - ${outlet}</title>
             <style>body{font-family:Arial,sans-serif;padding:20px;color:#333}h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}.label{font-size:10px;color:#666}.val{font-size:14px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{padding:6px 8px;text-align:left;font-size:11px;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:700}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:4px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>
             ${getPrintLogoHTML()}
@@ -326,7 +326,7 @@ const OutletPOSDashboard = ({ outlet }) => {
               <div className="space-y-2">
                 {dashboard.bestSellingProducts && dashboard.bestSellingProducts.map((p, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                    <span className="font-black text-white">{isUrdu ? toUrduName(p.name) : p.name}</span>
+                    <span className="font-black text-white">{p.name}</span>
                     <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">{p.qty} sold</span>
                   </div>
                 ))}
@@ -373,7 +373,7 @@ const OutletPOSDashboard = ({ outlet }) => {
                     <div className="mt-1.5 space-y-0.5">
                       {ft.items?.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between text-[10px] text-gray-400">
-                          <span>{isUrdu ? toUrduName(item.productName) : item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${isUrdu ? toUrduName(item.color) : item.color}]` : ''}</span>
+                          <span>{item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${isUrdu ? toUrduName(item.color) : item.color}]` : ''}</span>
                           <span className="font-bold text-white">x{item.quantity}</span>
                         </div>
                       ))}

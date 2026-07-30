@@ -6,7 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
 import { LoadingSpinner } from './LoadingSpinner';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
-import { toUrduName } from '../utils/urduDictionary';
+import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
 
@@ -256,7 +256,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             >
                <span className="font-bold uppercase tracking-tighter text-gray-400">
                  {productVerification[String(idx)] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[9px] mr-1" title="Verified">✓</span>}
-                  #{idx + 1} {(isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item'))}: {(isUrdu ? toUrduName(p.fabricType || 'STD') : (p.fabricType || 'STD'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'} / Size {p.size || '—'}
+                  #{idx + 1} {(p.productType || p.name || 'Item')}: {(isUrdu ? toUrduName(p.fabricType || 'STD') : (p.fabricType || 'STD'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'} / Size {p.size || '—'}
                  {p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}
                </span>
               {isStoreRole && (
@@ -276,7 +276,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       const items = [
         { label: 'Fabric', val: isUrdu ? toUrduName(product?.fabricType) : product?.fabricType },
         { label: 'Color', val: isUrdu ? toUrduName(product?.color) : product?.color },
-        { label: 'Base', val: isUrdu ? toUrduName(product?.productType) : product?.productType },
+        { label: 'Base', val: product?.productType },
         ...(product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) ? [{ label: 'Alteration', val: [product.alteration.trouserLength && `Trouser ${product.alteration.trouserLength}"`, product.alteration.shirtLength && `Shirt ${product.alteration.shirtLength}"`, product.alteration.sleeveLength && `Sleeve ${product.alteration.sleeveLength}"`].filter(Boolean).join(' ') }] : [])
       ];
       return (
@@ -342,7 +342,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {(isMultiProd || sortedItems.length > 1) && (
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-800/50">
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">#{idx + 1}</span>
-                    <span className="text-xs font-black text-white uppercase">{isUrdu ? toUrduName(p.productType || p.name || `Item ${idx + 1}`) : (p.productType || p.name || `Item ${idx + 1}`)}</span>
+                    <span className="text-xs font-black text-white uppercase">{(p.productType || p.name || `Item ${idx + 1}`)}</span>
                     {p.color && <span className="text-[9px] text-gray-500">({isUrdu ? toUrduName(p.color) : p.color})</span>}
                     {isNotAvail && (
                       <span className="ml-auto px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[9px] font-black text-red-400 uppercase tracking-wider">
@@ -487,7 +487,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {isFirst && (
                   <div className="flex flex-wrap gap-2 mt-3">
                     <div className="px-2 py-1 bg-gray-800 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-                      GENDER: {p?.gender || 'N/A'}
+                      GENDER: {translateGender(p?.gender, isUrdu) || 'N/A'}
                     </div>
                     {female.dupatta && (
                       <div className="px-2 py-1 bg-pink-900/20 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
@@ -730,7 +730,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0 || order.logoCharges > 0 || order.namePrintingCharges > 0) && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5 bg-gray-950/50 p-2 rounded-xl border border-gray-800/50">
               {(product?.productType || product?.name) && (
-                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{isUrdu ? toUrduName(product.productType) : product.productType}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{isUrdu ? product.productType : product.productType}</span>
               )}
               {product?.fabricType && (
                 <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{isUrdu ? toUrduName(product.fabricType) : product.fabricType}</span>
@@ -798,7 +798,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     return (
                       <div key={idx} className="border border-gray-800 rounded-xl p-2.5 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-cyan-400">#{idx + 1} {isUrdu ? toUrduName(p.productType || p.name || 'Product') : (p.productType || p.name || 'Product')}</span>
+                          <span className="text-xs font-bold text-cyan-400">#{idx + 1} {p.productType || p.name || 'Product'}</span>
                           <span className="text-[9px] font-black text-gray-500 uppercase">Qty: {item.quantity || 1}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-1.5 text-[10px]">
@@ -806,7 +806,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           {p.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(p.color) : p.color}</span></div>}
                           {p.size && <div><span className="text-gray-500">Size:</span> <span className="text-white font-bold">{p.size}</span></div>}
                           {p.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(p.fabricType) : p.fabricType}</span></div>}
-                          {p.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{p.gender}</span></div>}
+                          {p.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{translateGender(p.gender, isUrdu)}</span></div>}
                         </div>
                         {(slv || shl) && (
                           <div className="flex flex-wrap gap-1">
@@ -852,12 +852,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 ) : (
                   <div className="border border-gray-800 rounded-xl p-2.5 space-y-2">
                     <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                      {(product?.productType || product?.name) && <div><span className="text-gray-500">Product:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(product.productType) : product.productType}</span></div>}
+                      {(product?.productType || product?.name) && <div><span className="text-gray-500">Product:</span> <span className="text-white font-bold">{isUrdu ? product.productType : product.productType}</span></div>}
                       {product?.category && <div><span className="text-gray-500">Category:</span> <span className="text-white font-bold">{product.category}</span></div>}
                       {product?.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(product.color) : product.color}</span></div>}
                       {product?.size && <div><span className="text-gray-500">Size:</span> <span className="text-white font-bold">{product.size}</span></div>}
                       {product?.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(product.fabricType) : product.fabricType}</span></div>}
-                      {product?.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{product.gender}</span></div>}
+                      {product?.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{translateGender(product.gender, isUrdu)}</span></div>}
                       <div><span className="text-gray-500">Qty:</span> <span className="text-white font-bold">{order.quantity || 1}</span></div>
                       <div><span className="text-gray-500">Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
                     </div>
@@ -1650,7 +1650,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <span className={`text-xs font-bold uppercase truncate ${
                                   isAlreadyProduced ? 'text-emerald-300/60' : isVerified ? 'text-blue-200' : 'text-blue-300'
                                 }`}>
-                                  {isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item')}: {(isUrdu ? toUrduName(p.fabricType || '—') : (p.fabricType || '—'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'}
+                                  {(p.productType || p.name || 'Item')}: {(isUrdu ? toUrduName(p.fabricType || '—') : (p.fabricType || '—'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -2319,7 +2319,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
                                    <td className="py-4 px-4 font-bold uppercase">
                                      {productVerification[String(idx)] === true ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 text-[10px] font-black mr-1.5" title="Verified">✓</span> : ''}
-                                     <span className="text-white">{isUrdu ? toUrduName(p.productType || p.name) : (p.productType || p.name) || '—'}</span>
+                                     <span className="text-white">{p.productType || p.name || '—'}</span>
                                    </td>
                                   <td className="py-4 px-4">
                                     <div className="uppercase text-gray-300">
@@ -2328,7 +2328,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   </td>
                                   <td className="py-4 px-4 uppercase">
                                     <div className="text-gray-300">
-                                      {p.size || 'Custom'} • {p.gender || 'MALE'}
+                                      {p.size || 'Custom'} • {translateGender(p.gender, isUrdu) || 'MALE'}
                                     </div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm font-black mt-0.5 text-pink-400">
@@ -2418,11 +2418,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </thead>
                         <tbody>
                           {[
-                            { label: t('Product'), val: (productVerification['0'] === true ? '✓ ' : '') + (isUrdu ? toUrduName(product?.productType || product?.name) : (product?.productType || product?.name)) },
+                            { label: t('Product'), val: (productVerification['0'] === true ? '✓ ' : '') + (product?.productType || product?.name) },
                             { label: t('Fabric'), val: isUrdu ? toUrduName(product?.fabricType) : product?.fabricType },
                             { label: t('Color'), val: isUrdu ? toUrduName(product?.color) : product?.color },
                             { label: t('Size'), val: product?.size },
-                            { label: t('Gender'), val: product?.gender },
+                            { label: t('Gender'), val: translateGender(product?.gender, isUrdu) },
                             ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                             ...(product?.sleeveLength ? [{ label: 'Sleeves بازو', val: isUrdu ? toUrduName(product.sleeveLength === 'full' ? 'Full' : product.sleeveLength === 'half' ? 'Half' : product.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter') : (product.sleeveLength === 'full' ? 'Full' : product.sleeveLength === 'half' ? 'Half' : product.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter') }] : []),
                             ...(product?.shirtLength ? [{ label: t('Length'), val: isUrdu ? toUrduName(product.shirtLength === 'long' ? 'Long' : product.shirtLength === 'regular' ? 'Regular' : 'Short') : (product.shirtLength === 'long' ? 'Long' : product.shirtLength === 'regular' ? 'Regular' : 'Short') }] : []),

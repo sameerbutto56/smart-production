@@ -831,7 +831,7 @@ const requestStageCompletion = async (req, res) => {
     
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
-    const nextStageRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY', 'DELIVERED': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
+    const nextStageRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'DELIVERED': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
     const nextRole = nextStageRoleMap[actualNextStage] || 'STORE';
     if (order.customerName && order.orderNumber) {
       await notify.create(req, { type: 'stage_task', moduleName: 'My Tasks', path: '/tasks', role: nextRole, title: 'New Task', message: `Order #${order.orderNumber} moved to ${actualNextStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `\u2192 ${actualNextStage}`, employeeName: req.user?.name }).catch(() => {});
@@ -976,7 +976,7 @@ const approveStageCompletion = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order?.createdById });
-    const apprNextRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY' };
+    const apprNextRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY' };
     const apprNextRole = apprNextRoleMap[actualNextStage] || 'STORE';
     if (order?.customerName && order?.orderNumber) {
       await notify.create(req, { type: 'stage_task', moduleName: 'My Tasks', path: '/tasks', role: apprNextRole, title: 'Phase Advanced', message: `Order #${order.orderNumber} moved to ${actualNextStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Approved \u2192 ${actualNextStage}`, employeeName: req.user?.name }).catch(() => {});
@@ -1007,7 +1007,8 @@ const rejectStageCompletion = async (req, res) => {
     io.emit('stage-rejected', { orderId, stage, reason });
     io.emit('order-updated', { orderId, createdById: stage.order?.createdById });
     if (stage.order?.customerName && stage.order?.orderNumber) {
-      await notify.create(req, { type: 'stage_rejected', moduleName: 'My Tasks', path: '/tasks', role: req.user?.role, title: 'Stage Rejected', message: `Order #${stage.order.orderNumber} rejected at ${stage.stageName}`, orderId: stage.order.id, orderNumber: stage.order.orderNumber, customerName: stage.order.customerName, action: `Rejected at ${stage.stageName}`, employeeName: req.user?.name }).catch(() => {});
+      const stageRoles = getRolesForStage(stage.stageName);
+      await notify.create(req, { type: 'stage_rejected', moduleName: 'My Tasks', path: '/tasks', role: stageRoles, title: 'Stage Rejected', message: `Order #${stage.order.orderNumber} rejected at ${stage.stageName}`, orderId: stage.order.id, orderNumber: stage.order.orderNumber, customerName: stage.order.customerName, action: `Rejected at ${stage.stageName}`, employeeName: req.user?.name }).catch(() => {});
     }
 
     await createAuditLog(orderId, 'STAGE_REJECTED', `${stage.stageName} rejected by Faisal. Reason: ${reason}`, req.user.id);
@@ -2341,7 +2342,7 @@ const manualRouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
-    const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
+    const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
     const manRole = manDestRoleMap[destinationStage] || 'STORE';
     if (order?.customerName && order?.orderNumber) {
       await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
@@ -2441,9 +2442,15 @@ const getUnseenOrders = async (req, res) => {
       stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
     };
     // Filter by outlet name for OUTLET role so each outlet only sees its own orders
+    // Normalize user name using same logic as getOutletName() in outletOrder.controller.js
     if (userRole === 'OUTLET' && req.user?.name) {
-      const outletName = req.user.name;
-      whereClause.outletName = { contains: outletName.replace(' Branch', ''), mode: 'insensitive' };
+      const rawName = req.user.name.toLowerCase();
+      let normalizedName = 'Unknown';
+      if (rawName.includes('johar')) normalizedName = 'Johar Town';
+      else if (rawName.includes('jail')) normalizedName = 'Jail Road';
+      else if (rawName.includes('abbottabad')) normalizedName = 'Abbottabad';
+      else normalizedName = req.user.name;
+      whereClause.outletName = { contains: normalizedName, mode: 'insensitive' };
     }
     const orders = await prisma.order.findMany({
       where: whereClause,

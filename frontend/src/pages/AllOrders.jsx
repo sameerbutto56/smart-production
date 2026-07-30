@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
-import { toUrduName } from '../utils/urduDictionary';
+import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
@@ -688,7 +688,7 @@ const AllOrders = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold theme-text-primary">
-                        {isUrdu ? toUrduName(product?.productType || product?.name || 'Standard Item') : (product?.productType || product?.name || 'Standard Item')}
+                        {product?.productType || product?.name || 'Standard Item'}
                         {isMultiItem && <span className="ml-2 text-purple-400 text-xs md:text-sm font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
@@ -703,7 +703,7 @@ const AllOrders = () => {
                           </div>
                         )}
                         <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
-                          {product?.gender || 'MALE'}
+                          {translateGender(product?.gender || 'MALE', isUrdu)}
                         </span>
                         {product?.femaleOptions?.dupatta && (
                           <span className="text-xs md:text-sm font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
@@ -915,7 +915,7 @@ const AllOrders = () => {
                                 <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
                                   <td className="py-4 pl-4 font-mono theme-text-muted">{idx + 1}</td>
                                   <td className="py-4 text-white">
-                                    {(selectedOrder.productVerification && selectedOrder.productVerification[String(idx)] === true) ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 text-[10px] font-black mr-1.5 align-middle" title="Verified">✓</span> : ''}<span className="text-sm font-black">{isUrdu ? toUrduName(p.productType || p.name) : (p.productType || p.name)}</span>
+                                    {(selectedOrder.productVerification && selectedOrder.productVerification[String(idx)] === true) ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 text-[10px] font-black mr-1.5 align-middle" title="Verified">✓</span> : ''}<span className="text-sm font-black">{p.productType || p.name}</span>
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
@@ -986,7 +986,7 @@ const AllOrders = () => {
                                     </div>
                                   </td>
                                   <td className="py-4 theme-text-secondary uppercase">
-                                    <div>{p.size ? `Size ${p.size}${p.gender ? ` • ${p.gender}` : ''}` : p.gender || 'Custom'}</div>
+                                    <div>{p.size ? `Size ${p.size}${p.gender ? ` • ${translateGender(p.gender, isUrdu)}` : ''}` : translateGender(p.gender, isUrdu) || 'Custom'}</div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
                                         {hasSleeves && `Sleeves بازو: ${p.sleeveLength ? (isUrdu ? toUrduName({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength)) : (isUrdu ? toUrduName({'full':'Full','half':'Half','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves) : ({'full':'Full','half':'Half','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || ''))}`} {hasShirtLength && `| Length: ${p.shirtLength ? (isUrdu ? toUrduName({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength)) : (isUrdu ? toUrduName({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength) : ({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || ''))}`}
@@ -1053,11 +1053,11 @@ const AllOrders = () => {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
-                        { label: 'Product Base', val: (selectedOrder.productVerification && selectedOrder.productVerification['0'] === true ? '✓ ' : '') + (isUrdu ? toUrduName(product?.productType || product?.name) : (product?.productType || product?.name)) },
+                        { label: 'Product Base', val: (selectedOrder.productVerification && selectedOrder.productVerification['0'] === true ? '✓ ' : '') + (product?.productType || product?.name) },
                         { label: 'Fabric Type', val: isUrdu ? toUrduName(product?.fabricType) : product?.fabricType },
                         { label: 'Primary Color', val: isUrdu ? toUrduName(product?.color) : product?.color },
                         { label: 'Order Size', val: product?.size },
-                        { label: 'Gender', val: product?.gender },
+                        { label: 'Gender', val: translateGender(product?.gender, isUrdu) },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                         ...(product?.sleeveLength ? [{ label: 'Sleeve Length', val: isUrdu ? toUrduName({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) }] : []),
                         ...(product?.shirtLength ? [{ label: 'Shirt Length', val: isUrdu ? toUrduName({'long':'Long','short':'Short','regular':'Regular'}[product.shirtLength] || product.shirtLength) : ({'long':'Long','short':'Short','regular':'Regular'}[product.shirtLength] || product.shirtLength) }] : []),
@@ -1196,7 +1196,7 @@ const AllOrders = () => {
                           <div key={idx} className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70">
                             <div className="flex items-center gap-3 mb-4">
                               <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black">#{idx + 1}</span>
-                              <span className="text-sm font-black text-white uppercase">{isUrdu ? toUrduName(p.productType || `Item ${idx + 1}`) : (p.productType || `Item ${idx + 1}`)}</span>
+                              <span className="text-sm font-black text-white uppercase">{p.productType || `Item ${idx + 1}`}</span>
                               {p.color && <span className="text-xs font-black text-gray-400">({isUrdu ? toUrduName(p.color) : p.color})</span>}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

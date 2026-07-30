@@ -14,9 +14,11 @@ function createStub() {
 
 let _socket = null;
 
-function getSocket() {
-  if (_socket) return _socket;
-  const token = sessionStorage.getItem('token');
+function connectSocket(token) {
+  if (_socket) {
+    _socket.disconnect();
+    _socket = null;
+  }
   _socket = token
     ? io(WS_URL, {
         auth: { token },
@@ -31,6 +33,19 @@ function getSocket() {
   return _socket;
 }
 
+function getSocket() {
+  if (_socket) return _socket;
+  const token = sessionStorage.getItem('token');
+  return connectSocket(token);
+}
+
+function resetSocket() {
+  if (_socket) {
+    _socket.disconnect();
+    _socket = null;
+  }
+}
+
 const socketProxy = new Proxy({}, {
   get(_, prop) {
     const s = getSocket();
@@ -40,4 +55,5 @@ const socketProxy = new Proxy({}, {
   }
 });
 
+export { resetSocket, connectSocket };
 export default socketProxy;

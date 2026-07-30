@@ -27,11 +27,14 @@ async function main() {
     { name: 'Jail Road', email: 'jailroad@enamels.com', role: 'OUTLET' },
     { name: 'Abbottabad', email: 'abbottabad@enamels.com', role: 'OUTLET' },
     { name: 'Big Screen', email: 'bigscreen@enamels.com', role: 'MAIN_EMPLOYEE' },
+    { name: 'CEO', email: 'ceo@enamels.com', password: 'Enamels91.', role: 'CEO' },
   ];
 
   for (const u of users) {
+    const pwd = u.password || hashedPassword;
+    const { password: _, ...rest } = u;
     await prisma.user.create({
-      data: { ...u, password: hashedPassword }
+      data: { ...rest, password: bcrypt.hashSync(pwd, 10) }
     });
   }
 
