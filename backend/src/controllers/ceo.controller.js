@@ -214,7 +214,8 @@ exports.getFinancial = async (req, res) => {
 
     res.json({ grossProfit, netProfit, totalRevenue, totalCost, totalExpenses, totalDeposits, withdrawals, outstandingReceivables, profitMargin, expenseBreakdown, profitByBranch });
   } catch (error) {
-    res.status(500).json({ message: 'CEO financial error', error: error.message });
+    console.error('CEO financial error:', error.message, error.stack?.substring(0, 500));
+    res.status(500).json({ message: 'CEO financial error', error: error.message, stack: error.stack?.substring(0, 300) });
   }
 };
 
@@ -468,12 +469,7 @@ exports.getEmployees = async (req, res) => {
     const best = employees.length > 0 ? employees[0].name : null;
     const lowest = employees.length > 0 ? employees[employees.length - 1].name : null;
 
-    const { start, end } = getDateRange(range, dateFrom, dateTo);
-    const auditWhere = {};
-    if (start) auditWhere.timestamp = { ...auditWhere.timestamp || {}, gte: start };
-    if (end) auditWhere.timestamp = { ...auditWhere.timestamp || {}, lte: end };
-    if (Object.keys(auditWhere).length === 0) delete auditWhere.timestamp;
-    const auditLogs = await prisma.auditLog.findMany({ where: { ...auditWhere, performedBy: { not: null } }, select: { performedBy: true, action: true, timestamp: true } });
+    const auditLogs = await prisma.auditLog.findMany({ where: { performedBy: { not: null } }, select: { performedBy: true, action: true, timestamp: true }, orderBy: { timestamp: 'desc' }, take: 1000 });
     const perfMap = {};
     for (const log of auditLogs) {
       const name = log.performedBy || 'Unknown';
@@ -485,7 +481,8 @@ exports.getEmployees = async (req, res) => {
 
     res.json({ employeeSalesRanking: employees, bestEmployee: best, lowestEmployee: lowest, employeeProductivity: productivity.slice(0, 50) });
   } catch (error) {
-    res.status(500).json({ message: 'CEO employees error', error: error.message });
+    console.error('CEO employees error:', error.message, error.stack?.substring(0, 500));
+    res.status(500).json({ message: 'CEO employees error', error: error.message, stack: error.stack?.substring(0, 300) });
   }
 };
 
