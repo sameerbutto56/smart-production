@@ -40,6 +40,7 @@ const ChatPage = lazy(() => import('./pages/ChatPage'));
 const NotesPage = lazy(() => import('./pages/NotesPage'));
 const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
 const DispatchPage = lazy(() => import('./pages/DispatchPage'));
+const InDispatch = lazy(() => import('./pages/InDispatch'));
 const WarehousePOS = lazy(() => import('./pages/WarehousePOS'));
 const StoreDashboardPage = lazy(() => import('./pages/StoreDashboardPage'));
 const AlterationRequest = lazy(() => import('./pages/AlterationRequest'));
@@ -150,6 +151,7 @@ function App() {
                   <Route path="notes" element={<NotesPage />} />
                   <Route path="dispatch" element={<DispatchPage />} />
                   <Route path="dispatch-dashboard" element={<DispatchDashboard />} />
+                  <Route path="in-dispatch" element={<InDispatch />} />
                   <Route path="warehouse-pos" element={<WarehousePOS />} />
                   <Route path="store-dashboard" element={<StoreDashboardPage />} />
                   <Route path="alteration-request" element={<AlterationRequest />} />

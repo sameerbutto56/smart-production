@@ -148,6 +148,7 @@ app.use('/api/return-exchange', require('./routes/returnExchange.routes'));
 app.use('/api/outlet-detailed', require('./routes/outletDetailed.routes'));
 app.use('/api/bank-deposit', require('./routes/bankDeposit.routes'));
 app.use('/api/engravings', engravingRoutes);
+app.use('/api/in-dispatch', require('./routes/inDispatch.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/ceo', ceoRoutes);
 

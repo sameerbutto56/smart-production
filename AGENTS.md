@@ -132,12 +132,26 @@
 - **EditOrderComparison component** (`EditOrderComparison.jsx`): Comprehensive side-by-side Job Sheet comparison — left=read-only original fields, right=editable fields, changed fields highlighted in amber; sections: Customer Info, Product Details (per item), Branding & Logo (per item), Measurements (per item), Engraving, Pricing Summary (original vs new with difference); reason input field required; diff count badge; builds payload from changed fields only via `buildPayload()`.
 - **OrderEntry wiring for EditOrderComparison**: When `isEditMode && originalOrder`, renders `EditOrderComparison` instead of form tabs; `submitOrderEditRequest` now accepts optional `externalPayload` parameter — when called from comparison component, posts payload directly; when called from normal flow, builds from cartItems as before.
 - **EditRequestDashboard full comparison**: Enhanced admin review with full Job Sheet field comparison — expanded `parseItems` to include sleeveLength, shirtLength, matchingCap, nameColor, logoColor, logoPlacement, designNotes, logoName, logoCharges, namePrintingCharges, customizationPrice; expanded customer fields to include deliveryCharges, engravingRequired, engravingInstructions, instructionNotes, logoName, logoDesign, logoCharges, namePrintingCharges, customizationPrice, shopifyOrderDate.
+- **Dedicated In Dispatch module (JOHAR TOWN outlet only)**: New standalone module completely isolated from the existing Dispatch (dispatch officer) workflow — `InDispatch.jsx` page at `/in-dispatch`, dedicated `/api/in-dispatch/*` backend, `InDispatchRoute` delivery-route model. Only orders at the `IN_DISPATCH` stage (sent via "Send to In Dispatch") appear. Nav item gated to JOHAR TOWN outlet users only.
 
 ### In Progress
 - (none)
 
 ### Blocked
 - (none)
+
+### Implemented This Session — Dedicated "In Dispatch" Module (JOHAR TOWN Outlet Only)
+- **Requirement**: New standalone module called **In Dispatch**, added to the **JOHAR TOWN Outlet navbar only** (no new role/profile), receiving ONLY orders explicitly sent via **Send to In Dispatch** (JOHAR TOWN Outlet → My Tasks → Send to In Dispatch → In Dispatch Module). Must be completely isolated from the existing Dispatch (dispatch officer) module — no shared queues, routes, or data; existing Dispatch workflow unchanged.
+- **Backend** (`inDispatch.controller.js` + `inDispatch.routes.js` mounted at `/api/in-dispatch` in `app.js`):
+  - `requireJoharTown` guard on every endpoint — user must be `OUTLET` role with a Johar Town user name.
+  - `GET /orders` — returns ONLY orders with `currentStage: 'IN_DISPATCH'` and an active (PENDING/IN_PROGRESS) `IN_DISPATCH` stage record (i.e., orders explicitly routed via `sendToInDispatch`); annotates `_assignedToRoute`.
+  - `GET /routes`, `POST /routes`, `POST /routes/:id/complete`, `POST /routes/:id/cancel` — delivery-route CRUD scoped to `outletName: 'Johar Town'`.
+  - `POST /orders/:id/route` — self-contained routing out of In Dispatch: `sendToEnamelsDelivery` (→ ENAMELS_DELIVERY), `sendToOutlet` (→ OUTLET_RECEIVE, target Jail Road), `customerTakeDeliver` (→ DELIVERED). Mirrors `outletRouteOrder`'s IN_DISPATCH handling (stage complete → create dest stage → routingHistory → seenTask reset → audit log → notification) without depending on it.
+- **Schema**: New `InDispatchRoute` model (`outletName`, `routeName`, `area`, `deliveryPerson`, `notes`, `orderIds` JSON string, `status` ACTIVE/COMPLETED/CANCELLED, `createdBy`, `createdAt`, `completedAt`, `completedBy`). Pushed to DB via `prisma db push`.
+- **Frontend** (`frontend/src/pages/InDispatch.jsx` at `/in-dispatch`): Header with JOHAR TOWN badge, stats cards (In Dispatch orders / Active routes / Completed routes), Delivery Routes section (route cards with area/person/orders, Complete/Cancel for ACTIVE), In Dispatch Queue (order cards with products/date/total, "Add to Route" multi-select, Delivery Boy / To Jail Road / Customer Take actions), Create Delivery Route modal (name/area/person/notes + selected orders list). Non-JT users see an Access Restricted screen.
+- **Nav** (`Layout.jsx`): `{ name: 'In Dispatch', path: '/in-dispatch', icon: RouteIcon, roles: ['OUTLET'] }`; the OUTLET whitelist filter returns `false` for `In Dispatch` unless the user name contains `johar` or `1` — visible to JOHAR TOWN outlet users only.
+- **Isolation**: The module talks exclusively to `/api/in-dispatch/*`. It never touches `/api/dispatch/*`, `DispatchLog`, `DispatchPage`, `DispatchDashboard`, or the dispatch-officer `DISPATCH` stage. Existing Dispatch workflow is byte-for-byte unchanged.
+- **Verification**: `npx prisma validate` OK; `prisma db push` synced DB; `node -e require` on controller/routes/app OK; `npm run build` 0 errors (only pre-existing POSPrint dynamic-import warning); new chunk `InDispatch-DZDfJsJu.js`.
 
 ### Fixed This Session — Outlet Routing Buttons Not Showing After Acceptance
 - **Root cause**: `OrderCard.jsx` line 1864 had `['ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (dispatch UI) : (OUT_FOR_DELIVERY / ORDER_ENTRY+OUTLET / OUTLET_RECEIVE / fallback)`. The outlet routing buttons were in the **ELSE** branch of this ternary, meaning when `currentStage.stageName === 'ORDER_ENTRY'` the TRUE branch (dispatch UI) would render and the ELSE branch (containing the outlet routing buttons at line 2022) was never reached.
@@ -333,6 +347,8 @@
 - Balance status computed server-side in `getSales` by including `balancePayments` and deriving `_balanceRemaining`/`_balanceStatus` — frontend uses these fields directly instead of cross-referencing a separate endpoint.
 - `getBalanceCollections` month range uses start of current month (not last 30 days) to align with user expectation of "This Month".
 - Balance Collection custom range: date inputs added in card UI, `fetchBalanceCollections` passes `dateFrom`/`dateTo` only when `range === 'custom'`.
+- In Dispatch module uses its own dedicated `/api/in-dispatch/*` endpoints (never `/api/outlet-orders/in-dispatch` nor `/api/dispatch/*`) — full backend/frontend isolation from the dispatch-officer workflow while still reading the shared `IN_DISPATCH` order stage (the only queue it is allowed to show).
+- "In Dispatch" nav visibility: JT-only via the OUTLET whitelist filter checking `user.name` for `johar`/`1` (same convention as the JOHAR TOWN BRANCH label in the sidebar footer).
 
 ## Next Steps
 - (none — all current work is complete)
@@ -435,3 +451,9 @@
 
 ## Relevant Files
 - `frontend/src/context/ThemeContext.jsx`: ThemeProvider — added `sessionStorage.getItem('token')` guard to skip `/api/users/me/theme` API call for unauthenticated users (QR code visitors)
+- `backend/src/controllers/inDispatch.controller.js`: Dedicated In Dispatch controller — `getInDispatchOrders`, `getRoutes`, `createRoute`, `completeRoute`, `cancelRoute`, `routeOrder` (sendToEnamelsDelivery / sendToOutlet / customerTakeDeliver); every endpoint guarded by `requireJoharTown`.
+- `backend/src/routes/inDispatch.routes.js`: All `/api/in-dispatch` routes with auth middleware.
+- `backend/prisma/schema.prisma`: `InDispatchRoute` model (delivery-route records scoped to Johar Town).
+- `frontend/src/pages/InDispatch.jsx`: Dedicated In Dispatch module page — stats, Delivery Routes CRUD, In Dispatch queue with Add-to-Route multi-select and Delivery Boy / To Jail Road / Customer Take actions; Access Restricted screen for non-JT users.
+- `frontend/src/components/Layout.jsx`: `In Dispatch` nav item (RouteIcon) for OUTLET, gated to Johar Town users in the OUTLET whitelist filter.
+- `frontend/src/App.jsx`: `/in-dispatch` lazy-loaded route.

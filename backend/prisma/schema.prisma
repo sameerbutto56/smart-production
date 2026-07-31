@@ -1224,3 +1224,25 @@ model Notification {
   @@index([role, moduleName, isRead])
   @@index([createdAt])
 }
+
+// Dedicated In Dispatch module — JOHAR TOWN outlet only.
+// Delivery routes created by outlet staff grouping In Dispatch orders.
+// Completely isolated from the existing Dispatch (dispatch officer) workflow.
+model InDispatchRoute {
+  id             String    @id @default(uuid())
+  outletName     String
+  routeName      String
+  area           String?
+  deliveryPerson String?
+  notes          String?
+  orderIds       String    // JSON array of order IDs on this route
+  status         String    @default("ACTIVE") // ACTIVE / COMPLETED / CANCELLED
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+  completedBy    String?
+
+  @@index([outletName])
+  @@index([status])
+  @@index([createdAt])
+}
