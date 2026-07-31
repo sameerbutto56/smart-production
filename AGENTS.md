@@ -85,7 +85,7 @@
 - **Fix 12 – Status never updating** (ChatPage.jsx): `sendTextMessage` now adds message to local state from API response (was relying solely on `chat:new-message` socket event, causing race when `chat:status-update` arrived first). Added `pendingStatusRef` queue — if `chat:status-update` arrives before the message is in state, the status is stored and applied in `handleNewMessage` when the message finally arrives. Removed unused `applied` variable.
 - **Fix 13 – Voice notes not sending** (ChatPage.jsx): Removed manual `Content-Type: multipart/form-data` header from voice upload Axios call (was overriding Axios's boundary detection, causing multer rejection). Voice message response now also added to local state (same race fix as text messages).
 - **Fix 14 – Auto-read firing for sender** (ChatPage.jsx): read-receipt `useEffect` already filtered `m.senderId !== currentUserId` — unchanged but confirmed correct (no longer runs on every `messages` change, only when unread others exist).
-- **Fix 15 – Socket blocked in production** (`socket.js`): Removed `canWebSocket` gatekeeper that only allowed connections on localhost — now always connects when token is present.
+- **Fix 15 – Socket blocked in production** (`socket.js`): Removed `canWebSocket` gatekeeper that only allowed connections on localhost — now always connects when token is present. **SUPERSEDED by the `/socket.io/` 404 fix (`e4ef852`)**: production now uses the stub unless `VITE_WS_URL` is configured (Vercel cannot host socket.io); see "Fixed This Session — `/socket.io/` 404 Spam in Production".
 - **Fix 16 – Socket auth middleware** (`server.js`): Added JWT verification middleware on socket connections for security.
 - **Notes Module (simplified)**: No auth/password. Notes are read-only after saving — shared notice board.
   - **PersonalNote model** (`schema.prisma`): `id`, `ownerName` (employee name), `content`, `createdAt`, `updatedAt` — indexed by `ownerName`.
@@ -274,6 +274,13 @@
   - `Net Cash` = Cash Payments − General Entries; `Net Sales` = Grand Total − Returned Amount; `Outstanding Balance` = sum of `_outstandingBalance` (tracked separately, never in sales).
 - **Verification**: `node -e require` syntax check OK; `npm run build` passes with 0 errors; committed `e3a3fd7` and pushed (`f8f96fd..e3a3fd7`).
 
+### Fixed This Session — `/socket.io/` 404 Spam in Production (Vercel cannot host socket.io)
+- **Root cause**: `backend/server.js` only creates the real socket.io server when `process.env.VERCEL !== '1'`; on Vercel `app.js` installs a `safeIo` stub, so the deployed function has **no** `/socket.io/` endpoint at all. But `frontend/src/socket.js` (after "Fix 15" removed the localhost-only gatekeeper) always called `io(WS_URL)` when a token existed — and on Vercel `WS_URL = window.location.origin`. Result: every staff browser fired `/socket.io/?EIO=4&transport=polling` every ~25s and got 404, forever (infinite reconnect storm). Vercel serverless cannot host socket.io: no WebSocket upgrade passthrough, and the polling transport loses sessions because consecutive requests can hit different stateless function instances (`socket.io/discussions/4628`, Vercel docs confirm "Functions do not support acting as a WebSocket server").
+- **Fix 1 — `socket.js`**: `connectSocket(token)` now only opens a real socket when `socketAvailable()` — localhost/127.0.0.1/::1 OR an explicit `VITE_WS_URL` (self-hosted socket server) is configured. Production returns the safe stub (all `.on()`/`.emit()` are no-ops), eliminating the 404/reconnect storm. Localhost dev keeps full real-time socket.
+- **Fix 2 — `ChatPage.jsx`**: Added a 12s `setInterval` polling fallback — `if (socket?.connected) return; fetchMessages();` — so incoming chat messages still appear in production without a socket (poll skips itself when a real socket is connected). Notifications already poll unread counts every 15s (`NotificationContext`), so notification badges were already covered.
+- **Design note**: If a persistent socket is later required in production, the backend must be self-hosted (VPS/Railway/Fly.io) and `VITE_WS_URL` set to its WS address — Vercel will never serve `/socket.io/`.
+- **Verification**: `npm run build` 0 errors; committed `e4ef852` and pushed (`54efb25..e4ef852`); deployed and re-aliased `smart-production-v2.vercel.app` (serves `index-HZtWptVn.js`, contains the `socketAvailable` fix marker).
+
 ## Key Decisions
 - Only one React version (19.2.6) must exist in the workspace — version mismatch caused dedupe workaround which triggered TDZ error in Vite production bundle.
 - `resolve.dedupe` is no longer needed because React versions are now consistent across all workspaces.
@@ -396,6 +403,7 @@
 - The Vercel team `sameerbutt056-1019s-projects` has SSO protection enabled by default on new projects; you must disable it manually after creating a project.
 - To verify a deployment serves your app (not the Vercel Dashboard), fetch the URL and check for `data-dpl-id` in the HTML — if present, SSO protection is intercepting.
 - Deployment URL aliasing: the production domain (`smart-production-v2.vercel.app`) auto-assigns to the latest `target: production` deployment. If it shows old content, check the deployment's aliases and build logs.
+- **Vercel cannot host socket.io**: Vercel serverless Functions have no WebSocket upgrade passthrough and no instance affinity, so both the `websocket` and `polling` transports fail (session state is lost when consecutive requests hit different stateless instances). The frontend must NOT attempt `io()` against a Vercel origin — use HTTP polling fallbacks instead. A real socket requires self-hosting the backend (VPS/Railway/Fly.io) with `VITE_WS_URL` set to its WS address.
 
 ## Relevant Files
 - `frontend/src/context/ThemeContext.jsx`: ThemeProvider — added `sessionStorage.getItem('token')` guard to skip `/api/users/me/theme` API call for unauthenticated users (QR code visitors)
