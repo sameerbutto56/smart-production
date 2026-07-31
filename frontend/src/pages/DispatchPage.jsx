@@ -9,6 +9,7 @@ import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
 import { printDispatchSheet } from '../utils/printReport';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -332,7 +333,7 @@ const DispatchPage = () => {
     }
     if (officerName) {
       doc.write(`<div style="margin-top:6px;border-top:2px solid #000;padding-top:4px;text-align:center">`);
-      doc.write(`<p style="font-size:10px;font-weight:700;margin:0 0 1px">Dispatch Officer: ${officerName} | ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>`);
+      doc.write(`<p style="font-size:10px;font-weight:700;margin:0 0 1px">Dispatch Officer: ${officerName} | ${formatDateTime(new Date())}</p>`);
       doc.write(`<div style="display:flex;justify-content:space-between;margin-top:10px">`);
       doc.write(`<div style="text-align:center"><div style="width:150px;border-top:1.5px solid #000;margin:0 auto 2px"></div><span style="font-size:10px;font-weight:700">Dispatch Officer Signature</span></div>`);
       doc.write(`<div style="text-align:center"><div style="width:150px;border-top:1.5px solid #000;margin:0 auto 2px"></div><span style="font-size:10px;font-weight:700">Receiver Signature</span></div>`);
@@ -511,7 +512,7 @@ const DispatchPage = () => {
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
                         <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                         {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
-                        <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Clock size={12} />{formatDateOnly(order.createdAt)}</span>
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -558,7 +559,7 @@ const DispatchPage = () => {
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
                         <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                         {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
-                        <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Clock size={12} />{formatDateOnly(order.createdAt)}</span>
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -602,7 +603,7 @@ const DispatchPage = () => {
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
                         <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                         {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
-                        <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Clock size={12} />{formatDateOnly(order.createdAt)}</span>
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">

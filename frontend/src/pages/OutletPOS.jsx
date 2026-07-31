@@ -7,6 +7,7 @@ import POSModals from '../components/POSModals';
 import POSHistory from '../components/POSHistory';
 import POSReturns from '../components/POSReturns';
 import POSDashboard from '../components/POSDashboard';
+import { formatDateTime } from '../utils/dateTime';
 
 const OutletPOSInner = () => {
   const {
@@ -73,7 +74,7 @@ const OutletPOSInner = () => {
         <div className={`flex items-center justify-between px-4 py-1.5 flex-shrink-0 border-b ${currentBook ? 'bg-emerald-900/30 border-emerald-800/50' : 'bg-red-900/20 border-red-800/30'}`}>
           <div className="flex items-center gap-2">
             {currentBook ? (
-              <><BookOpen size={14} className="text-emerald-400" /><span className="text-[11px] font-bold text-emerald-300">Register Open</span><span className="text-[10px] text-emerald-500/70">since {new Date(currentBook.openedAt).toLocaleString()}</span></>
+              <><BookOpen size={14} className="text-emerald-400" /><span className="text-[11px] font-bold text-emerald-300">Register Open</span><span className="text-[10px] text-emerald-500/70">since {formatDateTime(currentBook.openedAt)}</span></>
             ) : (
               <><Book size={14} className="text-red-400" /><span className="text-[11px] font-bold text-red-300">No Open Register</span></>
             )}

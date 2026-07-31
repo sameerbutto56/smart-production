@@ -10,6 +10,7 @@ import {
   ShoppingBag, GitBranch, PlusCircle, ListOrdered
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatDateOnly } from '../utils/dateTime';
 
 const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
 
@@ -418,7 +419,7 @@ const StoreDashboardPage = () => {
                     <p className="text-xs font-bold text-white truncate">{item.name}</p>
                     <p className="text-[9px] text-gray-500">{item.category} / Stock: {item.stock}</p>
                   </div>
-                  <span className="text-[9px] text-gray-400">{new Date(item.createdAt).toLocaleDateString()}</span>
+                  <span className="text-[9px] text-gray-400">{formatDateOnly(item.createdAt)}</span>
                 </div>
               ))}
             </div>

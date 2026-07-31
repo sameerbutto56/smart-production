@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { PageLoader } from '../components/LoadingSpinner';
 import useCache from '../hooks/useCache';
 import api from '../services/api';
+import { formatDateTime } from '../utils/dateTime';
 
 const DeletedOrders = () => {
   const { isUrdu } = useLanguage();
@@ -97,7 +98,7 @@ const DeletedOrders = () => {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <CalendarDays size={14} className="text-gray-600" />
-                    <span>{new Date(record.deletedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{formatDateTime(record.deletedAt)}</span>
                   </div>
                 </div>
               </div>

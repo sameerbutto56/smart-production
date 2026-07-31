@@ -19,6 +19,7 @@ import { toUrduName } from '../utils/urduDictionary';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import { printDeliveryReport } from '../utils/printReport';
+import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 
 const MAX_ATTEMPTS = 3;
 
@@ -77,13 +78,13 @@ const AttemptHistory = ({ attempts, noResponseLogs }) => {
               Attempt #{a.attemptNumber} — {a.status === 'DELIVERED' ? 'Delivered' : a.status === 'NO_RESPONSE' ? 'No Response' : a.status}
             </p>
             <p className="text-[10px] theme-text-muted font-bold">
-              {new Date(a.attemptedAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
-              {a.attemptedAt && ` at ${new Date(a.attemptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+              {formatDateOnly(a.attemptedAt)}
+              {a.attemptedAt && ` at ${formatTimeOnly(a.attemptedAt)}`}
               {a.riderName && ` · ${a.riderName}`}
             </p>
             {a.rescheduledTo && (
               <p className="text-[10px] text-amber-400 font-bold">
-                Rescheduled to {new Date(a.rescheduledTo).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                Rescheduled to {formatDateOnly(a.rescheduledTo)}
               </p>
             )}
             {a.notes && <p className="text-[10px] theme-text-muted italic mt-0.5">{a.notes}</p>}
@@ -97,7 +98,7 @@ const AttemptHistory = ({ attempts, noResponseLogs }) => {
             <div key={l.id} className="flex items-center gap-2 text-[10px] text-amber-300 font-bold">
               <span>Day {l.attemptNumber}</span>
               <span>·</span>
-              <span>{new Date(l.createdAt).toLocaleDateString()}</span>
+              <span>{formatDateOnly(l.createdAt)}</span>
             </div>
           ))}
         </div>
@@ -305,7 +306,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3">
                 <RotateCcw size={18} className="text-amber-400 flex-shrink-0" />
                 <p className="text-xs font-bold text-amber-300">
-                  Rescheduled to {new Date(order.nextDeliveryDate).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
+                  Rescheduled to {formatDateOnly(order.nextDeliveryDate)}
                 </p>
               </div>
             )}
@@ -443,7 +444,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
             </div>
             {deliveredAt && (
               <p className="text-xs text-emerald-600/80 font-bold ml-9">
-                {new Date(deliveredAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {formatDateTime(deliveredAt)}
               </p>
             )}
             {attempts.length > 0 && (
@@ -568,7 +569,7 @@ const DeliveryChargesPanel = ({ refresh }) => {
               <div key={c.id} className="px-3 py-2 border-b border-gray-800/30 grid grid-cols-4 gap-2 text-xs font-bold text-gray-300">
                 <span className="text-blue-400">#{c.orderNumber || '—'}</span>
                 <span className="truncate">{c.customerName || '—'}</span>
-                <span className="text-gray-500">{new Date(c.deliveredAt).toLocaleDateString()}</span>
+                <span className="text-gray-500">{formatDateOnly(c.deliveredAt)}</span>
                 <span className="text-right text-emerald-400">₨{c.amount.toLocaleString()}</span>
               </div>
             );
@@ -588,7 +589,7 @@ const DeliveryChargesPanel = ({ refresh }) => {
           <p className="px-3 py-2 text-[10px] font-black text-blue-400 uppercase tracking-widest border-b border-gray-700/50">Payment History</p>
           {payments.map((p) => (
             <div key={p.id} className="px-3 py-2 border-b border-gray-800/30 flex items-center justify-between text-xs">
-              <span className="text-gray-400">{new Date(p.paidAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="text-gray-400">{formatDateTime(p.paidAt)}</span>
               <span className="font-black text-emerald-400">₨{(p.totalAmount || 0).toLocaleString()}</span>
             </div>
           ))}
@@ -662,7 +663,7 @@ const CODCollectionPanel = ({ refresh }) => {
                     <span className="text-blue-400">#{o.orderNumber || '—'}</span>
                     <span className="truncate">{o.customerName}</span>
                     <span className="text-amber-400">₨{codAmount.toLocaleString()}</span>
-                    <span className="text-gray-500">{o.deliveredAt ? new Date(o.deliveredAt).toLocaleDateString() : '—'}</span>
+                    <span className="text-gray-500">{o.deliveredAt ? formatDateOnly(o.deliveredAt) : '—'}</span>
                   </div>
                 );
               })}
@@ -686,7 +687,7 @@ const CODCollectionPanel = ({ refresh }) => {
               <div>
                 <span className="text-gray-300 font-bold">{c.dispatchOfficer}</span>
                 {c.deliveryBoyName && <span className="text-gray-500 ml-2">→ {c.deliveryBoyName}</span>}
-                <p className="text-[10px] text-gray-600">{new Date(c.clearedAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                <p className="text-[10px] text-gray-600">{formatDateTime(c.clearedAt)}</p>
               </div>
               <span className="font-black text-emerald-400">₨{(c.totalAmount || 0).toLocaleString()}</span>
             </div>
@@ -767,8 +768,11 @@ const DeliveryDashboard = () => {
   const cacheKey = `orders:delivery:${dt || 'default'}:v2`;
   const { data: orders = [], loading, refresh } = useCache(cacheKey, {
     fetcher: async () => {
-      const params = `status=delivery${dt ? `&deliveryType=${dt}` : ''}`;
-      const res = await api.get(`/api/orders?${params}`, { timeout: 15000 });
+      // Use the dedicated delivery endpoint — the generic /api/orders?status=delivery
+      // runs a slow escalation scan (16-25s) that blows the request timeout, so the
+      // delivery dashboard showed no data.
+      const params = dt ? `?deliveryType=${dt}` : '';
+      const res = await api.get(`/api/delivery/orders${params}`);
       return res.data.filter(o =>
         o.currentStage === 'OUT_FOR_DELIVERY' ||
         o.currentStage === 'DELIVERED' ||

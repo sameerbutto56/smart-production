@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const ReturnExchangePage = () => {
   const { user } = useAuth();
@@ -42,8 +43,8 @@ const ReturnExchangePage = () => {
   };
 
   const fmtCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : '';
-  const fmtDateTime = (d) => d ? new Date(d).toLocaleString() : '';
+  const fmtDate = (d) => d ? formatDateOnly(d) : '';
+  const fmtDateTime = (d) => d ? formatDateTime(d) : '';
 
   const STAGE_MAP = { ORDER_ENTRY: 'Order Entry', STORE: 'Store', PRODUCTION: 'Production', DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered' };
 

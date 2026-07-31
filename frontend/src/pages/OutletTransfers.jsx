@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { ArrowRightLeft, ArrowUp, ArrowDown, Plus, Minus, X, Search, ChevronDown, ChevronUp, Printer, Package, Barcode, CheckCircle, XCircle, Truck, Send, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateTime } from '../utils/dateTime';
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 const DESTINATIONS = [...OUTLETS, 'Warehouse'];
@@ -13,7 +14,7 @@ const DISPATCH_METHODS = [
   { value: 'COURIER', label: 'Courier' },
 ];
 
-const formatDate = (d) => d ? new Date(d).toLocaleString() : '—';
+const formatDate = (d) => d ? formatDateTime(d) : '—';
 
 const statusStyles = {
   COMPLETED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import api from '../services/api';
 import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle, Truck, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 
 const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry', STORE: 'Store', WORKERS: 'Workers',
@@ -47,12 +48,12 @@ const getEntryColors = (entry) => {
 
 const formatDate = (ts) => {
   if (!ts) return '—';
-  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDateOnly(ts);
 };
 
 const formatTime = (ts) => {
   if (!ts) return '—';
-  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return formatTimeOnly(ts);
 };
 
 const formatDuration = (startTs, endTs) => {

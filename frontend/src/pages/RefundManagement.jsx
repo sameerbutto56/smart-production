@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, RefreshCw, Search, RotateCcw, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { formatDateOnly } from '../utils/dateTime';
 
 const RefundManagement = () => {
   const { user } = useAuth();
@@ -155,7 +156,7 @@ const RefundManagement = () => {
                 <div className="flex items-center justify-between pt-1">
                   <p className="text-lg font-black text-emerald-400">₨{Number(order.totalPrice || 0).toLocaleString()}</p>
                   <p className="text-xs md:text-sm theme-text-muted font-bold">
-                    {order.refundedAt ? new Date(order.refundedAt).toLocaleDateString() : '—'}
+                    {order.refundedAt ? formatDateOnly(order.refundedAt) : '—'}
                   </p>
                 </div>
 

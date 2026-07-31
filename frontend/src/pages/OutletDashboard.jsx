@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -123,7 +124,7 @@ const TimelineEntry = ({ entry }) => (
         <span className={`text-xs font-bold ${entry.type === 'route' ? 'text-blue-400' : entry.type === 'stage' && entry.status === 'COMPLETED' ? 'text-emerald-400' : entry.type === 'stage' && entry.status === 'IN_PROGRESS' ? 'text-amber-400' : 'text-gray-400'}`}>
           {entry.type === 'stage' ? entry.stage?.replace(/_/g, ' ') : entry.label}
         </span>
-        <span className="text-[10px] text-gray-600">{new Date(entry.timestamp).toLocaleString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="text-[10px] text-gray-600">{formatDateTime(entry.timestamp)}</span>
       </div>
       {entry.actor && <p className="text-[10px] text-gray-600 mt-0.5">by {entry.actor}</p>}
       {entry.remarks && <p className="text-[10px] text-gray-500 mt-0.5 italic">{entry.remarks}</p>}
@@ -359,7 +360,7 @@ const OutletDashboard = () => {
     rows.push(['Out of Stock', invOverview.outOfStock || 0].join(','));
     rows.push('');
     rows.push(['Recent Orders', 'Customer', 'Status', 'Total', 'Date'].join(','));
-    recentOrders.forEach(o => rows.push([o.orderNumber || '', o.customerName || '', o.status || '', o.totalPrice || '', o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-PK') : ''].join(',')));
+    recentOrders.forEach(o => rows.push([o.orderNumber || '', o.customerName || '', o.status || '', o.totalPrice || '', o.createdAt ? formatDateOnly(o.createdAt) : ''].join(',')));
 
     const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -377,7 +378,7 @@ const OutletDashboard = () => {
       <style>body{font-family:Arial,sans-serif;padding:20px;color:#333}h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{padding:6px 8px;text-align:left;font-size:11px;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:700}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:4px}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.kpi-card{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}.kpi-label{font-size:10px;color:#666}.kpi-value{font-size:16px;font-weight:700;margin-top:2px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>
       ${getPrintLogoHTML()}
       <h1>${outletName} — Dashboard Report</h1>
-      <p class="sub">${new Date().toLocaleString('en-PK')} | ${datePreset || 'All Time'} range</p>
+      <p class="sub">${formatDateTime(new Date())} | ${datePreset || 'All Time'} range</p>
       <div class="kpi-grid">
         <div class="kpi-card"><div class="kpi-label">Total Orders</div><div class="kpi-value">${orderStats.totalOrders || 0}</div></div>
         <div class="kpi-card"><div class="kpi-label">Outlet Revenue</div><div class="kpi-value">₨${(orderStats.totalRevenue || 0).toLocaleString()}</div></div>
@@ -392,7 +393,7 @@ const OutletDashboard = () => {
       <h2>Order Types</h2>
       <table><tr><th>Type</th><th>Count</th></tr>${orderTypeDist.map(t => `<tr><td>${t.name}</td><td>${t.count}</td></tr>`).join('')}</table>
       <h2>Recent Orders</h2>
-      <table><tr><th>Order #</th><th>Customer</th><th>Status</th><th>Total</th><th>Date</th></tr>${recentOrders.map(o => `<tr><td>${o.orderNumber || ''}</td><td>${o.customerName || ''}</td><td>${o.status || ''}</td><td>${o.totalPrice ? '₨' + o.totalPrice.toLocaleString() : '-'}</td><td>${o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-PK') : ''}</td></tr>`).join('')}</table>
+      <table><tr><th>Order #</th><th>Customer</th><th>Status</th><th>Total</th><th>Date</th></tr>${recentOrders.map(o => `<tr><td>${o.orderNumber || ''}</td><td>${o.customerName || ''}</td><td>${o.status || ''}</td><td>${o.totalPrice ? '₨' + o.totalPrice.toLocaleString() : '-'}</td><td>${o.createdAt ? formatDateOnly(o.createdAt) : ''}</td></tr>`).join('')}</table>
       ${getPrintFooterHTML()}
     </body></html>`);
     printW.document.close();
@@ -661,7 +662,7 @@ const OutletDashboard = () => {
                       </div>
                       <div className="text-right flex-shrink-0 ml-3">
                         <p className="text-xs font-black text-emerald-400">{o.totalPrice ? formatCurrency(o.totalPrice) : '-'}</p>
-                        <p className="text-[9px] text-gray-600">{o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-PK') : ''}</p>
+                        <p className="text-[9px] text-gray-600">{o.createdAt ? formatDateOnly(o.createdAt) : ''}</p>
                       </div>
                     </div>
                   ))
@@ -782,7 +783,7 @@ const OutletDashboard = () => {
                   </div>
                   <div>
                     <p className="text-[10px] text-gray-500 uppercase tracking-widest">Created</p>
-                    <p className="text-white font-bold">{new Date(trackedOrder.createdAt).toLocaleString('en-PK')}</p>
+                    <p className="text-white font-bold">{formatDateTime(trackedOrder.createdAt)}</p>
                   </div>
                   {trackedOrder.totalPrice > 0 && (
                     <div>
@@ -841,7 +842,7 @@ const OutletDashboard = () => {
                     )}
                     <div className="flex items-center gap-2 text-xs text-gray-400">
                       <Calendar size={12} />
-                      {new Date(order.createdAt).toLocaleDateString('en-PK')}
+                      {formatDateOnly(order.createdAt)}
                       {order.totalPrice > 0 && <span className="ml-auto font-bold text-white">₨{order.totalPrice.toLocaleString()}</span>}
                     </div>
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-800">
@@ -917,7 +918,7 @@ const OutletDashboard = () => {
                     )}
                     <div className="flex items-center gap-2 text-xs text-gray-400">
                       <Calendar size={12} />
-                      {new Date(order.createdAt).toLocaleDateString('en-PK')}
+                      {formatDateOnly(order.createdAt)}
                       {order.totalPrice > 0 && <span className="ml-auto font-bold text-white">₨{order.totalPrice.toLocaleString()}</span>}
                     </div>
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-800">
@@ -988,7 +989,7 @@ const OutletDashboard = () => {
                   )); } catch { return null; } })()}
                   <div className="flex items-center gap-2 text-xs text-gray-400">
                     <Calendar size={12} />
-                    {alt.completedAt && new Date(alt.completedAt).toLocaleDateString('en-PK')}
+                    {alt.completedAt && formatDateOnly(alt.completedAt)}
                   </div>
                   <button onClick={() => handleAlterationDone(alt.id)} disabled={actionLoading === alt.id + 'done'}
                     className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">

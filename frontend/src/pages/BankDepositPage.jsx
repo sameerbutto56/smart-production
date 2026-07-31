@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 
 const getOutletName = (user) => {
   const n = String(user?.name || '').toLowerCase();
@@ -17,8 +18,8 @@ const getOutletName = (user) => {
 };
 
 const fmt = (n) => `PKR ${(n || 0).toLocaleString()}`;
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-PK') : '-';
-const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('en-PK') : '';
+const fmtDate = (d) => d ? formatDateOnly(d) : '-';
+const fmtTime = (d) => d ? formatTimeOnly(d) : '';
 
 const BankDepositPage = () => {
   const { user } = useAuth();

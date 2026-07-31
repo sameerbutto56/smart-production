@@ -4,6 +4,7 @@ import { CheckCircle, RefreshCcw, Calendar, Package, ArrowRight, Ban } from 'luc
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const AlterationProduction = () => {
   const { user } = useAuth();
@@ -109,9 +110,9 @@ const AlterationProduction = () => {
 
         <div className="flex items-center gap-2 text-xs text-gray-400">
           <Calendar size={12} />
-          {new Date(alt.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+          {formatDateOnly(alt.createdAt)}
           {alt.acceptedAt && (
-            <span className="ml-2 text-emerald-400">Accepted: {new Date(alt.acceptedAt).toLocaleString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+            <span className="ml-2 text-emerald-400">Accepted: {formatDateTime(alt.acceptedAt)}</span>
           )}
         </div>
 

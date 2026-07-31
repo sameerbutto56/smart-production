@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 
 const History = () => {
   const { user } = useAuth();
@@ -91,7 +92,7 @@ const History = () => {
       const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
       return {
         'Sr': idx + 1,
-        'Date': new Date(order.createdAt).toLocaleDateString(),
+        'Date': formatDateOnly(order.createdAt),
         'Order ID': order.orderNumber || order.id?.slice(0, 8).toUpperCase(),
         'Customer Name': order.customerName || '',
         'Phone Number': order.customerPhone || '',
@@ -105,7 +106,7 @@ const History = () => {
         'Delivery Status': order.status,
         'Source': order.source || '',
         'Outlet': order.outletName || '',
-        'Delivery Date': order.updatedAt ? new Date(order.updatedAt).toLocaleDateString() : '',
+        'Delivery Date': order.updatedAt ? formatDateOnly(order.updatedAt) : '',
         'Remarks': order.auditLogs?.map(l => `${l.action}: ${l.details || ''}`).join(' | ') || '',
       };
     });
@@ -118,7 +119,7 @@ const History = () => {
     const cols = Object.keys(data[0] || {}).map(key => ({ wch: Math.max(key.length, 14) }));
     ws['!cols'] = cols;
 
-    const fileName = `Enamels_History_${new Date().toLocaleDateString('en-PK').replace(/\//g, '-')}.xlsx`;
+    const fileName = `Enamels_History_${formatDateOnly(new Date()).replace(/\s+/g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -293,7 +294,7 @@ const History = () => {
                        <div className="w-1 h-1 bg-gray-700 rounded-full" />
                        <span className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest flex items-center">
                          <Calendar size={10} className={useUrdu ? "ml-1.5" : "mr-1.5"} />
-                         {new Date(order.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                         {formatDateOnly(order.createdAt)}
                        </span>
                     </div>
                   </div>
@@ -373,7 +374,7 @@ const History = () => {
                       <div className="glass p-4 md:p-6 rounded-2xl border theme-border space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-black theme-text-primary uppercase tracking-tight">{log.action}</h4>
-                          <span className="text-xs md:text-sm font-mono theme-text-muted">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                          <span className="text-xs md:text-sm font-mono theme-text-muted">{formatTimeOnly(log.timestamp)}</span>
                         </div>
                         <div className="flex items-center space-x-3">
                           <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center">
@@ -387,7 +388,7 @@ const History = () => {
                           </p>
                         )}
                         <p className="text-xs md:text-sm theme-text-muted font-medium">
-                          {new Date(log.timestamp).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+                          {formatDateOnly(log.timestamp)}
                         </p>
                       </div>
                     </div>

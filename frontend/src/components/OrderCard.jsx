@@ -7,6 +7,7 @@ import Button from './Button';
 import { LoadingSpinner } from './LoadingSpinner';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
+import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
 
@@ -603,7 +604,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <p className="text-xs md:text-sm text-gray-400 font-bold tracking-wide truncate max-w-[140px] md:max-w-[200px]">
                     {order.customerName}
                     {order.shopifyOrderDate && (
-                      <span className="text-purple-400 ml-2 font-black text-[9px] md:text-[10px]">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
+                      <span className="text-purple-400 ml-2 font-black text-[9px] md:text-[10px]">Shopify: {formatDateOnly(order.shopifyOrderDate)}</span>
                     )}
                   </p>
                   <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
@@ -664,7 +665,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
               </div>
               <span className="text-[6px] text-gray-600 font-mono">
-                {currentStage?.deadlineAt ? new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                {currentStage?.deadlineAt ? formatTimeOnly(currentStage.deadlineAt) : '--:--'}
               </span>
               {isCurrentlyInProduction && productionDeadline && (
                 <div className={`text-[6px] font-mono ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400' : 'text-emerald-400'}`}>
@@ -921,7 +922,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div><span className="text-gray-500">Priority:</span> <span className="text-white font-bold">{order.priority || 'NORMAL'}</span></div>
                   <div><span className="text-gray-500">Source:</span> <span className="text-white font-bold">{order.outletName || order.source || '—'}</span></div>
                   <div><span className="text-gray-500">Payment:</span> <span className="text-white font-bold">{order.paymentStatus === 'PAID' ? 'PAID' : parseFloat(order.advanceAmount || 0) > 0 ? `Advance: ₨${parseFloat(order.advanceAmount).toLocaleString()}` : 'COD'}</span></div>
-                  <div><span className="text-gray-500">Date:</span> <span className="text-white font-bold">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}</span></div>
+                  <div><span className="text-gray-500">Date:</span> <span className="text-white font-bold">{order.createdAt ? formatDateOnly(order.createdAt) : '—'}</span></div>
                 </div>
               </div>
             </div>
@@ -1022,7 +1023,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
                           .map((s, idx) => {
                             const dotColor = s.status === 'COMPLETED' ? 'bg-emerald-500' : s.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-gray-500';
-                            const fmt = (d) => d ? new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+                            const fmt = (d) => d ? formatDateTime(d) : null;
                             const delay = s.startedAt ? Math.round((new Date(s.startedAt) - new Date(s.createdAt)) / 60000) : null;
                             return (
                               <div key={s.id || idx} className="flex items-start gap-2.5">
@@ -1273,7 +1274,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                                                    const res = await api.get(`/api/orders/${order.id}/routing-history`);
                                     const history = res.data;
                                     const historyStr = history.map((h, i) =>
-                                      `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${new Date(h.createdAt).toLocaleString()})${h.remarks ? ': ' + h.remarks : ''}`
+                                      `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${formatDateTime(h.createdAt)})${h.remarks ? ': ' + h.remarks : ''}`
                                     ).join('\n');
                                     alert(historyStr || 'No routing history found for this order.');
                                   } catch (err) {
@@ -1603,7 +1604,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           {(() => {
                             const prodStage = order.stages?.find(s => s.stageName === 'PRODUCTION' && s.status === 'COMPLETED');
                             if (prodStage?.completedAt) {
-                              return <p className="text-xs text-gray-500 font-medium mt-0.5">Completed {new Date(prodStage.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</p>;
+                              return <p className="text-xs text-gray-500 font-medium mt-0.5">Completed {formatDateTime(prodStage.completedAt)}</p>;
                             }
                             return null;
                           })()}
@@ -1948,7 +1949,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             );
                             const display = (prodFiltered.length > 0 ? prodFiltered : history);
                             const historyStr = display.map((h, i) =>
-                              `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${new Date(h.createdAt).toLocaleString()})${h.remarks ? ': ' + h.remarks : ''}`
+                              `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${formatDateTime(h.createdAt)})${h.remarks ? ': ' + h.remarks : ''}`
                             ).join('\n');
                             alert(historyStr || 'No production history found for this order.');
                           } catch (err) {
@@ -2291,7 +2292,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   )}
                   {order.shopifyOrderDate && (
                     <span className="text-purple-400 ml-3 font-black text-xs md:text-sm">
-                      Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}
+                      Shopify: {formatDateOnly(order.shopifyOrderDate)}
                     </span>
                   )}
                 </p>
@@ -2628,13 +2629,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
             <div className="p-4 md:p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
               <div className="flex flex-wrap items-center gap-x-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">
-                <span className="text-emerald-400">{t('Entry:')} {new Date(order.createdAt).toLocaleDateString()}</span>
+                <span className="text-emerald-400">{t('Entry:')} {formatDateTime(order.createdAt)}</span>
                 <span className="w-1.5 h-1.5 bg-gray-700 rounded-full shrink-0"></span>
                 <span>{t('Stage:')} {currentStage?.stageName}</span>
                 {order.deliveredAt && (
                   <>
                     <span className="w-1.5 h-1.5 bg-emerald-700 rounded-full shrink-0"></span>
-                    <span className="text-emerald-400">{t('Delivered:')} {new Date(order.deliveredAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(order.deliveredAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-emerald-400">{t('Delivered:')} {formatDateTime(order.deliveredAt)}</span>
                   </>
                 )}
               </div>
@@ -3262,18 +3263,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {isStage ? entry.stage.replace(/_/g, ' ') : isRoute ? `${entry.from?.replace(/_/g, ' ')} → ${entry.to?.replace(/_/g, ' ')}` : entry.label}
                           </span>
                           <span className="text-[10px] text-gray-600 font-mono whitespace-nowrap">
-                            {new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {formatDateTime(entry.timestamp)}
                           </span>
                         </div>
 
                         {isStage && (
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500 font-medium">
-                            <span>Received: {new Date(entry.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>Received: {formatTimeOnly(entry.receivedAt)}</span>
                             {entry.acceptedAt && (
-                              <span>Accepted: {new Date(entry.acceptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span>Accepted: {formatTimeOnly(entry.acceptedAt)}</span>
                             )}
                             {entry.completedAt && (
-                              <span>Completed: {new Date(entry.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span>Completed: {formatTimeOnly(entry.completedAt)}</span>
                             )}
                             {entry.delay !== null && (
                               <span className={entry.delay > 60 ? 'text-red-400' : 'text-yellow-400'}>

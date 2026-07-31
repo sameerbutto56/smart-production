@@ -9,6 +9,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Navigate } from 'react-router-dom';
 import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X, Eye, CheckCircle, RefreshCcw, Scissors, FileText, Calendar } from 'lucide-react';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
@@ -513,10 +514,10 @@ const MyTasks = () => {
                     <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">Earliest Deadline</span>
                   </div>
                   <p className="text-xl md:text-3xl font-black text-white">
-                    {earliestDeadline ? earliestDeadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    {earliestDeadline ? formatTimeOnly(earliestDeadline) : '--:--'}
                   </p>
                   <p className="text-xs md:text-sm theme-text-secondary font-bold mt-1">
-                    {earliestDeadline ? earliestDeadline.toLocaleDateString() : 'No deadlines set'}
+                    {earliestDeadline ? formatDateOnly(earliestDeadline) : 'No deadlines set'}
                   </p>
                 </div>
               </>
@@ -595,32 +596,19 @@ const MyTasks = () => {
             </div>
           )}
 
-          {/* OUTLET: Orders tab (unseen + accepted orders) */}
+          {/* OUTLET: Orders tab (new/unseen orders only — accepted orders live in Assigned/Accepted tab) */}
           {isOutlet && taskFilter === 'orders' && (
             <div className="space-y-6">
-              {(unseenData?.unseen?.length > 0 || unseenData?.seen?.length > 0) ? (
-                <>
-                  {filterBySearch(unseenData?.unseen).length > 0 && (
-                    <div>
-                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                        New Orders ({filterBySearch(unseenData.unseen).length})
-                      </h3>
-                      {renderOrderCards(filterBySearch(unseenData.unseen), { showUnseen: true, onMarkSeen: handleMarkSeen })}
-                    </div>
-                  )}
-                  {filterBySearch(unseenData?.seen).length > 0 && (
-                    <div>
-                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <CheckCircle size={14} className="text-emerald-400" />
-                        Accepted Orders ({filterBySearch(unseenData.seen).length})
-                      </h3>
-                      {renderOrderCards(filterBySearch(unseenData.seen))}
-                    </div>
-                  )}
-                </>
+              {filterBySearch(unseenData?.unseen).length > 0 ? (
+                <div>
+                  <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    New Orders ({filterBySearch(unseenData.unseen).length})
+                  </h3>
+                  {renderOrderCards(filterBySearch(unseenData.unseen), { showUnseen: true, onMarkSeen: handleMarkSeen })}
+                </div>
               ) : (
-                renderEmpty(<Activity size={36} className="theme-text-muted" />, 'No Orders', 'No order tasks assigned to you.')
+                renderEmpty(<Activity size={36} className="theme-text-muted" />, 'No New Orders', 'All new orders have been reviewed. Check Assigned/Accepted for ongoing tasks.')
               )}
             </div>
           )}
@@ -661,7 +649,7 @@ const MyTasks = () => {
                         ))}
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                           <Calendar size={12} />
-                          {alt.completedAt && new Date(alt.completedAt).toLocaleDateString('en-PK')}
+                          {alt.completedAt && formatDateOnly(alt.completedAt)}
                         </div>
                         <button onClick={() => handleAltDone(alt.id)} disabled={altActionLoading === alt.id}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
@@ -713,7 +701,7 @@ const MyTasks = () => {
                         ))}
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                           <Calendar size={12} />
-                          {eng.completedAt && new Date(eng.completedAt).toLocaleDateString('en-PK')}
+                          {eng.completedAt && formatDateOnly(eng.completedAt)}
                         </div>
                         <button onClick={() => handleEngDone(eng.id)} disabled={engActionLoading === eng.id}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
@@ -784,7 +772,7 @@ const MyTasks = () => {
                           <p className="text-xs text-gray-600 italic mt-1">{entry.remarks}</p>
                         )}
                         <p className="text-[9px] text-gray-700 font-bold mt-1">
-                          {new Date(entry.createdAt).toLocaleString()}
+                          {formatDateTime(entry.createdAt)}
                         </p>
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { Clock, Printer, Search, X, ChevronDown, ChevronUp, Book, User, DollarSign, CreditCard, Globe, FileText, RotateCcw, RefreshCw, Download, Calendar, Filter } from 'lucide-react';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import * as XLSX from 'xlsx';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
@@ -70,7 +71,7 @@ const OutletRegisters = ({ outlet }) => {
     registers.filter(r =>
       !search || r.openedBy?.toLowerCase().includes(search.toLowerCase()) ||
       r.closedBy?.toLowerCase().includes(search.toLowerCase()) ||
-      new Date(r.openedAt).toLocaleDateString().includes(search)
+      formatDateOnly(r.openedAt).includes(search)
     ), [registers, search]);
 
   // ─── Print helpers ──────────────────────────────────────────
@@ -83,11 +84,11 @@ const OutletRegisters = ({ outlet }) => {
     lines.push('─'.repeat(32));
     lines.push(`Register #:  ${reg.id?.slice(0, 8) || 'N/A'}`);
     lines.push(`Opened by:  ${reg.openedBy || 'N/A'}`);
-    lines.push(`Open Date:  ${new Date(reg.openedAt).toLocaleDateString()}`);
-    lines.push(`Open Time:  ${new Date(reg.openedAt).toLocaleTimeString()}`);
+    lines.push(`Open Date:  ${formatDateOnly(reg.openedAt)}`);
+    lines.push(`Open Time:  ${formatTimeOnly(reg.openedAt)}`);
     lines.push(`Closed by:  ${reg.closedBy || 'N/A'}`);
-    lines.push(`Close Date: ${new Date(reg.closedAt).toLocaleDateString()}`);
-    lines.push(`Close Time: ${new Date(reg.closedAt).toLocaleTimeString()}`);
+    lines.push(`Close Date: ${formatDateOnly(reg.closedAt)}`);
+    lines.push(`Close Time: ${formatTimeOnly(reg.closedAt)}`);
     lines.push('');
     lines.push('PAYMENT SUMMARY');
     lines.push('─'.repeat(32));
@@ -135,11 +136,11 @@ const OutletRegisters = ({ outlet }) => {
         <table>
           <tr><td>Register #</td><td><strong>${reg.id?.slice(0, 8) || 'N/A'}</strong></td></tr>
           <tr><td>Opened by</td><td><strong>${reg.openedBy || 'N/A'}</strong></td></tr>
-          <tr><td>Open Date</td><td><strong>${new Date(reg.openedAt).toLocaleDateString()}</strong></td></tr>
-          <tr><td>Open Time</td><td><strong>${new Date(reg.openedAt).toLocaleTimeString()}</strong></td></tr>
+          <tr><td>Open Date</td><td><strong>${formatDateOnly(reg.openedAt)}</strong></td></tr>
+          <tr><td>Open Time</td><td><strong>${formatTimeOnly(reg.openedAt)}</strong></td></tr>
           <tr><td>Closed by</td><td><strong>${reg.closedBy || 'N/A'}</strong></td></tr>
-          <tr><td>Close Date</td><td><strong>${new Date(reg.closedAt).toLocaleDateString()}</strong></td></tr>
-          <tr><td>Close Time</td><td><strong>${new Date(reg.closedAt).toLocaleTimeString()}</strong></td></tr>
+          <tr><td>Close Date</td><td><strong>${formatDateOnly(reg.closedAt)}</strong></td></tr>
+          <tr><td>Close Time</td><td><strong>${formatTimeOnly(reg.closedAt)}</strong></td></tr>
         </table>
       </div>
       <h2>Payment Summary</h2>
@@ -198,7 +199,7 @@ const OutletRegisters = ({ outlet }) => {
   const printA4 = (reg) => {
     const body = buildA4Body(reg);
     if (!body) { toast.error('No summary data'); return; }
-    const dateLabel = new Date(reg.closedAt || reg.openedAt).toLocaleDateString();
+    const dateLabel = formatDateOnly(reg.closedAt || reg.openedAt);
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     document.body.appendChild(iframe);
@@ -232,9 +233,9 @@ const OutletRegisters = ({ outlet }) => {
     if (filtered.length === 0) { toast.error('No registers to print'); return; }
     const isThermal = type === 'thermal';
     const allBody = filtered.map((reg, i) => {
-      const dateLabel = new Date(reg.closedAt || reg.openedAt).toLocaleDateString();
-      const openedLabel = new Date(reg.openedAt).toLocaleDateString();
-      const closedLabel = reg.closedAt ? new Date(reg.closedAt).toLocaleDateString() : 'N/A';
+      const dateLabel = formatDateOnly(reg.closedAt || reg.openedAt);
+      const openedLabel = formatDateOnly(reg.openedAt);
+      const closedLabel = reg.closedAt ? formatDateOnly(reg.closedAt) : 'N/A';
       if (isThermal) {
         const lines = buildThermalLines(reg);
         if (!lines) return '';
@@ -293,9 +294,9 @@ const OutletRegisters = ({ outlet }) => {
       const s = reg.summary || {};
       const ps = s.paymentSummary || {};
       const rs = s.returnSummary || {};
-      const dateLabel = new Date(reg.closedAt || reg.openedAt).toLocaleDateString();
-      const openTime = new Date(reg.openedAt).toLocaleTimeString();
-      const closeTime = reg.closedAt ? new Date(reg.closedAt).toLocaleTimeString() : 'N/A';
+      const dateLabel = formatDateOnly(reg.closedAt || reg.openedAt);
+      const openTime = formatTimeOnly(reg.openedAt);
+      const closeTime = reg.closedAt ? formatTimeOnly(reg.closedAt) : 'N/A';
 
       rows.push({
         'Register Date': dateLabel,
@@ -372,7 +373,7 @@ const OutletRegisters = ({ outlet }) => {
       const ps = s.paymentSummary || {};
       const rs = s.returnSummary || {};
       return {
-        'Date': new Date(reg.closedAt || reg.openedAt).toLocaleDateString(),
+        'Date': formatDateOnly(reg.closedAt || reg.openedAt),
         'Outlet': outlet,
         'ID': reg.id?.slice(0, 8) || 'N/A',
         'Opened By': reg.openedBy || 'N/A',
@@ -503,7 +504,7 @@ const OutletRegisters = ({ outlet }) => {
                   <div className="bg-blue-500/10 p-2 rounded-xl"><Book size={18} className="text-blue-400" /></div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-black text-white">{new Date(reg.openedAt).toLocaleDateString()}</span>
+                      <span className="text-sm font-black text-white">{formatDateOnly(reg.openedAt)}</span>
                       <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded-md">{reg.id?.slice(0, 8)}</span>
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${reg.status === 'CLOSED' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{reg.status}</span>
                     </div>
@@ -511,7 +512,7 @@ const OutletRegisters = ({ outlet }) => {
                       <span className="flex items-center gap-1"><User size={10} /> {reg.openedBy || 'N/A'}</span>
                       <span>→</span>
                       <span className="flex items-center gap-1"><User size={10} /> {reg.closedBy || 'N/A'}</span>
-                      <span className="flex items-center gap-1"><Clock size={10} /> {new Date(reg.openedAt).toLocaleTimeString()} - {new Date(reg.closedAt).toLocaleTimeString()}</span>
+                      <span className="flex items-center gap-1"><Clock size={10} /> {formatTimeOnly(reg.openedAt)} - {formatTimeOnly(reg.closedAt)}</span>
                     </div>
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle } from 'lucide-react';
+import { formatDateOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Customer', 'Products', 'Engraving', 'Measurements', 'Review'];
@@ -580,7 +581,7 @@ const OutletOrderEntry = () => {
                       {recentOrders.map(o => (
                         <div key={o.id} className="bg-gray-800/50 rounded-xl p-3 text-xs">
                           <p className="font-black text-blue-400">#{o.orderNumber}</p>
-                          <p className="text-gray-500">{new Date(o.createdAt).toLocaleDateString()} — {o.currentStage}</p>
+                          <p className="text-gray-500">{formatDateOnly(o.createdAt)} — {o.currentStage}</p>
                           <p className="text-gray-500 mt-1">Total: ₨{(o.totalPrice || 0).toLocaleString()}</p>
                         </div>
                       ))}
@@ -1103,7 +1104,7 @@ const OutletOrderEntry = () => {
             </div>
             <div className="flex justify-between text-xs font-black uppercase">
               <span>Order: {orderNumber}</span>
-              <span>{new Date().toLocaleDateString()}</span>
+              <span>{formatDateOnly(new Date())}</span>
             </div>
             {priority !== 'NORMAL' && (
               <div className={`text-center py-1 rounded font-black text-xs uppercase ${priority === 'SUPER_URGENT' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>

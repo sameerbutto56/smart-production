@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Plus, X, Clock, User, FileText, Trash2 } from 'lucide-react';
+import { formatDateTime } from '../utils/dateTime';
 
 const ROLE_TO_PROFILE = {
   SUPER_ADMIN: 'ADMIN',
@@ -74,13 +75,6 @@ const NotesPage = () => {
     } finally {
       setDeleting(null);
     }
-  };
-
-  const formatDateTime = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) +
-      ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const profileLabel = profileType || 'General';

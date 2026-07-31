@@ -4,6 +4,7 @@ import { usePOS } from '../context/POSContext';
 import { ShoppingCart, X, Check, Printer, Minus, Plus, CheckCircle2, Book, BookOpen, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { printReceipt, printBalanceReceipt, formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
+import { formatDateTime } from '../utils/dateTime';
 
 const POSModals = () => {
   const {
@@ -368,7 +369,7 @@ const POSModals = () => {
                       </div>
                       <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                         <span>{formatPaymentMethod(p.paymentMethod)} &bull; {p.cashierName || 'Cashier'}</span>
-                        <span>{new Date(p.paidAt).toLocaleString()}</span>
+                        <span>{formatDateTime(p.paidAt)}</span>
                       </div>
                     </div>
                   ))}
@@ -400,7 +401,7 @@ const POSModals = () => {
               <div className="space-y-4">
                 {/* Session Info */}
                 <div className="bg-gray-800 rounded-xl p-4 text-xs">
-                  <div className="flex justify-between mb-1"><span className="text-gray-500">Opened</span><span className="text-white font-bold">{new Date(currentBook?.openedAt).toLocaleString()}</span></div>
+                  <div className="flex justify-between mb-1"><span className="text-gray-500">Opened</span><span className="text-white font-bold">{formatDateTime(currentBook?.openedAt)}</span></div>
                   <div className="flex justify-between mb-1"><span className="text-gray-500">Opened by</span><span className="text-white font-bold">{currentBook?.openedBy || 'Unknown'}</span></div>
                   <div className="flex justify-between mb-1"><span className="text-gray-500">Closing by</span><span className="text-white font-bold text-amber-400">{verifiedCloser || '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Total Sales</span><span className="text-white font-bold">{closeBookSummary.totalSales} transactions</span></div>
@@ -624,7 +625,7 @@ const POSModals = () => {
                     </div>
                     <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                       <span>{s.cashierName || 'Unknown'}</span>
-                      <span>{new Date(s.createdAt).toLocaleString()}</span>
+                      <span>{formatDateTime(s.createdAt)}</span>
                     </div>
                   </div>
                 ))}
@@ -666,7 +667,7 @@ const POSModals = () => {
                     </div>
                     <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                       <span className="font-medium">{formatPaymentMethod(s.paymentMethod)}</span>
-                      <span>{new Date(s.createdAt).toLocaleString()}</span>
+                      <span>{formatDateTime(s.createdAt)}</span>
                     </div>
                   </div>
                 ))}

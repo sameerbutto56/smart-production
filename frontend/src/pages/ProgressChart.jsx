@@ -17,6 +17,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { PageLoader } from '../components/LoadingSpinner';
 import useCache from '../hooks/useCache';
 import api from '../services/api';
+import { formatTimeOnly, formatDateOnly } from '../utils/dateTime';
 
 const ProgressChart = () => {
   const { t, LanguageToggle } = useLanguage();
@@ -108,10 +109,10 @@ const ProgressChart = () => {
           <LanguageToggle />
           <div className="text-right hidden sm:block">
             <div className="text-2xl md:text-4xl font-black tracking-tighter font-mono leading-none">
-              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {formatTimeOnly(currentTime, true)}
             </div>
             <div className="text-gray-500 font-bold uppercase tracking-widest text-xs md:text-sm mt-1">
-              {currentTime.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
+              {formatDateOnly(currentTime)}
             </div>
           </div>
           <button

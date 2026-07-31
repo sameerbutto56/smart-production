@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache from '../hooks/useCache';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { formatDateOnly } from '../utils/dateTime';
 
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 
@@ -368,7 +369,7 @@ const ProductionDashboard = () => {
                                 {record.source}
                               </span>
                               <span className="text-xs md:text-sm font-bold theme-text-muted">
-                                {new Date(record.productionDate).toLocaleDateString()}
+                                {formatDateOnly(record.productionDate)}
                               </span>
                             </div>
                           </div>
@@ -479,7 +480,7 @@ const ProductionDashboard = () => {
                         </div>
                       </div>
                       <p className="text-xs font-bold theme-text-muted mt-3">
-                        {new Date(item.productionDate).toLocaleDateString()}
+                        {formatDateOnly(item.productionDate)}
                       </p>
                     </motion.div>
                   ))

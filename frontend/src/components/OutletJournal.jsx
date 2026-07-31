@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { Lock, User, DollarSign, FileText, Clock, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
+import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
@@ -236,9 +237,9 @@ const OutletJournal = ({ outlet }) => {
                 </div>
                 <div className="flex items-center gap-3 text-[10px] text-gray-500">
                   <Clock size={12} />
-                  <span>{new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  <span>{formatDateOnly(new Date())}</span>
                   <span className="text-gray-700">|</span>
-                  <span>{new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>{formatTimeOnly(new Date())}</span>
                   <span className="text-gray-700">|</span>
                   <span className="text-emerald-400">{authenticatedEmployee}</span>
                 </div>
@@ -319,10 +320,10 @@ const OutletJournal = ({ outlet }) => {
                           <User size={10} /> {entry.employeeName}
                         </span>
                         <span className="text-[10px] text-gray-500">
-                          {new Date(entry.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {formatDateOnly(entry.createdAt)}
                         </span>
                         <span className="text-[10px] text-gray-600">
-                          {new Date(entry.createdAt).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
+                          {formatTimeOnly(entry.createdAt)}
                         </span>
                       </div>
                       {entry.notes && (

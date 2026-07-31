@@ -296,9 +296,10 @@ const resubmitFromVerification = async (req, res) => {
     const updatableFields = [
       'productDetails', 'quantity', 'totalPrice', 'customization', 'sizeData',
       'customerName', 'customerPhone', 'address', 'city', 'type', 'priority',
-      'advancePaid', 'advanceAmount', 'logoDesign', 'logoName',
+      'advancePaid', 'advanceAmount', 'paymentStatus',
+      'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
-      'deliveryCharges', 'instructionNotes',
+      'deliveryCharges', 'deliveryType', 'instructionNotes',
       'engravingInstructions', 'engravingRequired',
       'shopifyOrderDate'
     ];

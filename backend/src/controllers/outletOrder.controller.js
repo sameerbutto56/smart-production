@@ -928,12 +928,13 @@ const outletRouteOrder = async (req, res) => {
     if (order.source !== 'OUTLET') return res.status(400).json({ message: 'Only outlet orders can be routed' });
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    if (![order.outletName, 'Enamels Delivery'].some(n => outletName.includes(n) || n.includes(outletName))) {
-      // Allow Enamels Delivery Boy to route to outlets
-      const isDeliveryBoy = req.user?.role === 'DELIVERY_BOY';
-      if (!isDeliveryBoy) {
-        return res.status(403).json({ message: `This order belongs to ${order.outletName}` });
-      }
+    const isDeliveryBoy = req.user?.role === 'DELIVERY_BOY';
+    const orderOutlet = order.outletName;
+    const isSameOutlet = orderOutlet && (outletName.includes(orderOutlet) || orderOutlet.includes(outletName));
+    // Johar Town can also route Jail Road orders (they appear in JT tasks via auto-routing from Jail Road)
+    const joharTownRoutsJailRoad = outletName === 'Johar Town' && orderOutlet === 'Jail Road';
+    if (!isSameOutlet && !joharTownRoutsJailRoad && !isDeliveryBoy) {
+      return res.status(403).json({ message: `This order belongs to ${order.outletName}` });
     }
 
     const validActions = ['sendToLogo', 'sendToProduction', 'sendToEnamelsDelivery', 'sendToOutlet', 'sendToInDispatch', 'customerTakeDeliver'];

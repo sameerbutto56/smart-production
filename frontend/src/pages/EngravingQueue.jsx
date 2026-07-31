@@ -4,6 +4,7 @@ import { Scissors, CheckCircle, RefreshCcw, Printer, Play, Clock, User, Phone, M
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { openPrintWindow, closePrintWindow } from '../utils/printReport';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 export default function EngravingQueue() {
   const [pendingEngravings, setPendingEngravings] = useState([]);
@@ -83,7 +84,7 @@ export default function EngravingQueue() {
     win.document.write('<div class="header">');
     win.document.write('<h1>ENGRAVING SLIP</h1>');
     win.document.write(`<p class="sub">#${eng.engravingNumber}${eng.orderNumber ? ' | Order #' + eng.orderNumber : ''}</p>`);
-    win.document.write(`<p class="sub">Generated: ${new Date().toLocaleString()}</p>`);
+    win.document.write(`<p class="sub">Generated: ${formatDateTime(new Date())}</p>`);
     win.document.write('</div>');
 
     win.document.write('<div class="meta-grid">');
@@ -93,7 +94,7 @@ export default function EngravingQueue() {
     win.document.write(`<div class="row"><span class="label">Phone</span><span class="value">${eng.customerPhone || 'N/A'}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Source</span><span class="value">${eng.outletName || 'N/A'}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Status</span><span class="value">${eng.status === 'PENDING' ? 'PENDING' : 'IN PROGRESS'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Date</span><span class="value">${new Date().toLocaleDateString('en-GB')}</span></div>`);
+    win.document.write(`<div class="row"><span class="label">Date</span><span class="value">${formatDateOnly(new Date())}</span></div>`);
     if (eng.acceptedBy?.name) win.document.write(`<div class="row"><span class="label">Accepted By</span><span class="value">${eng.acceptedBy.name}</span></div>`);
     win.document.write('</div>');
 
@@ -122,7 +123,7 @@ export default function EngravingQueue() {
     });
     win.document.write('</div>');
 
-    win.document.write(`<div class="footer"><p>Engraving #${eng.engravingNumber}</p><p>Printed: ${new Date().toLocaleString()}</p></div>`);
+    win.document.write(`<div class="footer"><p>Engraving #${eng.engravingNumber}</p><p>Printed: ${formatDateTime(new Date())}</p></div>`);
     win.document.write('</body></html>');
     win.document.close();
     setTimeout(() => win.print(), 300);
@@ -178,7 +179,7 @@ export default function EngravingQueue() {
 
         <div className="flex items-center gap-2 text-xs text-gray-400">
           <Clock size={12} />
-          {eng.createdAt && new Date(eng.createdAt).toLocaleDateString('en-PK')}
+          {eng.createdAt && formatDateOnly(eng.createdAt)}
         </div>
 
         <div className="flex gap-2">

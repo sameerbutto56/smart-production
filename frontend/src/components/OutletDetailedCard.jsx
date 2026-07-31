@@ -8,11 +8,12 @@ import {
   ChevronLeft, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import OutletRegisters from './OutletRegisters';
+import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 
 const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
 const fmt = (n) => `PKR ${(n || 0).toLocaleString()}`;
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-PK') : '-';
-const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('en-PK') : '';
+const fmtDate = (d) => d ? formatDateOnly(d) : '-';
+const fmtTime = (d) => d ? formatTimeOnly(d) : '';
 const fmtShortDate = (d) => {
   if (!d) return '-';
   const dt = new Date(d);

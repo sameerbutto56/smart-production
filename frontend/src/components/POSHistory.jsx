@@ -3,6 +3,7 @@ import { usePOS } from '../context/POSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
+import { formatDateTime } from '../utils/dateTime';
 import api from '../services/api';
 import { Clock, ShoppingCart, BarChart3, Search, Download, Printer, RotateCcw, FileText } from 'lucide-react';
 
@@ -99,7 +100,7 @@ const POSHistory = () => {
                     </div>
                     <span className="font-bold text-red-400">-{formatCurrency(ge.amount)}</span>
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">{new Date(ge.createdAt).toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-500 mt-1">{formatDateTime(ge.createdAt)}</p>
                 </div>
               ))}
             </div>
@@ -118,7 +119,7 @@ const POSHistory = () => {
                   {s.orderId && <span className="text-[9px] bg-purple-600 text-white px-2 py-0.5 rounded-full ml-1">ORDER</span>}
                   {s._invoiceNumber && <span className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded-full ml-1">INV</span>}
                 </p>
-                <p className="text-xs text-gray-500 font-bold">{new Date(s.createdAt).toLocaleString()} &bull; {s.outletName}</p>
+                <p className="text-xs text-gray-500 font-bold">{formatDateTime(s.createdAt)} &bull; {s.outletName}</p>
               </div>
               <div className="text-right">
                 {(() => {

@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
 import { toUrduName } from '../utils/urduDictionary';
 import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
+import { formatDateTime, formatDateOnly, formatTimeOnly } from './dateTime';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -84,7 +85,7 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
     </style></head><body>`;
     doc.write(receiptStyle);
     if (includeInvoice) {
-      doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p>${sale.orderNumber ? `<p style="font-size:18px;font-weight:900;margin:6px 0;">Your Order #: ${sale.orderNumber}</p>` : ''}<p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+      doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p>${sale.orderNumber ? `<p style="font-size:18px;font-weight:900;margin:6px 0;">Your Order #: ${sale.orderNumber}</p>` : ''}<p>${formatDateTime(sale.createdAt)}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
       doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
       const exchangeItems = (sale.items || []).filter(i => i.isExchange);
       const newItems = (sale.items || []).filter(i => !i.isExchange);
@@ -183,7 +184,7 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
     if (includeGatePass) {
       doc.write('<hr style="border-top:2px dashed #000;"><div style="text-align:center;margin:6px 0 0;padding:4px;background:#ffd700;border:2px solid #000;border-radius:4px;">');
       doc.write('<p style="font-size:18px;font-weight:900;margin:0 0 4px;text-transform:uppercase;">Gate Pass</p>');
-      doc.write(`<p style="font-size:11px;font-weight:bold;margin:0 0 4px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
+      doc.write(`<p style="font-size:11px;font-weight:bold;margin:0 0 4px;">${formatDateOnly(sale.createdAt)} | Invoice: ${sale.receiptNumber}</p>`);
       doc.write('<table style="width:100%;font-size:14px;font-weight:bold;border-collapse:collapse;">');
       doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Products</td><td style="text-align:right;padding:2px 4px;">${totalQty}</td></tr>`);
       doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Amount</td><td style="text-align:right;padding:2px 4px;">${pf(sale.grandTotal)}</td></tr>`);
@@ -215,11 +216,11 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
   lines.push('REGISTER INFORMATION');
   lines.push('─'.repeat(32));
   if (currentBook?.openedBy) lines.push(`Opened by:  ${currentBook.openedBy}`);
-  lines.push(`Open Date:  ${openedAt.toLocaleDateString()}`);
-  lines.push(`Open Time:  ${openedAt.toLocaleTimeString()}`);
+  lines.push(`Open Date:  ${formatDateOnly(openedAt)}`);
+  lines.push(`Open Time:  ${formatTimeOnly(openedAt)}`);
   if (opts.closedBy) lines.push(`Closed by:  ${opts.closedBy}`);
-  lines.push(`Close Date: ${closedAt.toLocaleDateString()}`);
-  lines.push(`Close Time: ${closedAt.toLocaleTimeString()}`);
+  lines.push(`Close Date: ${formatDateOnly(closedAt)}`);
+  lines.push(`Close Time: ${formatTimeOnly(closedAt)}`);
   lines.push('');
   lines.push('PAYMENT SUMMARY');
   lines.push('─'.repeat(32));
@@ -319,11 +320,11 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
       <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT</p>
       <div class="section"><h3>Register Information</h3><table>
         ${currentBook?.openedBy ? `<tr><td>Opened by</td><td><strong>${currentBook.openedBy}</strong></td></tr>` : ''}
-        <tr><td>Open Date</td><td><strong>${openedAt.toLocaleDateString()}</strong></td></tr>
-        <tr><td>Open Time</td><td><strong>${openedAt.toLocaleTimeString()}</strong></td></tr>
+        <tr><td>Open Date</td><td><strong>${formatDateOnly(openedAt)}</strong></td></tr>
+        <tr><td>Open Time</td><td><strong>${formatTimeOnly(openedAt)}</strong></td></tr>
         ${opts.closedBy ? `<tr><td>Closed by</td><td><strong>${opts.closedBy}</strong></td></tr>` : ''}
-        <tr><td>Close Date</td><td><strong>${closedAt.toLocaleDateString()}</strong></td></tr>
-        <tr><td>Close Time</td><td><strong>${closedAt.toLocaleTimeString()}</strong></td></tr>
+        <tr><td>Close Date</td><td><strong>${formatDateOnly(closedAt)}</strong></td></tr>
+        <tr><td>Close Time</td><td><strong>${formatTimeOnly(closedAt)}</strong></td></tr>
       </table></div>
       <h2>Payment Summary</h2>
       <table><tr><th>Method</th><th class="right">Amount</th></tr>
@@ -409,7 +410,7 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
       <tr><td class="label">Receipt #</td><td>${bp.receiptNumber}</td></tr>
       <tr><td class="label">Original Invoice</td><td>${bp.originalInvoiceNumber}</td></tr>
       <tr><td class="label">Customer</td><td>${selectedBalanceInvoice?.customerName || 'N/A'}</td></tr>
-      <tr><td class="label">Date</td><td>${new Date(bp.paidAt || new Date()).toLocaleString()}</td></tr>
+      <tr><td class="label">Date</td><td>${formatDateTime(bp.paidAt || new Date())}</td></tr>
       <tr><td class="label">Cashier</td><td>${bp.cashierName || 'Cashier'}</td></tr>
     </table>
     <hr/>

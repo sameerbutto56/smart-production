@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Search, Clock, User, Phone, Package, MessageSquare, FileEdit, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatDateTime } from '../utils/dateTime';
 
 const ReturnedFromVerification = () => {
   const { user } = useAuth();
@@ -26,7 +27,6 @@ const ReturnedFromVerification = () => {
   useEffect(() => { fetchReturned(); }, [fetchReturned]);
 
   const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
-  const formatDateTime = (d) => d ? new Date(d).toLocaleString() : '';
 
   const handleEditOrder = (order) => {
     // Navigate to OrderEntry with both ID and order number for reliable loading.

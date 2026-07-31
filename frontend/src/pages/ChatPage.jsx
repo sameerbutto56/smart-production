@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import socket from '../socket';
+import { formatTimeOnly, formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -34,8 +35,7 @@ const StatusIcon = ({ msg, currentUserId }) => {
 
 const formatTime = (dateStr) => {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return formatTimeOnly(new Date(dateStr));
 };
 
 const formatDateLabel = (dateStr) => {
@@ -45,13 +45,12 @@ const formatDateLabel = (dateStr) => {
   yesterday.setDate(yesterday.getDate() - 1);
   if (d.toDateString() === today.toDateString()) return 'Today';
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDateOnly(d);
 };
 
 const formatFullDateTime = (dateStr) => {
   if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatDateTime(new Date(dateStr));
 };
 
 const groupMessagesByDate = (messages) => {

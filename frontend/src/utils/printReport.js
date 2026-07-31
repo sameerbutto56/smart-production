@@ -1,5 +1,6 @@
 import { toUrduName } from './urduDictionary';
 import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
+import { formatDateTime, formatDateOnly, formatTimeOnly } from './dateTime';
 
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
@@ -717,7 +718,7 @@ export function openPrintWindow(title, isRtl = false) {
   win.document.write(getPrintLogoHTML());
   win.document.write('<div class="report-header">');
   win.document.write(`<h1>${title}</h1>`);
-  win.document.write(`<p>Enamels Production — Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>`);
+  win.document.write(`<p>Enamels Production — Generated ${formatDateTime(new Date())}</p>`);
   win.document.write('</div>');
   return win;
 }
@@ -789,7 +790,7 @@ export function printInventoryReport(items, filter = 'ALL') {
   const title = `Inventory Report - ${FILTER_LABELS[filter] || 'All Items'}`;
   const win = openPrintWindow(title);
 
-  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Stock as of ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
+  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Stock as of ' + formatDateOnly(new Date()) + '</span></div>');
 
   const totalValue = items.reduce((s, i) => s + ((i.variants || []).reduce((sv, v) => sv + ((v.stock || 0) * (v.price || 0)), 0)), 0);
   const totalStock = items.reduce((s, i) => s + ((i.variants || []).reduce((sv, v) => sv + (v.stock || 0), 0)), 0);
@@ -839,7 +840,7 @@ export function printDeliveryReport(orders) {
   const win = openPrintWindow(title);
 
   const now = new Date();
-  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Report Date: ' + now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
+  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Report Date: ' + formatDateTime(now) + '</span></div>');
 
   const active = orders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && o.status !== 'COMPLETED');
   const completed = orders.filter(o => o.currentStage === 'DELIVERED' || o.status === 'COMPLETED');
@@ -869,7 +870,7 @@ export function printDeliveryReport(orders) {
     win.document.write('<div class="section-title">Completed Deliveries</div>');
     win.document.write('<table><thead><tr><th>Order ID</th><th>Customer</th><th>Phone</th><th>Amount</th><th>Delivered At</th><th>Method</th></tr></thead><tbody>');
     completed.forEach(o => {
-      win.document.write(`<tr><td style="font-weight:700">${o.orderNumber || o.id?.slice(0, 8)}</td><td>${o.customerName || '—'}</td><td>${o.customerPhone || '—'}</td><td style="text-align:right;font-weight:700">${currency(o.totalPrice)}</td><td>${o.deliveredAt ? new Date(o.deliveredAt).toLocaleString() : '—'}</td><td>${o.deliveryMethod || o.deliveryType || '—'}</td></tr>`);
+      win.document.write(`<tr><td style="font-weight:700">${o.orderNumber || o.id?.slice(0, 8)}</td><td>${o.customerName || '—'}</td><td>${o.customerPhone || '—'}</td><td style="text-align:right;font-weight:700">${currency(o.totalPrice)}</td><td>${o.deliveredAt ? formatDateTime(o.deliveredAt) : '—'}</td><td>${o.deliveryMethod || o.deliveryType || '—'}</td></tr>`);
     });
     win.document.write('</tbody></table>');
   }
@@ -930,14 +931,14 @@ function fmtDate(d) {
   if (!d) return '—';
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return '—';
-  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDateOnly(dt);
 }
 
 function fmtDateTime(d) {
   if (!d) return '—';
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return '—';
-  return dt.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatDateTime(dt);
 }
 
 /** Urdu labels for production sections */
@@ -1120,16 +1121,15 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
   // ─── GENERATED DATE/TIME ───
   const now = new Date();
-  const generatedDate = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  const generatedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const generatedAt = formatDateTime(now);
 
   // ─── ENTRY DATE/TIME & SHOPIFY DATE ───
   const entryDt = order.createdAt ? new Date(order.createdAt) : null;
   const entryDate = entryDt && !isNaN(entryDt.getTime())
-    ? entryDt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? formatDateOnly(entryDt)
     : '—';
   const entryTime = entryDt && !isNaN(entryDt.getTime())
-    ? entryDt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    ? formatDateTime(entryDt)
     : '—';
   const shopifyDate = order.shopifyOrderDate ? fmtDate(order.shopifyOrderDate) : null;
 
@@ -1141,13 +1141,11 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<p style="font-size:14px;color:#fff;background:#f59e0b;display:inline-block;padding:4px 14px;border-radius:20px;margin-top:4px;font-weight:900;letter-spacing:1px;text-transform:uppercase">✏️ ADMIN EDITED ORDER</p>`);
   }
   win.document.write(`<p style="font-size:18px;color:#555;font-weight:600;margin-top:2px">ENAMELS Production</p>`);
-  win.document.write(`<p style="font-size:15px;color:#999;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedDate} ${generatedTime}</p>`);
+  win.document.write(`<p style="font-size:15px;color:#999;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedAt}</p>`);
   if (order.createdAt) {
-    const createdDt = new Date(order.createdAt);
-    const createdDate = fmtDate(order.createdAt);
-    const createdTime = createdDt && !isNaN(createdDt.getTime()) ? createdDt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+    const createdDisplay = formatDateTime(order.createdAt);
     const createdLabel = isUrdu ? 'آرڈر کی تاریخ:' : 'Order Created:';
-    win.document.write(`<p style="font-size:15px;color:#333;font-weight:700;margin-top:2px">${createdLabel} ${createdDate} ${createdTime}</p>`);
+    win.document.write(`<p style="font-size:15px;color:#333;font-weight:700;margin-top:2px">${createdLabel} ${createdDisplay}</p>`);
   }
   win.document.write(`</div>`);
 

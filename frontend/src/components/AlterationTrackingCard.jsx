@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { RefreshCcw, Clock, CheckCircle, AlertTriangle, Calendar, Search, Filter, ChevronDown, User, Timer } from 'lucide-react';
 import api from '../services/api';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const STATUS_COLORS = {
   PENDING: 'bg-amber-500/20 text-amber-400',
@@ -127,7 +128,7 @@ const AlterationTrackingCard = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-gray-500">{new Date(alt.createdAt).toLocaleDateString('en-PK')}</span>
+                      <span className="text-[10px] text-gray-500">{formatDateOnly(alt.createdAt)}</span>
                       <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${STATUS_COLORS[alt.status] || 'bg-gray-800 text-gray-400'}`}>
                         {alt.status}
                       </span>
@@ -142,22 +143,22 @@ const AlterationTrackingCard = () => {
                       <div><span className="text-gray-500 block">Source</span><span className="text-white font-bold">{alt.sourceOutlet || alt.sourceModule}</span></div>
                       <div><span className="text-gray-500 block">Stage</span><span className="text-white font-bold">{STAGE_LABELS[alt.currentStage] || alt.currentStage}</span></div>
                       <div><span className="text-gray-500 block">Phone</span><span className="text-white font-bold">{alt.customerPhone || 'N/A'}</span></div>
-                      <div><span className="text-gray-500 block">Created</span><span className="text-white font-bold">{new Date(alt.createdAt).toLocaleString('en-PK')}</span></div>
+                      <div><span className="text-gray-500 block">Created</span><span className="text-white font-bold">{formatDateTime(alt.createdAt)}</span></div>
                     </div>
 
                     {alt.acceptedBy && (
                       <div className="text-xs"><span className="text-gray-500">Accepted by: </span><span className="text-emerald-400 font-bold">{alt.acceptedBy.name}</span>
-                        {alt.acceptedAt && <span className="text-gray-600 ml-2">{new Date(alt.acceptedAt).toLocaleString('en-PK')}</span>}
+                        {alt.acceptedAt && <span className="text-gray-600 ml-2">{formatDateTime(alt.acceptedAt)}</span>}
                       </div>
                     )}
                     {alt.completedBy && (
                       <div className="text-xs"><span className="text-gray-500">Completed by: </span><span className="text-blue-400 font-bold">{alt.completedBy.name}</span>
-                        {alt.completedAt && <span className="text-gray-600 ml-2">{new Date(alt.completedAt).toLocaleString('en-PK')}</span>}
+                        {alt.completedAt && <span className="text-gray-600 ml-2">{formatDateTime(alt.completedAt)}</span>}
                       </div>
                     )}
                     {alt.doneBy && (
                       <div className="text-xs"><span className="text-gray-500">Done by: </span><span className="text-purple-400 font-bold">{alt.doneBy.name}</span>
-                        {alt.doneAt && <span className="text-gray-600 ml-2">{new Date(alt.doneAt).toLocaleString('en-PK')}</span>}
+                        {alt.doneAt && <span className="text-gray-600 ml-2">{formatDateTime(alt.doneAt)}</span>}
                       </div>
                     )}
 
@@ -180,7 +181,7 @@ const AlterationTrackingCard = () => {
                               <span className={`w-2 h-2 rounded-full ${s.status === 'COMPLETED' ? 'bg-emerald-500' : s.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-gray-600'}`} />
                               <span className="text-gray-400">{STAGE_LABELS[s.stageName] || s.stageName}</span>
                               <span className={`font-bold ${s.status === 'COMPLETED' ? 'text-emerald-400' : s.status === 'IN_PROGRESS' ? 'text-blue-400' : 'text-gray-500'}`}>{s.status}</span>
-                              {s.completedAt && <span className="text-gray-600 ml-auto">{new Date(s.completedAt).toLocaleString('en-PK')}</span>}
+                              {s.completedAt && <span className="text-gray-600 ml-auto">{formatDateTime(s.completedAt)}</span>}
                             </div>
                           ))}
                         </div>

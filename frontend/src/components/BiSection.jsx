@@ -10,6 +10,7 @@ import {
   PieChart as RePieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend
 } from 'recharts';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateTime } from '../utils/dateTime';
 
 const LOCATIONS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 const DATE_PRESETS = [
@@ -162,7 +163,7 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
     w.document.write(getPrintLogoHTML());
     w.document.write('<h1>Business Intelligence Report</h1>');
     w.document.write(`<p>Period: ${datePreset} | Source: ${source} | Branch: ${branchFilter}</p>`);
-    w.document.write(`<p>Generated: ${new Date().toLocaleString()}</p>`);
+    w.document.write(`<p>Generated: ${formatDateTime(new Date())}</p>`);
     if (data) {
       const { inventoryValuation: iv, perLocationInventory, consumption: cons, allocationAnalytics, demandAnalytics, profitAnalytics: pa, perLocationFinancials } = data;
       w.document.write('<div class="section"><h2>Overall Inventory</h2><div class="kpi-grid">');

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Bell, ArrowLeft, Check, ExternalLink } from 'lucide-react';
+import { formatDateTime } from '../utils/dateTime';
 
 export default function NotificationHistory() {
   const navigate = useNavigate();
@@ -24,9 +25,7 @@ export default function NotificationHistory() {
   useEffect(() => { fetchNotifications(); }, []);
 
   const formatTime = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
-      d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return formatDateTime(new Date(dateStr));
   };
 
   return (

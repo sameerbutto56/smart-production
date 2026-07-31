@@ -3,6 +3,7 @@ import { Barcode, Search, RotateCcw, X, Minus, Plus, FileText, RefreshCw } from 
 import { useWarehousePOS } from '../context/WarehousePOSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
+import { formatDateTime } from '../utils/dateTime';
 
 const WarehousePOSReturns = () => {
   const { isUrdu } = useLanguage();
@@ -64,7 +65,7 @@ const WarehousePOSReturns = () => {
               {lookedUpReturnSale && (
                 <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-3 mb-3">
                   <div className="text-xs font-bold text-white">{lookedUpReturnSale.receiptNumber}</div>
-                  <div className="text-[10px] text-gray-500">{new Date(lookedUpReturnSale.createdAt).toLocaleString()}</div>
+                  <div className="text-[10px] text-gray-500">{formatDateTime(lookedUpReturnSale.createdAt)}</div>
                   <div className="text-[10px] text-gray-400 mt-1">Total: {formatCurrency(lookedUpReturnSale.grandTotal)} | {lookedUpReturnSale.paymentMethod}</div>
                   <p className="text-[9px] text-gray-600 mt-1">Adjust quantities on the right, then click Return.</p>
                 </div>
@@ -88,7 +89,7 @@ const WarehousePOSReturns = () => {
                     <span className="text-xs font-bold text-white">{sale.receiptNumber}</span>
                     <span className="text-xs text-emerald-400">{formatCurrency(sale.grandTotal)}</span>
                   </div>
-                  <div className="text-[10px] text-gray-500">{new Date(sale.createdAt).toLocaleString()}</div>
+                  <div className="text-[10px] text-gray-500">{formatDateTime(sale.createdAt)}</div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {sale.items.map(item => (
                       <span key={item.id} className="text-[9px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">

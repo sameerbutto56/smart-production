@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateTime } from '../utils/dateTime';
 
 const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Warehouse'];
 const OUTLET_SHORT = { 'Johar Town': 'JT', 'Jail Road': 'JR', 'Abbottabad': 'AB', 'Warehouse': 'WH' };
@@ -503,7 +504,7 @@ const ManagementInventory = () => {
     </style></head><body>`);
     w.document.write(getPrintLogoHTML());
     w.document.write(`<h1>Available Stock</h1><h2>${selectedOutlet}</h2>`);
-    w.document.write(`<p style="text-align:right;font-size:12px;color:#888;">${new Date().toLocaleString()}</p>`);
+    w.document.write(`<p style="text-align:right;font-size:12px;color:#888;">${formatDateTime(new Date())}</p>`);
     w.document.write('<table><thead><tr><th>Product Name</th><th>Color</th><th>Size</th><th>Qty</th></tr></thead><tbody>');
     available.forEach(i => {
       w.document.write(`<tr><td>${i.name || ''}</td><td>${i.color || ''}</td><td>${i.size || ''}</td><td>${i.stock || 0}</td></tr>`);

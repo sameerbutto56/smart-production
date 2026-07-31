@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { Loader2, Truck, User, Package, Activity, X, RefreshCw, Banknote, Clock, CheckCircle2, Eye, ChevronDown, ChevronUp, Calendar, Filter } from 'lucide-react';
 import socket from '../socket';
 import { isPaidOrder, getCodAmount } from '../utils/paymentUtils';
+import { formatDateOnly, formatTimeOnly, formatDateTime } from '../utils/dateTime';
 
 const COLORS = {
   pending: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
@@ -90,7 +91,7 @@ const OrderDetailModal = ({ order, onClose }) => {
                     <span className="text-gray-600">—</span>
                     {a.riderName && <span className="font-bold text-indigo-400">{a.riderName}</span>}
                     <span className="text-gray-600">—</span>
-                    <span className="font-bold text-gray-400">{a.attemptedAt ? new Date(a.attemptedAt).toLocaleString() : '—'}</span>
+                    <span className="font-bold text-gray-400">{a.attemptedAt ? formatDateTime(a.attemptedAt) : '—'}</span>
                   </div>
                 ))}
               </div>
@@ -246,8 +247,8 @@ const PaymentHistoryModal = ({ payments, employeeName, onClose }) => (
                 <tr key={p.id || i} className="border-t border-gray-800">
                   <td className="py-2 pr-2 font-bold theme-text-primary">{i + 1}</td>
                   <td className="px-1 font-bold text-indigo-400">{p.riderName || '—'}</td>
-                  <td className="px-1 font-bold">{new Date(p.paidAt).toLocaleDateString()}</td>
-                  <td className="px-1 text-gray-400">{new Date(p.paidAt).toLocaleTimeString()}</td>
+                  <td className="px-1 font-bold">{formatDateOnly(p.paidAt)}</td>
+                  <td className="px-1 text-gray-400">{formatTimeOnly(p.paidAt)}</td>
                   <td className="px-1 font-bold text-blue-400">{p.paidByName || '—'}</td>
                   <td className="px-1 font-bold text-gray-400 max-w-[100px] truncate" title={p.remarks || ''}>{p.remarks || '—'}</td>
                   <td className="px-1 font-black text-emerald-400 text-right">₨{(p.totalAmount || 0).toLocaleString()}</td>
@@ -342,7 +343,7 @@ const EmployeeCard = ({ emp, onPay, onViewHistory }) => {
                   <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Recent Payments</p>
                   {emp.paymentHistory.slice(0, 5).map((p, i) => (
                     <div key={p.id || i} className="flex items-center justify-between text-[10px] py-1 border-t border-gray-800">
-                      <span className="text-gray-400">{new Date(p.paidAt).toLocaleDateString()}</span>
+                      <span className="text-gray-400">{formatDateOnly(p.paidAt)}</span>
                       <span className="font-bold text-gray-400">{p.paidByName || '—'}</span>
                       <span className="font-black text-emerald-400">₨{(p.totalAmount || 0).toLocaleString()}</span>
                     </div>
@@ -703,7 +704,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
           </div>
           <div className="bg-indigo-500/10 rounded-xl p-3 border border-indigo-500/20 text-center">
             <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Last Payment</p>
-            <p className="text-sm font-black text-indigo-400">{pa.lastPaymentDate ? new Date(pa.lastPaymentDate).toLocaleDateString() : '—'}</p>
+            <p className="text-sm font-black text-indigo-400">{pa.lastPaymentDate ? formatDateOnly(pa.lastPaymentDate) : '—'}</p>
           </div>
         </div>
         {employeeStats.employees?.length === 0 ? (
@@ -756,7 +757,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
                         }`}>{audit.action?.replace(/_/g, ' ')}</span>
                       </td>
                       <td className="pl-2 text-[10px] text-gray-500">
-                        {audit.createdAt ? new Date(audit.createdAt).toLocaleString() : '—'}
+                        {audit.createdAt ? formatDateTime(audit.createdAt) : '—'}
                       </td>
                     </tr>
                   );

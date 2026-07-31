@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateTime } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 import useCache from '../hooks/useCache';
 import { debounce } from '../utils/debounce';
@@ -486,7 +487,7 @@ export const WarehousePOSProvider = ({ children }) => {
     </style></head><body>
       ${getPrintLogoHTML()}
       <h2>WAREHOUSE POS</h2>
-      <p class="center">Receipt: ${sale.receiptNumber}<br>${new Date(sale.createdAt).toLocaleString()}</p>
+      <p class="center">Receipt: ${sale.receiptNumber}<br>${formatDateTime(sale.createdAt)}</p>
       <p class="center">Cashier: ${sale.cashierName || '-'}</p>
       ${sale.customerName ? `<p>Customer: ${sale.customerName}${sale.customerPhone ? ` (${sale.customerPhone})` : ''}</p>` : ''}
       <table><tr><th>ITEM</th><th class="right">QTY×PRICE</th><th class="right">TOTAL</th></tr>

@@ -420,14 +420,14 @@ const SmartOrderForm = () => {
                 </div>
               </div>
               <div className="space-y-6 mb-8">
-                {(cartItems[0]?.orderNumber || formData.orderNumber) && (
+                {(formData.orderNumber || cartItems[0]?.orderNumber) && (
                   <div className="theme-bg border border-blue-500/20 rounded-2xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'آرڈر نمبر' : 'Order No.'}</span><span className="theme-text-primary font-black">{cartItems[0]?.orderNumber || formData.orderNumber}</span></div>
-                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'صارف' : 'Customer'}</span><span className="theme-text-primary font-black">{cartItems[0]?.customerName || formData.customerName}</span></div>
-                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'فون' : 'Phone'}</span><span className="theme-text-primary">{cartItems[0]?.customerPhone || formData.customerPhone}</span></div>
-                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'شہر' : 'City'}</span><span className="theme-text-primary">{cartItems[0]?.city || formData.city || '-'}</span></div>
-                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'قسم' : 'Type'}</span><span className="theme-text-primary font-black uppercase">{cartItems[0]?.type || formData.type}</span></div>
-                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'ترجیح' : 'Priority'}</span><span className={`font-black uppercase ${formData.priority === 'RUSH' ? 'text-red-400' : formData.priority === 'URGENT' ? 'text-amber-400' : 'theme-text-primary'}`}>{cartItems[0]?.priority || formData.priority}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'آرڈر نمبر' : 'Order No.'}</span><span className="theme-text-primary font-black">{formData.orderNumber || cartItems[0]?.orderNumber}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'صارف' : 'Customer'}</span><span className="theme-text-primary font-black">{formData.customerName || cartItems[0]?.customerName}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'فون' : 'Phone'}</span><span className="theme-text-primary">{formData.customerPhone || cartItems[0]?.customerPhone}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'شہر' : 'City'}</span><span className="theme-text-primary">{formData.city || cartItems[0]?.city || '-'}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'قسم' : 'Type'}</span><span className="theme-text-primary font-black uppercase">{formData.type || cartItems[0]?.type}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'ترجیح' : 'Priority'}</span><span className={`font-black uppercase ${formData.priority === 'RUSH' ? 'text-red-400' : formData.priority === 'URGENT' ? 'text-amber-400' : 'theme-text-primary'}`}>{formData.priority || cartItems[0]?.priority}</span></div>
                   </div>
                 )}
                 {/* Products Section */}

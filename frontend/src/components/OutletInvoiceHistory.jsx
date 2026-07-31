@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw } from 'lucide-react';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
@@ -143,7 +144,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       .footer{text-align:center;font-size:14px;margin-top:10px;font-weight:bold;}
     </style></head><body>`;
     doc.write(style);
-    doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+    doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${formatDateTime(sale.createdAt)}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
@@ -296,7 +297,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       .zero{color:#059669;font-weight:900;}
     </style></head><body>`);
     doc.write('<h2>BALANCE PAYMENT</h2>');
-    doc.write(`<p class="sub">Receipt &mdash; ${new Date().toLocaleString()}</p><hr>`);
+    doc.write(`<p class="sub">Receipt &mdash; ${formatDateTime(new Date())}</p><hr>`);
     doc.write('<table>');
     doc.write(`<tr><td class="label">Original Invoice</td><td>${bp.posSale?.receiptNumber || bp.receiptNumber || ''}</td></tr>`);
     doc.write(`<tr><td class="label">Customer</td><td>${bp.posSale?.customerName || bp.customerName || ''}</td></tr>`);
@@ -349,7 +350,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
 
       const data = src.map(s => ({
         'Receipt #': s.receiptNumber || '',
-        'Date': new Date(s.createdAt).toLocaleString(),
+        'Date': formatDateTime(s.createdAt),
         'Cashier': s.cashierName || '',
         'Customer': s.customerName || '',
         'Phone': s.customerPhone || '',
@@ -399,7 +400,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
 
       const journalDataRows = journalEntries.map(ge => ({
         'Receipt #': 'GENERAL ENTRY',
-        'Date': new Date(ge.createdAt).toLocaleString(),
+        'Date': formatDateTime(ge.createdAt),
         'Cashier': ge.employeeName || '',
         'Customer': ge.expenseTitle || '',
         'Phone': '',
@@ -609,7 +610,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                       </div>
                       <p className="text-xs text-gray-400">{sale.customerName || 'Walk-in'} {sale.customerPhone ? `(${sale.customerPhone})` : ''}</p>
                       <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-1">
-                        <span>{new Date(sale.createdAt).toLocaleDateString()}</span>
+                        <span>{formatDateOnly(sale.createdAt)}</span>
                         <span>{sale.cashierName || ''}</span>
                         <span>{sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</span>
                         <span>{(sale.items || []).length} items</span>
@@ -793,7 +794,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
               <p className="flex justify-between"><span className="text-gray-500">Remaining</span><span className="font-bold text-white">{formatCurrency(lastPayment.remaining)}</span></p>
               {lastPayment.remaining <= 0 && <p className="text-[10px] text-emerald-400 font-bold text-center mt-1">✓ Fully Paid — Invoice moved to Paid</p>}
               <p className="flex justify-between"><span className="text-gray-500">Method</span><span className="font-bold text-white">{lastPayment.paymentMethod || 'CASH'}</span></p>
-              <p className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-bold text-white">{new Date(lastPayment.paidAt || lastPayment.createdAt).toLocaleString()}</span></p>
+              <p className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-bold text-white">{formatDateTime(lastPayment.paidAt || lastPayment.createdAt)}</span></p>
             </div>
             <div className="flex gap-2">
               <button onClick={() => { printBalanceReceipt(); }}
@@ -822,7 +823,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                     <div key={i} className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-xs">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-emerald-400">{formatCurrency(ph.amountPaidNow || ph.amount)}</span>
-                        <span className="text-[10px] text-gray-500">{new Date(ph.paidAt || ph.createdAt).toLocaleString()}</span>
+                        <span className="text-[10px] text-gray-500">{formatDateTime(ph.paidAt || ph.createdAt)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-gray-500">
                         <span>Method: {ph.paymentMethod || 'CASH'}</span>

@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { debounce } from '../utils/debounce';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 import {
   DollarSign, ShoppingCart, RefreshCw, TrendingDown, RotateCcw,
@@ -183,7 +184,7 @@ const OutletPOSDashboard = ({ outlet }) => {
             <style>body{font-family:Arial,sans-serif;padding:20px;color:#333}h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}.label{font-size:10px;color:#666}.val{font-size:14px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{padding:6px 8px;text-align:left;font-size:11px;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:700}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:4px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>
             ${getPrintLogoHTML()}
             <h1>${outlet} — POS Dashboard</h1>
-            <p class="sub">${new Date().toLocaleString('en-PK')} | ${range} range</p>
+            <p class="sub">${formatDateTime(new Date())} | ${range} range</p>
             <div class="grid">
               <div class="card"><div class="label">Total Sales</div><div class="val">₨${(dashboard.totalSales || 0).toLocaleString()}</div></div>
               <div class="card"><div class="label">Net Revenue</div><div class="val">₨${(dashboard.netRevenue || 0).toLocaleString()}</div></div>
@@ -194,7 +195,7 @@ const OutletPOSDashboard = ({ outlet }) => {
             <table><tr><th>Method</th><th>Gross</th><th>Net</th></tr>${pmRows}</table>
             <h2>Bank Deposits</h2>
             <p>Total Bank Deposits: ₨${(dashboard.totalBankDeposits || 0).toLocaleString()}</p>
-            <table><tr><th>Employee</th><th>Slip #</th><th>Amount</th><th>Date</th></tr>${(dashboard.bankDeposits || []).map(d => `<tr><td>${d.employeeName}</td><td>${d.slipNumber}</td><td>₨${(d.amount || 0).toLocaleString()}</td><td>${new Date(d.createdAt).toLocaleDateString()}</td></tr>`).join('')}</table>
+            <table><tr><th>Employee</th><th>Slip #</th><th>Amount</th><th>Date</th></tr>${(dashboard.bankDeposits || []).map(d => `<tr><td>${d.employeeName}</td><td>${d.slipNumber}</td><td>₨${(d.amount || 0).toLocaleString()}</td><td>${formatDateOnly(d.createdAt)}</td></tr>`).join('')}</table>
             <h2>Sales Trend</h2>
             <table><tr><th>Date</th><th>Sales</th></tr>${trendRows}</table>
             <h2>Top Products</h2>
@@ -344,7 +345,7 @@ const OutletPOSDashboard = ({ outlet }) => {
                   <div key={s.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
                     <div>
                       <p className="font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
-                      <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleDateString()} &bull; {s.items?.length || 0} items</p>
+                      <p className="text-[10px] text-gray-500">{formatDateOnly(s.createdAt)} &bull; {s.items?.length || 0} items</p>
                     </div>
                     <div className="text-right">
                       <p className="font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
@@ -368,7 +369,7 @@ const OutletPOSDashboard = ({ outlet }) => {
                   <div key={ft.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
                     <div className="flex items-center justify-between">
                       <p className="font-black text-amber-300">{ft.cashierName || 'Faisal'}</p>
-                      <p className="text-[9px] text-gray-500">{new Date(ft.faisalTakenAt || ft.createdAt).toLocaleString()}</p>
+                      <p className="text-[9px] text-gray-500">{formatDateTime(ft.faisalTakenAt || ft.createdAt)}</p>
                     </div>
                     <div className="mt-1.5 space-y-0.5">
                       {ft.items?.map((item, idx) => (
@@ -402,7 +403,7 @@ const OutletPOSDashboard = ({ outlet }) => {
                         <User size={12} className="text-indigo-400" />
                         <p className="font-black text-white">{d.employeeName}</p>
                       </div>
-                      <p className="text-[9px] text-gray-500">{new Date(d.createdAt).toLocaleString('en-PK')}</p>
+                      <p className="text-[9px] text-gray-500">{formatDateTime(d.createdAt)}</p>
                     </div>
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="text-[10px] text-gray-400">Slip: {d.slipNumber}</span>
@@ -449,7 +450,7 @@ const OutletPOSDashboard = ({ outlet }) => {
                         <User size={12} className="text-blue-400" />
                         <p className="font-black text-white">{entry.employeeName}</p>
                       </div>
-                      <p className="text-[9px] text-gray-500">{new Date(entry.createdAt).toLocaleString('en-PK')}</p>
+                      <p className="text-[9px] text-gray-500">{formatDateTime(entry.createdAt)}</p>
                     </div>
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="text-[10px] text-gray-400">{entry.expenseTitle}</span>

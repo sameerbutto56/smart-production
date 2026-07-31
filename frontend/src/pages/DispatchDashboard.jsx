@@ -8,6 +8,7 @@ import { Truck, Search, Loader2, LogIn, User, MessageCircle, TrendingUp, Activit
 import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const EMPLOYEES = {
   Khawar: { password: 'K170', label: 'Khawar', desc: 'Lahore Orders' },
@@ -298,7 +299,7 @@ const DispatchDashboard = () => {
                         { label: 'Returned', value: es.returned, color: 'text-red-400' },
                         { label: 'Rejected', value: es.rejected, color: 'text-gray-400' },
                         { label: 'Avg Dispatch Time', value: es.averageDispatchTime, span: true },
-                        { label: 'Last Dispatch', value: es.lastDispatch ? new Date(es.lastDispatch).toLocaleDateString() : 'N/A', span: true },
+                        { label: 'Last Dispatch', value: es.lastDispatch ? formatDateOnly(es.lastDispatch) : 'N/A', span: true },
                       ].map(s => (
                         <div key={s.label} className={`theme-bg-subtle rounded-xl p-3 ${s.span ? 'col-span-2' : ''}`}>
                           <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.label}</p>
@@ -408,8 +409,8 @@ const DispatchDashboard = () => {
                             }`}>{t.dispatchStatus || 'PENDING'}</span>
                           </td>
                           <td className="pl-2 text-[10px] text-gray-500">
-                            {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''}
-                            {t.deliveredAt ? ` → ${new Date(t.deliveredAt).toLocaleDateString()}` : ''}
+                            {t.createdAt ? formatDateOnly(t.createdAt) : ''}
+                            {t.deliveredAt ? ` → ${formatDateOnly(t.deliveredAt)}` : ''}
                           </td>
                         </tr>
                       ))}
@@ -523,7 +524,7 @@ const DispatchDashboard = () => {
                               }`}>{order.currentStage?.replace(/_/g, ' ') || 'PENDING'}</span>
                             </td>
                             <td className="pl-2 text-[10px] text-gray-500">
-                              {latestAttempt?.attemptedAt ? new Date(latestAttempt.attemptedAt).toLocaleString() : order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}
+                              {latestAttempt?.attemptedAt ? formatDateTime(latestAttempt.attemptedAt) : order.createdAt ? formatDateOnly(order.createdAt) : '—'}
                             </td>
                           </tr>
                         );

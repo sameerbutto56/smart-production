@@ -3,6 +3,7 @@ import { Clock, Printer, RotateCcw, RefreshCw, ChevronDown, ChevronUp, Search } 
 import { useWarehousePOS } from '../context/WarehousePOSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
+import { formatDateTime } from '../utils/dateTime';
 
 const WarehousePOSHistory = () => {
   const { isUrdu } = useLanguage();
@@ -46,7 +47,7 @@ const WarehousePOSHistory = () => {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-900/50 text-emerald-400">COMPLETED</span>
                   )}
                 </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{new Date(sale.createdAt).toLocaleString()}</div>
+                <div className="text-[10px] text-gray-500 mt-0.5">{formatDateTime(sale.createdAt)}</div>
                 {sale.customerName && <div className="text-[10px] text-gray-400 mt-0.5">{sale.customerName} {sale.customerPhone ? `(${sale.customerPhone})` : ''}</div>}
               </div>
               <div className="text-right">
@@ -92,7 +93,7 @@ const WarehousePOSHistory = () => {
                   <div><span className="text-gray-500">Cashier:</span> <span className="text-white">{sale.cashierName || '-'}</span></div>
                 </div>
                 {sale.refundedAt && (
-                  <div className="text-[10px] text-red-400 mt-1">Refunded: {new Date(sale.refundedAt).toLocaleString()}</div>
+                  <div className="text-[10px] text-red-400 mt-1">Refunded: {formatDateTime(sale.refundedAt)}</div>
                 )}
               </div>
             )}

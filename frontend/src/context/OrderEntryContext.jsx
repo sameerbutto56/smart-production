@@ -4,6 +4,7 @@ import socket from '../socket';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { formatDateOnly } from '../utils/dateTime';
 
 const URDU_LABELS = {
   identity: 'شناختی معلومات', orderNo: 'آرڈر نمبر', customerName: 'کسٹمر کا نام', customerPhone: 'فون نمبر',
@@ -480,7 +481,7 @@ export const OrderEntryProvider = ({ children }) => {
         const delRes = await api.get('/api/orders/deleted-check', { params: { number: editOrderNumber.trim(), source: mySource || undefined } });
         if (delRes.data) {
           setEditOrderData(null);
-          setEditOrderError(`This order (${delRes.data.orderNumber || editOrderNumber.trim()}) was deleted by Admin on ${new Date(delRes.data.deletedAt).toLocaleDateString()}. No changes can be made.`);
+          setEditOrderError(`This order (${delRes.data.orderNumber || editOrderNumber.trim()}) was deleted by Admin on ${formatDateOnly(delRes.data.deletedAt)}. No changes can be made.`);
           setEditOrderLoading(false); return;
         }
       } catch (delErr) { }
@@ -510,6 +511,7 @@ export const OrderEntryProvider = ({ children }) => {
             customerName: formData.customerName, customerPhone: formData.customerPhone, address: formData.address,
             city: formData.city, type: formData.type, priority: formData.priority,
             advancePaid: formData.advancePaid, advanceAmount: parseFloat(formData.advanceAmount) || 0,
+            paymentStatus: formData.paymentStatus || 'PENDING',
             items: finalItems, quantity: finalItems.reduce((s, i) => s + (i.quantity || 1), 0),
             totalPrice: cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0),
             logoDesign: formData.logoDesign, logoName: formData.logoName,

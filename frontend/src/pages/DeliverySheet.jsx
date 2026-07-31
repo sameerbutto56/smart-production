@@ -24,6 +24,7 @@ import { printDeliveryReport } from '../utils/printReport';
 import useCache from '../hooks/useCache';
 import toast from 'react-hot-toast';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
+import { formatDateOnly, formatTimeOnly, formatDateTime } from '../utils/dateTime';
 
 const DeliverySheet = () => {
   const { user } = useAuth();
@@ -393,9 +394,9 @@ const DeliverySheet = () => {
                         </td>
                         <td className="py-4 px-3 text-xs font-bold theme-text-secondary">
                           {deliveryDate?.completedAt
-                            ? new Date(deliveryDate.completedAt).toLocaleDateString()
+                            ? formatDateOnly(deliveryDate.completedAt)
                             : order.completedAt
-                            ? new Date(order.completedAt).toLocaleDateString()
+                            ? formatDateOnly(order.completedAt)
                             : '—'}
                         </td>
                         <td className="py-4 px-3 text-xs font-black">
@@ -407,7 +408,7 @@ const DeliverySheet = () => {
                         </td>
                         <td className="py-4 px-3 text-xs font-bold theme-text-secondary">
                           {order.nextDeliveryDate
-                            ? new Date(order.nextDeliveryDate).toLocaleDateString()
+                            ? formatDateOnly(order.nextDeliveryDate)
                             : '—'}
                         </td>
                         <td className="py-4 px-3 text-xs font-black">
@@ -435,11 +436,11 @@ const DeliverySheet = () => {
                         <td className="py-4 px-3 text-xs font-bold">
                           {order.deliveredAt ? (
                             <span className="text-emerald-400">
-                              {new Date(order.deliveredAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(order.deliveredAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                              {formatDateOnly(order.deliveredAt)} – {formatTimeOnly(order.deliveredAt)}
                             </span>
                           ) : deliveryDate?.completedAt ? (
                             <span className="text-gray-500">
-                              {new Date(deliveryDate.completedAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(deliveryDate.completedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                              {formatDateOnly(deliveryDate.completedAt)} – {formatTimeOnly(deliveryDate.completedAt)}
                             </span>
                           ) : (
                             <span className="text-gray-600">—</span>
@@ -548,7 +549,7 @@ const DeliverySheet = () => {
             <p style={{ fontSize: '11px', margin: '3px 0 0 0', fontWeight: 'bold', color: '#666666' }}>Unified Delivery Records</p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Printed: {new Date().toLocaleString()}</p>
+            <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Printed: {formatDateTime(new Date())}</p>
             <p style={{ fontSize: '10px', color: '#666666', margin: '2px 0 0 0' }}>{filteredOrders.length} orders</p>
           </div>
         </div>
@@ -591,9 +592,9 @@ const DeliverySheet = () => {
                     <td>{method === 'ENAMELS' || method === 'ENAMELS_DELIVERY' ? 'In-House' : method}</td>
                     <td>{source}</td>
                     <td>{dispatchStage?.status === 'COMPLETED' ? 'Dispatched' : '—'}</td>
-                    <td>{deliveryDate?.completedAt ? new Date(deliveryDate.completedAt).toLocaleDateString() : '—'}</td>
+                    <td>{deliveryDate?.completedAt ? formatDateOnly(deliveryDate.completedAt) : '—'}</td>
                     <td style={{ fontWeight: 'bold', color: order.noResponseCount >= 3 ? '#dc2626' : order.noResponseCount > 0 ? '#d97706' : '#000' }}>{order.noResponseCount ? `${order.noResponseCount}/3` : '—'}</td>
-                    <td>{order.nextDeliveryDate ? new Date(order.nextDeliveryDate).toLocaleDateString() : '—'}</td>
+                    <td>{order.nextDeliveryDate ? formatDateOnly(order.nextDeliveryDate) : '—'}</td>
                     <td style={{ fontWeight: 'bold', color: isPaidOrder(order) ? '#059669' : '#dc2626' }}>{isPaidOrder(order) ? 'PAID' : getRemainingBalance(order) > 0 ? `COD: ₨${getRemainingBalance(order).toLocaleString()}` : 'CASH ON DELIVERY'}</td>
                     <td>{order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? 'Completed' : 'Pending'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>

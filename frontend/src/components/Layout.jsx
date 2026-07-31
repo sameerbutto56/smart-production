@@ -42,6 +42,7 @@ import {
   Landmark,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatDateOnly } from '../utils/dateTime';
 import socket from '../socket';
 import useDemandNotification from '../hooks/useDemandNotification';
 import toast from 'react-hot-toast';
@@ -108,6 +109,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
     { name: 'Outlet Order Entry', path: '/outlet-order-entry', icon: ShoppingBag, roles: ['OUTLET'] },
+    { name: 'Dispatch', path: '/dispatch', icon: Truck, roles: ['OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['FAISAL'] },
 
     { name: 'Order Track', path: '/order-track', icon: Search, roles: ['INVENTORY_VIEW', 'FAISAL', 'OUTLET', 'ADMIN', 'SUPER_ADMIN', 'CEO'] },
@@ -142,7 +144,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'Dispatch'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
@@ -682,7 +684,7 @@ const Layout = () => {
                                   <div className="text-xs font-black text-white uppercase tracking-wider truncate">{n.title}</div>
                                   <div className="text-[11px] text-gray-400 font-medium mt-0.5 line-clamp-2">{n.message}</div>
                                   <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-500 font-bold">
-                                    <span>{new Date(n.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                                    <span>{formatDateOnly(n.createdAt)}</span>
                                     {n.employeeName && <><span>·</span><span>{n.employeeName}</span></>}
                                   </div>
                                 </div>

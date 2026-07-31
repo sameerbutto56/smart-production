@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { Package, RotateCcw, RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, Eye, Search, ArrowRight, Undo2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatDateTime } from '../utils/dateTime';
 
 const fmtCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
-const fmtDateTime = (d) => d ? new Date(d).toLocaleString() : '';
+const fmtDateTime = (d) => d ? formatDateTime(d) : '';
 
 const WarehouseReturns = ({ refreshKey }) => {
   const [cases, setCases] = useState([]);

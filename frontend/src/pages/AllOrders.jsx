@@ -24,6 +24,7 @@ import {
 import { motion } from 'framer-motion';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
+import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
@@ -266,7 +267,7 @@ const AllOrders = () => {
         `"${order.type}"`,
         `"${order.status}"`,
         `"${order.currentStage}"`,
-        `"${new Date(order.createdAt).toLocaleDateString()}"`
+        `"${formatDateOnly(order.createdAt)}"`
       ].join(',');
     });
 
@@ -630,10 +631,10 @@ const AllOrders = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-xs theme-text-secondary font-bold">
-                        {new Date(group.latestOrderDate).toLocaleDateString()}
+                        {formatDateOnly(group.latestOrderDate)}
                       </div>
                       <div className="text-xs md:text-sm theme-text-muted mt-1 uppercase font-black tracking-widest">
-                        {new Date(group.latestOrderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatTimeOnly(group.latestOrderDate)}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -679,7 +680,7 @@ const AllOrders = () => {
                           </span>
                         )}
                         {order.shopifyOrderDate && (
-                          <span className="text-purple-400 ml-2 font-black">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
+                          <span className="text-purple-400 ml-2 font-black">Shopify: {formatDateOnly(order.shopifyOrderDate)}</span>
                         )}
                       </div>
                       {order.createdBy?.name && (
@@ -879,7 +880,7 @@ const AllOrders = () => {
                     )}
                     {selectedOrder.shopifyOrderDate && (
                       <span className="text-purple-400 ml-3 font-black text-xs md:text-sm">
-                        Shopify: {new Date(selectedOrder.shopifyOrderDate).toLocaleDateString()}
+                        Shopify: {formatDateOnly(selectedOrder.shopifyOrderDate)}
                       </span>
                     )}
                   </p>
@@ -1344,11 +1345,11 @@ const AllOrders = () => {
                            const isOrderEntry = stageData.stageName === 'ORDER_ENTRY';
                            
                            const displayTime = isCompleted ? (
-                             new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+                             formatDateTime(stageData.completedAt)
                            ) : isOrderEntry ? (
-                             `Created: ${new Date(selectedOrder.createdAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                             `Created: ${formatDateTime(selectedOrder.createdAt)}`
                            ) : stageData.deadlineAt ? (
-                             `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                             `Target: ${formatDateTime(stageData.deadlineAt)}`
                            ) : '-';
                            
                            return (
@@ -1387,7 +1388,7 @@ const AllOrders = () => {
 
                <div className="p-4 md:p-8 theme-bg border-t theme-border flex justify-between items-center">
                 <div className="flex items-center gap-3 text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest flex-wrap">
-                  <span className="text-emerald-400">Entry: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                  <span className="text-emerald-400">Entry: {formatDateTime(selectedOrder.createdAt)}</span>
                   <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                   <span>Stage: {selectedOrder.currentStage}</span>
                 </div>

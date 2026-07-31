@@ -3,6 +3,7 @@ import { usePOS } from '../context/POSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
+import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import { BarChart3, DollarSign, TrendingUp, Tag, RotateCcw, CheckCircle2, Clock, X, Award, CreditCard, Globe, ShoppingCart, Download, Calendar, RefreshCw, Package } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -381,7 +382,7 @@ const POSDashboard = () => {
                   <div key={ft.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
                     <div className="flex items-center justify-between">
                       <p className="font-black text-amber-300">{ft.cashierName || 'Faisal'}</p>
-                      <p className="text-[9px] text-gray-500">{new Date(ft.faisalTakenAt || ft.createdAt).toLocaleString()}</p>
+                      <p className="text-[9px] text-gray-500">{formatDateTime(ft.faisalTakenAt || ft.createdAt)}</p>
                     </div>
                     <div className="mt-1.5 space-y-0.5">
                       {ft.items && ft.items.map((item, idx) => (
@@ -407,7 +408,7 @@ const POSDashboard = () => {
                   <div key={s.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
                     <div>
                       <p className="font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
-                      <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleDateString()} &bull; {s.items?.length || 0} items</p>
+                      <p className="text-[10px] text-gray-500">{formatDateOnly(s.createdAt)} &bull; {s.items?.length || 0} items</p>
                     </div>
                     <div className="text-right">
                       <p className="font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>

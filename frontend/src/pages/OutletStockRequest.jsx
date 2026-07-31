@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { PageLoader } from '../components/LoadingSpinner';
 import useCache from '../hooks/useCache';
+import { formatDateOnly } from '../utils/dateTime';
 
 const OutletStockRequest = () => {
   const { user } = useAuth();
@@ -419,7 +420,7 @@ const OutletStockRequest = () => {
                                 <span className={`px-3 py-1 rounded-full text-xs font-black uppercase border ${sc}`}>
                                   {req.status.replace('_', ' ')}
                                 </span>
-                                <p className="text-xs theme-text-muted font-bold">{new Date(req.createdAt).toLocaleDateString()}</p>
+                                <p className="text-xs theme-text-muted font-bold">{formatDateOnly(req.createdAt)}</p>
                               </div>
                               <div className="text-right">
                                 <p className="text-xs theme-text-muted font-bold">Requested: <span className="text-white">{totalRequested}</span></p>
@@ -461,7 +462,7 @@ const OutletStockRequest = () => {
                             {req.acceptedAt && (
                               <div className="mt-3 flex justify-end">
                                 <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                                  ✓ Accepted {new Date(req.acceptedAt).toLocaleDateString()}
+                                  ✓ Accepted {formatDateOnly(req.acceptedAt)}
                                 </span>
                               </div>
                             )}
@@ -615,7 +616,7 @@ const OutletStockRequest = () => {
                           ))}
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-400">{new Date(o.createdAt).toLocaleDateString()} — ₨{(o.totalPrice || 0).toLocaleString()}</p>
+                          <p className="text-xs text-gray-400">{formatDateOnly(o.createdAt)} — ₨{(o.totalPrice || 0).toLocaleString()}</p>
                           <button onClick={async () => {
                             setReceivingId(o.id);
                             try {

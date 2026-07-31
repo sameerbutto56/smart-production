@@ -5,6 +5,13 @@ const notify = require('../utils/notify');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
 
+// Escalation auto-log scan is slow (sequential auditLog.findFirst with a `contains`
+// full-text scan per overdue stage). Run it at most once per 5 minutes per instance,
+// and skip it entirely for delivery queries — the delivery dashboard has its own
+// dedicated /api/delivery/orders endpoint.
+const ESCALATION_CHECK_INTERVAL = 5 * 60 * 1000;
+let lastEscalationCheckAt = 0;
+
 const getProductCategory = (productType) => {
   if (!productType) return 'GENERAL';
   const pt = productType.toUpperCase();
@@ -508,38 +515,45 @@ const createOrder = async (req, res) => {
 
 const getOrders = async (req, res) => {
   try {
-    // Escalation check: auto-log overdue priority stages
-    try {
-      const overduePriorityStages = await prisma.orderStage.findMany({
-        where: {
-          status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
-          deadlineAt: { lt: new Date() },
-          order: { priority: { in: ['URGENT', 'SUPER_URGENT'] } }
-        },
-        include: { order: { select: { id: true, orderNumber: true, priority: true } } },
-        take: 10
-      });
-      for (const stage of overduePriorityStages) {
-        const existingEscalation = await prisma.auditLog.findFirst({
-          where: { orderId: stage.orderId, action: 'ESCALATION_OVERDUE', details: { contains: stage.stageName } },
-          orderBy: { timestamp: 'desc' }
-        });
-        if (!existingEscalation || (Date.now() - existingEscalation.timestamp.getTime()) > 3600000) {
-          await prisma.auditLog.create({
-            data: {
-              orderId: stage.orderId,
-              action: 'ESCALATION_OVERDUE',
-              details: `CRITICAL: ${stage.order.priority} order #${stage.order.orderNumber} - Stage ${stage.stageName} exceeded deadline on ${stage.deadlineAt.toISOString()}`,
-              performedBy: req.user?.id || 'SYSTEM'
-            }
-          }).catch(() => {});
-        }
-      }
-    } catch (e) { /* non-blocking */ }
-
     const role = String(req.user.role || '').toUpperCase().trim();
     const id = req.user.id;
     const { status: filterStatus, limit, skip, page } = req.query;
+
+    // Escalation check: auto-log overdue priority stages.
+    // Throttled to once per 5 min per instance and skipped for delivery queries —
+    // each auditLog.findFirst({ details: { contains } }) is a slow full-text scan
+    // (~500ms x up to 10 stages) that pushed /api/orders?status=delivery to 16-25s,
+    // blowing the frontend 15s timeout and leaving the delivery dashboard empty.
+    if (filterStatus !== 'delivery' && Date.now() - lastEscalationCheckAt > ESCALATION_CHECK_INTERVAL) {
+      lastEscalationCheckAt = Date.now();
+      try {
+        const overduePriorityStages = await prisma.orderStage.findMany({
+          where: {
+            status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
+            deadlineAt: { lt: new Date() },
+            order: { priority: { in: ['URGENT', 'SUPER_URGENT'] } }
+          },
+          include: { order: { select: { id: true, orderNumber: true, priority: true } } },
+          take: 10
+        });
+        for (const stage of overduePriorityStages) {
+          const existingEscalation = await prisma.auditLog.findFirst({
+            where: { orderId: stage.orderId, action: 'ESCALATION_OVERDUE', details: { contains: stage.stageName } },
+            orderBy: { timestamp: 'desc' }
+          });
+          if (!existingEscalation || (Date.now() - existingEscalation.timestamp.getTime()) > 3600000) {
+            await prisma.auditLog.create({
+              data: {
+                orderId: stage.orderId,
+                action: 'ESCALATION_OVERDUE',
+                details: `CRITICAL: ${stage.order.priority} order #${stage.order.orderNumber} - Stage ${stage.stageName} exceeded deadline on ${stage.deadlineAt.toISOString()}`,
+                performedBy: req.user?.id || 'SYSTEM'
+              }
+            }).catch(() => {});
+          }
+        }
+      } catch (e) { /* non-blocking */ }
+    }
     const pageNum = parseInt(page) || 0;
     const skipVal = parseInt(skip) || 0;
     const takeLimit = limit === 'all' ? undefined : (parseInt(limit) || 200);

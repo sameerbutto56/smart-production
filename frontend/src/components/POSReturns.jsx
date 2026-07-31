@@ -3,6 +3,7 @@ import { usePOS } from '../context/POSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { formatCurrency } from '../utils/POSPrint';
+import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import { Barcode, RotateCcw, Search, Minus, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -73,7 +74,7 @@ const POSReturns = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-sm font-bold text-white">{lookedUpReturnSale.receiptNumber}</p>
-                      <p className="text-[10px] text-gray-400">{lookedUpReturnSale.customerName || 'No customer'} &bull; {new Date(lookedUpReturnSale.createdAt).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-gray-400">{lookedUpReturnSale.customerName || 'No customer'} &bull; {formatDateOnly(lookedUpReturnSale.createdAt)}</p>
                     </div>
                     <span className="text-xs font-bold text-emerald-400">{formatCurrency(lookedUpReturnSale.grandTotal)}</span>
                   </div>
@@ -205,7 +206,7 @@ const POSReturns = () => {
                   <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
                     <div>
                       <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${isUrdu ? toUrduName(r._variant.color) : r._variant.color})`}</p>
-                      <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {new Date(r.createdAt).toLocaleString()}</p>
+                      <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {formatDateTime(r.createdAt)}</p>
                     </div>
                     <p className="text-xs font-bold text-red-400">-{formatCurrency(r.refundAmount)}</p>
                   </div>

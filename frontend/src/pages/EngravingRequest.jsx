@@ -6,6 +6,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { openPrintWindow, closePrintWindow } from '../utils/printReport';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 export default function EngravingRequest() {
   const { user } = useAuth();
@@ -192,7 +193,7 @@ export default function EngravingRequest() {
     win.document.write(`<div class="header">
       <h1>ENGRAVING JOB SHEET</h1>
       <p>Enamels Production</p>
-      <p>Generated: ${new Date().toLocaleString()}</p>
+      <p>Generated: ${formatDateTime(new Date())}</p>
     </div>`);
 
     win.document.write('<div class="meta">');
@@ -201,7 +202,7 @@ export default function EngravingRequest() {
     win.document.write(`<div class="item"><span class="label">Customer</span><span class="value">${data.customerName || 'N/A'}</span></div>`);
     win.document.write(`<div class="item"><span class="label">Phone</span><span class="value">${data.customerPhone || 'N/A'}</span></div>`);
     win.document.write(`<div class="item"><span class="label">Source</span><span class="value">${data.outletName || 'N/A'}</span></div>`);
-    win.document.write(`<div class="item"><span class="label">Date</span><span class="value">${new Date().toLocaleDateString('en-GB')}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Date</span><span class="value">${formatDateOnly(new Date())}</span></div>`);
     win.document.write(`<div class="item"><span class="label">Status</span><span class="value">PENDING</span></div>`);
     win.document.write('</div>');
 
@@ -228,7 +229,7 @@ export default function EngravingRequest() {
     });
     win.document.write('</div>');
 
-    win.document.write(`<div class="footer"><p>Engraving #${data.engravingNumber} | Generated ${new Date().toLocaleString()}</p></div>`);
+    win.document.write(`<div class="footer"><p>Engraving #${data.engravingNumber} | Generated ${formatDateTime(new Date())}</p></div>`);
     win.document.write('</body></html>');
     win.document.close();
     setTimeout(() => win.print(), 300);
@@ -335,7 +336,7 @@ export default function EngravingRequest() {
                       ))}
                       <div className="flex items-center gap-2 text-xs text-gray-400">
                         <Calendar size={12} />
-                        {eng.completedAt && new Date(eng.completedAt).toLocaleDateString('en-PK')}
+                        {eng.completedAt && formatDateOnly(eng.completedAt)}
                       </div>
                       <button onClick={() => handleDone(eng.id)} disabled={actionLoading === eng.id + 'done'}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">

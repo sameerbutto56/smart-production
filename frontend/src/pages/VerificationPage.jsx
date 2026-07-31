@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Search, CheckCircle, Clock, User, Phone, Package, FileText, ChevronDown, ChevronUp, AlertCircle, DollarSign, ArrowRight, History, Scissors, Star, Ruler, MessageSquare, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatDateTime } from '../utils/dateTime';
 
 const VerificationPage = () => {
   const { user } = useAuth();
@@ -95,7 +96,6 @@ const VerificationPage = () => {
   };
 
   const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
-  const formatDateTime = (d) => d ? new Date(d).toLocaleString() : '';
 
   const renderProductDetails = (products, order) => (
     <div className="space-y-3">

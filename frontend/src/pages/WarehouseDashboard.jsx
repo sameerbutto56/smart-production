@@ -19,6 +19,7 @@ import InventoryManagement from './InventoryManagement';
 import StoreDashboardAnalytics from '../components/StoreDashboardAnalytics';
 import WarehouseReturns from '../components/WarehouseReturns';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import { formatDateOnly, formatTimeOnly, formatDateTime } from '../utils/dateTime';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -71,8 +72,8 @@ const WarehouseDashboard = () => {
     const productLabel = invPrintProduct;
 
     const now = new Date();
-    const dateStr = now.toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' });
-    const timeStr = now.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = formatDateOnly(now);
+    const timeStr = formatTimeOnly(now);
 
     const qtyEntered = Object.values(printQty).some(v => v !== '' && Number(v) > 0);
     const catIcons = { CAPS: '🧢', SCRUBS: '🥼', COAT: '🧥', MASK: '😷', SOCKS: '🧦', SHOES: '👟', CLOGS: '🩴', LABCOAT: '🥼', FABRIC: '🧵', ACCESSORIES: '🎒', GENERAL: '📦' };
@@ -630,7 +631,7 @@ const WarehouseDashboard = () => {
                                 <td className="py-2 pr-4 font-bold theme-text-primary whitespace-nowrap">{stat.personName}</td>
                                 <td className="py-2 pr-4"><span className="font-black text-amber-400">{stat.timesTaken}x</span></td>
                                 <td className="py-2 pr-4"><span className="font-black text-emerald-400">{stat.totalItems}</span></td>
-                                <td className="py-2 text-[10px] theme-text-secondary">{new Date(stat.lastTaken).toLocaleDateString()}</td>
+                                <td className="py-2 text-[10px] theme-text-secondary">{formatDateOnly(stat.lastTaken)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -737,9 +738,9 @@ const WarehouseDashboard = () => {
                               </div>
                               <div className="flex items-center justify-between mt-2">
                                 <div className="flex items-center space-x-3 text-[10px] theme-text-muted">
-                                  <span>{new Date(cart.createdAt).toLocaleString()}</span>
+                                  <span>{formatDateTime(cart.createdAt)}</span>
                                   {cart.allocatedByName && <span>by {cart.allocatedByName}</span>}
-                                  {cart.approvedAt && <span>Approved: {new Date(cart.approvedAt).toLocaleString()}</span>}
+                                  {cart.approvedAt && <span>Approved: {formatDateTime(cart.approvedAt)}</span>}
                                 </div>
                                 {cart.status === 'PENDING' && (
                                   <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
@@ -1100,7 +1101,7 @@ const WarehouseDashboard = () => {
                             <div><p className="font-black theme-text-muted uppercase">Value</p><p className="font-bold text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p></div>
                             <div><p className="font-black theme-text-muted uppercase">Margin</p><p className={`font-bold ${item.profitMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{item.profitMargin?.toFixed(1)}%</p></div>
                           </div>
-                          <p className="text-[9px] font-bold theme-text-muted mt-2">{new Date(item.productionDate).toLocaleDateString()}</p>
+                          <p className="text-[9px] font-bold theme-text-muted mt-2">{formatDateOnly(item.productionDate)}</p>
                         </div>
                       ))}
                     </div>
@@ -1482,7 +1483,7 @@ const WarehouseDashboard = () => {
                             </div>
                             <div>
                               <p className="font-black theme-text-primary">{req.outletName}</p>
-                              <p className="text-xs theme-text-muted font-bold">{new Date(req.createdAt).toLocaleString()}</p>
+                              <p className="text-xs theme-text-muted font-bold">{formatDateTime(req.createdAt)}</p>
                             </div>
                           </div>
                           <div className="flex items-center space-x-4">

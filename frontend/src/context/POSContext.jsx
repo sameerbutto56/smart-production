@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import useCache, { invalidateKey } from '../hooks/useCache';
 import { enqueue } from '../utils/syncQueue';
 import { debounce } from '../utils/debounce';
+import { formatDateTime } from '../utils/dateTime';
 import socket from '../socket';
 
 const POSContext = createContext(null);
@@ -733,7 +734,7 @@ export function POSProvider({ children }) {
 
       const data = src.map(s => ({
         'Receipt #': s.receiptNumber || '',
-        'Date': new Date(s.createdAt).toLocaleString(),
+        'Date': formatDateTime(s.createdAt),
         'Cashier': s.cashierName || '',
         'Customer': s.customerName || '',
         'Phone': s.customerPhone || '',
@@ -786,7 +787,7 @@ export function POSProvider({ children }) {
 
       const journalDataRows = journalEntries.map(ge => ({
         'Receipt #': 'GENERAL ENTRY',
-        'Date': new Date(ge.createdAt).toLocaleString(),
+        'Date': formatDateTime(ge.createdAt),
         'Cashier': ge.employeeName || '',
         'Customer': ge.expenseTitle || '',
         'Phone': '',
