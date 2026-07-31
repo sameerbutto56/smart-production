@@ -647,14 +647,17 @@ const getSales = async (req, res) => {
     sales = sales.map(s => {
       const totalAdvance = s.advanceAmount || 0;
       const totalBalancePayments = s.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
-      const totalReceived = totalAdvance + totalBalancePayments;
-      // If no advance and no balance payments, the invoice was fully paid at checkout
-      const remaining = (totalAdvance === 0 && s.balancePayments.length === 0) ? 0 : Math.max(0, s.grandTotal - totalReceived);
+      // Actual amount received for this invoice:
+      //  - Fully-paid-at-checkout invoices (no advance, no balance payments) count the full grandTotal.
+      //  - Advance/balance-linked invoices count what has actually been received so far (advance + balance payments).
+      const isFullyPaidAtCheckout = totalAdvance === 0 && s.balancePayments.length === 0;
+      const totalReceived = isFullyPaidAtCheckout ? (s.grandTotal || 0) : (totalAdvance + totalBalancePayments);
+      const remaining = isFullyPaidAtCheckout ? 0 : Math.max(0, s.grandTotal - totalReceived);
       const { balancePayments, ...saleData } = s;
       return {
         ...saleData,
         _amountReceived: totalReceived,
-        _outstandingBalance: s.grandTotal - totalReceived,
+        _outstandingBalance: Math.max(0, s.grandTotal - totalReceived),
         _balanceRemaining: remaining,
         _balanceStatus: remaining > 0.01 ? 'balance' : 'paid',
         _invoiceNumber: s.orderId ? (orderMap.get(s.orderId) || null) : null

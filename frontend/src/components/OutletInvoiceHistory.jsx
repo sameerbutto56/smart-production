@@ -365,11 +365,32 @@ const OutletInvoiceHistory = ({ outlet }) => {
         'Status': s.refundedAt ? 'RETURN' : (s._balanceStatus === 'balance' ? 'BALANCE' : '')
       }));
 
-      const grandTotalSales = src.reduce((sum, s) => sum + (s._amountReceived || 0), 0);
-      const cashPayments = src.filter(s => s.paymentMethod === 'CASH' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
-      const onlinePayments = src.filter(s => s.paymentMethod === 'ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
-      const cardPayments = src.filter(s => s.paymentMethod === 'CARD' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
-      const cashOnlinePayments = src.filter(s => s.paymentMethod === 'CASH_ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
+      const nonRefundedSales = src.filter(s => !s.refundedAt);
+      let cashPayments = 0, onlinePayments = 0, cardPayments = 0, cashOnlinePayments = 0;
+      nonRefundedSales.forEach(s => {
+        const received = s._amountReceived || 0;
+        if (s.paymentMethod === 'CASH') cashPayments += received;
+        else if (s.paymentMethod === 'ONLINE') onlinePayments += received;
+        else if (s.paymentMethod === 'CARD') cardPayments += received;
+        else if (s.paymentMethod === 'CASH_ONLINE') {
+          cashOnlinePayments += received;
+          const splitTotal = (s.cashAmount || 0) + (s.onlineAmount || 0);
+          if (splitTotal > 0) {
+            cashPayments += received * ((s.cashAmount || 0) / splitTotal);
+            onlinePayments += received * ((s.onlineAmount || 0) / splitTotal);
+          } else {
+            cashPayments += received * 0.5;
+            onlinePayments += received * 0.5;
+          }
+        } else {
+          cashPayments += received;
+        }
+      });
+      cashPayments = Math.round(cashPayments);
+      onlinePayments = Math.round(onlinePayments);
+      cardPayments = Math.round(cardPayments);
+      cashOnlinePayments = Math.round(cashOnlinePayments);
+      const grandTotalSales = cashPayments + onlinePayments + cardPayments + cashOnlinePayments;
       const returnedAmount = src.filter(s => s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
       const totalAdvancePayments = src.reduce((sum, s) => sum + (s.advanceAmount || 0), 0);
       const outstandingBalance = src.reduce((sum, s) => sum + (s._outstandingBalance || 0), 0);
