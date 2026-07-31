@@ -118,6 +118,14 @@ const ChatPage = () => {
   }, [fetchMessages]);
 
   useEffect(() => {
+    const id = setInterval(() => {
+      if (socket?.connected) return;
+      fetchMessages();
+    }, 12000);
+    return () => clearInterval(id);
+  }, [fetchMessages]);
+
+  useEffect(() => {
     const applyPendingStatus = (msgId) => {
       const pending = pendingStatusRef.current[msgId];
       if (!pending) return null;

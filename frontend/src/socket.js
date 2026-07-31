@@ -8,6 +8,17 @@ const API_URL = import.meta.env.VITE_API_URL || (
 
 const WS_URL = import.meta.env.VITE_WS_URL || API_URL;
 
+// Vercel serverless functions cannot host a socket.io server (no WebSocket upgrade
+// passthrough, and the polling transport loses sessions because requests can land on
+// different stateless instances), so attempting a connection there only produces a
+// stream of /socket.io/ 404s + reconnect storms. Only connect on localhost or when an
+// explicit VITE_WS_URL (a self-hosted socket server) is configured.
+function socketAvailable() {
+  if (import.meta.env.VITE_WS_URL) return true;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
 function createStub() {
   return { on: () => createStub(), off: () => createStub(), emit: () => createStub(), connect: () => {}, disconnect: () => {}, id: null, connected: false };
 }
@@ -19,7 +30,7 @@ function connectSocket(token) {
     _socket.disconnect();
     _socket = null;
   }
-  _socket = token
+  _socket = token && socketAvailable()
     ? io(WS_URL, {
         auth: { token },
         reconnection: true,
