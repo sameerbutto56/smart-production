@@ -126,6 +126,7 @@ export const OrderEntryProvider = ({ children }) => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [fromVerification, setFromVerification] = useState(urlFromVerification && !!urlEditOrderId);
   const dateInputRef = useRef(null);
+  const verificationLoadRef = useRef(null);
 
   const t = useCallback((key) => {
     if (!key) return '';
@@ -141,6 +142,17 @@ export const OrderEntryProvider = ({ children }) => {
     if (!sp.toString() && searchParams.toString()) {
       sp = new URLSearchParams(searchParams.toString());
     }
+    // Hash fallback: order numbers start with '#' (e.g. "#49821"). If an order
+    // number was ever placed in the URL unencoded, '#' splits the query and
+    // fromVerification/editOrderId land in the fragment instead. Merge them in.
+    if (!sp.get('fromVerification') || !sp.get('editOrderId') || !sp.get('orderNumber')) {
+      try {
+        const hashSp = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        if (!sp.get('fromVerification') && hashSp.get('fromVerification')) sp.set('fromVerification', hashSp.get('fromVerification'));
+        if (!sp.get('editOrderId') && hashSp.get('editOrderId')) sp.set('editOrderId', hashSp.get('editOrderId'));
+        if (!sp.get('orderNumber') && hashSp.get('orderNumber')) sp.set('orderNumber', hashSp.get('orderNumber'));
+      } catch (e) { }
+    }
     if (sp.get('edit') === '1') setIsEditMode(true);
     const verifReturn = sp.get('fromVerification');
     const editId = sp.get('editOrderId');
@@ -150,6 +162,11 @@ export const OrderEntryProvider = ({ children }) => {
       setEditOrderId(editId);
       // Guard: skip if order already loaded for this editOrderId
       if (originalOrder && editOrderId === editId) return;
+      // In-flight guard: skip if a load for this editOrderId already started
+      // (React StrictMode dev double-invokes effects synchronously, so the
+      //  originalOrder state check above alone cannot catch the duplicate)
+      if (verificationLoadRef.current === editId) return;
+      verificationLoadRef.current = editId;
       // Load the order data
       (async () => {
         try {

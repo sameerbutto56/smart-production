@@ -29,8 +29,10 @@ const ReturnedFromVerification = () => {
   const formatDateTime = (d) => d ? new Date(d).toLocaleString() : '';
 
   const handleEditOrder = (order) => {
-    // Navigate to OrderEntry with both ID and order number for reliable loading
-    navigate(`/order-entry?editOrderId=${order.id}&orderNumber=${order.orderNumber || ''}&fromVerification=true`);
+    // Navigate to OrderEntry with both ID and order number for reliable loading.
+    // orderNumber may start with '#' (e.g. "#49821") which would split the URL
+    // into a fragment and swallow fromVerification=true — so it must be encoded.
+    navigate(`/order-entry?editOrderId=${order.id}&orderNumber=${encodeURIComponent(order.orderNumber || '')}&fromVerification=true`);
   };
 
   return (
