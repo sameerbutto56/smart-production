@@ -264,6 +264,16 @@
 - **Fix 3** (`OrderEntryContext.jsx`): Added `verificationLoadRef` in-flight guard — `if (verificationLoadRef.current === editId) return; verificationLoadRef.current = editId;` set synchronously before the async load. This fixes the reload-guard's real gap: under React StrictMode (dev), the effect double-invokes synchronously, so the `originalOrder` state check alone cannot prevent duplicate loads (state is still null during both invocations).
 - **Verification**: `node` URL-parse test confirms `%23` keeps `fromVerification=true`/`editOrderId`/`orderNumber` (decoded to `#49821`) in the query; `npm run build` passes with 0 errors; deployed `f8f96fd` and re-aliased `smart-production-v2.vercel.app` (deployed `OrderEntry-dZnimgAo.js` + `ReturnedFromVerification-D__DNHsN.js` confirmed to contain the fix).
 
+### Fixed This Session — POS Sales Report Payment Summary All Zeros
+- **Root cause**: Backend `getSales` computed `_amountReceived = advanceAmount + sum(balancePayments)`. For a **fully-paid-at-checkout** invoice (Cash/Online/Card/Cash+Online, advance=0, no balance payments) that equals **0** — so every Excel summary line (Grand Total Sales, Cash, Online, Card, Cash+Online, Net Cash, Net Sales) showed 0 even though the invoice rows carried real Cash/Online/Card payments.
+- **Fix 1 — Backend** (`pos.controller.js` `getSales`): When `advanceAmount === 0 && balancePayments.length === 0`, `_amountReceived` now equals the full `grandTotal` (the amount actually received at checkout). Advance/balance-linked invoices still count `advance + balancePayments` received so far. `_outstandingBalance` clamped with `Math.max(0, …)`. This mirrors the established `saleRevenue(s)` convention in `getSalesDashboard`/`getBookSummary`.
+- **Fix 2 — Frontend summary** (`OutletInvoiceHistory.jsx` + `POSContext.jsx` `downloadExcel`): Rebuilt payment summary to iterate non-refunded sales by actual received amount (`_amountReceived`):
+  - `CASH` → Cash Payments, `ONLINE` → Online Payments, `CARD` → Card Payments.
+  - `CASH_ONLINE` → full amount added to Cash+Online Payments **and** split proportionally by `cashAmount`/`onlineAmount` ratio (falls back to 50/50 if split totals are 0) into Cash Payments and Online Payments.
+  - `Grand Total Sales (Received)` = Cash + Online + Card + Cash+Online (same presentation as the POS Dashboard payment breakdown).
+  - `Net Cash` = Cash Payments − General Entries; `Net Sales` = Grand Total − Returned Amount; `Outstanding Balance` = sum of `_outstandingBalance` (tracked separately, never in sales).
+- **Verification**: `node -e require` syntax check OK; `npm run build` passes with 0 errors; committed `e3a3fd7` and pushed (`f8f96fd..e3a3fd7`).
+
 ## Key Decisions
 - Only one React version (19.2.6) must exist in the workspace — version mismatch caused dedupe workaround which triggered TDZ error in Vite production bundle.
 - `resolve.dedupe` is no longer needed because React versions are now consistent across all workspaces.
