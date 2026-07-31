@@ -330,10 +330,22 @@ const OutletInvoiceHistory = ({ outlet }) => {
   };
 
   /* ─── Download Excel ─── */
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
     try {
       const fmtPayment = (s) => s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '';
       const src = filteredSales;
+
+      let journalEntries = [];
+      try {
+        const params = { outlet };
+        if (dateFrom) params.dateFrom = dateFrom;
+        if (dateTo) params.dateTo = dateTo;
+        if (!dateFrom && !dateTo && range !== 'all') params.range = range;
+        const res = await api.get('/api/pos/journal-entries', { params });
+        journalEntries = res.data || [];
+      } catch (e) { /* silent */ }
+
+      const totalGeneralEntries = journalEntries.reduce((sum, ge) => sum + (ge.amount || 0), 0);
 
       const data = src.map(s => ({
         'Receipt #': s.receiptNumber || '',
@@ -345,40 +357,66 @@ const OutletInvoiceHistory = ({ outlet }) => {
         'Subtotal': s.subtotal || 0,
         'Discount': s.discountAmount || 0,
         'Card Charges': s.cardChargesAmount || 0,
-        'Grand Total': s.grandTotal || 0,
+        'Grand Total': s._amountReceived || 0,
+        'Invoice Total': s.grandTotal || 0,
         'Payment': fmtPayment(s),
         'Advance': s.advanceAmount || 0,
         'Balance': s._balanceRemaining || 0,
         'Status': s.refundedAt ? 'RETURN' : (s._balanceStatus === 'balance' ? 'BALANCE' : '')
       }));
 
-      const grandTotalSales = src.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
-      const cashPayments = src.filter(s => s.paymentMethod === 'CASH' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
-      const onlinePayments = src.filter(s => s.paymentMethod === 'ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
-      const cardPayments = src.filter(s => s.paymentMethod === 'CARD' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
-      const cashOnlinePayments = src.filter(s => s.paymentMethod === 'CASH_ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const grandTotalSales = src.reduce((sum, s) => sum + (s._amountReceived || 0), 0);
+      const cashPayments = src.filter(s => s.paymentMethod === 'CASH' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
+      const onlinePayments = src.filter(s => s.paymentMethod === 'ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
+      const cardPayments = src.filter(s => s.paymentMethod === 'CARD' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
+      const cashOnlinePayments = src.filter(s => s.paymentMethod === 'CASH_ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s._amountReceived || 0), 0);
       const returnedAmount = src.filter(s => s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const totalAdvancePayments = src.reduce((sum, s) => sum + (s.advanceAmount || 0), 0);
+      const outstandingBalance = src.reduce((sum, s) => sum + (s._outstandingBalance || 0), 0);
+      const netCash = cashPayments - totalGeneralEntries;
       const netSales = grandTotalSales - returnedAmount;
+
+      const journalDataRows = journalEntries.map(ge => ({
+        'Receipt #': 'GENERAL ENTRY',
+        'Date': new Date(ge.createdAt).toLocaleString(),
+        'Cashier': ge.employeeName || '',
+        'Customer': ge.expenseTitle || '',
+        'Phone': '',
+        'Items': ge.notes || '',
+        'Subtotal': '',
+        'Discount': '',
+        'Card Charges': '',
+        'Grand Total': -(ge.amount || 0),
+        'Invoice Total': '',
+        'Payment': 'EXPENSE',
+        'Advance': '',
+        'Balance': '',
+        'Status': 'GENERAL'
+      }));
 
       const summaryRows = [
         {}, {},
-        { 'Receipt #': 'SUMMARY', 'Grand Total': '' },
-        { 'Receipt #': 'Grand Total Sales', 'Grand Total': grandTotalSales },
+        { 'Receipt #': 'S U M M A R Y', 'Grand Total': '' },
+        { 'Receipt #': 'Grand Total Sales (Received)', 'Grand Total': grandTotalSales },
         { 'Receipt #': 'Cash Payments', 'Grand Total': cashPayments },
         { 'Receipt #': 'Online Payments', 'Grand Total': onlinePayments },
         { 'Receipt #': 'Card Payments', 'Grand Total': cardPayments },
         { 'Receipt #': 'Cash + Online Payments', 'Grand Total': cashOnlinePayments },
+        { 'Receipt #': 'Total Advance Payments', 'Grand Total': totalAdvancePayments },
+        { 'Receipt #': 'Outstanding Balance', 'Grand Total': outstandingBalance },
+        { 'Receipt #': 'General Entries (Expenses)', 'Grand Total': totalGeneralEntries },
+        { 'Receipt #': 'Net Cash', 'Grand Total': netCash },
         { 'Receipt #': 'Returned Amount', 'Grand Total': returnedAmount },
         { 'Receipt #': 'Net Sales', 'Grand Total': netSales },
       ];
 
-      const allRows = [...data, ...summaryRows];
+      const allRows = [...data, ...journalDataRows, ...summaryRows];
       const ws = XLSX.utils.json_to_sheet(allRows);
 
       const colWidths = [
         { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
         { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-        { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }
+        { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }
       ];
       ws['!cols'] = colWidths;
 

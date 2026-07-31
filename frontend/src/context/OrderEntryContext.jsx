@@ -134,7 +134,13 @@ export const OrderEntryProvider = ({ children }) => {
   }, [isUrdu]);
 
   useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
+    // Try window.location.search first, fall back to searchParams
+    // (React Router v7 may not populate useSearchParams on first render
+    //  AND window.location.search might also be empty in some edge cases)
+    let sp = new URLSearchParams(window.location.search);
+    if (!sp.toString() && searchParams.toString()) {
+      sp = new URLSearchParams(searchParams.toString());
+    }
     if (sp.get('edit') === '1') setIsEditMode(true);
     const verifReturn = sp.get('fromVerification');
     const editId = sp.get('editOrderId');
@@ -142,6 +148,8 @@ export const OrderEntryProvider = ({ children }) => {
       setFromVerification(true);
       setIsEditMode(true);
       setEditOrderId(editId);
+      // Guard: skip if order already loaded for this editOrderId
+      if (originalOrder && editOrderId === editId) return;
       // Load the order data
       (async () => {
         try {
@@ -290,7 +298,7 @@ export const OrderEntryProvider = ({ children }) => {
         }
       })();
     }
-  }, []);
+  }, [searchParams]);
 
   const fetchInventory = useCallback(async () => {
     try {

@@ -469,7 +469,7 @@ exports.getEmployees = async (req, res) => {
     const best = employees.length > 0 ? employees[0].name : null;
     const lowest = employees.length > 0 ? employees[employees.length - 1].name : null;
 
-    const auditLogs = await prisma.auditLog.findMany({ where: { performedBy: { not: null } }, select: { performedBy: true, action: true, timestamp: true }, orderBy: { timestamp: 'desc' }, take: 1000 });
+    const auditLogs = await prisma.auditLog.findMany({ select: { performedBy: true, action: true, timestamp: true }, orderBy: { timestamp: 'desc' }, take: 1000 });
     const perfMap = {};
     for (const log of auditLogs) {
       const name = log.performedBy || 'Unknown';

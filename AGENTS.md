@@ -247,6 +247,16 @@
 - **Fix 5 – Error/fallback handling**: ID fetch fallback chain (`/api/orders/:editOrderId` → `/api/orders/track/:orderNumber`) with error state in loading screen (`editOrderError` displays AlertCircle message instead of spinning forever).
 - **Verification**: Build passes with 0 errors.
 
+### Fixed This Session — CEO Dashboard 500 Error (No Data)
+- **Root cause**: `ceo.controller.js` `getEmployees` used `prisma.auditLog.findMany({ where: { performedBy: { not: null } } })`. `AuditLog.performedBy` is a **non-nullable `String`** in the schema, so Prisma rejects `{ not: null }` with "Argument `not` must not be null" → `/api/ceo/employees` returned 500 → the whole CEO dashboard failed because `CEODashboard.jsx` fetches all 11 `/api/ceo/*` endpoints in a single `Promise.all` (one rejection breaks all).
+- **Fix**: Removed the invalid `where: { performedBy: { not: null } }` filter entirely (filter is redundant since the field is non-nullable).
+- **Verification**: Ran all 30 CEO controller DB queries against Supabase — every endpoint passes (auditLog now returns 1000 rows). `node -e require` syntax check OK.
+
+### Fixed This Session — POS Sales Report & Excel Export (Advance / General Entry)
+- **`OutletInvoiceHistory.jsx`** (`downloadExcel`): Made async; fetches journal entries via `/api/pos/journal-entries` with the same date range; per-row `Grand Total` now shows `_amountReceived` (actual cash collected) with new `Invoice Total` column for full `grandTotal`; summary shows **Grand Total Sales (Received)**, **Total Advance Payments**, **Outstanding Balance**, **General Entries (Expenses)**, **Net Cash** (= Cash Payments − General Entries), **Returned Amount**, **Net Sales**; journal entries inserted as detail rows between sales and summary.
+- **`POSContext.jsx`** (`downloadExcel`): Same pattern — async journal fetch using `salesRange`/`salesDateFrom`/`salesDateTo`, `Grand Total` → `_amountReceived`, added `Invoice Total` + `Balance` columns, `BALANCE` status text, new summary fields, journal rows; `useCallback` deps updated.
+- No backend changes needed — `getSales` already returns `_amountReceived`/`_outstandingBalance`; `/api/pos/journal-entries` endpoint already exists with date filtering.
+
 ## Key Decisions
 - Only one React version (19.2.6) must exist in the workspace — version mismatch caused dedupe workaround which triggered TDZ error in Vite production bundle.
 - `resolve.dedupe` is no longer needed because React versions are now consistent across all workspaces.
