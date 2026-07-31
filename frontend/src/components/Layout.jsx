@@ -110,7 +110,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
     { name: 'Outlet Order Entry', path: '/outlet-order-entry', icon: ShoppingBag, roles: ['OUTLET'] },
-    { name: 'Dispatch', path: '/dispatch', icon: Truck, roles: ['OUTLET'] },
     { name: 'In Dispatch', path: '/in-dispatch', icon: RouteIcon, roles: ['OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['FAISAL'] },
 
@@ -151,7 +150,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
         const n = String(user?.name || '').toLowerCase();
         return n.includes('johar') || user?.name?.includes('1');
       }
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'Dispatch', 'In Dispatch'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
