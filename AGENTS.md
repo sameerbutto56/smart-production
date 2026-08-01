@@ -146,6 +146,14 @@
 ### Blocked
 - (none)
 
+### Fixed This Session — Outlet POS Barcode Scanner: Auto-Clear + Refocus for Continuous Scanning
+- **Root cause**: `handleBarcodeLookup` in `POSContext.jsx` added the scanned product to the cart (or incremented quantity) but never cleared the barcode input value nor refocused it — the cashier had to manually delete the previous barcode before each scan.
+- **Fix 1** (`POSContext.jsx` `handleBarcodeLookup`): Every exit path now clears the input and refocuses `barcodeRef` — success ("added via barcode"), invalid barcode (`Barcode not found` error), and not-logged-in (`Please login employee first`). Empty code path just refocuses.
+- **Fix 2** (`POSContext.jsx` Enter handler): Window keydown Enter handler now only triggers when `document.activeElement === barcodeRef.current` — Enter pressed in the Search (or any other) field no longer fires a barcode lookup.
+- **Fix 3** (`OutletPOS.jsx` barcode input): Added `autoFocus` so the cursor lands in the barcode field when the POS tab mounts, and returns there after every scan.
+- **Result**: Cashier workflow is now **Scan → Add to Cart/Increase Qty → Input Clears → Cursor Ready** with no keyboard/mouse interaction; duplicate scans increment quantity via the existing `existing.qty + 1` path.
+- **Verification**: `npm run build` 0 errors (only pre-existing POSPrint dynamic-import warning); new chunk `OutletPOS-lnOza70H.js`.
+
 ### Implemented This Session — Dedicated "In Dispatch" Module (JOHAR TOWN Outlet Only)
 - **Requirement**: New standalone module called **In Dispatch**, added to the **JOHAR TOWN Outlet navbar only** (no new role/profile), receiving ONLY orders explicitly sent via **Send to In Dispatch** (JOHAR TOWN Outlet → My Tasks → Send to In Dispatch → In Dispatch Module). Must be completely isolated from the existing Dispatch (dispatch officer) module — no shared queues, routes, or data; existing Dispatch workflow unchanged.
 - **Backend** (`inDispatch.controller.js` + `inDispatch.routes.js` mounted at `/api/in-dispatch` in `app.js`):

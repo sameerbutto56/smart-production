@@ -358,7 +358,7 @@ export function POSProvider({ children }) {
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === 'Enter' && barcodeInput && tab === 'pos') {
+      if (e.key === 'Enter' && barcodeInput && tab === 'pos' && document.activeElement === barcodeRef.current) {
         handleBarcodeLookup(barcodeInput);
       }
     };
@@ -367,8 +367,13 @@ export function POSProvider({ children }) {
   }, [barcodeInput, tab]);
 
   const handleBarcodeLookup = async (code) => {
-    if (!employeeLoggedIn) return toast.error('Please login employee first');
-    if (!code) return;
+    if (!employeeLoggedIn) {
+      toast.error('Please login employee first');
+      setBarcodeInput('');
+      if (barcodeRef.current) barcodeRef.current.focus();
+      return;
+    }
+    if (!code) { if (barcodeRef.current) barcodeRef.current.focus(); return; }
     code = code.trim();
     let v = barcodeMap.get(code);
     if (!v) {
@@ -381,7 +386,12 @@ export function POSProvider({ children }) {
       const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
       if (res.data) v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
     } catch (e) { console.warn(`Barcode API lookup failed for "${code}":`, e?.response?.data || e.message); }
-    if (!v) return toast.error(`Barcode not found: ${code}`);
+    if (!v) {
+      toast.error(`Barcode not found: ${code}`);
+      setBarcodeInput('');
+      if (barcodeRef.current) barcodeRef.current.focus();
+      return;
+    }
     if (v.stock != null && v.stock < 1) toast(`"${v.productName}" is out of stock — use Exchange toggle to process as return`);
     const existing = cart.find(i => i.variantId === v.id);
     if (existing) {
@@ -390,6 +400,8 @@ export function POSProvider({ children }) {
       setCart([...cart, { variantId: v.id, productName: v.productName, size: v.size, color: v.color, unitPrice: v.price || 0, qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0, isExchange: false }]);
     }
     toast.success(`${v.productName} added via barcode`);
+    setBarcodeInput('');
+    if (barcodeRef.current) barcodeRef.current.focus();
   };
 
   useEffect(() => {
