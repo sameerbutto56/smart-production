@@ -774,6 +774,7 @@ const urduDictionary = {
   'Bottom': 'باٹم',
   'Chetha': 'چیتھا',
   'D.': 'ڈی',
+  'Dot': 'ڈاٹ',
   'Dusk': 'ڈسک',
   'Games': 'گیمز',
   'Jagger': 'جاگر',
