@@ -1217,6 +1217,17 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   });
   win.document.write(`</div>`);
 
+  // ─── DELIVERY / SELF COLLECTION HIGHLIGHT ───
+  if (order.deliveryType && ['DELIVERY', 'SELF_COLLECTION', 'PICKUP'].includes(order.deliveryType)) {
+    const isSelf = order.deliveryType === 'SELF_COLLECTION' || order.deliveryType === 'PICKUP';
+    const dColor = isSelf ? '#8b5cf6' : '#2563eb';
+    const dLabel = isSelf ? (isUrdu ? 'سیلف کلیکشن — خود لینا' : 'SELF COLLECTION') : (isUrdu ? 'ہوم ڈیلیوری' : 'DELIVERY');
+    win.document.write(`<div style="border:3px solid ${dColor};background:${dColor}15;border-radius:8px;padding:10px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase"${isUrdu ? ' class="urdu-text"' : ''}>${isUrdu ? 'ڈلیوری کا طریقہ' : 'Delivery Method'}</span>
+      <span style="font-size:24px;font-weight:900;color:${dColor};text-transform:uppercase;letter-spacing:1px"${isUrdu ? ' class="urdu-text"' : ''}>${dLabel}</span>
+    </div>`);
+  }
+
   // ─── PRODUCTS TABLE ───
   const sleeveLabel = isUrdu ? 'بازو' : 'Sleeve';
   const lengthLabel = isUrdu ? 'لمبائی' : 'Length';

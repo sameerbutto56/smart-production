@@ -38,7 +38,7 @@ const generateInvoiceNumber = async (outletName) => {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement } = req.body;
+    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement, deliveryType } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
@@ -132,6 +132,7 @@ const createOutletOrder = async (req, res) => {
           engravingLogos: engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null,
           orderDestination: orderDestination || null,
           placedBy: placedBy || null,
+          deliveryType: deliveryType || 'DELIVERY',
           advanceAmount: adv,
           totalPrice,
           paymentStatus: adv > 0 ? 'PAID' : 'PENDING',

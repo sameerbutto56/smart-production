@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle } from 'lucide-react';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store } from 'lucide-react';
 import { formatDateOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 
@@ -104,6 +104,7 @@ const OutletOrderEntry = () => {
 
   const [advanceAmount, setAdvanceAmount] = useState(0);
   const [priority, setPriority] = useState('NORMAL');
+  const [deliveryType, setDeliveryType] = useState('DELIVERY');
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -383,7 +384,8 @@ const OutletOrderEntry = () => {
         measurementChart: sizingMode === 'custom' ? 'Custom Measurements' : (selectedStandardSize || null),
         advanceAmount: advance,
         placedBy: user?.name || user?.id || null,
-        priority
+        priority,
+        deliveryType
       };
       const res = await api.post('/api/outlet-orders', payload);
       setCreatedOrder(res.data);
@@ -420,6 +422,7 @@ const OutletOrderEntry = () => {
     setClientMeasurements({});
     setAdvanceAmount(0);
     setPriority('NORMAL');
+    setDeliveryType('DELIVERY');
     setSubmitted(false);
     setCreatedOrder(null);
     setClientStandardSizes([]);
@@ -633,6 +636,24 @@ const OutletOrderEntry = () => {
                 </div>
               </div>
             )}
+
+            <div className="bg-gray-800 rounded-xl p-3 space-y-2">
+              <label className="text-xs font-bold text-gray-400">Delivery Method</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button type="button" onClick={() => setDeliveryType('DELIVERY')}
+                  className={`rounded-xl p-3 text-left border-2 transition-all ${deliveryType === 'DELIVERY' ? 'bg-blue-600/20 border-blue-500' : 'bg-gray-900 border-gray-700 hover:border-gray-500'}`}>
+                  <Truck size={20} className={deliveryType === 'DELIVERY' ? 'text-blue-400' : 'text-gray-500'} />
+                  <p className="text-sm font-black text-white mt-1">Delivery</p>
+                  <p className="text-xs font-bold text-gray-400 mt-0.5">Home delivery to customer address</p>
+                </button>
+                <button type="button" onClick={() => setDeliveryType('SELF_COLLECTION')}
+                  className={`rounded-xl p-3 text-left border-2 transition-all ${deliveryType === 'SELF_COLLECTION' ? 'bg-purple-600/20 border-purple-500' : 'bg-gray-900 border-gray-700 hover:border-gray-500'}`}>
+                  <Store size={20} className={deliveryType === 'SELF_COLLECTION' ? 'text-purple-400' : 'text-gray-500'} />
+                  <p className="text-sm font-black text-white mt-1">Self Collection</p>
+                  <p className="text-xs font-bold text-gray-400 mt-0.5">Customer will pick up from shop</p>
+                </button>
+              </div>
+            </div>
 
             <div className="bg-gray-800 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -995,6 +1016,7 @@ const OutletOrderEntry = () => {
               {priority !== 'NORMAL' && (
                 <p className="text-gray-400">Priority: <span className={`font-black ${priority === 'SUPER_URGENT' ? 'text-red-400' : 'text-orange-400'}`}>{PRIORITY_OPTIONS.find(p => p.value === priority)?.label}</span></p>
               )}
+              <p className="text-gray-400">Delivery: <span className={`font-black ${deliveryType === 'SELF_COLLECTION' ? 'text-purple-400' : 'text-blue-400'}`}>{deliveryType === 'DELIVERY' ? '🚚 Delivery' : '🏪 Self Collection'}</span></p>
               {customerMode === 'new' && !clientData && (
                 <p className="text-[10px] font-bold text-emerald-400 mt-1">New customer — will be saved to Client Registration</p>
               )}
@@ -1111,6 +1133,9 @@ const OutletOrderEntry = () => {
                 {PRIORITY_OPTIONS.find(p => p.value === priority)?.label} PRIORITY
               </div>
             )}
+            <div className={`text-center py-2 rounded-lg font-black text-xs uppercase border-2 ${deliveryType === 'SELF_COLLECTION' ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-blue-100 text-blue-700 border-blue-300'}`}>
+              {deliveryType === 'DELIVERY' ? '🚚 DELIVERY' : '🏪 SELF COLLECTION'}
+            </div>
             <div className="text-xs font-bold space-y-0.5 border-b border-gray-200 pb-2">
               <p>Customer: {customer.name} — {customer.phone}</p>
               {customer.address && <p>Address: {customer.address}{customer.city ? `, ${customer.city}` : ''}</p>}

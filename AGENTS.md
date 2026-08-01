@@ -146,6 +146,19 @@
 ### Blocked
 - (none)
 
+### Implemented This Session — Delivery vs Self Collection Option in Outlet Order Entry (highlighted on Job Sheet)
+- **Requirement**: Outlet Order Entry wizard gets a **Delivery / Self Collection** picker, and the chosen method must be **highlighted** on the Job Sheet.
+- **Frontend** (`frontend/src/pages/OutletOrderEntry.jsx`):
+  - New `deliveryType` state, default `'DELIVERY'`.
+  - **Delivery Method picker** added in Step 1 (Customer) before the Order Number box — two toggle cards: **🚚 Delivery** (blue, "Home delivery to customer address") and **🏪 Self Collection** (purple, "Customer will pick up from shop"), active card gets a colored border/tint.
+  - Sent in the submit payload as `deliveryType`.
+  - Review step (Step 5) shows `Delivery: 🚚 Delivery` (blue) / `🏪 Self Collection` (purple).
+  - Job Sheet preview modal gets a full-width highlighted banner (`bg-blue-100 border-blue-300` for Delivery, `bg-purple-100 border-purple-300` for Self Collection).
+  - `resetAll` resets `deliveryType` to `'DELIVERY'`.
+- **Backend** (`backend/src/controllers/outletOrder.controller.js`): `createOutletOrder` now destructures `deliveryType` and stores `deliveryType: deliveryType || 'DELIVERY'` on the Order (previously outlet orders saved `deliveryType: null`, so no badge ever appeared). No schema change needed — `deliveryType String?` already exists (line 79).
+- **Job Sheet print** (`frontend/src/utils/printReport.js`): Added a prominent **Delivery Method highlight banner** right after the order meta badges — 3px bordered box, `DELIVERY` in blue (#2563eb) / `SELF COLLECTION` in purple (#8b5cf6), with Urdu labels (`ہوم ڈیلیوری` / `سیلف کلیکشن — خود لینا`) when RTL/Urdu is active. The pre-existing badge loop already colored `DELIVERY`/`SELF_COLLECTION`, but outlet orders never set the field so it never rendered — now it does.
+- **Verification**: `node -e require` OK on controller; `npm run build` 0 errors (new `printReport-BOXQgY9Q.js` chunk).
+
 ### Implemented This Session — Admin Order Priority & Delay Tracking (AllOrders.jsx)
 - **Requirement**: Admin Dashboard → Orders page (`AllOrders.jsx` at `/orders`) gets order priority & delay tracking — filter buttons (All/Standard/Custom/Urgent/Super Urgent/Delayed), auto delay detection with phase/department/time info, department-wise delay summary, smart Hours/Days formatting, color-coded priority indicators (🟢 Standard green, 🟡 Urgent yellow, 🟠 Super Urgent orange, 🔴 Delayed red), blinking delayed rows/badges, delay reasons, delayed-phase-highlighted timeline, date-filtered summary cards, and live auto-updating counters/badges.
 - **Client-side-only approach** (no backend/schema changes): `getOrders` already returns `stages` with `deadlineAt`/`startedAt`/`createdAt`/`status`/`stageName`; delay is detected using the **same machinery as the backend escalation scan** — the order is delayed when its active stage (status PENDING/IN_PROGRESS/WAITING_APPROVAL matching `currentStage`) has `deadlineAt < now` (working-hours deadline already computed by `calculateDeadline`). Legacy stages without `deadlineAt` fall back to a static `FALLBACK_STAGE_HOURS` table (mirrors `DEADLINE_CONFIG` defaults).
