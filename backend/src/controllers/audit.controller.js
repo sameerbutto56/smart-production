@@ -54,9 +54,10 @@ const computeAuditSummary = (items) => {
   };
 };
 
-const persistSummary = async (auditId, items) => {
+const persistSummary = async (auditId, items, tx) => {
   const s = computeAuditSummary(items);
-  await prisma.inventoryAudit.update({
+  const client = tx || prisma;
+  await client.inventoryAudit.update({
     where: { id: auditId },
     data: {
       scannedCount: s.scannedCount,
@@ -319,6 +320,63 @@ const scanBarcode = async (req, res) => {
   }
 };
 
+// ─── POST /api/audit/:id/batch-scan — high-speed batched barcode scans ───
+// Accepts an array of scan events ({ itemId } or { barcode }) and increments each
+// matching variant's physicalQty once, inside a single transaction. The UI keeps
+// its own in-memory copy and flushes batches in the background, so the operator
+// never waits on the database. Summary is recomputed once per batch.
+const batchScan = async (req, res) => {
+  try {
+    const { scans } = req.body;
+    if (!Array.isArray(scans) || scans.length === 0) return res.status(400).json({ message: 'scans array is required' });
+    if (scans.length > 200) return res.status(400).json({ message: 'Batch too large (max 200)' });
+
+    const audit = await prisma.inventoryAudit.findUnique({ where: { id: req.params.id } });
+    if (!audit) return res.status(404).json({ message: 'Audit not found' });
+    if (audit.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Audit is not in progress' });
+
+    const items = await prisma.inventoryAuditItem.findMany({ where: { auditId: audit.id } });
+    const byBarcode = new Map(items.map(it => [String(it.barcode || '').trim().toLowerCase(), it]));
+    const byId = new Map(items.map(it => [it.id, it]));
+
+    const incrementById = new Map();
+    const notFound = [];
+    for (const s of scans) {
+      let item = null;
+      if (s && s.itemId) item = byId.get(s.itemId);
+      else if (s && s.barcode) item = byBarcode.get(String(s.barcode).trim().toLowerCase());
+      if (!item) { notFound.push((s && s.barcode) || (s && s.itemId) || '?'); continue; }
+      incrementById.set(item.id, (incrementById.get(item.id) || 0) + 1);
+    }
+
+    let synced = [];
+    let after = [];
+    let summary = null;
+    await prisma.$transaction(async (tx) => {
+      for (const [itemId, count] of incrementById) {
+        const u = await tx.inventoryAuditItem.update({
+          where: { id: itemId },
+          data: { physicalQty: { increment: count }, scanned: true }
+        });
+        synced.push({ id: u.id, physicalQty: u.physicalQty, systemQty: u.systemQty, scanned: true });
+      }
+      after = await tx.inventoryAuditItem.findMany({ where: { auditId: audit.id } });
+      summary = await persistSummary(audit.id, after, tx);
+    });
+
+    let item = null;
+    if (synced.length > 0) {
+      const last = synced[synced.length - 1];
+      const base = items.find(it => it.id === last.id);
+      if (base) item = computeItemDiff({ ...base, physicalQty: last.physicalQty, scanned: true });
+    }
+
+    res.json({ processed: synced.length, notFound, summary, synced, item });
+  } catch (error) {
+    res.status(500).json({ message: 'Error in batch scan', error: error.message });
+  }
+};
+
 // ─── POST /api/audit/:id/items/:itemId — manual physical qty ───
 const setPhysicalQty = async (req, res) => {
   try {
@@ -349,6 +407,19 @@ const submitAudit = async (req, res) => {
     const audit = await prisma.inventoryAudit.findUnique({ where: { id: req.params.id } });
     if (!audit) return res.status(404).json({ message: 'Audit not found' });
     if (audit.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Audit already submitted' });
+
+    // Authoritative final physical counts from the client — guarantees the exact
+    // scanned state lands in the DB even if a background batch sync was dropped.
+    const finalCounts = req.body?.finalCounts;
+    if (finalCounts && typeof finalCounts === 'object' && Object.keys(finalCounts).length > 0) {
+      const ids = Object.keys(finalCounts);
+      await prisma.$transaction(async (tx) => {
+        for (const id of ids) {
+          const qty = Math.max(0, parseInt(finalCounts[id]) || 0);
+          await tx.inventoryAuditItem.update({ where: { id }, data: { physicalQty: qty, scanned: true } });
+        }
+      });
+    }
 
     const items = await prisma.inventoryAuditItem.findMany({ where: { auditId: audit.id } });
     const summary = computeAuditSummary(items);
@@ -510,6 +581,7 @@ module.exports = {
   listAudits,
   getAudit,
   scanBarcode,
+  batchScan,
   setPhysicalQty,
   submitAudit,
   approveAudit,

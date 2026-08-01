@@ -25,6 +25,38 @@ const diffStyle = (d) => {
   return { dot: 'bg-red-500', text: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/40' };
 };
 
+// Lightweight WebAudio beep — success tick on a matched scan, low buzz on a miss.
+let audioCtx = null;
+const beep = (ok) => {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = ok ? 'sine' : 'square';
+    o.frequency.value = ok ? 880 : 200;
+    g.gain.setValueAtTime(ok ? 0.05 : 0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+    o.start();
+    o.stop(audioCtx.currentTime + 0.16);
+  } catch {}
+};
+
+// Mirrors backend computeAuditSummary — recomputed locally per scan so header
+// cards (Scanned / Matched / Missing / Extra / Difference Value) always match the table.
+const computeLocalSummary = (items) => {
+  let scannedCount = 0, matchedCount = 0, missingCount = 0, extraCount = 0, differenceValue = 0;
+  for (const it of items) {
+    const d = (it.physicalQty || 0) - (it.systemQty || 0);
+    if (it.scanned) scannedCount++;
+    if (d === 0) matchedCount++;
+    else if (d > 0) { extraCount++; differenceValue += d * (it.price || 0); }
+    else { missingCount++; differenceValue += Math.abs(d) * (it.price || 0); }
+  }
+  return { scannedCount, matchedCount, missingCount, extraCount, differenceValue };
+};
+
 const WarehouseAudit = () => {
   const { user } = useAuth();
   const [view, setView] = useState('history'); // history | start | active | detail
@@ -43,11 +75,16 @@ const WarehouseAudit = () => {
   // live scanning
   const [barcode, setBarcode] = useState('');
   const [manualQty, setManualQty] = useState({});
-  const [scanning, setScanning] = useState(false);
-  const [lastScanned, setLastScanned] = useState(null);
   const [itemSearch, setItemSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const scanRef = useRef(null);
+  const barcodeMapRef = useRef(new Map());
+  const lastScannedRef = useRef(null);
+  const pendingScanRef = useRef([]);
+  const flushingRef = useRef(false);
+  const flushTimerRef = useRef(null);
+  const activeAuditIdRef = useRef(null);
 
   const loadStats = useCallback(() => {
     api.get('/api/audit/stats').then(r => setStats(r.data)).catch(() => {});
@@ -56,6 +93,90 @@ const WarehouseAudit = () => {
   const loadAudits = useCallback(() => {
     setLoading(true);
     api.get('/api/audit').then(r => setAudits(r.data)).catch(e => toast.error(e.response?.data?.message || 'Failed to load audits')).finally(() => setLoading(false));
+  }, []);
+
+  // In-memory barcode → itemId lookup. Barcodes never change during an audit, so
+  // this is built once per audit open and scanning is a pure Map.get() — POS speed.
+  const buildBarcodeMap = useCallback((items) => {
+    const map = new Map();
+    (items || []).forEach(it => {
+      if (it.barcode) map.set(String(it.barcode).trim().toLowerCase(), it.id);
+    });
+    barcodeMapRef.current = map;
+  }, []);
+
+  // Background batched sync — scans accumulate in memory and flush to the server
+  // in a single request (debounced 350ms, or immediately at 20 scans). The UI
+  // never awaits a database write; a failure simply requeues the events.
+  const flushScans = useCallback(async () => {
+    if (flushingRef.current) return;
+    const auditId = activeAuditIdRef.current;
+    if (!auditId) return;
+    flushingRef.current = true;
+    try {
+      while (pendingScanRef.current.length > 0) {
+        const events = pendingScanRef.current;
+        pendingScanRef.current = [];
+        setPendingCount(0);
+        try {
+          await api.post(`/api/audit/${auditId}/batch-scan`, { scans: events.map(itemId => ({ itemId })) });
+        } catch (err) {
+          pendingScanRef.current = [...events, ...pendingScanRef.current];
+          setPendingCount(pendingScanRef.current.length);
+          break;
+        }
+      }
+    } finally {
+      flushingRef.current = false;
+      if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+      if (pendingScanRef.current.length > 0) {
+        flushTimerRef.current = setTimeout(() => { flushTimerRef.current = null; flushScans(); }, 350);
+      }
+    }
+  }, []);
+
+  const queueScan = useCallback((itemId) => {
+    pendingScanRef.current.push(itemId);
+    setPendingCount(pendingScanRef.current.length);
+    if (pendingScanRef.current.length >= 20) { flushScans(); }
+    else if (!flushTimerRef.current) {
+      flushTimerRef.current = setTimeout(() => { flushTimerRef.current = null; flushScans(); }, 350);
+    }
+  }, [flushScans]);
+
+  // Drain the queue before submitting so every scan is persisted (retry loop).
+  const forceFlush = useCallback(async () => {
+    for (let i = 0; i < 4; i++) {
+      while (flushingRef.current) await new Promise(r => setTimeout(r, 100));
+      if (pendingScanRef.current.length === 0) return true;
+      await flushScans();
+      if (pendingScanRef.current.length === 0) return true;
+      await new Promise(r => setTimeout(r, 350));
+    }
+    return pendingScanRef.current.length === 0;
+  }, [flushScans]);
+
+  const goBack = () => {
+    if (!flushingRef.current && pendingScanRef.current.length > 0 && activeAuditIdRef.current) flushScans();
+    pendingScanRef.current = [];
+    setPendingCount(0);
+    if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+    activeAuditIdRef.current = null;
+    setActiveAudit(null); setDetailAudit(null); setView('history');
+  };
+
+  // If focus lands on a non-interactive element (e.g. a stray click on the page),
+  // Enter returns it to the barcode field so scanning never requires the mouse.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Enter') return;
+      const ae = document.activeElement;
+      const isScan = ae === scanRef.current;
+      const interactive = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.tagName === 'BUTTON' || ae.isContentEditable);
+      if (!isScan && !interactive) scanRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   useEffect(() => {
@@ -67,6 +188,9 @@ const WarehouseAudit = () => {
     try {
       const res = await api.get(`/api/audit/${id}`);
       setActiveAudit(res.data);
+      activeAuditIdRef.current = id;
+      lastScannedRef.current = null;
+      buildBarcodeMap(res.data.items);
       setView(res.data.status === 'IN_PROGRESS' ? 'active' : 'detail');
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to open audit');
@@ -79,6 +203,9 @@ const WarehouseAudit = () => {
     try {
       const res = await api.post('/api/audit', { type: auditType, outletName: auditType === 'OUTLET' ? outletName : undefined, notes });
       setActiveAudit(res.data);
+      activeAuditIdRef.current = res.data.id;
+      lastScannedRef.current = null;
+      buildBarcodeMap(res.data.items);
       setAuditType('WAREHOUSE'); setOutletName(''); setNotes(''); setBarcode('');
       setView('active');
       loadAudits();
@@ -89,20 +216,35 @@ const WarehouseAudit = () => {
     } finally { setStarting(false); }
   };
 
-  const handleScan = async (e) => {
+  const handleScan = (e) => {
     e?.preventDefault();
     const code = barcode.trim();
-    if (!code) return;
-    setScanning(true);
-    try {
-      const res = await api.post(`/api/audit/${activeAudit.id}/scan`, { barcode: code });
-      setLastScanned(res.data.item);
-      setActiveAudit(res.data.audit);
+    if (!code) { scanRef.current?.focus(); return; }
+    const itemId = barcodeMapRef.current.get(code.toLowerCase());
+    if (!itemId) {
+      beep(false);
+      toast.error('Barcode not found.');
       setBarcode('');
       scanRef.current?.focus();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Barcode not found in this audit');
-    } finally { setScanning(false); }
+      return;
+    }
+    beep(true);
+    setActiveAudit(a => {
+      let captured = null;
+      const items = a.items.map(it => {
+        if (it.id !== itemId) return it;
+        const newQty = (it.physicalQty || 0) + 1;
+        captured = { ...it, physicalQty: newQty, scanned: true, difference: newQty - (it.systemQty || 0) };
+        return captured;
+      });
+      if (!captured) return a;
+      lastScannedRef.current = captured;
+      return { ...a, items, ...computeLocalSummary(items) };
+    });
+    setManualQty(prev => { const n = { ...prev }; delete n[itemId]; return n; });
+    setBarcode('');
+    scanRef.current?.focus();
+    queueScan(itemId);
   };
 
   const updateManualQty = async (itemId, qty) => {
@@ -119,7 +261,12 @@ const WarehouseAudit = () => {
     if (!window.confirm(`Submit audit ${activeAudit.auditNumber}? It becomes read-only and moves to Admin review.`)) return;
     setSubmitting(true);
     try {
-      const res = await api.post(`/api/audit/${activeAudit.id}/submit`);
+      const synced = await forceFlush();
+      if (!synced) { toast.error('Could not sync all scanned counts — please retry'); setSubmitting(false); return; }
+      const items = activeAudit?.items || [];
+      const finalCounts = {};
+      items.forEach(it => { if (it.scanned || it.physicalQty) finalCounts[it.id] = it.physicalQty || 0; });
+      const res = await api.post(`/api/audit/${activeAudit.id}/submit`, { finalCounts });
       setActiveAudit(res.data);
       setView('detail');
       loadAudits();
@@ -332,7 +479,7 @@ const WarehouseAudit = () => {
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button onClick={() => { setActiveAudit(null); setDetailAudit(null); setView('history'); }} className="p-2 bg-gray-900 rounded-xl hover:bg-gray-800"><ArrowLeft size={16} className="text-gray-400" /></button>
+          <button onClick={goBack} className="p-2 bg-gray-900 rounded-xl hover:bg-gray-800"><ArrowLeft size={16} className="text-gray-400" /></button>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg md:text-2xl font-black theme-text-primary">{audit.auditNumber}</h2>
@@ -400,16 +547,21 @@ const WarehouseAudit = () => {
                 placeholder="Scan barcode → physical count +1"
                 className="w-full bg-gray-900 border-2 border-gray-800 rounded-xl pl-12 pr-4 py-3.5 text-sm font-black text-white outline-none focus:border-purple-500" />
             </div>
-            <button type="submit" disabled={scanning || !barcode.trim()} className="px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2">
-              {scanning ? <RefreshCcw size={14} className="animate-spin" /> : <ScanLine size={14} />} Scan
+            <button type="submit" disabled={!barcode.trim()} className="px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2">
+              <ScanLine size={14} /> Scan
             </button>
           </form>
-          {lastScanned && (
+          {pendingCount > 0 && (
+            <p className="mt-2 text-[10px] font-bold text-amber-400 flex items-center gap-1">
+              <RefreshCcw size={10} className="animate-spin" /> Syncing {pendingCount} scan(s)…
+            </p>
+          )}
+          {lastScannedRef.current && (
             <div className="mt-3 flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3">
               <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-emerald-400 truncate">{lastScanned.productName} <span className="text-gray-400">({lastScanned.color || '—'} {lastScanned.size || '—'})</span></p>
-                <p className="text-[10px] font-bold text-gray-500">{lastScanned.barcode} • count {lastScanned.physicalQty}</p>
+                <p className="text-sm font-black text-emerald-400 truncate">{lastScannedRef.current.productName} <span className="text-gray-400">({lastScannedRef.current.color || '—'} {lastScannedRef.current.size || '—'})</span></p>
+                <p className="text-[10px] font-bold text-gray-500">{lastScannedRef.current.barcode} • count {lastScannedRef.current.physicalQty}</p>
               </div>
             </div>
           )}

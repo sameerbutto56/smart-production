@@ -146,6 +146,21 @@
 ### Blocked
 - (none)
 
+### Implemented This Session — Inventory Audit High-Speed Barcode Scanning (POS-level performance)
+- **Requirement**: The Audit scanner must feel as fast as the POS barcode scanner — instant per-scan feedback, continuous scan-→+1-→scan flow with no waiting, no full-page/table reloads, keyboard-free operation, and practical for thousands of products.
+- **Frontend** (`frontend/src/components/WarehouseAudit.jsx`):
+  - **In-memory barcode lookup**: `barcodeMapRef` (`Map<barcode→itemId>`) built once per audit open (`buildBarcodeMap` in `openAudit`/`startAudit`) — scanning is now a pure `Map.get()`, no server round-trip for recognition. Barcodes never change during an audit, so the map stays valid.
+  - **Instant local increment**: `handleScan` is now synchronous — on match it `+1`s the item inside a functional `setActiveAudit` (correct even for rapid same-barcode scans), recomputes the summary locally (`computeLocalSummary`, mirrors backend), captures `lastScannedRef` inside the updater, clears the barcode field, and refocuses `scanRef`. Only that item's row is patched (React reconciliation); the full audit is never re-fetched per scan.
+  - **Background batched sync**: scans accumulate in `pendingScanRef` and flush to a new `/api/audit/:id/batch-scan` endpoint — debounced 350ms, or immediately at 20 scans. `flushScans` drains in a self-rescheduling loop (no stranded events), requeues on failure, and the UI never awaits a DB write. `pendingCount` shows an amber "Syncing N scan(s)…" indicator.
+  - **Invalid barcode**: `beep(false)` (WebAudio buzz) + toast "Barcode not found." + immediate clear + refocus — scanning continues uninterrupted. Matched scans get a subtle `beep(true)` tick.
+  - **Focus recovery**: window `keydown` Enter handler refocuses the barcode field when focus is lost to a non-interactive element — no mouse/keyboard needed between scans.
+  - **Submit integrity**: `submitAudit` calls `forceFlush()` (retry loop) to drain the queue, then posts authoritative absolute `finalCounts` so the exact scanned state lands in the DB even if a background batch was dropped. `goBack` flushes + guards the in-flight-flush edge.
+- **Backend** (`backend/src/controllers/audit.controller.js`):
+  - **`batchScan`** (`POST /api/audit/:id/batch-scan`, STORE/STORE_EMPLOYEE): accepts `{ scans: [{ itemId }] }` (≤200), maps itemIds/barcodes, increments each variant once in a single `$transaction`, recomputes + persists the summary once per batch (via tx-aware `persistSummary`), returns a small payload (`processed`, `notFound`, `summary`, `synced`, last `item`) — never the full item list.
+  - **`submitAudit`**: accepts optional `{ finalCounts }` — sets absolute physical quantities inside a transaction before computing the final summary, guaranteeing exact end-state.
+  - Route added in `audit.routes.js`; `persistSummary` refactored to accept a transaction client (existing `/scan` and `/items/:itemId` callers unchanged).
+- **Verification**: `node -e require` OK on controller/routes; `npm run build` 0 errors (new `WarehouseAudit-DQ3JUZk7.js` chunk).
+
 ### Implemented This Session — Delivery vs Self Collection Option in Outlet Order Entry (highlighted on Job Sheet)
 - **Requirement**: Outlet Order Entry wizard gets a **Delivery / Self Collection** picker, and the chosen method must be **highlighted** on the Job Sheet.
 - **Frontend** (`frontend/src/pages/OutletOrderEntry.jsx`):

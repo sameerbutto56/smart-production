@@ -5,6 +5,7 @@ const {
   listAudits,
   getAudit,
   scanBarcode,
+  batchScan,
   setPhysicalQty,
   submitAudit,
   approveAudit,
@@ -26,6 +27,7 @@ router.get('/', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN
 // Scanning / progress (warehouse only, audit must be IN_PROGRESS)
 router.get('/:id', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN']), getAudit);
 router.post('/:id/scan', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), scanBarcode);
+router.post('/:id/batch-scan', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), batchScan);
 router.post('/:id/items/:itemId', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), setPhysicalQty);
 
 // Submit (warehouse only)
