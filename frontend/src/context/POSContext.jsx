@@ -22,6 +22,7 @@ const STATE_KEYS = [
   'lookedUpOrder', 'faisalTake', 'tab', 'barcodeInput',
   'returnTab', 'returnBarcodeInput', 'returnCart', 'returnReason', 'refundPaymentMethod',
   'returnLoading', 'returnProductSearch', 'receiptSearch',
+  'historySearchResults', 'historySearchLoading',
   'invoiceReturnInput', 'invoiceReturnLoading', 'lookedUpReturnSale', 'refundLoading',
   'employeeName', 'employeePassword', 'employeeLoggedIn',
   'currentBook', 'bookLoading', 'openBookLoading', 'showCloseBook', 'closeBookSummary',
@@ -103,6 +104,8 @@ function createInitialState(user) {
     returnLoading: false,
     returnProductSearch: '',
     receiptSearch: '',
+    historySearchResults: null,
+    historySearchLoading: false,
     invoiceReturnInput: '',
     invoiceReturnLoading: false,
     lookedUpReturnSale: null,
@@ -181,6 +184,7 @@ export function POSProvider({ children }) {
     returnTab, returnBarcodeInput, returnCart, returnReason,
     refundPaymentMethod, returnLoading,
     returnProductSearch, receiptSearch,
+    historySearchResults, historySearchLoading,
     invoiceReturnInput, invoiceReturnLoading, lookedUpReturnSale, refundLoading,
     employeeName, employeePassword, employeeLoggedIn,
     currentBook, bookLoading, openBookLoading, showCloseBook, closeBookSummary,
@@ -209,7 +213,7 @@ export function POSProvider({ children }) {
     setLookedUpOrder, setFaisalTake, setTab, setBarcodeInput,
     setReturnTab, setReturnBarcodeInput, setReturnCart, setReturnReason,
     setRefundPaymentMethod, setReturnLoading, setReturnProductSearch,
-    setReceiptSearch, setInvoiceReturnInput, setInvoiceReturnLoading,
+    setReceiptSearch, setHistorySearchResults, setHistorySearchLoading, setInvoiceReturnInput, setInvoiceReturnLoading,
     setLookedUpReturnSale, setRefundLoading,
     setEmployeeName, setEmployeePassword, setEmployeeLoggedIn,
     setCurrentBook, setBookLoading, setOpenBookLoading, setShowCloseBook,
@@ -258,6 +262,38 @@ export function POSProvider({ children }) {
     fetcher: () => api.get(`/api/pos/returns?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
+
+  // History multi-search: invoice/receipt number, customer name, or customer phone.
+  // Debounced server query over the ENTIRE POS database (ignores the selected date range).
+  const historySearchRef = useRef(0);
+  const historySearchDebounceRef = useRef(null);
+  useEffect(() => {
+    const q = (receiptSearch || '').trim();
+    if (historySearchDebounceRef.current) clearTimeout(historySearchDebounceRef.current);
+    if (!q) {
+      historySearchRef.current++;
+      setHistorySearchResults(null);
+      setHistorySearchLoading(false);
+      return;
+    }
+    setHistorySearchLoading(true);
+    const reqId = ++historySearchRef.current;
+    historySearchDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get('/api/pos/sales', { params: { outlet: selectedOutlet, search: q } });
+        if (historySearchRef.current === reqId) {
+          setHistorySearchResults(res.data);
+          setHistorySearchLoading(false);
+        }
+      } catch (err) {
+        if (historySearchRef.current === reqId) {
+          setHistorySearchResults(null);
+          setHistorySearchLoading(false);
+        }
+      }
+    }, 350);
+    return () => { if (historySearchDebounceRef.current) clearTimeout(historySearchDebounceRef.current); };
+  }, [receiptSearch, selectedOutlet, setHistorySearchResults, setHistorySearchLoading]);
 
   const barcodeRef = useRef(null);
 
@@ -526,9 +562,21 @@ export function POSProvider({ children }) {
   }, [grandTotal, paymentMethod]);
 
   const filteredSales = useMemo(() => {
-    const bySearch = receiptSearch ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase())) : sales;
-    return bySearch;
-  }, [sales, receiptSearch]);
+    const q = (receiptSearch || '').trim();
+    if (!q) return sales;
+    // Instant pass over the currently loaded list (date window).
+    const ql = q.toLowerCase();
+    const local = sales.filter(s =>
+      (s.receiptNumber || '').toLowerCase().includes(ql)
+      || (s._invoiceNumber || '').toLowerCase().includes(ql)
+      || (s.orderNumber || '').toLowerCase().includes(ql)
+      || (s.customerName || '').toLowerCase().includes(ql)
+      || (s.customerPhone || '').toLowerCase().includes(ql)
+    );
+    // Once the whole-DB server search lands, use it as authoritative.
+    if (historySearchResults !== null) return historySearchResults;
+    return local;
+  }, [sales, receiptSearch, historySearchResults]);
 
   const filteredProducts = useMemo(() => {
     let f = products;
@@ -729,7 +777,7 @@ export function POSProvider({ children }) {
 
   const downloadExcel = useCallback(async () => {
     try {
-      const src = receiptSearch ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase())) : sales;
+      const src = filteredSales;
       const fmtPayment = (s) => s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '';
 
       let journalEntries = [];
@@ -862,7 +910,7 @@ export function POSProvider({ children }) {
       console.error('Excel download failed:', err);
       toast.error('Excel download failed');
     }
-  }, [sales, receiptSearch, selectedOutlet, salesRange, salesDateFrom, salesDateTo]);
+  }, [sales, receiptSearch, historySearchResults, filteredSales, selectedOutlet, salesRange, salesDateFrom, salesDateTo]);
 
   const downloadDashboardExcel = useCallback(() => {
     if (!dashboard) return toast.error('No dashboard data to export');
@@ -999,6 +1047,7 @@ export function POSProvider({ children }) {
     refundPaymentMethod, setRefundPaymentMethod, returnLoading, setReturnLoading,
     returnProductSearch, setReturnProductSearch,
     receiptSearch, setReceiptSearch,
+    historySearchResults, setHistorySearchResults, historySearchLoading, setHistorySearchLoading,
     invoiceReturnInput, setInvoiceReturnInput, invoiceReturnLoading, setInvoiceReturnLoading,
     lookedUpReturnSale, setLookedUpReturnSale, refundLoading, setRefundLoading,
     employeeName, setEmployeeName, employeePassword, setEmployeePassword,

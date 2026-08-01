@@ -11,7 +11,7 @@ const POSHistory = () => {
   const { isUrdu } = useLanguage();
   const {
     salesRange, setSalesRange, salesDateFrom, setSalesDateFrom, salesDateTo, setSalesDateTo,
-    receiptSearch, setReceiptSearch, sales, filteredSales,
+    receiptSearch, setReceiptSearch, sales, filteredSales, historySearchLoading,
     handleRefundInvoiceFromHistory, downloadExcel,
     setPendingPrintSale, setPrintOpts, setShowPrintOptions, setTab, selectedOutlet,
   } = usePOS();
@@ -69,8 +69,11 @@ const POSHistory = () => {
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search by bill / receipt number..."
+          <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search invoice #, customer name, or phone..."
             className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+          {receiptSearch && historySearchLoading && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-purple-400 animate-pulse">Searching…</span>
+          )}
         </div>
         <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1"><Download size={14} />Excel</button>
         <button onClick={() => setShowGE(!showGE)} className={`font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1 border ${showGE ? 'bg-orange-700 text-white border-orange-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
@@ -109,7 +112,7 @@ const POSHistory = () => {
       )}
 
       <div className="space-y-2">
-        {filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No sales match your search' : 'No sales yet'}</p>}
+        {filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No invoices match your search' : 'No sales yet'}</p>}
         {filteredSales.map(s => (
           <div key={s.id} className="bg-gray-800/60 rounded-2xl border border-gray-700/50 p-4">
             <div className="flex items-start justify-between mb-2">
@@ -155,7 +158,7 @@ const POSHistory = () => {
               ))}
             </div>
             <div className="flex items-center justify-between text-xs text-gray-500 font-bold">
-              <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| ${s.customerName}` : ''}</span>
+              <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| ${s.customerName}` : ''} {s.customerPhone ? `(${s.customerPhone})` : ''}</span>
               <div className="flex items-center gap-1">
                 {!s.refundedAt && !s.faisalTake && (
                   <button onClick={() => handleRefundInvoiceFromHistory(s)}

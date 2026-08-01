@@ -602,7 +602,9 @@ const getSales = async (req, res) => {
     const outlet = getOutletName(req);
     const { range, search, dateFrom, dateTo, statusFilter, cashier, paymentMethod } = req.query;
     const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}${search ? `:${search}` : ''}${statusFilter ? `:${statusFilter}` : ''}${cashier ? `:${cashier}` : ''}`;
+    const cacheKey = search
+      ? `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:search:${search}${statusFilter ? `:${statusFilter}` : ''}${cashier ? `:${cashier}` : ''}`
+      : `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}${statusFilter ? `:${statusFilter}` : ''}${cashier ? `:${cashier}` : ''}`;
 
     if (!skip) {
       const cached = cache.get(cacheKey);
@@ -611,19 +613,37 @@ const getSales = async (req, res) => {
 
     const now = new Date();
     let dateFilter = {};
-    if (dateFrom || dateTo) {
-      dateFilter.createdAt = {};
-      if (dateFrom) { const s = new Date(dateFrom); s.setHours(0, 0, 0, 0); dateFilter.createdAt.gte = s; }
-      if (dateTo) { const e = new Date(dateTo); e.setHours(23, 59, 59, 999); dateFilter.createdAt.lte = e; }
-    } else if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
-    else if (range === 'yesterday') { const s = new Date(now); s.setDate(s.getDate() - 1); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setHours(23, 59, 59, 999); dateFilter = { createdAt: { gte: s, lte: e } }; }
-    else if (range === 'week') { const s = new Date(now); s.setDate(s.getDate() - 7); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
-    else if (range === 'month') { const s = new Date(now); s.setMonth(s.getMonth() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
-    else if (range === 'year') { const s = new Date(now); s.setFullYear(s.getFullYear() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
+    // Search mode queries the ENTIRE POS invoice database — date/range filters are ignored.
+    if (!search) {
+      if (dateFrom || dateTo) {
+        dateFilter.createdAt = {};
+        if (dateFrom) { const s = new Date(dateFrom); s.setHours(0, 0, 0, 0); dateFilter.createdAt.gte = s; }
+        if (dateTo) { const e = new Date(dateTo); e.setHours(23, 59, 59, 999); dateFilter.createdAt.lte = e; }
+      } else if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
+      else if (range === 'yesterday') { const s = new Date(now); s.setDate(s.getDate() - 1); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setHours(23, 59, 59, 999); dateFilter = { createdAt: { gte: s, lte: e } }; }
+      else if (range === 'week') { const s = new Date(now); s.setDate(s.getDate() - 7); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
+      else if (range === 'month') { const s = new Date(now); s.setMonth(s.getMonth() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
+      else if (range === 'year') { const s = new Date(now); s.setFullYear(s.getFullYear() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
+    }
 
     const where = { ...dateFilter };
     if (outlet) where.outletName = outlet;
-    if (search) where.receiptNumber = { contains: search, mode: 'insensitive' };
+    if (search) {
+      const q = search;
+      // Match order-linked sales by Order invoiceNumber / orderNumber (INV-…, JT-…).
+      const orderMatches = await prisma.order.findMany({
+        where: { OR: [{ invoiceNumber: { contains: q, mode: 'insensitive' } }, { orderNumber: { contains: q, mode: 'insensitive' } }] },
+        select: { id: true }
+      });
+      const orderIds = orderMatches.map(o => o.id);
+      where.OR = [
+        { receiptNumber: { contains: q, mode: 'insensitive' } },
+        { customerName: { contains: q, mode: 'insensitive' } },
+        { customerPhone: { contains: q } },
+        { orderNumber: { contains: q, mode: 'insensitive' } },
+        ...(orderIds.length ? [{ orderId: { in: orderIds } }] : []),
+      ];
+    }
     if (cashier) where.cashierName = cashier;
     if (paymentMethod && paymentMethod !== 'all') where.paymentMethod = paymentMethod;
 
@@ -668,6 +688,20 @@ const getSales = async (req, res) => {
       sales = sales.filter(s => s._balanceStatus === 'paid');
     } else if (statusFilter === 'balance') {
       sales = sales.filter(s => s._balanceStatus === 'balance');
+    }
+
+    // Search priority: exact invoice/receipt/order/phone number match → prefix match → name match.
+    if (search) {
+      const q = search.toLowerCase();
+      sales = sales.map(s => {
+        const numbers = [s.receiptNumber, s.orderNumber, s._invoiceNumber, s.customerPhone].filter(Boolean).map(x => x.toLowerCase());
+        const names = [s.customerName].filter(Boolean).map(x => x.toLowerCase());
+        let score = 3;
+        if (numbers.some(x => x === q)) score = 0;
+        else if (numbers.some(x => x.startsWith(q))) score = 1;
+        else if (names.some(x => x.includes(q))) score = 2;
+        return { ...s, _searchScore: score };
+      }).sort((a, b) => (a._searchScore - b._searchScore) || (new Date(b.createdAt) - new Date(a.createdAt)));
     }
 
     res.json(sales);

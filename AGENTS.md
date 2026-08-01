@@ -146,6 +146,21 @@
 ### Blocked
 - (none)
 
+### Implemented This Session — POS History Multi-Search (Invoice # / Customer Name / Phone, Whole DB)
+- **Requirement**: The POS → History search bar must find any invoice in the entire POS database by invoice number, customer name (partial), or customer phone number (partial), instantly and regardless of age (today → 365+ days old). Existing receipt/invoice-number search must keep working.
+- **Backend** (`pos.controller.js` `getSales`):
+  - When a `search` query param is present, the date/range filter is **skipped entirely** — the query searches the whole `PosSale` table (not just the selected date window).
+  - `where.OR` matches: `receiptNumber` (insensitive), `customerName` (insensitive), `customerPhone` (contains), `orderNumber` (insensitive), plus `orderId IN (...)` for order-linked sales whose `Order.invoiceNumber`/`Order.orderNumber` match (INV-…, JT-…).
+  - **Search priority ordering**: exact invoice/receipt/order/phone number match (score 0) → prefix match of a number (score 1) → customer-name match (score 2), then by `createdAt` desc within each score.
+  - Cache key normalized for search mode (drops redundant date/range segments).
+- **Frontend** (`POSContext.jsx`):
+  - New state `historySearchResults`/`historySearchLoading` (reducer keys + exports).
+  - Debounced (350ms) server search effect: on `receiptSearch` change → `GET /api/pos/sales?outlet=X&search=Q` (no range), race-guarded with `historySearchRef` so only the latest query updates results; clears results when input is empty.
+  - `filteredSales` reworked: empty search → range-filtered `sales`; non-empty search → instant client-side multi-field filter over the loaded list (receipt/invoice/order number + name + phone) while the whole-DB server results are pending, then swaps to authoritative server results once they land.
+  - `downloadExcel` now exports the search-filtered list (`filteredSales`) so a search + Excel export is consistent.
+- **Frontend** (`POSHistory.jsx`): placeholder updated to "Search invoice #, customer name, or phone..."; pulsing "Searching…" indicator while the debounced query is in flight; empty state "No invoices match your search"; customer phone now shown next to the name on each card.
+- **Verification**: `node -e require` OK on `pos.controller.js`; `npm run build` exit 0.
+
 ### Implemented This Session — Inventory Audit High-Speed Barcode Scanning (POS-level performance)
 - **Requirement**: The Audit scanner must feel as fast as the POS barcode scanner — instant per-scan feedback, continuous scan-→+1-→scan flow with no waiting, no full-page/table reloads, keyboard-free operation, and practical for thousands of products.
 - **Frontend** (`frontend/src/components/WarehouseAudit.jsx`):
