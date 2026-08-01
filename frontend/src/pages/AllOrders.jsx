@@ -37,6 +37,87 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 const POS_MAP = { 'LeftChest': 'Left Chest', 'RightChest': 'Right Chest', 'Sleeve': 'Sleeve Cuff', 'Back': 'Upper Back', 'Cuff': 'Cuff' };
 const fmtPos = (v) => POS_MAP[v] || v;
 
+// --- Admin Order Priority & Delay Tracking helpers ---
+const STAGE_DEPARTMENTS = {
+  STORE: 'Store',
+  STORE_RECEIVE: 'Store',
+  WORKERS: 'Production',
+  PRODUCTION_ACCEPTANCE: 'Production',
+  PRODUCTION: 'Production',
+  LOGO_DESIGN: 'Logo',
+  DISPATCH: 'Dispatch',
+  IN_DISPATCH: 'Dispatch',
+  OUTLET_RECEIVE: 'Dispatch',
+  ENAMELS_DELIVERY: 'Dispatch',
+  OUT_FOR_DELIVERY: 'Dispatch',
+  ORDER_ENTRY: 'Inventory Verification',
+  DELIVERED: 'Delivered',
+};
+
+const DELAY_REASONS = {
+  'Store': 'Delayed in Store',
+  'Production': 'Delayed in Production',
+  'Logo': 'Delayed in Logo Department',
+  'Dispatch': 'Delayed in Dispatch',
+  'Inventory Verification': 'Delayed in Inventory Verification',
+};
+
+// Fallback expected phase duration (hours) when a stage has no deadlineAt (legacy rows)
+const FALLBACK_STAGE_HOURS = {
+  STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48,
+  STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, ENAMELS_DELIVERY: 24, DISPATCH: 12,
+  OUT_FOR_DELIVERY: 12, ORDER_ENTRY: 24, IN_DISPATCH: 24,
+};
+
+// <24h → "X Hours"; ≥24h → "X Day(s)" (never "48 Hours")
+const fmtDuration = (ms) => {
+  const h = Math.floor((ms || 0) / 3600000);
+  if (h < 24) return `${Math.max(h, 1)} Hour${Math.max(h, 1) === 1 ? '' : 's'}`;
+  const d = Math.floor(h / 24);
+  return `${d} Day${d === 1 ? '' : 's'}`;
+};
+
+// Auto delay detection from the order's active stage deadline (same machinery as the
+// backend escalation scan: stage.deadlineAt < now → delayed). Returns null when on time.
+const getDelayInfo = (order) => {
+  if (!order || !Array.isArray(order.stages) || order.stages.length === 0) return null;
+  const active = order.stages.find(
+    (s) => s.stageName === order.currentStage && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+  );
+  if (!active) return null;
+  const now = Date.now();
+  const phaseStart = active.startedAt || active.createdAt || order.createdAt ? new Date(active.startedAt || active.createdAt || order.createdAt).getTime() : now;
+  let expectedDeadline = active.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
+  if (!expectedDeadline) {
+    expectedDeadline = phaseStart + ((FALLBACK_STAGE_HOURS[active.stageName] || 24) * 3600000);
+  }
+  if (expectedDeadline >= now) return null;
+  const department = STAGE_DEPARTMENTS[active.stageName] || 'Store';
+  const totalStart = order.createdAt ? new Date(order.createdAt).getTime() : phaseStart;
+  return {
+    orderId: order.id,
+    stage: active.stageName,
+    department,
+    reason: DELAY_REASONS[department] || `Delayed in ${department}`,
+    phaseElapsed: Math.max(0, now - phaseStart),
+    totalElapsed: Math.max(0, now - totalStart),
+    delayDuration: Math.max(0, now - expectedDeadline),
+  };
+};
+
+const getDateRange = (key) => {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = startOfToday.getTime() + 86400000;
+  switch (key) {
+    case 'today': return { start: startOfToday.getTime(), end: endOfToday.getTime() };
+    case 'yesterday': return { start: startOfToday.getTime() - 86400000, end: startOfToday.getTime() };
+    case 'last7': return { start: startOfToday.getTime() - 6 * 86400000, end: endOfToday.getTime() };
+    case 'thisMonth': return { start: new Date(now.getFullYear(), now.getMonth(), 1).getTime(), end: endOfToday.getTime() };
+    default: return null;
+  }
+};
+
 const AllOrders = () => {
   const { user } = useAuth();
   const { data: orders = [], loading, refresh } = useCache('orders:all', {
@@ -163,6 +244,9 @@ const AllOrders = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [isGroupedView, setIsGroupedView] = useState(false);
   const [sortOrder, setSortOrder] = useState('desc');
+  const [filterCategory, setFilterCategory] = useState('all'); // all|standard|custom|urgent|super_urgent|delayed
+  const [dateFilter, setDateFilter] = useState('all'); // all|today|yesterday|last7|thisMonth
+  const [filterDepartment, setFilterDepartment] = useState(null); // Store|Production|Logo|Dispatch|Inventory Verification
   
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
@@ -255,18 +339,21 @@ const AllOrders = () => {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Order Number', 'Customer', 'Product', 'Color', 'Type', 'Status', 'Stage', 'Created At'];
+    const headers = ['Order Number', 'Customer', 'Product', 'Color', 'Type', 'Priority', 'Status', 'Stage', 'Delay', 'Created At'];
     const csvRows = filteredOrders.map(order => {
       let rawPd = order.productDetails || {};
       const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
+      const delay = delayMap[order.id];
       return [
         `"${order.orderNumber || order.id}"`,
         `"${order.customerName || 'Unknown'}"`,
         `"${product?.productType || product?.name || 'N/A'}"`,
         `"${product?.color || 'N/A'}"`,
         `"${order.type}"`,
+        `"${order.priority || 'NORMAL'}"`,
         `"${order.status}"`,
         `"${order.currentStage}"`,
+        `"${delay ? delay.reason : ''}"`,
         `"${formatDateOnly(order.createdAt)}"`
       ].join(',');
     });
@@ -283,6 +370,40 @@ const AllOrders = () => {
     document.body.removeChild(a);
   };
 
+  const delayMap = useMemo(() => {
+    const map = {};
+    (orders || []).forEach(o => {
+      const d = getDelayInfo(o);
+      if (d) map[o.id] = d;
+    });
+    return map;
+  }, [orders]);
+
+  const departmentDelays = useMemo(() => {
+    const counts = {};
+    Object.values(delayMap).forEach(d => {
+      counts[d.department] = (counts[d.department] || 0) + 1;
+    });
+    return counts;
+  }, [delayMap]);
+
+  const dateRange = useMemo(() => getDateRange(dateFilter), [dateFilter]);
+
+  const summaryCounts = useMemo(() => {
+    const counts = { total: 0, standard: 0, custom: 0, urgent: 0, superUrgent: 0, delayed: 0 };
+    (orders || []).forEach(o => {
+      const created = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+      if (dateRange && (created < dateRange.start || created >= dateRange.end)) return;
+      counts.total++;
+      if (o.type === 'STANDARD') counts.standard++;
+      if (o.type === 'READY_LOGO' || o.type === 'FULL_CUSTOM') counts.custom++;
+      if (o.priority === 'URGENT') counts.urgent++;
+      if (o.priority === 'SUPER_URGENT') counts.superUrgent++;
+      if (delayMap[o.id]) counts.delayed++;
+    });
+    return counts;
+  }, [orders, dateRange, delayMap]);
+
   const filteredOrders = useMemo(() => (orders || []).filter(order => {
     if (!order) return false;
     const name = (order.customerName || '').toLowerCase();
@@ -297,6 +418,17 @@ const AllOrders = () => {
     const matchesUrgent = !filterUrgent || order.urgent;
     const matchesCity = !filterCity || cityField.includes(filterCity.toLowerCase());
     
+    const matchesCategory = filterCategory === 'all' ? true
+      : filterCategory === 'standard' ? order.type === 'STANDARD'
+      : filterCategory === 'custom' ? (order.type === 'READY_LOGO' || order.type === 'FULL_CUSTOM')
+      : filterCategory === 'urgent' ? order.priority === 'URGENT'
+      : filterCategory === 'super_urgent' ? order.priority === 'SUPER_URGENT'
+      : filterCategory === 'delayed' ? !!delayMap[order.id]
+      : true;
+    const matchesDepartment = !filterDepartment || delayMap[order.id]?.department === filterDepartment;
+    const orderCreated = order.createdAt ? new Date(order.createdAt).getTime() : 0;
+    const matchesDate = !dateRange || (orderCreated >= dateRange.start && orderCreated < dateRange.end);
+    
     // Strict Role Filtering
     const userRole = String(user?.role || '').toUpperCase().trim();
     const isOwner = order.createdById === user?.id;
@@ -307,12 +439,12 @@ const AllOrders = () => {
     const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
     const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
     
-    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive;
+    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesCategory && matchesDepartment && matchesDate;
   }).sort((a, b) => {
     const numA = parseInt(a.orderNumber) || 0;
     const numB = parseInt(b.orderNumber) || 0;
     return sortOrder === 'asc' ? numA - numB : numB - numA;
-  }), [orders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id]);
+  }), [orders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, dateRange, delayMap]);
 
   const groupedOrders = useMemo(() => {
     const groups = {};
@@ -393,6 +525,103 @@ const AllOrders = () => {
           <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">{orders.length}</span>
         </div>
       </div>
+
+      {/* Priority & Delay summary cards (respect date filter) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
+        {[
+          { key: 'total', label: 'Total', value: summaryCounts.total, cls: 'bg-blue-600/10 border-blue-500/20 text-blue-400' },
+          { key: 'standard', label: '🟢 Standard', value: summaryCounts.standard, cls: 'bg-emerald-600/10 border-emerald-500/20 text-emerald-400' },
+          { key: 'custom', label: '🧵 Custom', value: summaryCounts.custom, cls: 'bg-purple-600/10 border-purple-500/20 text-purple-400' },
+          { key: 'urgent', label: '🟡 Urgent', value: summaryCounts.urgent, cls: 'bg-yellow-600/10 border-yellow-500/20 text-yellow-400' },
+          { key: 'super_urgent', label: '🟠 Super Urgent', value: summaryCounts.superUrgent, cls: 'bg-orange-600/10 border-orange-500/20 text-orange-400' },
+          { key: 'delayed', label: '🔴 Delayed', value: summaryCounts.delayed, cls: 'bg-red-600/10 border-red-500/20 text-red-400' },
+        ].map((c) => (
+          <button
+            key={c.key}
+            onClick={() => setFilterCategory(filterCategory === c.key ? 'all' : c.key)}
+            className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-left transition-all ${c.cls} ${filterCategory === c.key ? 'ring-2 ring-offset-1 ring-blue-500' : 'hover:brightness-125'}`}
+            title={`${c.label} orders in selected date range`}
+          >
+            <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{c.label}</span>
+            <span className="text-sm md:text-base font-black">{c.value}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Category filter chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'standard', label: '🟢 Standard' },
+          { key: 'custom', label: '🧵 Custom' },
+          { key: 'urgent', label: '🟡 Urgent' },
+          { key: 'super_urgent', label: '🟠 Super Urgent' },
+          { key: 'delayed', label: `🔴 Delayed${summaryCounts.delayed > 0 ? ` (${summaryCounts.delayed})` : ''}` },
+        ].map((chip) => {
+          const active = filterCategory === chip.key;
+          return (
+            <button
+              key={chip.key}
+              onClick={() => {
+                setFilterCategory(active ? 'all' : chip.key);
+                if (chip.key !== 'delayed') setFilterDepartment(null);
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${active
+                ? chip.key === 'delayed'
+                  ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 animate-delayed-badge'
+                  : 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/40'
+                : 'theme-bg-subtle theme-border theme-text-secondary hover:bg-gray-800 hover:text-white'}`}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
+
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="theme-input rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500"
+          title="Summary cards respect this date filter"
+        >
+          <option value="all">📅 All Time</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="last7">Last 7 Days</option>
+          <option value="thisMonth">This Month</option>
+        </select>
+      </div>
+
+      {/* Department-wise delayed summary (click to filter that department's delayed orders) */}
+      {Object.keys(departmentDelays).length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-black uppercase tracking-widest theme-text-muted">Delayed by Department:</span>
+          {Object.entries(departmentDelays).map(([dept, count]) => {
+            const active = filterDepartment === dept;
+            return (
+              <button
+                key={dept}
+                onClick={() => {
+                  setFilterDepartment(active ? null : dept);
+                  setFilterCategory('delayed');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-all ${active
+                  ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40'
+                  : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'}`}
+              >
+                {dept} ({count})
+              </button>
+            );
+          })}
+          {filterDepartment && (
+            <button
+              onClick={() => { setFilterDepartment(null); }}
+              className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-widest theme-text-muted hover:text-white"
+            >
+              ✕ Clear
+            </button>
+          )}
+        </div>
+      )}
 
       
         <div className="flex flex-col md:flex-row gap-4">
@@ -648,6 +877,7 @@ const AllOrders = () => {
                   const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
                   const isMultiItem = Array.isArray(rawPd) && rawPd.length > 1;
                   const isWaitingApproval = order.stages?.some(s => s.status === 'WAITING_APPROVAL' && s.stageName === order.currentStage);
+                  const delay = delayMap[order.id] || null;
                   
                   return (
                   <tr 
@@ -656,7 +886,7 @@ const AllOrders = () => {
                       setSelectedOrder(order);
                       setShowModal(true);
                     }}
-                    className="hover:bg-white/5 transition-colors group cursor-pointer"
+                    className={`hover:bg-white/5 transition-colors group cursor-pointer ${delay ? 'animate-delayed-row' : ''}`}
                   >
                     <td className="px-6 py-4">
                       <div className="font-bold text-lg theme-text-primary group-hover:text-blue-400 transition-colors">
@@ -737,20 +967,43 @@ const AllOrders = () => {
                       <span className={`bg-gray-800 px-2 py-1 rounded-md text-xs md:text-sm font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
                         {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
                       </span>
+                      {delay && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          <span className="animate-delayed-badge inline-flex items-center gap-1 bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                            🔴 DELAYED
+                          </span>
+                          <span className="text-[10px] font-black text-red-400 uppercase tracking-wider">{delay.department}</span>
+                        </div>
+                      )}
+                      {delay && (
+                        <div className="text-[10px] font-bold text-red-400/90 mt-0.5">
+                          ⏳ {fmtDuration(delay.delayDuration)} overdue
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
-                      {order.priority === 'SUPER_URGENT' ? (
+                      {delay ? (
                         <div className="flex items-center space-x-2 text-red-400 text-xs md:text-sm font-black uppercase tracking-widest">
-                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                          <span>🔴</span>
+                          <span className="animate-delayed-badge">DELAYED</span>
+                        </div>
+                      ) : order.priority === 'SUPER_URGENT' ? (
+                        <div className="flex items-center space-x-2 text-orange-400 text-xs md:text-sm font-black uppercase tracking-widest">
+                          <span>🟠</span>
+                          <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                           <span>SUPER URGENT</span>
                         </div>
                       ) : order.priority === 'URGENT' ? (
-                        <div className="flex items-center space-x-2 text-amber-400 text-xs md:text-sm font-black uppercase tracking-widest">
-                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                        <div className="flex items-center space-x-2 text-yellow-400 text-xs md:text-sm font-black uppercase tracking-widest">
+                          <span>🟡</span>
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
                           <span>URGENT</span>
                         </div>
                       ) : (
-                        <span className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest">Normal</span>
+                        <div className="flex items-center space-x-2 text-emerald-400 text-xs md:text-sm font-black uppercase tracking-widest">
+                          <span>🟢</span>
+                          <span>Standard</span>
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -895,7 +1148,37 @@ const AllOrders = () => {
 
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-10 custom-scrollbar theme-text-primary">
-                
+
+                {delayMap[selectedOrder.id] && (() => {
+                  const d = delayMap[selectedOrder.id];
+                  return (
+                    <div className="animate-delayed-row rounded-2xl border border-red-500/40 p-4 md:p-5 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="animate-delayed-badge bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-full">🔴 DELAYED</span>
+                        <span className="text-sm md:text-base font-black text-red-400 uppercase tracking-wider">{d.reason}</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                          <p className="text-red-400/70 font-black uppercase tracking-widest text-[9px]">Department</p>
+                          <p className="font-black text-red-300">{d.department}</p>
+                        </div>
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                          <p className="text-red-400/70 font-black uppercase tracking-widest text-[9px]">Overdue By</p>
+                          <p className="font-black text-red-300">{fmtDuration(d.delayDuration)}</p>
+                        </div>
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                          <p className="text-red-400/70 font-black uppercase tracking-widest text-[9px]">In Phase</p>
+                          <p className="font-black text-red-300">{fmtDuration(d.phaseElapsed)}</p>
+                        </div>
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                          <p className="text-red-400/70 font-black uppercase tracking-widest text-[9px]">Total Time</p>
+                          <p className="font-black text-red-300">{fmtDuration(d.totalElapsed)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <section>
                   <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
                   {isMultiItem ? (
@@ -1327,22 +1610,26 @@ const AllOrders = () => {
                 </section>
                 )}
 
-                {selectedOrder.type === 'FULL_CUSTOM' && (
+                {selectedOrder.type === 'FULL_CUSTOM' || delayMap[selectedOrder.id] ? (
                 <section>
                     <div className="flex justify-between items-center mb-6">
-                       <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
+                       <h4 className={`text-xs md:text-sm font-black uppercase tracking-[0.3em] ${delayMap[selectedOrder.id] ? 'text-red-500' : 'text-blue-500'}`}>
+                         {delayMap[selectedOrder.id] ? '🔴 05. Production Timeline (Delayed Phase Highlighted)' : '05. Production Timeline'}
+                       </h4>
                        <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
                          {selectedOrder.stages?.length || 0} Stages
                        </span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        {(() => {
+                         const orderDelay = delayMap[selectedOrder.id] || null;
                          const stages = [...(selectedOrder.stages || [])]
                            .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
                            .map((stageData, i) => {
                            const isCompleted = stageData.status === 'COMPLETED';
                            const isCurrent = selectedOrder.currentStage === stageData.stageName;
                            const isOrderEntry = stageData.stageName === 'ORDER_ENTRY';
+                           const isDelayed = orderDelay && orderDelay.stage === stageData.stageName && isCurrent;
                            
                            const displayTime = isCompleted ? (
                              formatDateTime(stageData.completedAt)
@@ -1354,23 +1641,28 @@ const AllOrders = () => {
                            
                            return (
                              <div key={stageData.id || i} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
+                               isDelayed ? 'bg-red-600/10 border-red-500 animate-delayed-row' :
                                isCompleted ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : 
                                isCurrent ? 'bg-blue-600/10 border-blue-500 animate-pulse' : 
                                'theme-bg theme-border'
                              }`}>
                                <div className="flex items-center gap-3">
                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs md:text-sm font-black ${
+                                   isDelayed ? 'bg-red-500 text-white animate-delayed-badge' :
                                    isCompleted ? 'bg-emerald-500 text-white' : 
                                    isCurrent ? 'bg-blue-500 text-white' : 
                                    'bg-gray-800 theme-text-muted'
                                  }`}>
                                    {i + 1}
                                  </div>
-                                 <span className={`text-xs md:text-sm font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
+                                 <span className={`text-xs md:text-sm font-black uppercase tracking-widest ${isDelayed ? 'text-red-400' : isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
                                    {stageData.stageName.replace(/_/g, ' ')}
                                  </span>
+                                 {isDelayed && (
+                                   <span className="animate-delayed-badge bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">DELAYED</span>
+                                 )}
                                </div>
-                               <span className={`text-xs md:text-sm font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'theme-text-secondary' : 'theme-text-muted'}`}>
+                               <span className={`text-xs md:text-sm font-bold font-mono whitespace-nowrap ${isDelayed ? 'text-red-400' : isCompleted ? 'text-emerald-600' : isOrderEntry ? 'theme-text-secondary' : 'theme-text-muted'}`}>
                                  {displayTime}
                                </span>
                              </div>
@@ -1382,7 +1674,7 @@ const AllOrders = () => {
                     
 
                  </section>
-                )}
+                ) : null}
 
                </div>
 
