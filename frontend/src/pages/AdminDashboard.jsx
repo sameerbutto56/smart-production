@@ -43,7 +43,8 @@ import {
   Store,
   Globe,
   Building,
-  MessageSquare
+  MessageSquare,
+  ClipboardCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -564,10 +565,11 @@ const AdminDashboard = () => {
               { id: 'online_store', label: 'Online Store', desc: 'Online orders, revenue analytics, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20' },
               { id: 'customer_feedback', label: 'Customer Feedback', desc: 'QR feedback system, customer ratings, satisfaction analytics & feedback management', icon: MessageSquare, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', glow: 'hover:shadow-yellow-500/20' },
               { id: 'order_performance', label: 'Order Performance', desc: 'Department-wise operational counts — Faisal, Store, Logo, Production, Dispatch & Delivery', icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', glow: 'hover:shadow-blue-500/20' },
+              { id: 'audit', label: 'Inventory Audit', desc: 'Approve/reject stock audits — auto-applies physical inventory adjustments & adjustment logs', icon: ClipboardCheck, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', path: '/audit-review' },
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
-                onClick={() => setActiveTab(card.id)}
+                onClick={() => card.path ? navigate(card.path) : setActiveTab(card.id)}
                 className={`glass p-6 md:p-8 rounded-3xl border-2 ${card.border} cursor-pointer transition-all hover:shadow-xl ${card.glow} group`}>
                 <div className="flex items-start gap-5">
                   <div className={`p-4 rounded-2xl ${card.bg} shrink-0 transition-transform group-hover:scale-110`}>

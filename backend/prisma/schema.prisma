@@ -1246,3 +1246,90 @@ model InDispatchRoute {
   @@index([status])
   @@index([createdAt])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Inventory Audit module
+// Only the Warehouse profile performs audits (warehouse or outlet
+// inventory). The audit snapshots inventory at start, barcode
+// scanning is compared against the snapshot, and inventory is
+// updated ONLY after Admin approval — never during the audit.
+// ─────────────────────────────────────────────────────────────
+
+model InventoryAudit {
+  id               String   @id @default(uuid())
+  auditNumber      String   @unique
+  type             String   // WAREHOUSE / OUTLET
+  outletName       String?  // set when type === OUTLET
+  status           String   @default("IN_PROGRESS") // IN_PROGRESS / SUBMITTED / APPROVED / REJECTED
+  totalVariants    Int      @default(0)
+  totalStock       Int      @default(0)
+  scannedCount     Int      @default(0)
+  matchedCount     Int      @default(0)
+  missingCount     Int      @default(0)
+  extraCount       Int      @default(0)
+  differenceValue  Float    @default(0)
+  summary          Json?    // snapshot of progress/status at submit time
+  notes            String?
+  createdBy        String   // employee name
+  createdById      String?
+  submittedAt      DateTime?
+  approvedBy       String?
+  approvedAt       DateTime?
+  rejectedBy       String?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  items            InventoryAuditItem[]
+  adjustments      InventoryAdjustmentLog[]
+
+  @@index([type])
+  @@index([status])
+  @@index([outletName])
+  @@index([createdAt])
+}
+
+model InventoryAuditItem {
+  id          String   @id @default(uuid())
+  auditId     String
+  kind        String   // WAREHOUSE_VARIANT / OUTLET_VARIANT
+  productId   String   // InventoryItem.id or OutletInventory.id
+  productName String
+  color       String?
+  size        String?
+  barcode     String?
+  systemQty   Int      @default(0)
+  physicalQty Int      @default(0)
+  scanned     Boolean  @default(false)
+  difference  Int      @default(0)
+  price       Float    @default(0)
+  status      String   @default("PENDING") // MATCH / MISSING / EXTRA
+  updatedAt   DateTime @updatedAt
+  audit       InventoryAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([barcode])
+}
+
+model InventoryAdjustmentLog {
+  id           String   @id @default(uuid())
+  auditId      String
+  auditNumber  String
+  type         String   // WAREHOUSE / OUTLET
+  location     String   // Warehouse or outlet name
+  productId    String
+  productName  String
+  color        String?
+  size         String?
+  barcode      String?
+  previousQty  Int
+  newQty       Int
+  difference   Int
+  approvedBy   String?
+  createdAt    DateTime @default(now())
+  audit        InventoryAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([productId])
+  @@index([createdAt])
+}

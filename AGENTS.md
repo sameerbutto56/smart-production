@@ -3,11 +3,17 @@
 2. Add **Variant Search** inside each product's variant list (per-product, filtering by color/size/barcode).
 3. Display **Warehouse stock** column alongside outlet stocks (JT/JR/AB/WH) in unified inventory view.
 4. Implement **POS Open Book / Close Book** workflow for daily cashier shift management and end-of-day reconciliation.
+5. Implement **Inventory Audit** module (Warehouse + Outlet): read-only snapshot on start, barcode scanning with live progress, Admin-only approve/reject, automatic inventory updates + adjustment logs on approval.
 
 ## Constraints & Preferences
 - QR code on receipt must encode per-outlet Google Maps review URL (not receipt data)
 - QR must print at the very bottom of the receipt (after all text)
 - Receipt must show column headings: ITEM, QTY×PRICE, TOTAL
+- Audit (in-progress or submitted) must never touch live inventory — sales, transfers, production, dispatch, and scanning continue unaffected
+- Inventory updates happen only on Admin approval of a submitted audit, automatically, without manual stock entry
+- Approval must also auto-create inventory adjustment log records (previous/new qty, difference, approved by)
+- Barcode integrity: never regenerate, modify, or replace barcodes/SKUs/variant IDs/product IDs during an audit — only quantities change
+- Warehouse variant barcodes are non-persisted computed `WRH...` strings — the audit resolves them with the same djb2/generateBarcode algorithm as Warehouse POS so scanned codes match
 - Order number auto-generated when order-number search finds no client; falls back to manual input only if generation fails
 - Inventory data must never be deleted or modified by any cleanup script
 - Cart panel must scroll fully so products + summary are both visible
@@ -152,6 +158,22 @@
 - **Nav** (`Layout.jsx`): `{ name: 'In Dispatch', path: '/in-dispatch', icon: RouteIcon, roles: ['OUTLET'] }`; the OUTLET whitelist filter returns `false` for `In Dispatch` unless the user name contains `johar` or `1` — visible to JOHAR TOWN outlet users only.
 - **Isolation**: The module talks exclusively to `/api/in-dispatch/*`. It never touches `/api/dispatch/*`, `DispatchLog`, `DispatchPage`, `DispatchDashboard`, or the dispatch-officer `DISPATCH` stage. Existing Dispatch workflow is byte-for-byte unchanged.
 - **Verification**: `npx prisma validate` OK; `prisma db push` synced DB; `node -e require` on controller/routes/app OK; `npm run build` 0 errors (only pre-existing POSPrint dynamic-import warning); new chunk `InDispatch-DZDfJsJu.js`.
+
+### Implemented This Session — Inventory Audit Module (Warehouse + Outlet)
+- **Requirement**: New **Inventory Audit** module. Only the **Warehouse profile** performs audits (STORE/STORE_EMPLOYEE — no Outlet users). Admin dashboard gets an **Inventory Audit** card linking to an Admin-only review page with pending/approved/rejected counts, totals, last audit, and highest-difference products. Full lifecycle: read-only snapshot on start → barcode scanning with live progress → submit → Admin approve/reject → automatic inventory updates + adjustment logs on approval.
+- **Schema** (`backend/prisma/schema.prisma`): `InventoryAudit` (AUD-#### numbering, WAREHOUSE/OUTLET scope, status IN_PROGRESS→SUBMITTED→APPROVED/REJECTED, summary JSON, auditor/approver/rejection fields), `InventoryAuditItem` (read-only snapshot rows: kind, productId, productName, color, size, barcode, systemQty, physicalQty, scanned, price, status), `InventoryAdjustmentLog` (auditId, productId, productName, color, size, previousQty, newQty, difference, approvedBy). Tables pushed via `prisma db push`.
+- **Backend** (`audit.controller.js` + `audit.routes.js` mounted at `/api/audit` in `app.js`):
+  - `GET /api/audit/stats` — dashboard cards (pending/approved/rejected/in-progress, totalAdjustments, lossValue, extraValue, lastAudit, highestDifferenceProducts top 5, last warehouse/outlet status).
+  - `POST /api/audit` — start audit; one IN_PROGRESS/SUBMITTED audit per scope at a time; warehouse snapshot iterates `InventoryItem.variants` JSON (one row per color/size with **computed `WRH` barcode** reusing the exact djb2/generateBarcode algorithm from `warehouse.controller.js`, fallback to a single row per item when no variants); outlet snapshot reads `OutletInventory` rows (their persisted barcodes). Interactive `$transaction` with `{ timeout: 30000 }` (Supabase pooler latency exceeded Prisma's 5s default).
+  - `POST /api/audit/:id/scan` — case-insensitive barcode (or `itemId`) → physicalQty +1, marks scanned, recomputes summary; `POST /api/audit/:id/items/:itemId` — manual physical qty override (clamped ≥0) for unscannable barcodes.
+  - `POST /api/audit/:id/submit` — read-only hand-off to Admin.
+  - `POST /api/audit/:id/approve` (SUPER_ADMIN/ADMIN only) — applies quantity changes to live inventory (outlet `stock`; warehouse top-level `InventoryItem.stock` or matching variant stock in `variants` JSON, recomputing top-level total from variants), writes `InventoryAdjustmentLog` rows, invalidates `warehouse:`/`products:` cache families, emits `audit-updated` + `inventory-updated` socket events. `POST /api/audit/:id/reject` — Admin only, optional reason.
+  - Role gating: start/scan/items/submit = STORE/STORE_EMPLOYEE; stats/list/get = STORE/STORE_EMPLOYEE/SUPER_ADMIN/ADMIN; approve/reject = SUPER_ADMIN/ADMIN only. OUTLET users blocked from all audit endpoints.
+- **Frontend** (`frontend/src/components/WarehouseAudit.jsx` wired as an **Audit tab** in `WarehouseDashboard.jsx`): history view (stats cards + audit table), Start New Audit wizard (Warehouse/Outlet + outlet picker + notes), live active-audit view (snapshot totals, progress bar, matched/missing/extra/diff-value chips, barcode scan form with last-scanned feedback, searchable variant-level comparison table with system/physical/diff + manual −/+/qty inputs), Submit confirmation, read-only detail view, A4 print report, approved-audit adjustments table. New `/audit` route (lazy) + nav item `Inventory Audit` for STORE/STORE_EMPLOYEE.
+- **Admin side** (`frontend/src/pages/AuditReview.jsx` at `/audit-review`): stats cards, status-filterable audit list, review modal (scanned items grid with system/physical/diff), Approve (auto-applies adjustments) / Reject (with optional reason). `AdminDashboard.jsx` module-card grid gained an `Inventory Audit` card (`path: '/audit-review'` → navigates instead of switching tabs). Nav item `Audit Review` for SUPER_ADMIN/ADMIN.
+- **No-live-impact guarantee**: audit items persist as their own snapshot rows; scanning/qty/submit never read or write live `InventoryItem`/`OutletInventory` stock. Inventory mutates only inside the approval `$transaction`. Barcodes/product IDs/variant IDs are never modified — only quantities.
+- **Verification**: `npx prisma generate` required (db push alone does NOT regenerate the client — `prisma.inventoryAudit` was undefined until regenerate). Live smoke test (start OUTLET Johar Town → scan barcode ×2 → detail → submit → outlet/store blocked 403 → admin reject) all passed; the test audit was REJECTED so no inventory changed. `npm run build` 0 errors; new chunks `WarehouseAudit-CEgXt2Xu.js` + `AuditReview-CYrwP5Zy.js`.
+- **Known behavior**: differenceValue on a fresh audit shows total loss value because physicalQty starts at 0 for all unscanned rows (every unscanned variant counts as missing) — it converges to the real figure as items are scanned; users are expected to scan every variant before submitting.
 
 ### Fixed This Session — Outlet Routing Buttons Not Showing After Acceptance
 - **Root cause**: `OrderCard.jsx` line 1864 had `['ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (dispatch UI) : (OUT_FOR_DELIVERY / ORDER_ENTRY+OUTLET / OUTLET_RECEIVE / fallback)`. The outlet routing buttons were in the **ELSE** branch of this ternary, meaning when `currentStage.stageName === 'ORDER_ENTRY'` the TRUE branch (dispatch UI) would render and the ELSE branch (containing the outlet routing buttons at line 2022) was never reached.
@@ -457,3 +479,11 @@
 - `frontend/src/pages/InDispatch.jsx`: Dedicated In Dispatch module page — stats, Delivery Routes CRUD, In Dispatch queue with Add-to-Route multi-select and Delivery Boy / To Jail Road / Customer Take actions; Access Restricted screen for non-JT users.
 - `frontend/src/components/Layout.jsx`: `In Dispatch` nav item (RouteIcon) for OUTLET, gated to Johar Town users in the OUTLET whitelist filter.
 - `frontend/src/App.jsx`: `/in-dispatch` lazy-loaded route.
+- `backend/src/controllers/audit.controller.js`: Full audit backend — `getAuditStats`, `startAudit` (read-only snapshot, WRH barcode reuse), `listAudits`, `getAudit`, `scanBarcode`, `setPhysicalQty`, `submitAudit`, `approveAudit` (applies qty changes + adjustment logs + cache invalidation + socket events), `rejectAudit`.
+- `backend/src/routes/audit.routes.js`: All `/api/audit` routes with role guards (start/scan/items/submit = STORE/STORE_EMPLOYEE; stats/list/get = STORE/STORE_EMPLOYEE/SUPER_ADMIN/ADMIN; approve/reject = SUPER_ADMIN/ADMIN).
+- `backend/prisma/schema.prisma`: `InventoryAudit`, `InventoryAuditItem`, `InventoryAdjustmentLog` models.
+- `frontend/src/components/WarehouseAudit.jsx`: Warehouse audit UI (history/stats, start wizard, live scanning with progress, variant comparison grid, submit, print report, approved adjustments) — wired as the `audit` tab in `WarehouseDashboard.jsx`.
+- `frontend/src/pages/AuditReview.jsx`: Admin audit review page at `/audit-review` (stats, filterable list, review modal, Approve/Reject).
+- `frontend/src/App.jsx`: `/audit` (WarehouseAudit) and `/audit-review` (AuditReview) lazy routes.
+- `frontend/src/components/Layout.jsx`: `Inventory Audit` nav item (ClipboardCheck, STORE/STORE_EMPLOYEE) + `Audit Review` nav item (ClipboardCheck, SUPER_ADMIN/ADMIN).
+- `frontend/src/pages/AdminDashboard.jsx`: `Inventory Audit` module card (`path: '/audit-review'` → navigate) in the module-card grid.

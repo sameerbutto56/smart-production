@@ -41,6 +41,7 @@ import {
   Shield,
   Landmark,
   Route as RouteIcon,
+  ClipboardCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDateOnly } from '../utils/dateTime';
@@ -106,6 +107,8 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY', 'OUTLET'] },
     { name: 'Dashboard', path: '/store-dashboard', icon: LayoutDashboard, roles: ['STORE'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
+    { name: 'Inventory Audit', path: '/audit', icon: ClipboardCheck, roles: ['STORE', 'STORE_EMPLOYEE'] },
+    { name: 'Audit Review', path: '/audit-review', icon: ClipboardCheck, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Warehouse POS', path: '/warehouse-pos', icon: ShoppingCart, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },

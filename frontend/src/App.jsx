@@ -53,6 +53,8 @@ const ReturnExchangePage = lazy(() => import('./pages/ReturnExchangePage'));
 const CustomerFeedbackForm = lazy(() => import('./pages/CustomerFeedbackForm'));
 const NotificationHistory = lazy(() => import('./pages/NotificationHistory'));
 const CEODashboard = lazy(() => import('./pages/CEODashboard'));
+const WarehouseAudit = lazy(() => import('./components/WarehouseAudit'));
+const AuditReview = lazy(() => import('./pages/AuditReview'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -163,6 +165,8 @@ function App() {
                   <Route path="return-exchange" element={<ReturnExchangePage />} />
                   <Route path="notifications" element={<NotificationHistory />} />
                   <Route path="ceo-dashboard" element={<CEODashboard />} />
+                  <Route path="audit" element={<WarehouseAudit />} />
+                  <Route path="audit-review" element={<AuditReview />} />
                 </Route>
               </Routes>
               </ErrorBoundary>
