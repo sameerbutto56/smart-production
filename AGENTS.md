@@ -146,6 +146,13 @@
 ### Blocked
 - (none)
 
+### Fixed This Session — Checkout 500 on Large Carts (Prisma 5s Transaction Timeout)
+- **Symptom**: Checkout worked for a few items but returned 500 "Failed to create sale" when many products were in the cart.
+- **Root cause**: `createSale` in `pos.controller.js` used a bare `prisma.$transaction(async (tx) => …)` — Prisma's default interactive-transaction timeout is **5000ms**. Each cart item = one stock `UPDATE` inside the transaction, and through the Supabase pooler every query carries ~400–800ms latency, so a 15-item cart already ran ~9s live. Reproduction: live `POST /api/pos/sales` with 15 items → 500 with error `"Transaction API error: Transaction already closed: The timeout for this transaction was 5000 ms, however 5186 ms passed"`.
+- **Fix**: Raised the timeout to **`{ timeout: 30000 }`** (same pattern already used by the audit module for identical pooler latency) on all four POS transaction sites: `pos.controller.js` `createSale` + `createReturn`, `warehouse.controller.js` `createSale` + `createReturn`. `vercel.json` already sets `functions.maxDuration: 30`, so 30s is within the function limit.
+- **Verification**: local 8/15/25-item carts all 201; live 15-item checkout now **201 in 12s** (was 500); live 25-item checkout **201 in 16.8s**; test sales deleted + stock restored after each run; `node -e require` syntax OK; commit `9eb4d3f` deployed + re-aliased `smart-production-v2.vercel.app` (deployment `npggpg0zw`).
+- **Note**: 14 of 17 interactive `$transaction` calls across controllers still use the 5s default (outlet order, verification, order, returnExchange, inventory) — they haven't caused issues yet but could hit the same wall if their per-call work grows; audit + inventory ones already have explicit timeouts.
+
 ### Implemented This Session — POS History Multi-Search (Invoice # / Customer Name / Phone, Whole DB)
 - **Requirement**: The POS → History search bar must find any invoice in the entire POS database by invoice number, customer name (partial), or customer phone number (partial), instantly and regardless of age (today → 365+ days old). Existing receipt/invoice-number search must keep working.
 - **Backend** (`pos.controller.js` `getSales`):
