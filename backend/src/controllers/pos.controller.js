@@ -581,7 +581,7 @@ const createSale = async (req, res) => {
         },
         include: { items: true }
       });
-    });
+    }, { timeout: 30000 });
 
     // Respond immediately, invalidate caches asynchronously
     res.status(201).json(sale);
@@ -1086,7 +1086,7 @@ const createReturn = async (req, res) => {
           refundPaymentMethod: refundPaymentMethod || 'CASH'
         }
       });
-    });
+    }, { timeout: 30000 });
 
     cache.delPattern(CACHE_KEY_PREFIX);
     res.status(201).json(ret);

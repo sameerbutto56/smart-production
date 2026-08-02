@@ -379,7 +379,7 @@ const createSale = async (req, res) => {
         },
         include: { items: true }
       });
-    });
+    }, { timeout: 30000 });
 
     res.status(201).json(sale);
     setImmediate(() => {
@@ -438,7 +438,7 @@ const createReturn = async (req, res) => {
           refundPaymentMethod: refundPaymentMethod || 'CASH'
         }
       });
-    });
+    }, { timeout: 30000 });
 
     res.status(201).json(ret);
   } catch (error) {
