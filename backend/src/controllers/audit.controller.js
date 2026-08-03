@@ -435,15 +435,19 @@ const submitAudit = async (req, res) => {
 
     // Authoritative final physical counts from the client — guarantees the exact
     // scanned state lands in the DB even if a background batch sync was dropped.
+    // Batch-array transaction (single round trip) with a 30s timeout — a large
+    // audit can carry 1500+ items and the sequential form blew Prisma's 5s default
+    // through the Supabase pooler (each UPDATE ~0.4-0.8s latency).
     const finalCounts = req.body?.finalCounts;
     if (finalCounts && typeof finalCounts === 'object' && Object.keys(finalCounts).length > 0) {
       const ids = Object.keys(finalCounts);
-      await prisma.$transaction(async (tx) => {
-        for (const id of ids) {
-          const qty = Math.max(0, parseInt(finalCounts[id]) || 0);
-          await tx.inventoryAuditItem.update({ where: { id }, data: { physicalQty: qty, scanned: true } });
-        }
-      });
+      await prisma.$transaction(
+        ids.map(id => prisma.inventoryAuditItem.update({
+          where: { id },
+          data: { physicalQty: Math.max(0, parseInt(finalCounts[id]) || 0), scanned: true }
+        })),
+        { timeout: 30000 }
+      );
     }
 
     const items = await prisma.inventoryAuditItem.findMany({ where: { auditId: audit.id } });
