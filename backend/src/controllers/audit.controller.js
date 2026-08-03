@@ -435,18 +435,24 @@ const submitAudit = async (req, res) => {
 
     // Authoritative final physical counts from the client — guarantees the exact
     // scanned state lands in the DB even if a background batch sync was dropped.
-    // Batch-array transaction (single round trip) with a 30s timeout — a large
-    // audit can carry 1500+ items and the sequential form blew Prisma's 5s default
-    // through the Supabase pooler (each UPDATE ~0.4-0.8s latency).
+    // Applied as a SINGLE raw SQL statement (CASE WHEN per id) — per-item UPDATEs
+    // through the Supabase pooler cost ~0.5-0.8s each, so 180+ items blew both
+    // Prisma's 5s default and Vercel's function cap (batch transactions still
+    // execute serially over the pooler). One statement = one round trip.
     const finalCounts = req.body?.finalCounts;
     if (finalCounts && typeof finalCounts === 'object' && Object.keys(finalCounts).length > 0) {
       const ids = Object.keys(finalCounts);
-      await prisma.$transaction(
-        ids.map(id => prisma.inventoryAuditItem.update({
-          where: { id },
-          data: { physicalQty: Math.max(0, parseInt(finalCounts[id]) || 0), scanned: true }
-        })),
-        { timeout: 30000 }
+      const params = [];
+      const cases = ids.map((id, i) => {
+        const qty = Math.max(0, parseInt(finalCounts[id]) || 0);
+        const p = i * 2 + 1;
+        params.push(id, qty);
+        return `WHEN $${p}::uuid THEN $${p + 1}::int`;
+      });
+      const placeholders = ids.map((_, i) => `$${i * 2 + 1}::uuid`).join(',');
+      await prisma.$executeRawUnsafe(
+        `UPDATE "InventoryAuditItem" SET "physicalQty" = CASE "id" ${cases.join(' ')} END, "scanned" = true, "updatedAt" = now() WHERE "id" IN (${placeholders})`,
+        ...params
       );
     }
 
@@ -499,55 +505,59 @@ const approveAudit = async (req, res) => {
     const changed = items.filter(i => i.difference !== 0);
     const adjustments = [];
 
-    for (const item of changed) {
-      const newQty = Math.max(0, item.physicalQty || 0);
-      if (item.kind === 'OUTLET_VARIANT') {
-        await prisma.outletInventory.update({
-          where: { id: item.productId },
-          data: { stock: newQty }
-        });
-      } else {
-        const storeItem = await prisma.inventoryItem.findUnique({ where: { id: item.productId } });
-        if (storeItem) {
-          const variants = parseVariants(storeItem.variants);
-          if (variants.length > 0) {
-            const idx = variants.findIndex(v =>
-              (v.color || null) === (item.color || null) && (v.size || null) === (item.size || null)
-            );
-            if (idx >= 0) {
-              variants[idx] = { ...variants[idx], stock: newQty };
-            } else if (newQty > 0) {
-              variants.push({ color: item.color || null, size: item.size || null, stock: newQty, price: item.price || storeItem.price || 0 });
+    // Per-item live-inventory writes inside a 30s transaction — atomic, and with
+    // enough headroom for the pooler latency on large audits.
+    await prisma.$transaction(async (tx) => {
+      for (const item of changed) {
+        const newQty = Math.max(0, item.physicalQty || 0);
+        if (item.kind === 'OUTLET_VARIANT') {
+          await tx.outletInventory.update({
+            where: { id: item.productId },
+            data: { stock: newQty }
+          });
+        } else {
+          const storeItem = await tx.inventoryItem.findUnique({ where: { id: item.productId } });
+          if (storeItem) {
+            const variants = parseVariants(storeItem.variants);
+            if (variants.length > 0) {
+              const idx = variants.findIndex(v =>
+                (v.color || null) === (item.color || null) && (v.size || null) === (item.size || null)
+              );
+              if (idx >= 0) {
+                variants[idx] = { ...variants[idx], stock: newQty };
+              } else if (newQty > 0) {
+                variants.push({ color: item.color || null, size: item.size || null, stock: newQty, price: item.price || storeItem.price || 0 });
+              }
+              const totalStock = variants.reduce((s, v) => s + (parseInt(v.stock) || 0), 0);
+              await tx.inventoryItem.update({
+                where: { id: item.productId },
+                data: { stock: totalStock, variants }
+              });
+            } else {
+              await tx.inventoryItem.update({
+                where: { id: item.productId },
+                data: { stock: newQty }
+              });
             }
-            const totalStock = variants.reduce((s, v) => s + (parseInt(v.stock) || 0), 0);
-            await prisma.inventoryItem.update({
-              where: { id: item.productId },
-              data: { stock: totalStock, variants }
-            });
-          } else {
-            await prisma.inventoryItem.update({
-              where: { id: item.productId },
-              data: { stock: newQty }
-            });
           }
         }
+        adjustments.push({
+          auditId: audit.id,
+          auditNumber: audit.auditNumber,
+          type: audit.type,
+          location: audit.type === 'OUTLET' ? (audit.outletName || 'Outlet') : 'Warehouse',
+          productId: item.productId,
+          productName: item.productName,
+          color: item.color,
+          size: item.size,
+          barcode: item.barcode,
+          previousQty: item.systemQty,
+          newQty,
+          difference: item.difference,
+          approvedBy: req.user?.name || 'Admin'
+        });
       }
-      adjustments.push({
-        auditId: audit.id,
-        auditNumber: audit.auditNumber,
-        type: audit.type,
-        location: audit.type === 'OUTLET' ? (audit.outletName || 'Outlet') : 'Warehouse',
-        productId: item.productId,
-        productName: item.productName,
-        color: item.color,
-        size: item.size,
-        barcode: item.barcode,
-        previousQty: item.systemQty,
-        newQty,
-        difference: item.difference,
-        approvedBy: req.user?.name || 'Admin'
-      });
-    }
+    }, { timeout: 30000 });
 
     const [updatedAudit] = await prisma.$transaction([
       prisma.inventoryAudit.update({
