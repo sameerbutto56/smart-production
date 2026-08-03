@@ -68,6 +68,7 @@ import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
 import { PauseCircle, PlayCircle } from 'lucide-react';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
+import { getStageDelays } from '../utils/delayUtils';
 
 
 const TOP_TABS = [
@@ -154,12 +155,13 @@ const AdminDashboard = () => {
 
   const allOrders = allOrdersData || EMPTY_ARRAY;
   const editRequests = useMemo(() => Array.isArray(editRequestsData) ? editRequestsData : EMPTY_ARRAY, [editRequestsData]);
+  const delayBreakdown = useMemo(() => getStageDelays(allOrders), [allOrders]);
   const stats = useMemo(() => ({
     totalOrders: allOrders.length,
     urgentOrders: allOrders.filter(o => o?.urgent).length,
-    delayedOrders: 0,
+    delayedOrders: delayBreakdown.reduce((sum, d) => sum + d.count, 0),
     completedToday: allOrders.filter(o => o?.status === 'COMPLETED').length
-  }), [allOrders]);
+  }), [allOrders, delayBreakdown]);
 
   const loading = ordersLoading;
   const fetchingError = !!ordersError;
@@ -452,7 +454,7 @@ const AdminDashboard = () => {
   const statCards = [
     { title: 'Total Active Orders', value: stats.totalOrders, icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-400/10', path: '/orders' },
     { title: 'Urgent Priority', value: stats.urgentOrders, icon: AlertTriangle, color: 'text-yellow-400', bg: 'bg-yellow-400/10', path: '/orders', state: { filterUrgent: true } },
-    { title: 'Delayed Stages', value: stats.delayedOrders, icon: Clock, color: 'text-red-400', bg: 'bg-red-400/10', path: '/orders', state: { filterUrgent: true } },
+    { title: 'Delayed Orders', value: stats.delayedOrders, icon: Clock, color: 'text-red-400', bg: 'bg-red-400/10', path: '/orders', state: { filterCategory: 'delayed' } },
     { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', path: '/orders', state: { filterStatus: 'COMPLETED' } },
   ];
 
@@ -550,6 +552,47 @@ const AdminDashboard = () => {
           <div className="flex flex-col items-center text-center gap-2 pt-4">
             <h1 className="text-2xl md:text-4xl font-black theme-text-primary tracking-tight uppercase">Admin Dashboard</h1>
             <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-[0.3em]">Select a department to view analytics</p>
+          </div>
+
+          {/* Delay Orders Analysis — per-stage breakdown with drill-down filters */}
+          <div className="glass p-5 md:p-6 rounded-3xl border-2 border-red-500/30 shadow-lg shadow-red-500/5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-red-500/10">
+                  <Clock className="text-red-400" size={26} />
+                </div>
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Delay Orders</h2>
+                  <p className="text-xs font-bold theme-text-muted uppercase tracking-widest">Live delay analysis by workflow stage</p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/orders', { state: { filterCategory: 'delayed' } })}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-widest hover:bg-red-500 transition-all"
+              >
+                View All Delayed ({stats.delayedOrders}) <ArrowUpRight size={14} />
+              </button>
+            </div>
+
+            {delayBreakdown.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 md:gap-3 mt-4">
+                {delayBreakdown.map(({ stage, label, count }) => (
+                  <button
+                    key={stage}
+                    onClick={() => navigate('/orders', { state: { filterCategory: 'delayed', filterDelayStage: stage } })}
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-left transition-all"
+                    title={`View orders delayed in ${label}`}
+                  >
+                    <span className="text-[10px] md:text-xs font-black uppercase tracking-widest theme-text-primary">{label}</span>
+                    <span className="text-sm md:text-base font-black text-red-400">{count}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
+                <CheckCircle size={16} /> No delayed orders right now
+              </div>
+            )}
           </div>
 
           {/* Module Cards Grid — Large Cards */}

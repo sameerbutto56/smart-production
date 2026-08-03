@@ -26,6 +26,7 @@ import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
+import { getDelayInfo, getStageDelays, fmtDuration, stageLabel } from '../utils/delayUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -37,74 +38,8 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 const POS_MAP = { 'LeftChest': 'Left Chest', 'RightChest': 'Right Chest', 'Sleeve': 'Sleeve Cuff', 'Back': 'Upper Back', 'Cuff': 'Cuff' };
 const fmtPos = (v) => POS_MAP[v] || v;
 
-// --- Admin Order Priority & Delay Tracking helpers ---
-const STAGE_DEPARTMENTS = {
-  STORE: 'Store',
-  STORE_RECEIVE: 'Store',
-  WORKERS: 'Production',
-  PRODUCTION_ACCEPTANCE: 'Production',
-  PRODUCTION: 'Production',
-  LOGO_DESIGN: 'Logo',
-  DISPATCH: 'Dispatch',
-  IN_DISPATCH: 'Dispatch',
-  OUTLET_RECEIVE: 'Dispatch',
-  ENAMELS_DELIVERY: 'Dispatch',
-  OUT_FOR_DELIVERY: 'Dispatch',
-  ORDER_ENTRY: 'Inventory Verification',
-  DELIVERED: 'Delivered',
-};
-
-const DELAY_REASONS = {
-  'Store': 'Delayed in Store',
-  'Production': 'Delayed in Production',
-  'Logo': 'Delayed in Logo Department',
-  'Dispatch': 'Delayed in Dispatch',
-  'Inventory Verification': 'Delayed in Inventory Verification',
-};
-
-// Fallback expected phase duration (hours) when a stage has no deadlineAt (legacy rows)
-const FALLBACK_STAGE_HOURS = {
-  STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48,
-  STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, ENAMELS_DELIVERY: 24, DISPATCH: 12,
-  OUT_FOR_DELIVERY: 12, ORDER_ENTRY: 24, IN_DISPATCH: 24,
-};
-
-// <24h → "X Hours"; ≥24h → "X Day(s)" (never "48 Hours")
-const fmtDuration = (ms) => {
-  const h = Math.floor((ms || 0) / 3600000);
-  if (h < 24) return `${Math.max(h, 1)} Hour${Math.max(h, 1) === 1 ? '' : 's'}`;
-  const d = Math.floor(h / 24);
-  return `${d} Day${d === 1 ? '' : 's'}`;
-};
-
-// Auto delay detection from the order's active stage deadline (same machinery as the
-// backend escalation scan: stage.deadlineAt < now → delayed). Returns null when on time.
-const getDelayInfo = (order) => {
-  if (!order || !Array.isArray(order.stages) || order.stages.length === 0) return null;
-  const active = order.stages.find(
-    (s) => s.stageName === order.currentStage && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
-  );
-  if (!active) return null;
-  const now = Date.now();
-  const phaseStart = active.startedAt || active.createdAt || order.createdAt ? new Date(active.startedAt || active.createdAt || order.createdAt).getTime() : now;
-  let expectedDeadline = active.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
-  if (!expectedDeadline) {
-    expectedDeadline = phaseStart + ((FALLBACK_STAGE_HOURS[active.stageName] || 24) * 3600000);
-  }
-  if (expectedDeadline >= now) return null;
-  const department = STAGE_DEPARTMENTS[active.stageName] || 'Store';
-  const totalStart = order.createdAt ? new Date(order.createdAt).getTime() : phaseStart;
-  return {
-    orderId: order.id,
-    stage: active.stageName,
-    department,
-    reason: DELAY_REASONS[department] || `Delayed in ${department}`,
-    phaseElapsed: Math.max(0, now - phaseStart),
-    totalElapsed: Math.max(0, now - totalStart),
-    delayDuration: Math.max(0, now - expectedDeadline),
-  };
-};
-
+// --- Delay helpers live in ../utils/delayUtils.js (shared with Admin Dashboard) ---
+// getDateRange returns an absolute [start,end) window for the selected date filter.
 const getDateRange = (key) => {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -247,6 +182,7 @@ const AllOrders = () => {
   const [filterCategory, setFilterCategory] = useState('all'); // all|standard|custom|urgent|super_urgent|delayed
   const [dateFilter, setDateFilter] = useState('all'); // all|today|yesterday|last7|thisMonth
   const [filterDepartment, setFilterDepartment] = useState(null); // Store|Production|Logo|Dispatch|Inventory Verification
+  const [filterDelayStage, setFilterDelayStage] = useState(null); // specific workflow stage (e.g. 'PRODUCTION')
   
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
@@ -277,6 +213,8 @@ const AllOrders = () => {
       if (location.state.filterStatus) setFilterStatus(location.state.filterStatus);
       if (location.state.filterUrgent !== undefined) setFilterUrgent(location.state.filterUrgent);
       if (location.state.searchTerm) setSearchTerm(location.state.searchTerm);
+      if (location.state.filterCategory) setFilterCategory(location.state.filterCategory);
+      if (location.state.filterDelayStage) setFilterDelayStage(location.state.filterDelayStage);
     }
 
     const debouncedRefresh = debounce(refresh, 300);
@@ -387,6 +325,8 @@ const AllOrders = () => {
     return counts;
   }, [delayMap]);
 
+  const stageDelays = useMemo(() => getStageDelays(orders), [orders]);
+
   const dateRange = useMemo(() => getDateRange(dateFilter), [dateFilter]);
 
   const summaryCounts = useMemo(() => {
@@ -426,6 +366,7 @@ const AllOrders = () => {
       : filterCategory === 'delayed' ? !!delayMap[order.id]
       : true;
     const matchesDepartment = !filterDepartment || delayMap[order.id]?.department === filterDepartment;
+    const matchesDelayStage = !filterDelayStage || delayMap[order.id]?.stage === filterDelayStage;
     const orderCreated = order.createdAt ? new Date(order.createdAt).getTime() : 0;
     const matchesDate = !dateRange || (orderCreated >= dateRange.start && orderCreated < dateRange.end);
     
@@ -439,12 +380,12 @@ const AllOrders = () => {
     const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
     const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
     
-    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesCategory && matchesDepartment && matchesDate;
+    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesCategory && matchesDepartment && matchesDelayStage && matchesDate;
   }).sort((a, b) => {
     const numA = parseInt(a.orderNumber) || 0;
     const numB = parseInt(b.orderNumber) || 0;
     return sortOrder === 'asc' ? numA - numB : numB - numA;
-  }), [orders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, dateRange, delayMap]);
+  }), [orders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, filterDelayStage, dateRange, delayMap]);
 
   const groupedOrders = useMemo(() => {
     const groups = {};
@@ -615,6 +556,39 @@ const AllOrders = () => {
           {filterDepartment && (
             <button
               onClick={() => { setFilterDepartment(null); }}
+              className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-widest theme-text-muted hover:text-white"
+            >
+              ✕ Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Stage-wise delayed summary (click to filter delayed orders stuck in that stage) */}
+      {stageDelays.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-black uppercase tracking-widest theme-text-muted">Delayed by Stage:</span>
+          {stageDelays.map(({ stage, label, count }) => {
+            const active = filterDelayStage === stage;
+            return (
+              <button
+                key={stage}
+                onClick={() => {
+                  setFilterDelayStage(active ? null : stage);
+                  setFilterCategory('delayed');
+                  setFilterDepartment(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-all ${active
+                  ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40'
+                  : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'}`}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
+          {filterDelayStage && (
+            <button
+              onClick={() => { setFilterDelayStage(null); }}
               className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-widest theme-text-muted hover:text-white"
             >
               ✕ Clear
@@ -972,12 +946,12 @@ const AllOrders = () => {
                           <span className="animate-delayed-badge inline-flex items-center gap-1 bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
                             🔴 DELAYED
                           </span>
-                          <span className="text-[10px] font-black text-red-400 uppercase tracking-wider">{delay.department}</span>
+                          <span className="text-[10px] font-black text-red-400 uppercase tracking-wider">{delay.stageLabel} · {delay.department}</span>
                         </div>
                       )}
                       {delay && (
                         <div className="text-[10px] font-bold text-red-400/90 mt-0.5">
-                          ⏳ {fmtDuration(delay.delayDuration)} overdue
+                          ⏳ {fmtDuration(delay.delayDuration)} overdue · In stage since {formatDateOnly(delay.phaseStart)} {formatTimeOnly(delay.phaseStart)}
                         </div>
                       )}
                     </td>
