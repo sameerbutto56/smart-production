@@ -2648,10 +2648,20 @@ const acceptTask = async (req, res) => {
 };
 
 // Get unified order timeline (combines stages + routing history + audit logs)
+// Derive the display location in the workflow for tracking.
+// Orders sent for verification keep currentStage = ORDER_ENTRY until verified,
+// but tracking must show them at their real workflow location.
+const getTrackingStatus = (order) => {
+  if (!order || !order.goForVerification) return order?.currentStage || 'ORDER_ENTRY';
+  if (order.verifiedAt) return order.currentStage;
+  if (order.verificationReturnedAt) return 'RETURNED_FROM_VERIFICATION';
+  return 'VERIFICATION';
+};
+
 const getOrderTimeline = async (req, res) => {
   const { orderId } = req.params;
   try {
-    const [stages, routingHistory, auditLogs] = await Promise.all([
+    const [stages, routingHistory, auditLogs, order] = await Promise.all([
       prisma.orderStage.findMany({
         where: { orderId },
         orderBy: { createdAt: 'asc' },
@@ -2666,6 +2676,10 @@ const getOrderTimeline = async (req, res) => {
         where: { orderId },
         orderBy: { timestamp: 'asc' },
         include: { user: { select: { id: true, name: true } } }
+      }),
+      prisma.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, currentStage: true, goForVerification: true, verifiedAt: true, verificationReturnedAt: true }
       })
     ]);
 
@@ -2687,7 +2701,8 @@ const getOrderTimeline = async (req, res) => {
       LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production Acceptance',
       PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
       DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery',
-      OUTLET_RECEIVE: 'Outlet Receive', ENAMELS_DELIVERY: 'Enamels Delivery', DELIVERED: 'Delivered'
+      OUTLET_RECEIVE: 'Outlet Receive', ENAMELS_DELIVERY: 'Enamels Delivery',
+      VERIFICATION: 'Verification', DELIVERED: 'Delivered'
     };
 
     const ACTION_LABELS = {
@@ -2719,7 +2734,9 @@ const getOrderTimeline = async (req, res) => {
       EDIT_APPROVED: 'Edit Approved', EDIT_REJECTED: 'Edit Rejected',
       EDIT_REQUEST_APPROVED: 'Edit Approved — Order Returned to Store', WORKFLOW_RESTARTED: 'Workflow Restarted at Store',
       SENT_FOR_VERIFICATION: 'Sent for Verification', ORDER_VERIFIED: 'Order Verified',
-      VERIFICATION_PENDING: 'Verification Pending'
+      VERIFICATION_PENDING: 'Verification Pending',
+      RETURNED_FOR_CORRECTION: 'Returned from Verification',
+      RESUBMITTED_AFTER_VERIFICATION: 'Resubmitted after Verification'
     };
 
     // --- Build CONSOLIDATED stage entries (one per OrderStage) ---
@@ -2809,7 +2826,7 @@ const getOrderTimeline = async (req, res) => {
     flatEntries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     // Return both formats — consolidated for AdminDashboard, flat for OrderTrack
-    res.json({ stageEntries, routeEntries, flatEntries });
+    res.json({ stageEntries, routeEntries, flatEntries, trackingStatus: getTrackingStatus(order) });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching timeline', error: error.message });
   }
@@ -3461,6 +3478,7 @@ const trackOrder = async (req, res) => {
       order = matches[0] || null;
     }
     if (!order) return res.status(404).json({ message: 'Order not found' });
+    order.trackingStatus = getTrackingStatus(order);
     res.json(order);
   } catch (error) {
     console.error('[trackOrder] error:', error.message);

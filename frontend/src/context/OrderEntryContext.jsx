@@ -537,7 +537,7 @@ export const OrderEntryProvider = ({ children }) => {
         resetFormData();
         setLogoEntries([{ name: '', design: '' }]); setArticleNameEntries(['']);
         setActiveTab('basic');
-        alert('Order updated and sent to Store!');
+        alert('Order updated and sent back for verification!');
       } else {
         await api.post(`/api/orders/${editOrderId}/edit-request`, payload);
         setIsEditMode(false); setEditOrderId(null); setOriginalOrder(null); setShowEditReview(false);

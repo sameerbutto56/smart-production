@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../services/api';
-import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle, Truck, MapPin } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 
@@ -9,13 +9,14 @@ const STAGE_LABELS = {
   LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production Acceptance',
   PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
   DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery',
-  OUTLET_RECEIVE: 'Outlet Receive', IN_DISPATCH: 'In Dispatch', DELIVERED: 'Delivered'
+  OUTLET_RECEIVE: 'Outlet Receive', IN_DISPATCH: 'In Dispatch',
+  VERIFICATION: 'Verification', RETURNED_FROM_VERIFICATION: 'Returned from Verification', DELIVERED: 'Delivered'
 };
 
-const STAGE_ORDER = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'DELIVERED'];
+const STAGE_ORDER = ['ORDER_ENTRY', 'VERIFICATION', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'DELIVERED'];
 
 const STAGE_ICONS = {
-  ORDER_ENTRY: Package, STORE: Package, WORKERS: Package,
+  ORDER_ENTRY: Package, VERIFICATION: ShieldCheck, STORE: Package, WORKERS: Package,
   LOGO_DESIGN: Package, PRODUCTION_ACCEPTANCE: Package,
   PRODUCTION: Package, STORE_RECEIVE: Package,
   DISPATCH: Truck, OUT_FOR_DELIVERY: Truck,
@@ -95,7 +96,10 @@ const OrderTrack = () => {
   };
 
   const completedStages = new Set(order?.stages?.filter(s => s.status === 'COMPLETED').map(s => s.stageName) || []);
-  const activeStage = order?.currentStage;
+  const trackingStatus = order?.trackingStatus || order?.currentStage;
+  const isReturnedFromVerification = trackingStatus === 'RETURNED_FROM_VERIFICATION';
+  const isInVerification = trackingStatus === 'VERIFICATION';
+  const activeStage = isReturnedFromVerification ? 'ORDER_ENTRY' : trackingStatus;
 
   return (
     <div className="p-2 md:p-4 max-w-4xl mx-auto space-y-4">
@@ -144,8 +148,8 @@ const OrderTrack = () => {
                   </span>
                 )}
                 {order.goForVerification && (
-                  <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${order.verifiedAt ? 'bg-cyan-500/20 text-cyan-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                    {order.verifiedAt ? `VERIFIED by ${order.verifiedByName || 'Admin'}` : 'PENDING VERIFICATION'}
+                  <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${order.verifiedAt ? 'bg-cyan-500/20 text-cyan-400' : order.verificationReturnedAt ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                    {order.verifiedAt ? `VERIFIED by ${order.verifiedByName || 'Admin'}` : order.verificationReturnedAt ? 'RETURNED FROM VERIFICATION' : 'PENDING VERIFICATION'}
                   </span>
                 )}
               </div>
@@ -153,7 +157,9 @@ const OrderTrack = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div className="bg-gray-800/50 rounded-lg p-2">
                 <p className="text-gray-500 font-bold uppercase text-[10px]">Current Stage</p>
-                <p className="text-white font-black mt-0.5">{STAGE_LABELS[order.currentStage] || order.currentStage}</p>
+                <p className={`font-black mt-0.5 ${isReturnedFromVerification ? 'text-red-400' : isInVerification ? 'text-yellow-400' : 'text-white'}`}>
+                  {STAGE_LABELS[trackingStatus] || trackingStatus}
+                </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-2">
                 <p className="text-gray-500 font-bold uppercase text-[10px]">Total</p>
@@ -182,6 +188,27 @@ const OrderTrack = () => {
             </div>
           </div>
 
+          {/* Returned from Verification banner */}
+          {isReturnedFromVerification && (
+            <div className="bg-red-500/10 border-2 border-red-500/40 rounded-2xl p-4 flex items-start gap-3">
+              <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black text-red-400 uppercase tracking-widest">Returned from Verification</p>
+                <p className="text-xs text-gray-300 font-bold mt-1">
+                  This order was returned for corrections and is back at Order Entry, awaiting edits before re-submission.
+                </p>
+                {order.verificationReturnNote && (
+                  <p className="text-xs text-red-300 font-bold mt-1 italic">Reason: {order.verificationReturnNote}</p>
+                )}
+                {order.verificationReturnedAt && (
+                  <p className="text-[10px] text-gray-400 font-bold mt-1">
+                    Returned on {formatDate(order.verificationReturnedAt)} at {formatTime(order.verificationReturnedAt)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Stage Pipeline */}
           <div className="bg-gray-900/60 rounded-2xl border border-gray-800/50 p-4">
             <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Stage Pipeline</p>
@@ -189,12 +216,13 @@ const OrderTrack = () => {
               {STAGE_ORDER.map((stage, idx) => {
                 const completed = completedStages.has(stage);
                 const active = activeStage === stage && order.status !== 'COMPLETED';
+                const returnedChip = isReturnedFromVerification && stage === 'VERIFICATION';
                 const Icon = STAGE_ICONS[stage] || Package;
                 return (
                   <React.Fragment key={stage}>
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-all ${completed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : active ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse' : 'bg-gray-800/40 text-gray-600'}`}>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-all ${completed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : active ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse' : returnedChip ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-gray-800/40 text-gray-600'}`}>
                       <Icon size={10} />
-                      {STAGE_LABELS[stage]}
+                      {STAGE_LABELS[stage]}{returnedChip ? ' (Returned)' : ''}
                     </div>
                     {idx < STAGE_ORDER.length - 1 && <ArrowRight size={10} className="text-gray-700 mx-0.5 shrink-0" />}
                   </React.Fragment>

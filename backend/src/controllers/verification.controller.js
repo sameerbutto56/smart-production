@@ -275,7 +275,7 @@ const getReturnedToFaisal = async (req, res) => {
   }
 };
 
-// NEW: Faisal resubmits a corrected order directly to Store (bypassing verification)
+// NEW: Faisal resubmits a corrected order back to Verification for another pass
 const resubmitFromVerification = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -340,44 +340,31 @@ const resubmitFromVerification = async (req, res) => {
         data: { status: 'COMPLETED', completedAt: new Date() }
       });
 
-      // 3. Create STORE stage
-      await tx.orderStage.create({
-        data: { orderId, stageName: 'STORE', status: 'PENDING' }
-      });
-
-      // 4. Update order to STORE with PENDING status
+      // 3. Keep order at ORDER_ENTRY (currentStage) — tracking derives 'VERIFICATION'
+      //    The order is picked up again by the pending-verification queue
       await tx.order.update({
         where: { id: orderId },
-        data: { currentStage: 'STORE', status: 'PENDING' }
+        data: { currentStage: 'ORDER_ENTRY', status: 'PENDING' }
       });
 
-      // 5. Clear seenTask for STORE
-      const storeRecipients = await prisma.user.findMany({
-        where: { role: { in: getRolesForStage('STORE') } },
-        select: { id: true }
-      });
-      await tx.seenTask.deleteMany({
-        where: { userId: { in: storeRecipients.map(u => u.id) }, orderId, stageName: 'STORE' }
-      }).catch(() => {});
-
-      // 6. Routing history
+      // 4. Routing history — back to Verification
       await tx.routingHistory.create({
         data: {
           orderId,
           sentByUserId: req.user?.id || null,
           previousStage: 'ORDER_ENTRY',
-          newStage: 'STORE',
-          sentToStage: 'STORE',
-          remarks: `Resubmitted after correction by ${userName}. Bypassed verification.`
+          newStage: 'VERIFICATION',
+          sentToStage: 'VERIFICATION',
+          remarks: `Resubmitted after correction by ${userName} for verification.`
         }
       });
 
-      // 7. Audit log
+      // 5. Audit log
       await tx.auditLog.create({
         data: {
           orderId,
           action: 'RESUBMITTED_AFTER_VERIFICATION',
-          details: `Order corrected and resubmitted by ${userName} directly to Store (bypassed verification)`,
+          details: `Order corrected and resubmitted by ${userName} for verification`,
           performedBy: req.user?.id || 'system'
         }
       }).catch(() => {});
@@ -391,10 +378,10 @@ const resubmitFromVerification = async (req, res) => {
     try {
       const io = req.app.get('io');
       if (io) io.emit('order-updated', { orderId });
-      await notify.create(req, { type: 'store_task', moduleName: 'My Tasks', path: '/tasks', role: 'STORE', title: 'Order Re-submitted', message: `Order #${order.orderNumber} re-submitted after verification`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Re-submitted → Store', employeeName: req.user?.name });
+      await notify.create(req, { type: 'verification_needed', moduleName: 'Verification', path: '/verification', role: 'INVENTORY_VIEW', title: 'Order Re-submitted for Verification', message: `Order #${order.orderNumber} corrected and re-submitted for verification`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Re-submitted → Verification', employeeName: req.user?.name });
     } catch (e) {}
 
-    res.json({ message: 'Order resubmitted to Store', order: updated });
+    res.json({ message: 'Order resubmitted for verification', order: updated });
   } catch (error) {
     console.error('Error resubmitting order:', error);
     res.status(500).json({ message: 'Failed to resubmit order', error: error.message });

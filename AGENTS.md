@@ -140,6 +140,21 @@
 - **EditRequestDashboard full comparison**: Enhanced admin review with full Job Sheet field comparison — expanded `parseItems` to include sleeveLength, shirtLength, matchingCap, nameColor, logoColor, logoPlacement, designNotes, logoName, logoCharges, namePrintingCharges, customizationPrice; expanded customer fields to include deliveryCharges, engravingRequired, engravingInstructions, instructionNotes, logoName, logoDesign, logoCharges, namePrintingCharges, customizationPrice, shopifyOrderDate.
 - **Dedicated In Dispatch module (JOHAR TOWN outlet only)**: New standalone module completely isolated from the existing Dispatch (dispatch officer) workflow — `InDispatch.jsx` page at `/in-dispatch`, dedicated `/api/in-dispatch/*` backend, `InDispatchRoute` delivery-route model. Only orders at the `IN_DISPATCH` stage (sent via "Send to In Dispatch") appear. Nav item gated to JOHAR TOWN outlet users only.
 
+### Implemented This Session — Order Tracking Shows Real Workflow Status (Verification / Returned / Resubmit)
+- **Root cause**: `createOrder` hardcodes `currentStage: 'ORDER_ENTRY'` and skips auto-advance to STORE when `goForVerification` is true — so orders sitting in the Verification queue (or returned to Faisal) were still displayed as **Order Entry** on the tracking page. The pipeline had no VERIFICATION stage, and `resubmitFromVerification` bypassed verification entirely (straight to STORE).
+- **Backend** (`order.controller.js`):
+  - New `getTrackingStatus(order)` helper — derives the real workflow location for display: `goForVerification && !verifiedAt && !verificationReturnedAt` → `'VERIFICATION'`; `verificationReturnedAt` set → `'RETURNED_FROM_VERIFICATION'`; otherwise `currentStage`.
+  - `trackOrder` response now includes `trackingStatus` (computed at L3481); `getOrderTimeline` also fetches the order and returns `trackingStatus`.
+  - `STAGE_LABELS_MAP` gained `VERIFICATION: 'Verification'`; `ACTION_LABELS` gained `RETURNED_FOR_CORRECTION: 'Returned from Verification'` and `RESUBMITTED_AFTER_VERIFICATION: 'Resubmitted after Verification'` (previously fell back to raw title-case).
+- **Backend** (`verification.controller.js` `resubmitFromVerification`): Now routes back to **Verification** instead of Store — keeps `currentStage: 'ORDER_ENTRY'` (tracking derives VERIFICATION), removes the STORE stage creation + STORE seen-task clearing, records routing history `ORDER_ENTRY → VERIFICATION`, writes `RESUBMITTED_AFTER_VERIFICATION` audit, notifies `INVENTORY_VIEW` at `/verification`. The order reappears in the pending-verification queue; after the second verification pass, `verifyOrder` moves it to STORE as usual.
+- **Frontend** (`OrderTrack.jsx`):
+  - `STAGE_LABELS`/`STAGE_ORDER`/`STAGE_ICONS` gained `VERIFICATION` (ShieldCheck, pipeline position after ORDER_ENTRY) and `RETURNED_FROM_VERIFICATION` label.
+  - Current Stage card + pipeline now use `order.trackingStatus` (falls back to `currentStage`); VERIFICATION shows as active pulsing chip; RETURNED_FROM_VERIFICATION shows ORDER_ENTRY active + red "Verification (Returned)" chip.
+  - Red "Returned from Verification" banner with return time + reason; PENDING/VERIFIED/RETURNED badge now red for returned orders.
+  - Timeline already rendered verification audit entries chronologically (SENT_FOR_VERIFICATION → VERIFICATION_PENDING → ORDER_VERIFIED → RETURNED_FOR_CORRECTION / RESUBMITTED_AFTER_VERIFICATION) with date/time/actor.
+- **Frontend** (`OrderEntryContext.jsx`): Resubmit success message now reads "Order updated and sent back for verification!".
+- **Verification**: `node -e require` OK on both controllers; `npm run build` 0 errors (new `OrderTrack-*.js` chunk).
+
 ### In Progress
 - (none)
 
