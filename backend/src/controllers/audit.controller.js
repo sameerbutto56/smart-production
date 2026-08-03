@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const { Prisma } = require('@prisma/client');
 
 // Same djb2 + generateBarcode scheme as warehouse.controller.js — warehouse
 // variant barcodes are computed on the fly, never persisted. Reusing it here
@@ -435,25 +436,27 @@ const submitAudit = async (req, res) => {
 
     // Authoritative final physical counts from the client — guarantees the exact
     // scanned state lands in the DB even if a background batch sync was dropped.
-    // Applied as a SINGLE raw SQL statement (CASE WHEN per id) — per-item UPDATEs
-    // through the Supabase pooler cost ~0.5-0.8s each, so 180+ items blew both
-    // Prisma's 5s default and Vercel's function cap (batch transactions still
+    // Applied as a SINGLE parametrized SQL statement (CASE WHEN per id) — per-item
+    // UPDATEs through the Supabase pooler cost ~0.5-0.8s each, so 180+ items blew
+    // Prisma's 5s default AND Vercel's function cap (batch transactions still
     // execute serially over the pooler). One statement = one round trip.
+    // Prisma.sql tagged templates bind each value with the correct type, avoiding
+    // the `text = uuid` operator error from $executeRawUnsafe's string params.
     const finalCounts = req.body?.finalCounts;
     if (finalCounts && typeof finalCounts === 'object' && Object.keys(finalCounts).length > 0) {
       const ids = Object.keys(finalCounts);
-      const params = [];
-      const cases = ids.map((id, i) => {
+      const whens = ids.map(id => {
         const qty = Math.max(0, parseInt(finalCounts[id]) || 0);
-        const p = i * 2 + 1;
-        params.push(id, qty);
-        return `WHEN $${p}::uuid THEN $${p + 1}::int`;
+        return Prisma.sql`WHEN ${id}::uuid THEN ${qty}::int`;
       });
-      const placeholders = ids.map((_, i) => `$${i * 2 + 1}::uuid`).join(',');
-      await prisma.$executeRawUnsafe(
-        `UPDATE "InventoryAuditItem" SET "physicalQty" = CASE "id" ${cases.join(' ')} END, "scanned" = true, "updatedAt" = now() WHERE "id" IN (${placeholders})`,
-        ...params
-      );
+      const idList = ids.map(id => Prisma.sql`${id}::uuid`);
+      await prisma.$executeRaw(Prisma.sql`
+        UPDATE "InventoryAuditItem"
+        SET "physicalQty" = CASE "id" ${Prisma.join(whens, ' ')} ELSE "physicalQty" END,
+            "scanned" = true,
+            "updatedAt" = now()
+        WHERE "id" IN (${Prisma.join(idList, ',')})
+      `);
     }
 
     // Single fetch used for both summary computation and the response — a second
