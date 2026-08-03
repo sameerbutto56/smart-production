@@ -440,22 +440,24 @@ const submitAudit = async (req, res) => {
     // UPDATEs through the Supabase pooler cost ~0.5-0.8s each, so 180+ items blew
     // Prisma's 5s default AND Vercel's function cap (batch transactions still
     // execute serially over the pooler). One statement = one round trip.
-    // Prisma.sql tagged templates bind each value with the correct type, avoiding
-    // the `text = uuid` operator error from $executeRawUnsafe's string params.
+    // Prisma binds JS-string params as TEXT, so the uuid column is cast to text for
+    // comparison (`"id"::text`) — casting the PARAMETER (`$1::uuid`) does NOT work
+    // (verified live: `text = uuid` operator error regardless of the param cast).
     const finalCounts = req.body?.finalCounts;
     if (finalCounts && typeof finalCounts === 'object' && Object.keys(finalCounts).length > 0) {
       const ids = Object.keys(finalCounts);
       const whens = ids.map(id => {
         const qty = Math.max(0, parseInt(finalCounts[id]) || 0);
-        return Prisma.sql`WHEN ${id}::uuid THEN ${qty}::int`;
+        return Prisma.sql`WHEN ${id} THEN ${qty}`;
       });
-      const idList = ids.map(id => Prisma.sql`${id}::uuid`);
+      const idList = ids.map(id => Prisma.sql`${id}`);
       await prisma.$executeRaw(Prisma.sql`
         UPDATE "InventoryAuditItem"
-        SET "physicalQty" = CASE "id" ${Prisma.join(whens, ' ')} ELSE "physicalQty" END,
+        SET "physicalQty" = CASE "id"::text ${Prisma.join(whens, ' ')} ELSE "physicalQty" END,
             "scanned" = true,
             "updatedAt" = now()
-        WHERE "id" IN (${Prisma.join(idList, ',')})
+        WHERE "id"::text IN (${Prisma.join(idList, ',')})
+          AND "auditId"::text = ${audit.id}
       `);
     }
 
