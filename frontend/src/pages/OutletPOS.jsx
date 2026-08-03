@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingCart, BarChart3, RotateCcw, Clock, RefreshCw, Barcode, BookOpen, Book } from 'lucide-react';
 import { POSProvider, usePOS } from '../context/POSContext';
+import PosAuditLock from '../components/PosAuditLock';
 import POSProducts from '../components/POSProducts';
 import POSCart from '../components/POSCart';
 import POSModals from '../components/POSModals';
@@ -135,9 +136,18 @@ const OutletPOSInner = () => {
   return posTabs;
 };
 
+const OutletPOSLock = () => {
+  const { selectedOutlet } = usePOS();
+  return (
+    <PosAuditLock type="OUTLET" outletName={selectedOutlet}>
+      <OutletPOSInner />
+    </PosAuditLock>
+  );
+};
+
 const OutletPOS = () => (
   <POSProvider>
-    <OutletPOSInner />
+    <OutletPOSLock />
   </POSProvider>
 );
 

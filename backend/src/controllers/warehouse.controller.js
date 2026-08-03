@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const { getPendingAudit } = require('../utils/auditLock');
 const CACHE_KEY_PREFIX = 'warehouse:';
 
 const djb2 = (str) => {
@@ -219,6 +220,15 @@ const createSale = async (req, res) => {
       return res.status(400).json({ message: 'At least one item is required' });
     }
 
+    // Warehouse POS is locked while a warehouse audit awaits Admin review.
+    const pendingAudit = await getPendingAudit(prisma, { type: 'WAREHOUSE' });
+    if (pendingAudit) {
+      return res.status(423).json({
+        message: `Inventory audit ${pendingAudit.auditNumber} approval is pending. The POS is temporarily locked until the audit is approved or rejected by the Admin.`,
+        auditNumber: pendingAudit.auditNumber
+      });
+    }
+
     // Idempotency check — return existing sale if same clientRequestId was already processed
     if (clientRequestId) {
       const existing = await prisma.posSale.findUnique({
@@ -396,6 +406,15 @@ const createReturn = async (req, res) => {
     const { productId, color, size, reason, quantity, saleId, refundPaymentMethod } = req.body;
     if (!productId || !quantity) {
       return res.status(400).json({ message: 'productId and quantity are required' });
+    }
+
+    // Warehouse POS is locked while a warehouse audit awaits Admin review.
+    const pendingAudit = await getPendingAudit(prisma, { type: 'WAREHOUSE' });
+    if (pendingAudit) {
+      return res.status(423).json({
+        message: `Inventory audit ${pendingAudit.auditNumber} approval is pending. The POS is temporarily locked until the audit is approved or rejected by the Admin.`,
+        auditNumber: pendingAudit.auditNumber
+      });
     }
 
     const storeItem = await prisma.inventoryItem.findUnique({ where: { id: productId } });

@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const { getPendingAudit } = require('../utils/auditLock');
 const CACHE_KEY_PREFIX = 'pos:';
 
 const getOutletName = (req) => {
@@ -430,6 +431,16 @@ const createSale = async (req, res) => {
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
+
+    // POS is locked while this branch has an audit awaiting Admin review.
+    const pendingAudit = await getPendingAudit(prisma, { type: 'OUTLET', outletName });
+    if (pendingAudit) {
+      return res.status(423).json({
+        message: `Inventory audit ${pendingAudit.auditNumber} approval is pending. The POS is temporarily locked until the audit is approved or rejected by the Admin.`,
+        auditNumber: pendingAudit.auditNumber
+      });
+    }
+
     const receiptNumber = manualReceipt || await generateReceiptNumber();
 
     // Batch fetch all inventory variants in a single query
@@ -1068,6 +1079,15 @@ const createReturn = async (req, res) => {
     const { variantId, reason, quantity, saleId, refundPaymentMethod } = req.body;
     const outlet = getOutletName(req);
     if (!variantId || !quantity) return res.status(400).json({ message: 'variantId and quantity are required' });
+
+    // POS is locked while this branch has an audit awaiting Admin review.
+    const pendingAudit = await getPendingAudit(prisma, { type: 'OUTLET', outletName: outlet });
+    if (pendingAudit) {
+      return res.status(423).json({
+        message: `Inventory audit ${pendingAudit.auditNumber} approval is pending. The POS is temporarily locked until the audit is approved or rejected by the Admin.`,
+        auditNumber: pendingAudit.auditNumber
+      });
+    }
 
     const inv = await prisma.outletInventory.findUnique({ where: { id: variantId } });
     if (!inv) return res.status(400).json({ message: 'Inventory item not found' });

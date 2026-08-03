@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingCart, RotateCcw, Clock, Barcode, RefreshCw, Search, Package } from 'lucide-react';
 import { WarehousePOSProvider, useWarehousePOS } from '../context/WarehousePOSContext';
+import PosAuditLock from '../components/PosAuditLock';
 import WarehousePOSProducts from '../components/WarehousePOSProducts';
 import WarehousePOSCart from '../components/WarehousePOSCart';
 import WarehousePOSModals from '../components/WarehousePOSModals';
@@ -77,7 +78,9 @@ const WarehousePOSInner = () => {
 
 const WarehousePOS = () => (
   <WarehousePOSProvider>
-    <WarehousePOSInner />
+    <PosAuditLock type="WAREHOUSE">
+      <WarehousePOSInner />
+    </PosAuditLock>
   </WarehousePOSProvider>
 );
 

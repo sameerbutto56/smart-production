@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const { Prisma } = require('@prisma/client');
+const { getPendingAudit } = require('../utils/auditLock');
 
 // Same djb2 + generateBarcode scheme as warehouse.controller.js — warehouse
 // variant barcodes are computed on the fly, never persisted. Reusing it here
@@ -683,6 +684,31 @@ const rejectAudit = async (req, res) => {
   }
 };
 
+// ─── GET /api/audit/pos-lock — is a pending (SUBMITTED) audit locking this POS? ───
+// The branch's POS must stay closed while an inventory audit awaits an Admin
+// decision. Query params: type=OUTLET|WAREHOUSE, outletName=<branch> (for OUTLET).
+const getPosLock = async (req, res) => {
+  try {
+    const type = (req.query.type || 'OUTLET').toUpperCase();
+    const outletName = req.query.outletName || null;
+    const pending = await getPendingAudit(prisma, { type, outletName });
+    if (!pending) return res.json({ locked: false, pending: null });
+    res.json({
+      locked: true,
+      pending: {
+        id: pending.id,
+        auditNumber: pending.auditNumber,
+        type: pending.type,
+        outletName: pending.outletName,
+        status: pending.status,
+        submittedAt: pending.submittedAt || pending.updatedAt
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error checking POS lock', error: error.message });
+  }
+};
+
 module.exports = {
   getAuditStats,
   startAudit,
@@ -693,5 +719,6 @@ module.exports = {
   setPhysicalQty,
   submitAudit,
   approveAudit,
-  rejectAudit
+  rejectAudit,
+  getPosLock
 };

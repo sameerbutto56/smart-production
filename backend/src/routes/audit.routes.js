@@ -9,7 +9,8 @@ const {
   setPhysicalQty,
   submitAudit,
   approveAudit,
-  rejectAudit
+  rejectAudit,
+  getPosLock
 } = require('../controllers/audit.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 
@@ -17,6 +18,9 @@ const router = express.Router();
 
 // Stats — dashboard cards (admin + warehouse)
 router.get('/stats', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN']), getAuditStats);
+
+// POS lock check — any authenticated user (OUTLET opens /pos, STORE opens /warehouse-pos)
+router.get('/pos-lock', authenticate, getPosLock);
 
 // Start audit (warehouse only)
 router.post('/', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), startAudit);
