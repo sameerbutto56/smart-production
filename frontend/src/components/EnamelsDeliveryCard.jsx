@@ -2,21 +2,25 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Loader2, Truck, User, Package, Activity, X, RefreshCw, Banknote, Clock, CheckCircle2, Eye, ChevronDown, ChevronUp, Calendar, Filter } from 'lucide-react';
+import { Loader2, Truck, User, Package, Activity, X, RefreshCw, Banknote, Clock, CheckCircle2, ChevronDown, ChevronUp, Calendar, MapPin, Phone, Filter } from 'lucide-react';
 import socket from '../socket';
-import { isPaidOrder, getCodAmount } from '../utils/paymentUtils';
 import { formatDateOnly, formatTimeOnly, formatDateTime } from '../utils/dateTime';
 
-const COLORS = {
-  pending: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-  active: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+const C = {
+  total: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+  accepted: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+  pickedUp: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
   delivered: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  pending: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+  inTransit: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
   returned: { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
   noResponse: { text: 'text-gray-400', bg: 'bg-gray-500/10', border: 'border-gray-500/20' },
-  total: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+  cancelled: { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+  failed: { text: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
   cash: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
   online: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
   cashOnline: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+  jail: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
 };
 
 const PRESETS = [
@@ -28,17 +32,58 @@ const PRESETS = [
   { key: 'custom', label: 'Custom Range' },
 ];
 
+const STATUS_BADGE = {
+  delivered: 'bg-emerald-500/20 text-emerald-400',
+  returned: 'bg-red-500/20 text-red-400',
+  cancelled: 'bg-rose-500/20 text-rose-400',
+  failed: 'bg-orange-500/20 text-orange-400',
+  noResponse: 'bg-gray-500/20 text-gray-400',
+  inTransit: 'bg-indigo-500/20 text-indigo-400',
+  pending: 'bg-amber-500/20 text-amber-400',
+};
+
+const STATUS_LABEL = {
+  delivered: 'Delivered',
+  returned: 'Returned',
+  cancelled: 'Cancelled',
+  failed: 'Failed',
+  noResponse: 'No Response',
+  inTransit: 'In Transit',
+  pending: 'Pending',
+};
+
+const formatDuration = (mins) => {
+  if (mins == null || isNaN(mins)) return '—';
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+  return `${h}h ${m}m`;
+};
+
+const fmt = (d) => (d ? formatDateTime(d) : '—');
+const fmtDate = (d) => (d ? formatDateOnly(d) : '—');
+
 const OrderDetailModal = ({ order, onClose }) => {
   if (!order) return null;
-  const attempts = order.deliveryAttempts || [];
-  const payments = order.deliveryPayments || [];
+  const attempts = order.attempts || [];
+  const payments = order.payments || [];
+  const t = order.timeline || {};
+  const charge = order.deliveryCharge;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
         onClick={e => e.stopPropagation()}
         className="glass max-w-lg w-full p-6 rounded-[2rem] border-2 theme-border shadow-2xl max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">Delivery Details</h3>
+          <div>
+            <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">Delivery Details</h3>
+            <p className="text-[10px] font-black uppercase tracking-wider">
+              <span className={STATUS_BADGE[order.primaryStatus] || 'bg-gray-500/20 text-gray-400'} style={{ padding: '2px 8px', borderRadius: 8 }}>
+                {STATUS_LABEL[order.primaryStatus] || order.primaryStatus || '—'}
+              </span>
+            </p>
+          </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-800 transition-all"><X size={16} className="theme-text-muted" /></button>
         </div>
         <div className="space-y-3">
@@ -64,22 +109,46 @@ const OrderDetailModal = ({ order, onClose }) => {
               <p className="text-sm font-black text-emerald-400">₨{parseFloat(order.totalPrice || 0).toLocaleString()}</p>
             </div>
             <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Status</p>
-              <p className="text-sm font-black theme-text-primary">{order.currentStage?.replace(/_/g, ' ') || '—'}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Outlet</p>
+              <p className="text-sm font-black text-purple-400">{order.outletName || '—'}</p>
             </div>
             {order.riderName && (
               <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
-                <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Assigned Rider</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Rider</p>
                 <p className="text-sm font-black text-indigo-400">{order.riderName}</p>
               </div>
             )}
-          </div>
-          {order.address && (
             <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Address</p>
-              <p className="text-xs font-bold theme-text-primary">{order.address}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Duration</p>
+              <p className="text-sm font-black theme-text-primary">{formatDuration(t.durationMinutes)}</p>
+            </div>
+          </div>
+
+          {/* Delivery Timeline */}
+          <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
+            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Delivery Timeline</p>
+            <div className="space-y-1.5">
+              {[['Assigned', t.assignedAt], ['Accepted', t.acceptedAt], ['Picked Up', t.pickedUpAt], ['Delivered', t.deliveredAt], ['Returned', t.returnedAt], ['No Response', t.noResponseAt]].map(([label, val]) => (
+                <div key={label} className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-gray-400">{label}</span>
+                  <span className={`font-black ${val ? 'text-emerald-400' : 'text-gray-600'}`}>{fmt(val)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {charge && (
+            <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Delivery Earnings</p>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="font-bold theme-text-primary">Rider {charge.riderName || order.riderName || '—'}</span>
+                <span className={`font-black ${charge.isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  ₨{(charge.amount || 0).toLocaleString()} {charge.isPaid ? '• Paid' : '• Pending'}
+                </span>
+              </div>
             </div>
           )}
+
           {attempts.length > 0 && (
             <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Delivery Attempts</p>
@@ -87,11 +156,11 @@ const OrderDetailModal = ({ order, onClose }) => {
                 {attempts.map((a, i) => (
                   <div key={a.id || i} className="flex items-center gap-2 text-[10px]">
                     <span className={`w-1.5 h-1.5 rounded-full ${a.status === 'DELIVERED' ? 'bg-emerald-400' : a.status === 'NO_RESPONSE' ? 'bg-amber-400' : 'bg-red-400'}`} />
-                    <span className="font-bold theme-text-primary">{a.status}</span>
+                    <span className="font-bold theme-text-primary">{a.status?.replace(/_/g, ' ')}</span>
                     <span className="text-gray-600">—</span>
                     {a.riderName && <span className="font-bold text-indigo-400">{a.riderName}</span>}
                     <span className="text-gray-600">—</span>
-                    <span className="font-bold text-gray-400">{a.attemptedAt ? formatDateTime(a.attemptedAt) : '—'}</span>
+                    <span className="font-bold text-gray-400">{fmt(a.attemptedAt)}</span>
                   </div>
                 ))}
               </div>
@@ -103,20 +172,26 @@ const OrderDetailModal = ({ order, onClose }) => {
               <div className="space-y-1.5">
                 {payments.map((p, i) => (
                   <div key={p.id || i} className="flex items-center justify-between text-[10px]">
-                    <span className="font-bold theme-text-primary">{p.paymentMethod}</span>
+                    <span className="font-bold theme-text-primary">{p.paymentMethod?.replace(/_/g, ' ')}</span>
                     <span className="font-black text-emerald-400">₨{((p.cashAmount || 0) + (p.onlineAmount || 0)).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
+          <div className="theme-bg-subtle rounded-xl p-3 border theme-border grid grid-cols-2 gap-2 text-[10px]">
+            <div><span className="text-gray-500">Cash Collected:</span> <span className="font-black text-emerald-400">₨{(order.cashCollected || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Online:</span> <span className="font-black text-purple-400">₨{(order.onlineCollected || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Outstanding:</span> <span className="font-black text-amber-400">₨{(order.outstanding || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Advance:</span> <span className="font-black text-blue-400">₨{(order.advanceAmount || 0).toLocaleString()}</span></div>
+          </div>
         </div>
       </motion.div>
     </div>
   );
 };
 
-const InlineOrderList = ({ orders, title, onClose }) => (
+const InlineOrderList = ({ orders, title, onClose, onSelect }) => (
   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
     className="overflow-hidden">
     <div className="glass rounded-2xl p-4 border theme-border mt-4">
@@ -127,22 +202,20 @@ const InlineOrderList = ({ orders, title, onClose }) => (
       <div className="max-h-[300px] overflow-y-auto space-y-1.5">
         {orders.length === 0 ? (
           <p className="text-xs theme-text-muted font-bold text-center py-6">No orders found</p>
-        ) : orders.map(o => {
-          const attempts = o.deliveryAttempts || [];
-          return (
-            <div key={o.id} className="flex items-center justify-between p-2.5 theme-bg-subtle rounded-xl border theme-border hover:border-emerald-500/30 transition-all cursor-pointer">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs font-black theme-text-primary shrink-0">#{o.orderNumber || o.id?.slice(0, 6)}</span>
-                <span className="text-xs font-bold theme-text-muted truncate">{o.customerName || '—'}</span>
-                {o.riderName && <span className="text-[10px] font-bold text-indigo-400 shrink-0">{o.riderName}</span>}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] font-black text-gray-500">{attempts.length} attempts</span>
-                <span className="text-xs font-black text-emerald-400">₨{parseFloat(o.totalPrice || 0).toLocaleString()}</span>
-              </div>
+        ) : orders.map(o => (
+          <div key={o.id} onClick={() => onSelect && onSelect(o)}
+            className="flex items-center justify-between p-2.5 theme-bg-subtle rounded-xl border theme-border hover:border-emerald-500/30 transition-all cursor-pointer">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-xs font-black theme-text-primary shrink-0">#{o.orderNumber || o.id?.slice(0, 6)}</span>
+              <span className="text-xs font-bold theme-text-muted truncate">{o.customerName || '—'}</span>
+              {o.riderName && <span className="text-[10px] font-bold text-indigo-400 shrink-0">{o.riderName}</span>}
             </div>
-          );
-        })}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] font-bold text-gray-500">{o.outletName || '—'}</span>
+              <span className="text-xs font-black text-emerald-400">₨{parseFloat(o.totalPrice || 0).toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   </motion.div>
@@ -158,12 +231,12 @@ const PayEmployeeModal = ({ employee, onClose, onSuccess }) => {
     setLoading(true);
     try {
       await api.post('/api/delivery/pay-employee', {
-        riderName: employee.name,
+        riderName: employee.riderName,
         amount: parseFloat(payAmount),
         paidByName: 'Super Admin',
-        remarks: remarks || `Paid ${employee.name} ₨${parseFloat(payAmount).toLocaleString()}`
+        remarks: remarks || `Paid ${employee.riderName} ₨${parseFloat(payAmount).toLocaleString()}`
       });
-      toast.success(`Paid ₨${parseFloat(payAmount).toLocaleString()} to ${employee.name}`);
+      toast.success(`Paid ₨${parseFloat(payAmount).toLocaleString()} to ${employee.riderName}`);
       onSuccess();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Payment failed');
@@ -182,11 +255,11 @@ const PayEmployeeModal = ({ employee, onClose, onSuccess }) => {
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-800 transition-all"><X size={16} className="theme-text-muted" /></button>
         </div>
         <div className="bg-emerald-500/10 rounded-xl p-4 border border-emerald-500/20 mb-4">
-          <p className="text-xs font-black text-emerald-400 mb-1">{employee.name}</p>
+          <p className="text-xs font-black text-emerald-400 mb-1">{employee.riderName}</p>
           <div className="grid grid-cols-2 gap-2 text-[10px]">
-            <div><span className="text-gray-500">Earnings:</span> <span className="font-black text-emerald-400">₨{employee.totalEarnings?.toLocaleString()}</span></div>
-            <div><span className="text-gray-500">Already Paid:</span> <span className="font-black text-blue-400">₨{employee.totalPaid?.toLocaleString()}</span></div>
-            <div className="col-span-2"><span className="text-gray-500">Remaining Payable:</span> <span className="font-black text-amber-400">₨{employee.remainingPayable?.toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Earnings:</span> <span className="font-black text-emerald-400">₨{(employee.totalEarnings || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Already Paid:</span> <span className="font-black text-blue-400">₨{(employee.totalPaid || 0).toLocaleString()}</span></div>
+            <div className="col-span-2"><span className="text-gray-500">Remaining Payable:</span> <span className="font-black text-amber-400">₨{(employee.remainingPayable || 0).toLocaleString()}</span></div>
           </div>
         </div>
         <div className="space-y-3">
@@ -263,9 +336,9 @@ const PaymentHistoryModal = ({ payments, employeeName, onClose }) => (
   </div>
 );
 
-const EmployeeCard = ({ emp, onPay, onViewHistory }) => {
+const RiderCard = ({ rider, onPay, onViewHistory }) => {
   const [expanded, setExpanded] = useState(false);
-  const paidPercent = emp.totalEarnings > 0 ? Math.round((emp.totalPaid / emp.totalEarnings) * 100) : 0;
+  const paidPercent = rider.totalEarnings > 0 ? Math.round((rider.totalPaid / rider.totalEarnings) * 100) : 0;
 
   return (
     <div className="glass rounded-2xl border-2 theme-border overflow-hidden">
@@ -276,18 +349,18 @@ const EmployeeCard = ({ emp, onPay, onViewHistory }) => {
               <User size={18} className="text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm font-black theme-text-primary uppercase">{emp.name}</p>
-              <p className="text-[10px] font-bold text-gray-500">{emp.totalDelivered} deliveries @ ₨{emp.ratePerDelivery}/order</p>
+              <p className="text-sm font-black theme-text-primary uppercase">{rider.riderName}</p>
+              <p className="text-[10px] font-bold text-gray-500">{rider.completedDeliveries} deliveries @ ₨{(rider.perOrder?.[0]?.amount || 200)}/order</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {emp.remainingPayable > 0 && (
-              <button onClick={() => onPay(emp)}
+            {rider.remainingPayable > 0 && (
+              <button onClick={() => onPay(rider)}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all">
                 <Banknote size={12} /> Pay
               </button>
             )}
-            <button onClick={() => onViewHistory(emp)}
+            <button onClick={() => onViewHistory(rider)}
               className="p-1.5 rounded-lg hover:bg-gray-800 transition-all">
               <Clock size={14} className="theme-text-muted" />
             </button>
@@ -302,20 +375,20 @@ const EmployeeCard = ({ emp, onPay, onViewHistory }) => {
         </div>
         <div className="grid grid-cols-4 gap-2 text-center">
           <div className="theme-bg-subtle rounded-xl p-2">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Assigned</p>
-            <p className="text-sm font-black text-blue-400">{emp.totalAssigned}</p>
-          </div>
-          <div className="theme-bg-subtle rounded-xl p-2">
             <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Delivered</p>
-            <p className="text-sm font-black text-emerald-400">{emp.totalDelivered}</p>
+            <p className="text-sm font-black text-emerald-400">{rider.completedDeliveries}</p>
           </div>
           <div className="theme-bg-subtle rounded-xl p-2">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Active</p>
-            <p className="text-sm font-black text-indigo-400">{emp.activeDeliveries}</p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Earnings</p>
+            <p className="text-sm font-black text-emerald-400">₨{(rider.totalEarnings || 0).toLocaleString()}</p>
           </div>
           <div className="theme-bg-subtle rounded-xl p-2">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Returned</p>
-            <p className="text-sm font-black text-red-400">{emp.returnedOrders}</p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Paid</p>
+            <p className="text-sm font-black text-blue-400">₨{(rider.totalPaid || 0).toLocaleString()}</p>
+          </div>
+          <div className="theme-bg-subtle rounded-xl p-2">
+            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Remaining</p>
+            <p className="text-sm font-black text-amber-400">₨{(rider.remainingPayable || 0).toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -324,32 +397,29 @@ const EmployeeCard = ({ emp, onPay, onViewHistory }) => {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden border-t border-gray-800">
             <div className="p-4 bg-gray-900/30">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-1">Total Earnings</p>
-                  <p className="text-lg font-black text-emerald-400">₨{(emp.totalEarnings || 0).toLocaleString()}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-1">Amount Paid</p>
-                  <p className="text-lg font-black text-blue-400">₨{(emp.totalPaid || 0).toLocaleString()}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-1">Remaining</p>
-                  <p className="text-lg font-black text-amber-400">₨{(emp.remainingPayable || 0).toLocaleString()}</p>
-                </div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Per-Order Earnings</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[8px]">
+                    <th className="text-left py-1 pr-2">Order #</th>
+                    <th className="text-left px-1">Customer</th>
+                    <th className="text-left px-1">Delivered</th>
+                    <th className="text-right pl-1">Amount</th>
+                  </tr></thead>
+                  <tbody>
+                    {(rider.perOrder || []).map((po, i) => (
+                      <tr key={po.orderId || i} className="border-t border-gray-800">
+                        <td className="py-1.5 pr-2 font-bold theme-text-primary">#{po.orderNumber || po.orderId?.slice(0, 6)}</td>
+                        <td className="px-1 font-bold text-gray-400">{po.customerName || '—'}</td>
+                        <td className="px-1 font-bold text-gray-500">{fmtDate(po.deliveredAt)}</td>
+                        <td className="text-right pl-1">
+                          <span className={`font-black ${po.isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>₨{(po.amount || 0).toLocaleString()}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              {emp.paymentHistory?.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Recent Payments</p>
-                  {emp.paymentHistory.slice(0, 5).map((p, i) => (
-                    <div key={p.id || i} className="flex items-center justify-between text-[10px] py-1 border-t border-gray-800">
-                      <span className="text-gray-400">{formatDateOnly(p.paidAt)}</span>
-                      <span className="font-bold text-gray-400">{p.paidByName || '—'}</span>
-                      <span className="font-black text-emerald-400">₨{(p.totalAmount || 0).toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </motion.div>
         )}
@@ -358,27 +428,58 @@ const EmployeeCard = ({ emp, onPay, onViewHistory }) => {
   );
 };
 
+const ORDER_STATUS_OPTIONS = [
+  { value: '', label: 'All Order Statuses' },
+  { value: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
+  { value: 'ENAMELS_DELIVERY', label: 'Enamels Delivery' },
+  { value: 'DELIVERED', label: 'Delivered' },
+  { value: 'RETURNED', label: 'Returned' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'COMPLETED', label: 'Completed' },
+];
+
+const DELIVERY_STATUS_OPTIONS = [
+  { value: '', label: 'All Delivery Statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'inTransit', label: 'In Transit' },
+  { value: 'noResponse', label: 'No Response' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'returned', label: 'Returned' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'failed', label: 'Failed' },
+];
+
+const PAYMENT_OPTIONS = [
+  { value: '', label: 'All Payment Types' },
+  { value: 'CASH', label: 'Cash' },
+  { value: 'ONLINE', label: 'Online' },
+  { value: 'CARD', label: 'Card' },
+  { value: 'CASH_ONLINE', label: 'Cash + Online' },
+  { value: 'MULTIPLE_ONLINE', label: 'Multiple Online' },
+];
+
 const EnamelsDeliveryCard = ({ activeTab }) => {
-  const [deliveryOrders, setDeliveryOrders] = useState([]);
-  const [charges, setCharges] = useState({ charges: [], totalPending: 0, payments: [], totalPaid: 0 });
-  const [codSummary, setCodSummary] = useState(null);
-  const [performance, setPerformance] = useState(null);
-  const [employeeStats, setEmployeeStats] = useState({ employees: [], paymentAnalytics: {} });
-  const [activityData, setActivityData] = useState({ audits: [], orders: [] });
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showPayModal, setShowPayModal] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedRider, setSelectedRider] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyPayments, setHistoryPayments] = useState([]);
   const [historyEmployee, setHistoryEmployee] = useState('');
+  const [showOutstandingList, setShowOutstandingList] = useState(false);
   const refreshRef = useRef(null);
 
   const [datePreset, setDatePreset] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [dateParams, setDateParams] = useState(null);
+  const [riderFilter, setRiderFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState('');
+  const [jailRoadOnly, setJailRoadOnly] = useState(false);
 
   useEffect(() => {
     if (datePreset === 'custom') {
@@ -392,31 +493,28 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     }
   }, [datePreset, customFrom, customTo]);
 
-  const buildUrl = useCallback((base, params = {}) => {
+  const buildUrl = useCallback(() => {
     const qs = new URLSearchParams();
     if (dateParams?.dateFrom) qs.set('dateFrom', dateParams.dateFrom);
     if (dateParams?.dateTo) qs.set('dateTo', dateParams.dateTo);
-    Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, v); });
-    return `${base}?${qs.toString()}`;
-  }, [dateParams]);
+    if (riderFilter) qs.set('riderName', riderFilter);
+    if (statusFilter) qs.set('status', statusFilter);
+    if (deliveryStatusFilter) qs.set('deliveryStatus', deliveryStatusFilter);
+    if (paymentFilter) qs.set('paymentType', paymentFilter);
+    if (jailRoadOnly) qs.set('outlet', 'jail road');
+    return `/api/delivery/analytics?${qs.toString()}`;
+  }, [dateParams, riderFilter, statusFilter, deliveryStatusFilter, paymentFilter, jailRoadOnly]);
 
   const fetchData = useCallback(async () => {
-    const safeGet = async (url, fallback) => { try { const r = await api.get(url); return r.data; } catch { return fallback; } };
-    const [ordersRes, chargesRes, codRes, perfRes, empStatsRes, actRes] = await Promise.all([
-      safeGet(buildUrl('/api/delivery/orders', { deliveryType: 'ENAMELS' }), []),
-      safeGet(buildUrl('/api/delivery/charges'), { charges: [], totalPending: 0, payments: [], totalPaid: 0 }),
-      safeGet(buildUrl('/api/delivery/cod'), null),
-      safeGet(buildUrl('/api/delivery/performance'), null),
-      safeGet(buildUrl('/api/delivery/employee-stats'), { employees: [], paymentAnalytics: {} }),
-      safeGet(buildUrl('/api/delivery/activity'), { audits: [], orders: [] }),
-    ]);
-    setDeliveryOrders(Array.isArray(ordersRes) ? ordersRes : []);
-    setCharges(chargesRes || { charges: [], totalPending: 0, payments: [], totalPaid: 0 });
-    setCodSummary(codRes);
-    setPerformance(perfRes);
-    setEmployeeStats(empStatsRes || { employees: [], paymentAnalytics: {} });
-    setActivityData(actRes || { audits: [], orders: [] });
-    setLoading(false);
+    try {
+      const res = await api.get(buildUrl());
+      setData(res.data);
+    } catch (err) {
+      console.error('Enamels analytics fetch error:', err);
+      toast.error('Failed to load delivery analytics');
+    } finally {
+      setLoading(false);
+    }
   }, [buildUrl]);
 
   useEffect(() => { if (activeTab === 'enamels_delivery') fetchData(); }, [activeTab, fetchData]);
@@ -435,71 +533,68 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     return () => { socket.off('order-updated', refresh); socket.off('delivery-updated', refresh); };
   }, [activeTab, fetchData]);
 
-  const computedStats = useMemo(() => {
-    const active = deliveryOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY').length;
-    const delivered = deliveryOrders.filter(o => o.currentStage === 'DELIVERED' || o.currentStage === 'COMPLETED').length;
-    const returned = deliveryOrders.filter(o => o.status === 'RETURNED').length;
-    const noResponse = deliveryOrders.filter(o => (o.noResponseCount || 0) > 0 && o.currentStage !== 'DELIVERED').length;
-    const pending = deliveryOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && !o.riderAcceptedAt).length;
-
-    const filteredEarnings = performance?.filteredEarnings || 0;
-    const filteredDelivered = performance?.filteredDelivered || 0;
-
-    let cashTotal = 0, onlineTotal = 0, cashOnlineTotal = 0;
-    deliveryOrders.filter(o => o.deliveryPayments?.length > 0).forEach(o => {
-      o.deliveryPayments.forEach(p => {
-        if (p.paymentMethod === 'CASH') cashTotal += (p.cashAmount || 0) + (p.onlineAmount || 0);
-        else if (p.paymentMethod === 'ONLINE') onlineTotal += (p.cashAmount || 0) + (p.onlineAmount || 0);
-        else if (p.paymentMethod === 'CASH_ONLINE') cashOnlineTotal += (p.cashAmount || 0) + (p.onlineAmount || 0);
-      });
-    });
-
-    return {
-      totalAssigned: deliveryOrders.length,
-      active, pending, delivered, returned, noResponse,
-      filteredDelivered, filteredEarnings,
-      earningsToday: performance?.deliveredToday * 200 || 0,
-      earningsWeek: performance?.deliveredThisWeek * 200 || 0,
-      earningsMonth: performance?.deliveredThisMonth * 200 || 0,
-      earningsLifetime: (performance?.allTimeDelivered || 0) * 200,
-      cashTotal, onlineTotal, cashOnlineTotal,
-    };
-  }, [deliveryOrders, performance]);
+  const stats = data?.stats || {};
+  const earnings = data?.earnings || { totalEarnings: 0, totalPaid: 0, outstandingEarnings: 0, completedDeliveries: 0, perRider: [] };
+  const riders = data?.riders || [];
+  const orders = data?.orders || [];
 
   const filteredOrders = useMemo(() => {
     if (!selectedFilter) return [];
-    return deliveryOrders.filter(o => {
-      if (selectedFilter === 'pending') return o.currentStage === 'OUT_FOR_DELIVERY' && !o.riderAcceptedAt;
-      if (selectedFilter === 'active') return o.currentStage === 'OUT_FOR_DELIVERY' && o.riderAcceptedAt;
-      if (selectedFilter === 'delivered') return o.currentStage === 'DELIVERED' || o.currentStage === 'COMPLETED';
-      if (selectedFilter === 'returned') return o.status === 'RETURNED';
-      if (selectedFilter === 'noResponse') return (o.noResponseCount || 0) > 0 && o.currentStage !== 'DELIVERED';
-      return false;
-    });
-  }, [deliveryOrders, selectedFilter]);
+    return orders.filter(o => o.primaryStatus === selectedFilter);
+  }, [orders, selectedFilter]);
 
-  const handlePayEmployee = (emp) => { setSelectedEmployee(emp); setShowPayModal(true); };
+  const outstandingOrders = useMemo(() => {
+    if (!showOutstandingList) return [];
+    return orders.filter(o => o.outstanding > 0.01).sort((a, b) => b.outstanding - a.outstanding);
+  }, [orders, showOutstandingList]);
 
-  const handleViewHistory = async (emp) => {
-    setHistoryEmployee(emp.name);
+  const handlePayRider = (rider) => { setSelectedRider(rider); setShowPayModal(true); };
+
+  const handleViewHistory = async (rider) => {
+    setHistoryEmployee(rider.riderName);
     try {
-      const qs = new URLSearchParams({ riderName: emp.name });
+      const qs = new URLSearchParams({ riderName: rider.riderName });
       if (dateParams?.dateFrom) qs.set('dateFrom', dateParams.dateFrom);
       if (dateParams?.dateTo) qs.set('dateTo', dateParams.dateTo);
       const res = await api.get(`/api/delivery/payment-history?${qs.toString()}`);
       setHistoryPayments(res.data?.payments || []);
-    } catch { setHistoryPayments(emp.paymentHistory || []); }
+    } catch { setHistoryPayments([]); }
     setShowHistoryModal(true);
   };
 
   const handleStatClick = (filterKey) => { setSelectedFilter(prev => prev === filterKey ? null : filterKey); };
 
+  const activePresetLabel = PRESETS.find(p => p.key === datePreset)?.label || 'Custom';
+  const jailStats = C.jail;
+
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-emerald-400" size={32} /></div>;
   }
 
-  const pa = employeeStats.paymentAnalytics || {};
-  const activePresetLabel = PRESETS.find(p => p.key === datePreset)?.label || 'Custom';
+  const statCards = [
+    { label: 'Total Assigned', key: 'total', value: stats.totalAssigned, filterKey: null },
+    { label: 'Accepted', key: 'accepted', value: stats.accepted, filterKey: null },
+    { label: 'Picked-Up', key: 'pickedUp', value: stats.pickedUp, filterKey: null },
+    { label: 'Delivered', key: 'delivered', value: stats.delivered, filterKey: 'delivered' },
+    { label: 'Pending', key: 'pending', value: stats.pending, filterKey: 'pending' },
+    { label: 'In Transit', key: 'inTransit', value: stats.inTransit, filterKey: 'inTransit' },
+    { label: 'Returned', key: 'returned', value: stats.returned, filterKey: 'returned' },
+    { label: 'No Response', key: 'noResponse', value: stats.noResponse, filterKey: 'noResponse' },
+    { label: 'Cancelled', key: 'cancelled', value: stats.cancelled, filterKey: 'cancelled' },
+    { label: 'Failed', key: 'failed', value: stats.failed, filterKey: 'failed' },
+  ];
+
+  const paymentCards = [
+    { label: 'Total Order Value', value: stats.totalOrderValue || 0, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+    { label: 'COD Amount', value: stats.totalCOD || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: 'Paid Amount', value: stats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: '# COD Orders', value: stats.codOrderCount || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: '# Paid Orders', value: stats.paidOrderCount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: 'Cash Collected', value: stats.cashCollected || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: 'Online / Prepaid', value: stats.onlinePrepaid || 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+  ];
+
+  const selectClass = "bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-[10px] font-bold theme-text-primary focus:outline-none focus:border-emerald-500 cursor-pointer";
 
   return (
     <div className="space-y-6">
@@ -510,22 +605,33 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
             <Truck className="text-emerald-400" size={24} />
           </div>
           <div>
-            <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Enamels Delivery Analytics</h2>
-            <p className="theme-text-muted text-[10px] font-black uppercase tracking-widest">Real-time delivery tracking & employee payments</p>
+            <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">
+              {jailRoadOnly ? 'Jail Road Orders' : 'Enamels Delivery Analytics'}
+            </h2>
+            <p className="theme-text-muted text-[10px] font-black uppercase tracking-widest">
+              {jailRoadOnly ? 'Jail Road outlet delivery tracking' : 'Real-time delivery tracking & employee payments'}
+            </p>
           </div>
         </div>
-        <button onClick={() => { if (refreshRef.current) clearInterval(refreshRef.current); fetchData(); refreshRef.current = setInterval(fetchData, 30000); }}
-          disabled={loading} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50">
-          {loading ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {jailRoadOnly && (
+            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${jailStats.bg} ${jailStats.text} border ${jailStats.border} flex items-center gap-1.5`}>
+              <MapPin size={12} /> Jail Road Only
+            </span>
+          )}
+          <button onClick={() => { if (refreshRef.current) clearInterval(refreshRef.current); fetchData(); refreshRef.current = setInterval(fetchData, 30000); }}
+            disabled={loading} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50">
+            {loading ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+            Refresh
+          </button>
+        </div>
       </div>
 
-      {/* Date Filter Bar */}
+      {/* Filter Bar */}
       <div className="glass rounded-2xl p-4 border-2 theme-border">
         <div className="flex items-center gap-2 mb-3">
-          <Calendar size={14} className="text-emerald-400" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Date Range Filter</p>
+          <Filter size={14} className="text-emerald-400" />
+          <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Filters</p>
           <span className="text-[10px] font-black text-emerald-400 ml-auto">{activePresetLabel}</span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -537,6 +643,13 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
               {p.label}
             </button>
           ))}
+          <span className="w-px bg-gray-700 mx-1" />
+          <button onClick={() => setJailRoadOnly(!jailRoadOnly)}
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${
+              jailRoadOnly ? 'bg-purple-600 text-white' : 'theme-bg-subtle theme-text-muted hover:bg-gray-700'
+            }`}>
+            <MapPin size={12} /> Jail Road
+          </button>
         </div>
         {datePreset === 'custom' && (
           <div className="flex items-center gap-3 mt-3">
@@ -552,25 +665,35 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
             </div>
           </div>
         )}
+        <div className="flex flex-wrap gap-3 mt-4">
+          <select value={riderFilter} onChange={e => setRiderFilter(e.target.value)} className={selectClass}>
+            <option value="">All Riders</option>
+            {riders.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectClass}>
+            {ORDER_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={deliveryStatusFilter} onChange={e => setDeliveryStatusFilter(e.target.value)} className={selectClass}>
+            {DELIVERY_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} className={selectClass}>
+            {PAYMENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <div className="flex items-center gap-1.5 ml-auto text-[10px] font-bold text-gray-500">
+            <Phone size={12} className="text-emerald-400" />
+            {orders.length} order(s) shown
+          </div>
+        </div>
       </div>
 
-      {/* 1. Overall Summary */}
+      {/* 1. Order Statistics */}
       <div className="glass rounded-2xl p-5 border-2 theme-border">
         <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Package size={16} className="text-emerald-400" /> Overall Delivery Summary
+          <Package size={16} className="text-emerald-400" /> Order Statistics
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: 'Total Assigned', key: 'total', value: computedStats.totalAssigned, filterKey: null },
-            { label: 'Active', key: 'active', value: computedStats.active, filterKey: 'active' },
-            { label: 'Pending', key: 'pending', value: computedStats.pending, filterKey: 'pending' },
-            { label: 'Delivered', key: 'delivered', value: computedStats.delivered, filterKey: 'delivered' },
-            { label: 'Returned', key: 'returned', value: computedStats.returned, filterKey: 'returned' },
-            { label: 'No Response', key: 'noResponse', value: computedStats.noResponse, filterKey: 'noResponse' },
-            { label: 'Date-Filtered Delivered', key: 'delivered', value: computedStats.filteredDelivered, filterKey: 'delivered' },
-            { label: 'Date-Filtered Earnings', key: 'total', value: `₨${computedStats.filteredEarnings.toLocaleString()}`, filterKey: null },
-          ].map(card => {
-            const c = COLORS[card.key] || COLORS.total;
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {statCards.map(card => {
+            const c = C[card.key] || C.total;
             return (
               <div key={card.label} onClick={() => handleStatClick(card.filterKey)}
                 className={`${c.bg} rounded-2xl p-3 border ${c.border} text-center transition-all ${card.filterKey ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''}`}>
@@ -583,54 +706,66 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
         </div>
         <AnimatePresence>
           {selectedFilter && (
-            <InlineOrderList orders={filteredOrders} title={`${selectedFilter} delivery orders`} onClose={() => setSelectedFilter(null)} />
+            <InlineOrderList orders={filteredOrders} title={`${STATUS_LABEL[selectedFilter] || selectedFilter} delivery orders`}
+              onClose={() => setSelectedFilter(null)} onSelect={o => setSelectedOrder(o)} />
           )}
         </AnimatePresence>
       </div>
 
-      {/* 2. Delivery Performance */}
+      {/* 2. Payment Breakdown */}
       <div className="glass rounded-2xl p-5 border-2 theme-border">
-        <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Activity size={16} className="text-blue-400" /> Delivery Performance
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider flex items-center gap-2">
+            <Activity size={16} className="text-purple-400" /> Payment Breakdown
+          </h3>
+          <button onClick={() => setShowOutstandingList(!showOutstandingList)}
+            className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-amber-400 transition-all hover:bg-amber-500/20">
+            Outstanding: ₨{(stats.outstandingCollection || 0).toLocaleString()}
+          </button>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: 'Delivered Today', value: performance?.deliveredToday || 0, color: 'text-emerald-400' },
-            { label: 'Delivered This Week', value: performance?.deliveredThisWeek || 0, color: 'text-indigo-400' },
-            { label: 'Delivered This Month', value: performance?.deliveredThisMonth || 0, color: 'text-purple-400' },
-            { label: 'All Time Deliveries', value: performance?.allTimeDelivered || 0, color: 'text-amber-400' },
-          ].map(card => (
-            <div key={card.label} className="theme-bg-subtle rounded-2xl p-3 border theme-border text-center">
+          {paymentCards.map(card => (
+            <div key={card.label} className={`${card.bg} rounded-2xl p-3 border ${card.border} text-center`}>
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
-              <p className={`text-xl font-black ${card.color}`}>{card.value}</p>
+              <p className={`text-xl font-black ${card.color}`}>₨{(card.value || 0).toLocaleString()}</p>
             </div>
           ))}
+          <div className="bg-amber-500/10 rounded-2xl p-3 border border-amber-500/20 text-center cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setShowOutstandingList(!showOutstandingList)}>
+            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Outstanding Collection</p>
+            <p className="text-xl font-black text-amber-400">₨{(stats.outstandingCollection || 0).toLocaleString()}</p>
+          </div>
         </div>
+        <AnimatePresence>
+          {showOutstandingList && (
+            <InlineOrderList orders={outstandingOrders} title={`Orders with outstanding balance (${outstandingOrders.length})`}
+              onClose={() => setShowOutstandingList(false)} onSelect={o => setSelectedOrder(o)} />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* 3. Delivery Earnings */}
       <div className="glass rounded-2xl p-5 border-2 theme-border">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider flex items-center gap-2">
-            <User size={16} className="text-emerald-400" /> Delivery Earnings (₨200/order)
+            <Banknote size={16} className="text-emerald-400" /> Delivery Earnings (per order)
           </h3>
-          {charges.totalPending > 0 && (
+          {earnings.outstandingEarnings > 0 && (
             <button onClick={async () => {
-              if (!window.confirm(`Clear ALL ₨${charges.totalPending.toLocaleString()} outstanding earnings for all delivery employees?`)) return;
+              if (!window.confirm(`Clear ALL ₨${(earnings.outstandingEarnings || 0).toLocaleString()} outstanding earnings for all delivery employees?`)) return;
               try {
                 await api.post('/api/delivery/charges/clear', {
                   paidByName: 'Super Admin',
-                  remarks: `Bulk clear — ₨${charges.totalPending.toLocaleString()} outstanding earnings`
+                  remarks: `Bulk clear — ₨${(earnings.outstandingEarnings || 0).toLocaleString()} outstanding earnings`
                 });
-                toast.success(`Cleared ₨${charges.totalPending.toLocaleString()} — all employees paid`);
+                toast.success(`Cleared ₨${(earnings.outstandingEarnings || 0).toLocaleString()} — all employees paid`);
                 fetchData();
               } catch (err) { toast.error(err.response?.data?.message || 'Clear failed'); }
             }}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
-              <Banknote size={14} /> Clear All Payments (₨{(charges.totalPending || 0).toLocaleString()})
+              <Banknote size={14} /> Clear All Payments (₨{(earnings.outstandingEarnings || 0).toLocaleString()})
             </button>
           )}
-          {(!charges.totalPending || charges.totalPending === 0) && (
+          {(!earnings.outstandingEarnings || earnings.outstandingEarnings === 0) && (
             <span className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
               <CheckCircle2 size={14} /> All Paid
             </span>
@@ -638,181 +773,87 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: "Today's Earnings", value: computedStats.earningsToday },
-            { label: 'Weekly Earnings', value: computedStats.earningsWeek },
-            { label: 'Monthly Earnings', value: computedStats.earningsMonth },
-            { label: 'Lifetime Earnings', value: computedStats.earningsLifetime },
+            { label: 'Total Earnings', value: earnings.totalEarnings },
+            { label: 'Paid to Riders', value: earnings.totalPaid },
+            { label: 'Outstanding (Payable)', value: earnings.outstandingEarnings },
+            { label: 'Completed Deliveries', value: earnings.completedDeliveries },
           ].map(card => (
             <div key={card.label} className="bg-emerald-500/10 rounded-2xl p-3 border border-emerald-500/20 text-center">
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
-              <p className="text-xl font-black text-emerald-400">₨{(card.value || 0).toLocaleString()}</p>
+              <p className="text-xl font-black text-emerald-400">{typeof card.value === 'number' ? `₨${card.value.toLocaleString()}` : card.value}</p>
             </div>
           ))}
         </div>
-        {charges.totalPending > 0 && (
+        {earnings.outstandingEarnings > 0 && (
           <div className="mt-3 theme-bg-subtle rounded-xl p-3 border theme-border flex items-center justify-between">
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Total Outstanding Earnings</p>
-              <p className="text-lg font-black text-amber-400">₨{(charges.totalPending || 0).toLocaleString()}</p>
+              <p className="text-lg font-black text-amber-400">₨{(earnings.outstandingEarnings || 0).toLocaleString()}</p>
             </div>
-            <p className="text-[10px] font-bold text-gray-500">{employeeStats.employees?.length || 0} employees • {charges.charges?.length || 0} unpaid orders</p>
+            <p className="text-[10px] font-bold text-gray-500">{earnings.perRider?.length || 0} riders • {earnings.completedDeliveries || 0} deliveries</p>
           </div>
         )}
-      </div>
-
-      {/* 4. Payment Analytics */}
-      <div className="glass rounded-2xl p-5 border-2 theme-border">
-        <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Package size={16} className="text-purple-400" /> Payment Analytics
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: 'Cash Collected', value: computedStats.cashTotal, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-            { label: 'Online Collected', value: computedStats.onlineTotal, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-            { label: 'Cash+Online', value: computedStats.cashOnlineTotal, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-            { label: 'Pending COD', value: codSummary?.pendingCODAmount || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-          ].map(card => (
-            <div key={card.label} className={`${card.bg} rounded-2xl p-3 border ${card.border} text-center`}>
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
-              <p className={`text-xl font-black ${card.color}`}>₨{(card.value || 0).toLocaleString()}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 5. Employee Payment Management */}
-      <div className="glass rounded-2xl p-5 border-2 theme-border">
-        <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Banknote size={16} className="text-emerald-400" /> Employee Payment Management
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
-          <div className="bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20 text-center">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Total Earnings</p>
-            <p className="text-lg font-black text-emerald-400">₨{(pa.totalEarnings || 0).toLocaleString()}</p>
-          </div>
-          <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20 text-center">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Total Paid</p>
-            <p className="text-lg font-black text-blue-400">₨{(pa.totalPaid || 0).toLocaleString()}</p>
-          </div>
-          <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20 text-center">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Outstanding</p>
-            <p className="text-lg font-black text-amber-400">₨{(pa.totalOutstanding || 0).toLocaleString()}</p>
-          </div>
-          <div className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20 text-center">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Payments Made</p>
-            <p className="text-lg font-black text-purple-400">{pa.totalPayments || 0}</p>
-          </div>
-          <div className="bg-indigo-500/10 rounded-xl p-3 border border-indigo-500/20 text-center">
-            <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Last Payment</p>
-            <p className="text-sm font-black text-indigo-400">{pa.lastPaymentDate ? formatDateOnly(pa.lastPaymentDate) : '—'}</p>
-          </div>
-        </div>
-        {employeeStats.employees?.length === 0 ? (
-          <div className="text-center py-8"><p className="theme-text-muted font-black uppercase text-xs">No delivery employees found</p></div>
-        ) : (
-          <div className="space-y-4">
-            {employeeStats.employees?.map(emp => (
-              <EmployeeCard key={emp.name} emp={emp} onPay={handlePayEmployee} onViewHistory={handleViewHistory} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 6. Activity Timeline */}
-      <div className="glass rounded-2xl p-5 border-2 theme-border">
-        <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Activity size={16} className="text-indigo-400" /> Activity Timeline
-        </h3>
-        {activityData.audits?.length === 0 && activityData.orders?.length === 0 ? (
-          <div className="text-center py-10"><p className="theme-text-muted font-black uppercase text-xs">No activity in selected date range</p></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-                <th className="text-left py-2 pr-2">Order#</th>
-                <th className="text-left px-2">Customer</th>
-                <th className="text-left px-2">City</th>
-                <th className="text-left px-2">Rider</th>
-                <th className="text-left px-2">Action</th>
-                <th className="text-left pl-2">Date & Time</th>
-              </tr></thead>
-              <tbody>
-                {activityData.audits?.slice(0, 50).map(audit => {
-                  const order = audit.order;
-                  const riderFromDetails = audit.details?.match(/Rider (.+?) accepted|by (.+?) via|by (.+?):/);
-                  const riderName = order?.riderName || riderFromDetails?.[1] || riderFromDetails?.[2] || riderFromDetails?.[3] || '—';
-                  return (
-                    <tr key={audit.id} className="border-t border-gray-800 hover:bg-white/5 cursor-pointer"
-                      onClick={() => order && setSelectedOrder({ ...order, deliveryAttempts: [], deliveryPayments: [], noResponseLogs: [] })}>
-                      <td className="py-2 pr-2 font-bold theme-text-primary">#{order?.orderNumber || audit.orderId?.slice(0, 6)}</td>
-                      <td className="px-2 font-bold">{order?.customerName || '—'}</td>
-                      <td className="px-2">{order?.city || '—'}</td>
-                      <td className="px-2 font-bold text-indigo-400">{riderName}</td>
-                      <td className="px-2">
-                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
-                          audit.action === 'DELIVERED' ? 'bg-emerald-500/20 text-emerald-400' :
-                          audit.action === 'DELIVERY_ACCEPTED' ? 'bg-blue-500/20 text-blue-400' :
-                          audit.action === 'DISPATCH_RETURNED' ? 'bg-red-500/20 text-red-400' :
-                          'bg-amber-500/20 text-amber-400'
-                        }`}>{audit.action?.replace(/_/g, ' ')}</span>
-                      </td>
-                      <td className="pl-2 text-[10px] text-gray-500">
-                        {audit.createdAt ? formatDateTime(audit.createdAt) : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* 7. COD Collection */}
-      {codSummary && (
-        <div className="glass rounded-2xl p-5 border-2 theme-border">
-          <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Package size={16} className="text-purple-400" /> COD Collection Summary
-          </h3>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="theme-bg-subtle rounded-xl p-3 text-center">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Date-Filtered COD</p>
-              <p className="text-xl font-black text-emerald-400">₨{(codSummary.filteredCODAmount || 0).toLocaleString()}</p>
-              <p className="text-[10px] font-bold text-gray-500">{codSummary.filteredCODOrders || 0} orders</p>
-            </div>
-            <div className="theme-bg-subtle rounded-xl p-3 text-center">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Pending COD</p>
-              <p className="text-xl font-black text-amber-400">₨{(codSummary.pendingCODAmount || 0).toLocaleString()}</p>
-              <p className="text-[10px] font-bold text-gray-500">{codSummary.pendingCODOrders || 0} orders</p>
-            </div>
-          </div>
-          {codSummary.pendingDeliveries?.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-                  <th className="text-left py-1 pr-2">Order#</th>
-                  <th className="text-left px-2">Customer</th>
-                  <th className="text-left px-2">Method</th>
-                  <th className="text-right pl-2">Amount</th>
-                </tr></thead>
-                <tbody>
-                  {codSummary.pendingDeliveries.slice(0, 20).map(o => {
-                    const remaining = isPaidOrder(o) ? 0 : getCodAmount(o);
-                    return (
-                      <tr key={o.id} className="border-t border-gray-800">
-                        <td className="py-1 pr-2 font-bold theme-text-primary">#{o.orderNumber || o.id?.slice(0, 6)}</td>
-                        <td className="px-2 font-bold">{o.customerName || '—'}</td>
-                        <td className="px-2 text-[10px] font-bold text-gray-400">{o.paymentMethod || 'CASH'}</td>
-                        <td className="text-right pl-2 font-bold text-amber-400">₨{remaining.toLocaleString()}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+        <div className="mt-4 space-y-4">
+          {earnings.perRider?.length === 0 ? (
+            <div className="text-center py-8"><p className="theme-text-muted font-black uppercase text-xs">No delivery riders found</p></div>
+          ) : (
+            earnings.perRider.map(rider => (
+              <RiderCard key={rider.riderName} rider={rider} onPay={handlePayRider} onViewHistory={handleViewHistory} />
+            ))
           )}
         </div>
-      )}
+      </div>
+
+      {/* 4. Delivery Timeline */}
+      <div className="glass rounded-2xl p-5 border-2 theme-border">
+        <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Clock size={16} className="text-indigo-400" /> Delivery Timeline & Timing
+        </h3>
+        {orders.length === 0 ? (
+          <div className="text-center py-10"><p className="theme-text-muted font-black uppercase text-xs">No orders in selected filters</p></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[10px]">
+              <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[9px]">
+                <th className="text-left py-2 pr-2">Order #</th>
+                <th className="text-left px-1">Customer</th>
+                <th className="text-left px-1">Rider</th>
+                <th className="text-left px-1">Outlet</th>
+                <th className="text-left px-1">Assigned</th>
+                <th className="text-left px-1">Accepted</th>
+                <th className="text-left px-1">Picked Up</th>
+                <th className="text-left px-1">Delivered</th>
+                <th className="text-left px-1">Duration</th>
+                <th className="text-left px-1">Status</th>
+              </tr></thead>
+              <tbody>
+                {orders.slice(0, 100).map(o => (
+                  <tr key={o.id} className="border-t border-gray-800 hover:bg-white/5 cursor-pointer"
+                    onClick={() => setSelectedOrder(o)}>
+                    <td className="py-2 pr-2 font-bold theme-text-primary">#{o.orderNumber || o.id?.slice(0, 6)}</td>
+                    <td className="px-1 font-bold">{o.customerName || '—'}</td>
+                    <td className="px-1 font-bold text-indigo-400">{o.riderName || '—'}</td>
+                    <td className="px-1 text-gray-400">{o.outletName || '—'}</td>
+                    <td className="px-1 text-gray-400">{fmt(o.timeline?.assignedAt)}</td>
+                    <td className="px-1 text-gray-400">{fmt(o.timeline?.acceptedAt)}</td>
+                    <td className="px-1 text-gray-400">{fmt(o.timeline?.pickedUpAt)}</td>
+                    <td className="px-1 text-emerald-400 font-bold">{fmt(o.timeline?.deliveredAt)}</td>
+                    <td className="px-1 font-black text-gray-400">{formatDuration(o.timeline?.durationMinutes)}</td>
+                    <td className="px-1">
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${STATUS_BADGE[o.primaryStatus] || 'bg-gray-500/20 text-gray-400'}`}>
+                        {STATUS_LABEL[o.primaryStatus] || o.primaryStatus || '—'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {orders.length > 100 && (
+              <p className="text-[10px] font-bold text-gray-500 mt-3 text-center">Showing first 100 of {orders.length} — click a row for full details</p>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Order Detail Modal */}
       <AnimatePresence>
@@ -821,9 +862,9 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
 
       {/* Pay Employee Modal */}
       <AnimatePresence>
-        {showPayModal && selectedEmployee && (
-          <PayEmployeeModal employee={selectedEmployee} onClose={() => { setShowPayModal(false); setSelectedEmployee(null); }}
-            onSuccess={() => { setShowPayModal(false); setSelectedEmployee(null); fetchData(); }} />
+        {showPayModal && selectedRider && (
+          <PayEmployeeModal employee={selectedRider} onClose={() => { setShowPayModal(false); setSelectedRider(null); }}
+            onSuccess={() => { setShowPayModal(false); setSelectedRider(null); fetchData(); }} />
         )}
       </AnimatePresence>
 

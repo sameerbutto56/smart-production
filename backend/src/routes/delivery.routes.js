@@ -16,9 +16,11 @@ const {
   getDeliveryEmployeeStats,
   payDeliveryEmployee,
   getDeliveryPaymentHistory,
-  getActivityTimeline
+  getActivityTimeline,
+  getDeliveryAnalytics
 } = require('../controllers/delivery.controller');
 
+router.get('/analytics', auth, getDeliveryAnalytics);
 router.get('/orders', auth, getDeliveryOrders);
 router.put('/:orderId/accept', auth, acceptDelivery);
 router.put('/:orderId/deliver', auth, deliverOrder);
