@@ -450,7 +450,12 @@ const submitAudit = async (req, res) => {
       );
     }
 
-    const items = await prisma.inventoryAuditItem.findMany({ where: { auditId: audit.id } });
+    // Single fetch used for both summary computation and the response — a second
+    // full fetch of a large audit pushed the function past Vercel's 30s cap.
+    const items = await prisma.inventoryAuditItem.findMany({
+      where: { auditId: audit.id },
+      orderBy: { productName: 'asc' }
+    });
     const summary = computeAuditSummary(items);
 
     const updated = await prisma.inventoryAudit.update({
@@ -459,6 +464,7 @@ const submitAudit = async (req, res) => {
         status: 'SUBMITTED',
         submittedAt: new Date(),
         scannedCount: summary.scannedCount,
+        totalScans: summary.totalScans,
         matchedCount: summary.matchedCount,
         missingCount: summary.missingCount,
         extraCount: summary.extraCount,
@@ -467,9 +473,7 @@ const submitAudit = async (req, res) => {
       }
     });
 
-    const fresh = await loadAuditWithItems(audit.id);
-    fresh.items = fresh.items.map(computeItemDiff);
-    res.json(fresh);
+    res.json({ ...updated, items: items.map(computeItemDiff), adjustments: [] });
 
     const io = req.app.get('io');
     io.emit('audit-updated', { auditId: audit.id, status: 'SUBMITTED' });
