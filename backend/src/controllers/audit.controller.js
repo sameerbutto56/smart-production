@@ -40,16 +40,17 @@ const computeItemDiff = (item) => {
 
 const computeAuditSummary = (items) => {
   let scannedCount = 0, matchedCount = 0, missingCount = 0, extraCount = 0;
-  let lossValue = 0, extraValue = 0;
+  let lossValue = 0, extraValue = 0, totalScans = 0;
   for (const it of items) {
     const diff = (it.physicalQty || 0) - (it.systemQty || 0);
     if (it.scanned) scannedCount++;
+    totalScans += it.scanCount || 0;
     if (diff === 0) matchedCount++;
     else if (diff > 0) { extraCount++; extraValue += diff * (it.price || 0); }
     else { missingCount++; lossValue += Math.abs(diff) * (it.price || 0); }
   }
   return {
-    scannedCount, matchedCount, missingCount, extraCount,
+    scannedCount, totalScans, matchedCount, missingCount, extraCount,
     lossValue, extraValue, differenceValue: lossValue + extraValue
   };
 };
@@ -61,6 +62,7 @@ const persistSummary = async (auditId, items, tx) => {
     where: { id: auditId },
     data: {
       scannedCount: s.scannedCount,
+      totalScans: s.totalScans,
       matchedCount: s.matchedCount,
       missingCount: s.missingCount,
       extraCount: s.extraCount,
@@ -263,7 +265,7 @@ const listAudits = async (req, res) => {
       take: parseInt(req.query.limit) || 100,
       select: {
         id: true, auditNumber: true, type: true, outletName: true, status: true,
-        totalVariants: true, totalStock: true, scannedCount: true, matchedCount: true,
+        totalVariants: true, totalStock: true, scannedCount: true, totalScans: true, matchedCount: true,
         missingCount: true, extraCount: true, differenceValue: true,
         createdBy: true, submittedAt: true, approvedBy: true, approvedAt: true,
         rejectedBy: true, rejectedAt: true, rejectionReason: true, createdAt: true

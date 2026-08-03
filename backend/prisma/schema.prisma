@@ -1264,6 +1264,7 @@ model InventoryAudit {
   totalVariants    Int      @default(0)
   totalStock       Int      @default(0)
   scannedCount     Int      @default(0)
+  totalScans       Int      @default(0)
   matchedCount     Int      @default(0)
   missingCount     Int      @default(0)
   extraCount       Int      @default(0)
