@@ -510,56 +510,116 @@ const approveAudit = async (req, res) => {
     const changed = items.filter(i => i.difference !== 0);
     const adjustments = [];
 
-    // Per-item live-inventory writes inside a 30s transaction — atomic, and with
-    // enough headroom for the pooler latency on large audits.
-    await prisma.$transaction(async (tx) => {
-      for (const item of changed) {
-        const newQty = Math.max(0, item.physicalQty || 0);
-        if (item.kind === 'OUTLET_VARIANT') {
-          await tx.outletInventory.update({
-            where: { id: item.productId },
-            data: { stock: newQty }
-          });
-        } else {
-          const storeItem = await tx.inventoryItem.findUnique({ where: { id: item.productId } });
-          if (storeItem) {
-            const variants = parseVariants(storeItem.variants);
-            if (variants.length > 0) {
-              const idx = variants.findIndex(v =>
-                (v.color || null) === (item.color || null) && (v.size || null) === (item.size || null)
-              );
-              if (idx >= 0) {
-                variants[idx] = { ...variants[idx], stock: newQty };
-              } else if (newQty > 0) {
-                variants.push({ color: item.color || null, size: item.size || null, stock: newQty, price: item.price || storeItem.price || 0 });
-              }
-              const totalStock = variants.reduce((s, v) => s + (parseInt(v.stock) || 0), 0);
-              await tx.inventoryItem.update({
-                where: { id: item.productId },
-                data: { stock: totalStock, variants }
-              });
-            } else {
-              await tx.inventoryItem.update({
-                where: { id: item.productId },
-                data: { stock: newQty }
-              });
+    // Build ALL adjustments + in-memory inventory targets FIRST (no per-item DB
+    // writes). The Supabase pooler makes each UPDATE ~0.5-0.8s, so hundreds of
+    // diffs blew Prisma's 30s transaction timeout on large audits (reproduced:
+    // AUD-0007 "Transaction API error: Transaction not found" at ~33s).
+    // Inventory is applied below via ONE raw SQL statement per table.
+    const outletIds = [];
+    const outletWhens = [];
+    const storeByProduct = new Map();
+
+    for (const item of changed) {
+      const newQty = Math.max(0, item.physicalQty || 0);
+      adjustments.push({
+        auditId: audit.id,
+        auditNumber: audit.auditNumber,
+        type: audit.type,
+        location: audit.type === 'OUTLET' ? (audit.outletName || 'Outlet') : 'Warehouse',
+        productId: item.productId,
+        productName: item.productName,
+        color: item.color,
+        size: item.size,
+        barcode: item.barcode,
+        previousQty: item.systemQty,
+        newQty,
+        difference: item.difference,
+        approvedBy: req.user?.name || 'Admin'
+      });
+
+      if (item.kind === 'OUTLET_VARIANT') {
+        outletIds.push(item.productId);
+        outletWhens.push(Prisma.sql`WHEN ${item.productId} THEN ${newQty}`);
+      } else {
+        if (!storeByProduct.has(item.productId)) storeByProduct.set(item.productId, []);
+        storeByProduct.get(item.productId).push(item);
+      }
+    }
+
+    // Group store (InventoryItem) changes per product so all variant edits for
+    // one product accumulate onto the SAME variants array before the SQL WHENs
+    // are built (CASE returns the first matching WHEN, so duplicates would win).
+    const storeVariantEntries = [];
+    const storeFlatEntries = [];
+    if (storeByProduct.size > 0) {
+      const storeRows = await prisma.inventoryItem.findMany({ where: { id: { in: [...storeByProduct.keys()] } } });
+      const byId = new Map(storeRows.map(s => [s.id, s]));
+      for (const [pid, itemList] of storeByProduct) {
+        const storeItem = byId.get(pid);
+        if (!storeItem) continue;
+        const variants = parseVariants(storeItem.variants);
+        if (variants.length > 0) {
+          let variantChanged = false;
+          for (const it of itemList) {
+            const newQty = Math.max(0, it.physicalQty || 0);
+            const idx = variants.findIndex(v =>
+              (v.color || null) === (it.color || null) && (v.size || null) === (it.size || null)
+            );
+            if (idx >= 0) {
+              variants[idx] = { ...variants[idx], stock: newQty };
+              variantChanged = true;
+            } else if (newQty > 0) {
+              variants.push({ color: it.color || null, size: it.size || null, stock: newQty, price: it.price || storeItem.price || 0 });
+              variantChanged = true;
             }
           }
+          if (variantChanged) {
+            storeVariantEntries.push({
+              pid,
+              variants,
+              stock: variants.reduce((s, v) => s + (parseInt(v.stock) || 0), 0)
+            });
+          }
+        } else {
+          storeFlatEntries.push({ pid, stock: Math.max(0, itemList[itemList.length - 1].physicalQty || 0) });
         }
-        adjustments.push({
-          auditId: audit.id,
-          auditNumber: audit.auditNumber,
-          type: audit.type,
-          location: audit.type === 'OUTLET' ? (audit.outletName || 'Outlet') : 'Warehouse',
-          productId: item.productId,
-          productName: item.productName,
-          color: item.color,
-          size: item.size,
-          barcode: item.barcode,
-          previousQty: item.systemQty,
-          newQty,
-          difference: item.difference,
-          approvedBy: req.user?.name || 'Admin'
+      }
+    }
+
+    // One interactive transaction with only 2-4 fast statements (single round
+    // trip each) — atomic, and far under the 30s pooler headroom.
+    await prisma.$transaction(async (tx) => {
+      if (outletWhens.length > 0) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "OutletInventory"
+          SET "stock" = CASE "id"::text ${Prisma.join(outletWhens, ' ')} ELSE "stock" END
+          WHERE "id"::text IN (${Prisma.join(outletIds, ',')})
+        `);
+      }
+      if (storeVariantEntries.length > 0) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "InventoryItem"
+          SET "variants" = CASE "id"::text ${Prisma.join(storeVariantEntries.map(e => Prisma.sql`WHEN ${e.pid} THEN ${JSON.stringify(e.variants)}::jsonb`), ' ')} ELSE "variants" END,
+              "stock" = CASE "id"::text ${Prisma.join(storeVariantEntries.map(e => Prisma.sql`WHEN ${e.pid} THEN ${e.stock}`), ' ')} ELSE "stock" END
+          WHERE "id"::text IN (${Prisma.join(storeVariantEntries.map(e => e.pid), ',')})
+        `);
+      }
+      if (storeFlatEntries.length > 0) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "InventoryItem"
+          SET "stock" = CASE "id"::text ${Prisma.join(storeFlatEntries.map(e => Prisma.sql`WHEN ${e.pid} THEN ${e.stock}`), ' ')} ELSE "stock" END
+          WHERE "id"::text IN (${Prisma.join(storeFlatEntries.map(e => e.pid), ',')})
+        `);
+      }
+      await tx.inventoryAudit.update({
+        where: { id: audit.id },
+        data: { status: 'APPROVED', approvedBy: req.user?.name || 'Admin', approvedAt: new Date() }
+      });
+      if (adjustments.length > 0) {
+        await tx.inventoryAdjustmentLog.createMany({ data: adjustments });
+        await tx.inventoryAudit.update({
+          where: { id: audit.id },
+          data: { summary: { ...(audit.summary || {}), appliedAdjustments: adjustments.length } }
         });
       }
     }, { timeout: 30000 });
