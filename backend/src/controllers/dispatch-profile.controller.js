@@ -91,8 +91,9 @@ const getDispatchProfileOrders = async (req, res) => {
           continue;
         }
 
-        const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
-        const isAccepted = dispatchStage?.startedAt != null;
+        const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
+        const dispatchStage = dispatchStages[dispatchStages.length - 1];
+        const isAccepted = (dispatchStage?.startedAt != null) || order.dispatchOfficer != null;
 
         if (!isAccepted || order.dispatchOfficer === null) {
           unseen.push(order);
@@ -134,8 +135,9 @@ const getDispatchProfileOrders = async (req, res) => {
         continue;
       }
 
-      const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
-      const isAccepted = dispatchStage?.startedAt != null;
+      const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
+      const dispatchStage = dispatchStages[dispatchStages.length - 1];
+      const isAccepted = (dispatchStage?.startedAt != null) || order.dispatchOfficer != null;
       const isAssignedToFaisal = order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar';
 
       if (!isAccepted || order.dispatchOfficer === null) {
@@ -172,26 +174,34 @@ const acceptDispatchOrder = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: { where: { stageName: 'DISPATCH' } } }
+      include: { stages: { where: { stageName: 'DISPATCH' }, orderBy: { createdAt: 'asc' } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.currentStage !== 'DISPATCH') {
       return res.status(400).json({ message: 'Order is not in DISPATCH stage' });
     }
 
-    // Update dispatch stage to IN_PROGRESS
-    const dispatchStage = order.stages?.[0];
-    if (dispatchStage && dispatchStage.status === 'PENDING') {
-      await prisma.orderStage.update({
-        where: { id: dispatchStage.id },
-        data: { status: 'IN_PROGRESS', startedAt: new Date() }
-      });
-    } else if (!dispatchStage) {
-      // Create stage if missing
+    // Update the latest DISPATCH stage to IN_PROGRESS (idempotent for re-accept)
+    const dispatchStages = order.stages || [];
+    const latestStage = dispatchStages[dispatchStages.length - 1];
+
+    if (!latestStage || ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(latestStage.status)) {
+      // Create stage if missing (or the only DISPATCH stage is terminal from a prior cycle)
       const durations = await getStageDurations(order.priority);
       const deadline = calculateDeadline(new Date(), durations['DISPATCH'] || 12);
       await prisma.orderStage.create({
         data: { orderId, stageName: 'DISPATCH', status: 'IN_PROGRESS', startedAt: new Date(), deadlineAt: deadline }
+      });
+    } else if (latestStage.status === 'PENDING') {
+      await prisma.orderStage.update({
+        where: { id: latestStage.id },
+        data: { status: 'IN_PROGRESS', startedAt: new Date() }
+      });
+    } else {
+      // Already IN_PROGRESS / WAITING_APPROVAL — ensure startedAt is present
+      await prisma.orderStage.update({
+        where: { id: latestStage.id },
+        data: { startedAt: latestStage.startedAt || new Date() }
       });
     }
 
@@ -539,7 +549,8 @@ const getDispatchDashboard = async (req, res) => {
 
     // Tracking data for the table
     const trackingData = orders.map(o => {
-      const dispatchStage = o.stages.find(s => s.stageName === 'DISPATCH');
+      const dispatchStages = (o.stages || []).filter(s => s.stageName === 'DISPATCH');
+      const dispatchStage = dispatchStages[dispatchStages.length - 1];
       const deliveryStage = o.stages.find(s => s.stageName === 'OUT_FOR_DELIVERY');
       const dispatchLogEntry = allLogs.find(l => l.orderId === o.id && l.action === 'DISPATCHED');
       return {

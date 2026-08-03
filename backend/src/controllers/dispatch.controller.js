@@ -414,8 +414,9 @@ const getDispatchDashboard = async (req, res) => {
     const active = [];
 
     for (const order of orders) {
-      const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
-      const isAccepted = dispatchStage?.startedAt != null;
+      const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
+      const dispatchStage = dispatchStages[dispatchStages.length - 1];
+      const isAccepted = (dispatchStage?.startedAt != null) || order.dispatchOfficer != null;
       const isDispatched = order.currentStage === 'OUT_FOR_DELIVERY' || order.dispatchStatus === 'BOOKED' || order.dispatchStatus === 'DISPATCHED';
 
       if (order.currentStage === 'OUT_FOR_DELIVERY' || ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'].includes(order.dispatchStatus)) {
