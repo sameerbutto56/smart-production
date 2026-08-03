@@ -1300,6 +1300,8 @@ model InventoryAuditItem {
   barcode     String?
   systemQty   Int      @default(0)
   physicalQty Int      @default(0)
+  scanCount   Int      @default(0)
+  lastScannedAt DateTime?
   scanned     Boolean  @default(false)
   difference  Int      @default(0)
   price       Float    @default(0)

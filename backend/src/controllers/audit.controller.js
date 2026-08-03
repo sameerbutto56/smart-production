@@ -307,7 +307,7 @@ const scanBarcode = async (req, res) => {
 
     const updated = await prisma.inventoryAuditItem.update({
       where: { id: item.id },
-      data: { physicalQty: { increment: 1 }, scanned: true }
+      data: { physicalQty: { increment: 1 }, scanCount: { increment: 1 }, scanned: true, lastScannedAt: new Date() }
     });
 
     await persistSummary(audit.id, await prisma.inventoryAuditItem.findMany({ where: { auditId: audit.id } }));
@@ -320,16 +320,23 @@ const scanBarcode = async (req, res) => {
   }
 };
 
-// ─── POST /api/audit/:id/batch-scan — high-speed batched barcode scans ───
-// Accepts an array of scan events ({ itemId } or { barcode }) and increments each
-// matching variant's physicalQty once, inside a single transaction. The UI keeps
-// its own in-memory copy and flushes batches in the background, so the operator
-// never waits on the database. Summary is recomputed once per batch.
+// ─── POST /api/audit/:id/batch-scan — high-speed batched scan + manual-qty ops ───
+// Accepts an ordered array of operations, each either:
+//   { op: 'scan', itemId } | { op: 'scan', barcode }   → physicalQty +1, scanCount +1
+//   { op: 'set', itemId, qty }                          → physicalQty = qty (manual, no scanCount)
+// Operations are replayed per item so scan increments build on top of manual sets in
+// the exact order the operator made them, then each item is written ONCE (aggregated)
+// inside a single transaction. The UI keeps its own in-memory copy and flushes batches
+// in the background, so the operator never waits on the database.
 const batchScan = async (req, res) => {
   try {
-    const { scans } = req.body;
-    if (!Array.isArray(scans) || scans.length === 0) return res.status(400).json({ message: 'scans array is required' });
-    if (scans.length > 200) return res.status(400).json({ message: 'Batch too large (max 200)' });
+    const { ops, scans } = req.body;
+    let operations = ops;
+    if (!Array.isArray(operations) || operations.length === 0) {
+      if (Array.isArray(scans)) operations = scans.map(s => ({ op: 'scan', itemId: s?.itemId, barcode: s?.barcode }));
+    }
+    if (!Array.isArray(operations) || operations.length === 0) return res.status(400).json({ message: 'ops or scans array is required' });
+    if (operations.length > 300) return res.status(400).json({ message: 'Batch too large (max 300)' });
 
     const audit = await prisma.inventoryAudit.findUnique({ where: { id: req.params.id } });
     if (!audit) return res.status(404).json({ message: 'Audit not found' });
@@ -339,36 +346,52 @@ const batchScan = async (req, res) => {
     const byBarcode = new Map(items.map(it => [String(it.barcode || '').trim().toLowerCase(), it]));
     const byId = new Map(items.map(it => [it.id, it]));
 
-    const incrementById = new Map();
     const notFound = [];
-    for (const s of scans) {
+    // Replay ops per item in order: a manual set fixes the absolute count, then any
+    // subsequent scans add on top. Aggregated here so each item writes to the DB once.
+    const groups = new Map();
+    for (const op of operations) {
+      if (!op) continue;
       let item = null;
-      if (s && s.itemId) item = byId.get(s.itemId);
-      else if (s && s.barcode) item = byBarcode.get(String(s.barcode).trim().toLowerCase());
-      if (!item) { notFound.push((s && s.barcode) || (s && s.itemId) || '?'); continue; }
-      incrementById.set(item.id, (incrementById.get(item.id) || 0) + 1);
+      if (op.itemId) item = byId.get(op.itemId);
+      else if (op.barcode) item = byBarcode.get(String(op.barcode).trim().toLowerCase());
+      if (!item) { notFound.push(op.barcode || op.itemId || '?'); continue; }
+      const g = groups.get(item.id) || { item, current: item.physicalQty || 0, newScans: 0 };
+      if (op.op === 'set') {
+        g.current = Math.max(0, parseInt(op.qty) || 0);
+      } else {
+        g.current += 1;
+        g.newScans += 1;
+      }
+      groups.set(item.id, g);
     }
 
-    let synced = [];
-    let after = [];
+    const now = new Date();
+    const synced = [];
     let summary = null;
+    let after = [];
     await prisma.$transaction(async (tx) => {
-      for (const [itemId, count] of incrementById) {
+      for (const [itemId, g] of groups) {
         const u = await tx.inventoryAuditItem.update({
           where: { id: itemId },
-          data: { physicalQty: { increment: count }, scanned: true }
+          data: {
+            physicalQty: g.current,
+            scanCount: { increment: g.newScans },
+            scanned: true,
+            ...(g.newScans > 0 ? { lastScannedAt: now } : {})
+          }
         });
-        synced.push({ id: u.id, physicalQty: u.physicalQty, systemQty: u.systemQty, scanned: true });
+        synced.push({ id: u.id, physicalQty: u.physicalQty, scanCount: u.scanCount, systemQty: u.systemQty, scanned: true, op: g.newScans > 0 ? 'scan' : 'set' });
       }
       after = await tx.inventoryAuditItem.findMany({ where: { auditId: audit.id } });
       summary = await persistSummary(audit.id, after, tx);
-    });
+    }, { timeout: 30000 });
 
     let item = null;
     if (synced.length > 0) {
       const last = synced[synced.length - 1];
       const base = items.find(it => it.id === last.id);
-      if (base) item = computeItemDiff({ ...base, physicalQty: last.physicalQty, scanned: true });
+      if (base) item = computeItemDiff({ ...base, physicalQty: last.physicalQty, scanCount: last.scanCount, scanned: true });
     }
 
     res.json({ processed: synced.length, notFound, summary, synced, item });
