@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const { getPendingAudit } = require('../utils/auditLock');
+const errorLogger = require('../utils/errorLogger');
 const CACHE_KEY_PREFIX = 'pos:';
 
 const getOutletName = (req) => {
@@ -42,20 +43,26 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
   return `${prefix}${base}`;
 };
 
-const generateReceiptNumber = async () => {
-  const d = new Date();
-  const datePrefix = `RCP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+const seedReceiptSequence = async (datePrefix) => {
   const last = await prisma.posSale.findFirst({
     where: { receiptNumber: { startsWith: datePrefix } },
     orderBy: { receiptNumber: 'desc' },
     select: { receiptNumber: true }
   });
-  let nextNum = 1;
-  if (last) {
-    const parts = last.receiptNumber.split('-');
-    nextNum = parseInt(parts[parts.length - 1] || '0', 10) + 1;
-  }
-  return `${datePrefix}-${String(nextNum).padStart(5, '0')}`;
+  if (!last) return 1;
+  const parts = last.receiptNumber.split('-');
+  return parseInt(parts[parts.length - 1] || '0', 10) + 1;
+};
+
+const generateReceiptNumber = async () => {
+  const d = new Date();
+  const datePrefix = `RCP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const seq = await prisma.posSaleSequence.upsert({
+    where: { prefix: datePrefix },
+    create: { prefix: datePrefix, nextValue: await seedReceiptSequence(datePrefix) },
+    update: { nextValue: { increment: 1 } }
+  });
+  return `${datePrefix}-${String(seq.nextValue).padStart(5, '0')}`;
 };
 
 /* ─── POS Inventory — read-only view of outlet inventory ─── */
@@ -604,6 +611,15 @@ const createSale = async (req, res) => {
       if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
     });
   } catch (error) {
+    errorLogger.logError({
+      module: 'outlet-pos:createSale',
+      userId: req.user?.id,
+      userName: req.user?.name || cashierName,
+      outletName,
+      context: receiptNumber || (clientRequestId ? `clientRequestId=${clientRequestId}` : null),
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Failed to create sale', error: error.message });
   }
 };
@@ -1111,6 +1127,15 @@ const createReturn = async (req, res) => {
     cache.delPattern(CACHE_KEY_PREFIX);
     res.status(201).json(ret);
   } catch (error) {
+    errorLogger.logError({
+      module: 'outlet-pos:createReturn',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      outletName: outlet,
+      context: variantId ? `variantId=${variantId} qty=${quantity}` : null,
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Failed to process return', error: error.message });
   }
 };
@@ -1163,37 +1188,55 @@ const refundInvoice = async (req, res) => {
     if (sale.refundedAt) return res.status(400).json({ message: 'Invoice already refunded' });
     if (sale.faisalTake) return res.status(400).json({ message: 'Cannot refund Faisal Take' });
 
-    // Restore inventory and create return records for each item
-    for (const item of sale.items) {
-      if (item.outletVariantId) {
-        await prisma.outletInventory.update({
-          where: { id: item.outletVariantId },
-          data: { stock: { increment: item.quantity } }
+    // Restore inventory and create return records for each item — whole refund
+    // is atomic so a failure never leaves partial restores / double refunds.
+    await prisma.$transaction(async (tx) => {
+      const fresh = await tx.posSale.findUnique({
+        where: { id: saleId },
+        select: { refundedAt: true }
+      });
+      if (fresh?.refundedAt) throw new Error('Invoice already refunded');
+
+      for (const item of sale.items) {
+        if (item.outletVariantId) {
+          await tx.outletInventory.update({
+            where: { id: item.outletVariantId },
+            data: { stock: { increment: item.quantity } }
+          });
+        }
+        const refundAmount = item.lineTotal;
+        await tx.posReturn.create({
+          data: {
+            outletVariantId: item.outletVariantId,
+            outletName: outlet || sale.outletName || 'Johar Town',
+            saleId: sale.id,
+            reason: 'Full invoice refund',
+            quantity: item.quantity,
+            refundAmount,
+            refundPaymentMethod: sale.paymentMethod
+          }
         });
       }
-      const refundAmount = item.lineTotal;
-      await prisma.posReturn.create({
-        data: {
-          outletVariantId: item.outletVariantId,
-          outletName: outlet || sale.outletName || 'Johar Town',
-          saleId: sale.id,
-          reason: 'Full invoice refund',
-          quantity: item.quantity,
-          refundAmount,
-          refundPaymentMethod: sale.paymentMethod
-        }
-      });
-    }
 
-    // Mark sale as refunded
-    await prisma.posSale.update({
-      where: { id: saleId },
-      data: { refundedAt: new Date(), refundReason: 'Full invoice refund' }
-    });
+      // Mark sale as refunded
+      await tx.posSale.update({
+        where: { id: saleId },
+        data: { refundedAt: new Date(), refundReason: 'Full invoice refund' }
+      });
+    }, { timeout: 30000 });
 
     cache.delPattern(CACHE_KEY_PREFIX);
     res.json({ message: 'Invoice fully refunded', saleId });
   } catch (error) {
+    errorLogger.logError({
+      module: 'outlet-pos:refundInvoice',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      outletName: outlet,
+      context: `saleId=${req.params?.saleId}`,
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Failed to refund invoice', error: error.message });
   }
 };

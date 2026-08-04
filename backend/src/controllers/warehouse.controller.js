@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const { getPendingAudit } = require('../utils/auditLock');
+const errorLogger = require('../utils/errorLogger');
 const CACHE_KEY_PREFIX = 'warehouse:';
 
 const djb2 = (str) => {
@@ -21,20 +22,26 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
   return `${prefix}${base}`;
 };
 
-const generateReceiptNumber = async () => {
-  const d = new Date();
-  const datePrefix = `WRH-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+const seedReceiptSequence = async (datePrefix) => {
   const last = await prisma.posSale.findFirst({
     where: { receiptNumber: { startsWith: datePrefix } },
     orderBy: { receiptNumber: 'desc' },
     select: { receiptNumber: true }
   });
-  let nextNum = 1;
-  if (last) {
-    const parts = last.receiptNumber.split('-');
-    nextNum = parseInt(parts[parts.length - 1] || '0', 10) + 1;
-  }
-  return `${datePrefix}-${String(nextNum).padStart(5, '0')}`;
+  if (!last) return 1;
+  const parts = last.receiptNumber.split('-');
+  return parseInt(parts[parts.length - 1] || '0', 10) + 1;
+};
+
+const generateReceiptNumber = async () => {
+  const d = new Date();
+  const datePrefix = `WRH-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const seq = await prisma.posSaleSequence.upsert({
+    where: { prefix: datePrefix },
+    create: { prefix: datePrefix, nextValue: await seedReceiptSequence(datePrefix) },
+    update: { nextValue: { increment: 1 } }
+  });
+  return `${datePrefix}-${String(seq.nextValue).padStart(5, '0')}`;
 };
 
 /* ─── Add to Inventory (from Store after Production completes) ─── */
@@ -396,6 +403,15 @@ const createSale = async (req, res) => {
       cache.delPattern(`${CACHE_KEY_PREFIX}*`);
     });
   } catch (error) {
+    errorLogger.logError({
+      module: 'warehouse-pos:createSale',
+      userId: req.user?.id,
+      userName: req.user?.name || cashierName,
+      outletName: 'Warehouse',
+      context: receiptNumber || (clientRequestId ? `clientRequestId=${clientRequestId}` : null),
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Failed to create sale', error: error.message });
   }
 };
@@ -461,6 +477,15 @@ const createReturn = async (req, res) => {
 
     res.status(201).json(ret);
   } catch (error) {
+    errorLogger.logError({
+      module: 'warehouse-pos:createReturn',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      outletName: 'Warehouse',
+      context: productId ? `productId=${productId} qty=${quantity}` : null,
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Failed to process return', error: error.message });
   }
 };
@@ -478,53 +503,72 @@ const refundInvoice = async (req, res) => {
     if (sale.refundedAt) return res.status(400).json({ message: 'Invoice already refunded' });
     if (sale.outletName !== 'Warehouse') return res.status(400).json({ message: 'Not a Warehouse sale' });
 
-    for (const item of sale.items) {
-      // Find matching InventoryItem
-      const storeItem = await prisma.inventoryItem.findFirst({
-        where: { name: item.productName }
+    // Whole refund is atomic — stock restore + return records + refundedAt stamp
+    // commit or roll back together, so a failure never double-restores stock.
+    await prisma.$transaction(async (tx) => {
+      const fresh = await tx.posSale.findUnique({
+        where: { id: saleId },
+        select: { refundedAt: true }
       });
+      if (fresh?.refundedAt) throw new Error('Invoice already refunded');
 
-      if (storeItem) {
-        if (item.color || item.size) {
-          let variants = typeof storeItem.variants === 'string' ? JSON.parse(storeItem.variants) : (Array.isArray(storeItem.variants) ? [...storeItem.variants] : []);
-          const idx = variants.findIndex(v =>
-            (v.color || null) === (item.color || null) &&
-            (v.size || null) === (item.size || null)
-          );
-          if (idx >= 0) {
-            variants[idx] = { ...variants[idx], stock: (variants[idx].stock || 0) + item.quantity };
+      for (const item of sale.items) {
+        // Find matching InventoryItem
+        const storeItem = await tx.inventoryItem.findFirst({
+          where: { name: item.productName }
+        });
+
+        if (storeItem) {
+          if (item.color || item.size) {
+            let variants = typeof storeItem.variants === 'string' ? JSON.parse(storeItem.variants) : (Array.isArray(storeItem.variants) ? [...storeItem.variants] : []);
+            const idx = variants.findIndex(v =>
+              (v.color || null) === (item.color || null) &&
+              (v.size || null) === (item.size || null)
+            );
+            if (idx >= 0) {
+              variants[idx] = { ...variants[idx], stock: (variants[idx].stock || 0) + item.quantity };
+            }
+            await tx.inventoryItem.update({
+              where: { id: storeItem.id },
+              data: { stock: { increment: item.quantity }, variants }
+            });
+          } else {
+            await tx.inventoryItem.update({
+              where: { id: storeItem.id },
+              data: { stock: { increment: item.quantity } }
+            });
           }
-          await prisma.inventoryItem.update({
-            where: { id: storeItem.id },
-            data: { stock: { increment: item.quantity }, variants }
-          });
-        } else {
-          await prisma.inventoryItem.update({
-            where: { id: storeItem.id },
-            data: { stock: { increment: item.quantity } }
-          });
         }
+
+        await tx.posReturn.create({
+          data: {
+            outletName: 'Warehouse',
+            saleId: sale.id,
+            reason: 'Full invoice refund',
+            quantity: item.quantity,
+            refundAmount: item.lineTotal,
+            refundPaymentMethod: sale.paymentMethod
+          }
+        });
       }
 
-      await prisma.posReturn.create({
-        data: {
-          outletName: 'Warehouse',
-          saleId: sale.id,
-          reason: 'Full invoice refund',
-          quantity: item.quantity,
-          refundAmount: item.lineTotal,
-          refundPaymentMethod: sale.paymentMethod
-        }
+      await tx.posSale.update({
+        where: { id: saleId },
+        data: { refundedAt: new Date(), refundReason: 'Full invoice refund' }
       });
-    }
-
-    await prisma.posSale.update({
-      where: { id: saleId },
-      data: { refundedAt: new Date(), refundReason: 'Full invoice refund' }
-    });
+    }, { timeout: 30000 });
 
     res.json({ message: 'Invoice fully refunded', saleId });
   } catch (error) {
+    errorLogger.logError({
+      module: 'warehouse-pos:refundInvoice',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      outletName: 'Warehouse',
+      context: `saleId=${req.params?.saleId}`,
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Failed to refund invoice', error: error.message });
   }
 };

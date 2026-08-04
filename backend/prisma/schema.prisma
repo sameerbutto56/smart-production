@@ -1040,6 +1040,30 @@ model InvoiceSequence {
   @@unique([outletName])
 }
 
+model PosSaleSequence {
+  id        String @id @default(uuid())
+  prefix    String
+  nextValue Int    @default(1)
+
+  @@unique([prefix])
+}
+
+model SystemLog {
+  id         String   @id @default(uuid())
+  module     String
+  level      String   @default("ERROR")
+  userId     String?
+  userName   String?
+  outletName String?
+  context    String?
+  message    String
+  stack      String?
+  createdAt  DateTime @default(now())
+
+  @@index([module, createdAt])
+  @@index([level])
+}
+
 model AlterationSequence {
   id         String @id @default(uuid())
   prefix     String

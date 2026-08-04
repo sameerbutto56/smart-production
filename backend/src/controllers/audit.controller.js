@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const { Prisma } = require('@prisma/client');
 const { getPendingAudit } = require('../utils/auditLock');
+const errorLogger = require('../utils/errorLogger');
 
 // Same djb2 + generateBarcode scheme as warehouse.controller.js — warehouse
 // variant barcodes are computed on the fly, never persisted. Reusing it here
@@ -509,33 +510,38 @@ const approveAudit = async (req, res) => {
 
     const items = audit.items.map(computeItemDiff);
     const changed = items.filter(i => i.difference !== 0);
-    const adjustments = [];
 
     // Build ALL adjustments + in-memory inventory targets FIRST (no per-item DB
     // writes). The Supabase pooler makes each UPDATE ~0.5-0.8s, so hundreds of
     // diffs blew Prisma's 30s transaction timeout on large audits (reproduced:
     // AUD-0007 "Transaction API error: Transaction not found" at ~33s).
     // Inventory is applied below via ONE raw SQL statement per table.
+    const pendingAdjustments = [];
+    const skipped = [];
+    const skippedIds = new Set();
     const outletIds = [];
     const outletWhens = [];
     const storeByProduct = new Map();
 
     for (const item of changed) {
       const newQty = Math.max(0, item.physicalQty || 0);
-      adjustments.push({
-        auditId: audit.id,
-        auditNumber: audit.auditNumber,
-        type: audit.type,
-        location: audit.type === 'OUTLET' ? (audit.outletName || 'Outlet') : 'Warehouse',
-        productId: item.productId,
-        productName: item.productName,
-        color: item.color,
-        size: item.size,
-        barcode: item.barcode,
-        previousQty: item.systemQty,
-        newQty,
-        difference: item.difference,
-        approvedBy: req.user?.name || 'Admin'
+      pendingAdjustments.push({
+        adj: {
+          auditId: audit.id,
+          auditNumber: audit.auditNumber,
+          type: audit.type,
+          location: audit.type === 'OUTLET' ? (audit.outletName || 'Outlet') : 'Warehouse',
+          productId: item.productId,
+          productName: item.productName,
+          color: item.color,
+          size: item.size,
+          barcode: item.barcode,
+          previousQty: item.systemQty,
+          newQty,
+          difference: item.difference,
+          approvedBy: req.user?.name || 'Admin'
+        },
+        productId: item.productId
       });
 
       if (item.kind === 'OUTLET_VARIANT') {
@@ -545,6 +551,25 @@ const approveAudit = async (req, res) => {
         if (!storeByProduct.has(item.productId)) storeByProduct.set(item.productId, []);
         storeByProduct.get(item.productId).push(item);
       }
+    }
+
+    // Verify OUTLET target rows still exist — a deleted variant would silently
+    // no-op in the CASE statement; skip + log it instead of faking an applied log.
+    if (outletIds.length > 0) {
+      const existingRows = await prisma.outletInventory.findMany({ where: { id: { in: outletIds } }, select: { id: true } });
+      const existingSet = new Set(existingRows.map(r => r.id));
+      let w = 0;
+      for (let i = 0; i < outletIds.length; i++) {
+        if (existingSet.has(outletIds[i])) {
+          outletIds[w] = outletIds[i];
+          outletWhens[w] = outletWhens[i];
+          w++;
+        } else {
+          skippedIds.add(outletIds[i]);
+        }
+      }
+      outletIds.length = w;
+      outletWhens.length = w;
     }
 
     // Group store (InventoryItem) changes per product so all variant edits for
@@ -557,7 +582,10 @@ const approveAudit = async (req, res) => {
       const byId = new Map(storeRows.map(s => [s.id, s]));
       for (const [pid, itemList] of storeByProduct) {
         const storeItem = byId.get(pid);
-        if (!storeItem) continue;
+        if (!storeItem) {
+          skippedIds.add(pid);
+          continue;
+        }
         const variants = parseVariants(storeItem.variants);
         if (variants.length > 0) {
           let variantChanged = false;
@@ -585,6 +613,30 @@ const approveAudit = async (req, res) => {
           storeFlatEntries.push({ pid, stock: Math.max(0, itemList[itemList.length - 1].physicalQty || 0) });
         }
       }
+    }
+
+    // Finalize applied adjustments — exclude anything whose live target row is gone
+    const adjustments = pendingAdjustments.filter(p => !skippedIds.has(p.productId)).map(p => p.adj);
+    if (skippedIds.size > 0) {
+      for (const p of pendingAdjustments) {
+        if (skippedIds.has(p.productId)) {
+          skipped.push({
+            productId: p.productId,
+            productName: p.adj.productName,
+            color: p.adj.color,
+            size: p.adj.size,
+            reason: 'target inventory row not found — adjustment skipped'
+          });
+        }
+      }
+      errorLogger.logWarn({
+        module: 'audit:approve',
+        userId: req.user?.id,
+        userName: req.user?.name,
+        outletName: audit.type === 'OUTLET' ? audit.outletName : 'Warehouse',
+        context: `audit ${audit.auditNumber}`,
+        message: `Skipped ${skipped.length} adjustment(s) for missing inventory rows`
+      });
     }
 
     // One interactive transaction with only 2-4 fast statements (single round
@@ -634,8 +686,22 @@ const approveAudit = async (req, res) => {
     io.emit('audit-updated', { auditId: audit.id, status: 'APPROVED', adjustments: adjustments.length });
     io.emit('inventory-updated', { audit: true });
 
-    res.json({ message: `Audit approved — ${adjustments.length} adjustment(s) applied`, adjustments: adjustments.length, audit: await loadAuditWithItems(audit.id) });
+    res.json({
+      message: `Audit approved — ${adjustments.length} adjustment(s) applied${skipped.length ? `, ${skipped.length} skipped (missing inventory rows)` : ''}`,
+      adjustments: adjustments.length,
+      skipped,
+      audit: await loadAuditWithItems(audit.id)
+    });
   } catch (error) {
+    errorLogger.logError({
+      module: 'audit:approve',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      outletName: req.body?.outletName,
+      context: `audit ${req.params?.id}`,
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Error approving audit', error: error.message });
   }
 };
@@ -665,6 +731,15 @@ const rejectAudit = async (req, res) => {
 
     res.json(updated);
   } catch (error) {
+    errorLogger.logError({
+      module: 'audit:reject',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      outletName: req.body?.outletName,
+      context: `audit ${req.params?.id}`,
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: 'Error rejecting audit', error: error.message });
   }
 };
