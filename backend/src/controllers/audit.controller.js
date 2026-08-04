@@ -625,25 +625,10 @@ const approveAudit = async (req, res) => {
       }
     }, { timeout: 30000 });
 
-    const [updatedAudit] = await prisma.$transaction([
-      prisma.inventoryAudit.update({
-        where: { id: audit.id },
-        data: { status: 'APPROVED', approvedBy: req.user?.name || 'Admin', approvedAt: new Date() }
-      }),
-      ...(adjustments.length > 0
-        ? [prisma.inventoryAdjustmentLog.createMany({ data: adjustments })]
-        : []),
-      ...(adjustments.length > 0
-        ? [prisma.inventoryAudit.update({
-            where: { id: audit.id },
-            data: { summary: { ...(audit.summary || {}), appliedAdjustments: adjustments.length } }
-          })]
-        : [])
-    ]);
-
     // Invalidate inventory caches so POS/warehouse reflect the new quantities
     cache.delPattern('warehouse:');
     cache.delPattern('products:');
+    cache.delPattern('pos:inventory:');
 
     const io = req.app.get('io');
     io.emit('audit-updated', { auditId: audit.id, status: 'APPROVED', adjustments: adjustments.length });
