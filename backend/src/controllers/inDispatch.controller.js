@@ -63,10 +63,39 @@ const getInDispatchOrders = async (req, res) => {
       try { JSON.parse(r.orderIds).forEach(id => assignedIds.add(id)); } catch (_) {}
     });
 
-    const items = orders.map(order => ({
-      ...order,
-      _assignedToRoute: assignedIds.has(order.id)
-    }));
+    // Payment enrichment — link each order to its POS sale (orderId) + balance payments
+    // so the Dispatch Slip can show total / advance / paid / remaining / status / method.
+    const orderIds = orders.map(o => o.id);
+    const linkedPos = await prisma.posSale.findMany({
+      where: { orderId: { in: orderIds } },
+      select: { id: true, orderId: true, grandTotal: true, advanceAmount: true, paymentMethod: true }
+    });
+    const posMap = {};
+    linkedPos.forEach(ps => { if (ps.orderId) posMap[ps.orderId] = ps; });
+    const bpAgg = await prisma.posBalancePayment.groupBy({
+      by: ['posSaleId'],
+      where: { posSaleId: { in: linkedPos.map(p => p.id) } },
+      _sum: { amountPaidNow: true }
+    });
+    const bpMap = {};
+    bpAgg.forEach(b => { bpMap[b.posSaleId] = Number(b._sum.amountPaidNow || 0); });
+
+    const items = orders.map(order => {
+      const ps = posMap[order.id] || null;
+      const total = ps ? Number(ps.grandTotal || 0) : (Number(order.totalPrice || 0) + Number(order.deliveryCharges || 0));
+      const advance = ps ? Number(ps.advanceAmount || 0) : Number(order.advanceAmount || 0);
+      const paid = advance + (ps ? (bpMap[ps.id] || 0) : 0);
+      const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);
+      const status = remaining <= 0.01 ? 'Paid' : (paid > 0 ? 'Partially Paid' : 'Unpaid');
+      const method = paid > 0 ? (ps?.paymentMethod || order.paymentMethod || 'CASH') : 'COD';
+      const inStage = (order.stages || []).find(s => s.stageName === 'IN_DISPATCH');
+      return {
+        ...order,
+        _payment: { total, advance, paid, remaining, status, method },
+        _dispatchDate: inStage?.startedAt || inStage?.createdAt || order.createdAt,
+        _assignedToRoute: assignedIds.has(order.id)
+      };
+    });
 
     res.json(items);
   } catch (error) {
@@ -313,7 +342,8 @@ const routeOrder = async (req, res) => {
     const roles = destinationStage === 'ENAMELS_DELIVERY' ? ['DELIVERY_BOY'] : ['OUTLET'];
     const whereUsers = { role: { in: roles } };
     if (destinationStage === 'OUTLET_RECEIVE' && targetOutletName) {
-      whereUsers.outletName = { contains: targetOutletName, mode: 'insensitive' };
+      const searchName = String(targetOutletName).replace(/\s*Outlet\s*$/i, '').trim();
+      whereUsers.outletName = { contains: searchName, mode: 'insensitive' };
     }
     const recipientUsers = await prisma.user.findMany({
       where: whereUsers,

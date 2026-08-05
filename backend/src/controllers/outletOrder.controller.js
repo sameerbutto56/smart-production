@@ -1039,7 +1039,8 @@ const outletRouteOrder = async (req, res) => {
     const whereUsers = { role: { in: roles } };
     // For outlet-to-outlet routing, filter by target outlet name
     if (action === 'sendToOutlet' && targetOutletName) {
-      whereUsers.outletName = { contains: targetOutletName, mode: 'insensitive' };
+      const searchName = String(targetOutletName).replace(/\s*Outlet\s*$/i, '').trim();
+      whereUsers.outletName = { contains: searchName, mode: 'insensitive' };
     }
     const recipientUsers = await prisma.user.findMany({
       where: whereUsers,

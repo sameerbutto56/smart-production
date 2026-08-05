@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer, Send, UserCheck, MapPin, ArrowRight, Palette, Factory } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer, MapPin, ArrowRight, Palette, Factory } from 'lucide-react';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -2125,23 +2125,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </div>
                     ) : currentStage?.stageName === 'IN_DISPATCH' ? (
                       <div className="w-full space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          {isJoharTown && (
-                            <>
-                              <button onClick={() => handleOutletRoute('sendToEnamelsDelivery')} disabled={outletRoutingLoading}
-                                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                                <Truck size={14} /><span>Delivery Boy</span>
-                              </button>
-                              <button onClick={() => handleOutletRoute('sendToOutlet', 'Jail Road Outlet')} disabled={outletRoutingLoading}
-                                className="bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                                <Send size={14} /><span>To Dispatch</span>
-                              </button>
-                            </>
-                          )}
-                          <button onClick={() => handleOutletRoute('customerTakeDeliver')} disabled={outletRoutingLoading}
-                            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                            <UserCheck size={14} /><span>Customer Take</span>
-                          </button>
+                        <div className="flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 rounded-xl px-3 py-2 text-[10px] text-violet-300 font-bold uppercase tracking-widest">
+                          <Truck size={12} />
+                          Dispatch actions are handled in the In Dispatch module
                         </div>
                         <button
                           onClick={() => setShowProblemModal(true)}
@@ -2153,20 +2139,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </div>
                     ) : currentStage?.stageName === 'OUTLET_RECEIVE' ? (
                       <div className="w-full space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          {isJoharTown && (
-                            <>
-                              <button onClick={() => handleOutletRoute('sendToInDispatch')} disabled={outletRoutingLoading}
-                                className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                                <Truck size={14} /><span>Send to In Dispatch</span>
-                              </button>
-                            </>
-                          )}
-                          <button onClick={() => handleOutletRoute('customerTakeDeliver')} disabled={outletRoutingLoading}
-                            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
-                            <UserCheck size={14} /><span>Customer Take</span>
-                          </button>
-                        </div>
+                        <button onClick={() => handleOutletRoute('sendToInDispatch')} disabled={outletRoutingLoading}
+                          className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 disabled:opacity-50">
+                          <Truck size={14} /><span>Send to In Dispatch</span>
+                        </button>
                         <button
                           onClick={() => setShowProblemModal(true)}
                           className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95"

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Route as RouteIcon, Truck, Send, UserCheck, RefreshCcw,
   Calendar, Phone, Package, CheckCircle2, XCircle, Plus,
-  MapPin, User, FileText, CheckSquare, Layers
+  MapPin, User, FileText, CheckSquare, Layers, Printer
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -167,6 +167,140 @@ const InDispatch = () => {
         {p.name}{p.color ? ` (${p.color}` : ''}{p.size ? ` / ${p.size}` : ''}{p.color || p.size ? ')' : ''} × {p.quantity || 1}
       </span>
     ));
+  };
+
+  const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const fmtPkr = (n) => `₨${(Number(n) || 0).toLocaleString()}`;
+  const fmtDate = (v) => {
+    try {
+      if (!v) return '—';
+      return new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (_) { return '—'; }
+  };
+  const methodLabel = (m) => {
+    const map = { CASH: 'Cash', ONLINE: 'Online', CARD: 'Card', CASH_ONLINE: 'Cash + Online', FAISAL_TAKE: 'Faisal Take', COD: 'COD' };
+    return map[m] || m || '—';
+  };
+  const statusColor = (s) => {
+    if (s === 'Paid') return '#059669';
+    if (s === 'Partially Paid') return '#d97706';
+    return '#dc2626';
+  };
+
+  // Print Dispatch Slip — hidden iframe to avoid popup blockers (same pattern as POS receipt).
+  // Payment info appears ONLY on this slip, never on the Production Job Sheet.
+  const printDispatchSlip = (order) => {
+    const pay = order._payment || {};
+    const rawProducts = Array.isArray(order.productDetails) && order.productDetails.length
+      ? order.productDetails
+      : (order.productDetails && typeof order.productDetails === 'object' ? [order.productDetails] : []);
+    const products = rawProducts.map(p => ({
+      name: p.name || p.productType || '—',
+      variant: p.variant || '',
+      color: p.color || '—',
+      size: p.size || '—',
+      qty: Number(p.quantity) || 1,
+      price: Number(p.unitPrice) || 0
+    }));
+    const productRows = products.map((p, i) => `
+      <tr>
+        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${i + 1}</td>
+        <td style="padding:4px 2px;vertical-align:top;">${esc(p.name)}${p.variant ? ` <span style="color:#555">(${esc(p.variant)})</span>` : ''}</td>
+        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${esc(p.color)}</td>
+        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${esc(p.size)}</td>
+        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${p.qty}</td>
+        <td style="padding:4px 2px;text-align:right;vertical-align:top;">${fmtPkr(p.price * p.qty)}</td>
+      </tr>`).join('');
+    const productTotal = products.reduce((s, p) => s + (p.price * p.qty), 0);
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Dispatch Slip — ${esc(order.orderNumber || '')}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; width: 90mm; margin: 0 auto; padding: 10px 4px; color: #111; font-size: 11px; line-height: 1.4; }
+  .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 8px; }
+  .header h1 { margin: 0; font-size: 17px; letter-spacing: 2px; text-transform: uppercase; }
+  .header .sub { font-size: 10px; letter-spacing: 1px; margin-top: 2px; }
+  .section { margin-bottom: 9px; }
+  .section-title { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; background: #111; color: #fff; padding: 3px 6px; border-radius: 3px; margin-bottom: 5px; }
+  .row { display: flex; justify-content: space-between; padding: 1.5px 0; }
+  .row .lbl { color: #555; }
+  .row .val { font-weight: 700; text-align: right; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; background: #eee; padding: 3px 2px; border-bottom: 1px solid #111; }
+  td { border-bottom: 1px dotted #ccc; }
+  .pay-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; color: #fff; font-weight: 800; font-size: 10px; }
+  .totals { border-top: 2px solid #111; margin-top: 4px; padding-top: 4px; }
+  .totals .row .val { font-size: 12px; }
+  .footer { text-align: center; margin-top: 10px; border-top: 1px dashed #999; padding-top: 6px; font-size: 10px; letter-spacing: 1px; }
+  .sig { display: flex; justify-content: space-between; margin-top: 14px; }
+  .sig div { text-align: center; width: 45%; border-top: 1px solid #111; padding-top: 3px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #555; }
+</style></head><body>
+  <div class="header">
+    <h1>Dispatch Slip</h1>
+    <div class="sub">JOHAR TOWN OUTLET · IN DISPATCH</div>
+    <div class="sub" style="margin-top:2px;">Dispatch Date: ${fmtDate(new Date())}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Customer</div>
+    <div class="row"><span class="lbl">Name</span><span class="val">${esc(order.customerName)}</span></div>
+    <div class="row"><span class="lbl">Phone</span><span class="val">${esc(order.customerPhone)}</span></div>
+    <div class="row"><span class="lbl">Address</span><span class="val" style="text-align:right">${esc(order.address)}</span></div>
+    <div class="row"><span class="lbl">City</span><span class="val">${esc(order.city)}</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Order</div>
+    <div class="row"><span class="lbl">Order No.</span><span class="val">${esc(order.orderNumber)}</span></div>
+    <div class="row"><span class="lbl">Invoice No.</span><span class="val">${esc(order.invoiceNumber) || '—'}</span></div>
+    <div class="row"><span class="lbl">Order Date</span><span class="val">${fmtDate(order.createdAt)}</span></div>
+    <div class="row"><span class="lbl">Dispatch Date</span><span class="val">${fmtDate(order._dispatchDate)}</span></div>
+    <div class="row"><span class="lbl">Order Type</span><span class="val">${esc((order.type || 'STANDARD').replace(/_/g, ' '))}</span></div>
+    <div class="row"><span class="lbl">Priority</span><span class="val">${esc((order.urgent || order.priority === 'URGENT') ? 'Urgent' : (order.priority === 'SUPER_URGENT' ? 'Super Urgent' : (order.priority === 'URGENT' ? 'Urgent' : 'Regular')))}</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Products (${products.length})</div>
+    <table>
+      <thead><tr><th>#</th><th style="text-align:left">Product</th><th>Color</th><th>Size</th><th>Qty</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>${productRows || '<tr><td colspan="6" style="text-align:center;padding:6px">No products</td></tr>'}</tbody>
+    </table>
+    <div class="row totals"><span class="lbl">Product Total</span><span class="val">${fmtPkr(productTotal)}</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Payment</div>
+    <div class="row"><span class="lbl">Total</span><span class="val">${fmtPkr(pay.total)}</span></div>
+    <div class="row"><span class="lbl">Advance</span><span class="val">${fmtPkr(pay.advance)}</span></div>
+    <div class="row"><span class="lbl">Paid</span><span class="val">${fmtPkr(pay.paid)}</span></div>
+    <div class="row"><span class="lbl">Remaining</span><span class="val">${fmtPkr(pay.remaining)}</span></div>
+    <div class="row"><span class="lbl">Status</span><span class="val"><span class="pay-badge" style="background:${statusColor(pay.status)}">${esc(pay.status)}</span></span></div>
+    <div class="row"><span class="lbl">Method</span><span class="val">${esc(methodLabel(pay.method))}</span></div>
+  </div>
+
+  <div class="sig">
+    <div>Prepared By</div>
+    <div>Received By</div>
+  </div>
+  <div class="footer">JOHAR TOWN OUTLET · IN DISPATCH</div>
+</body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 350);
   };
 
   const selectedOrders = orders.filter(o => selectedForRoute.has(o.id));
@@ -357,6 +491,15 @@ const InDispatch = () => {
                       {inRoute
                         ? <span className="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 text-[10px] font-black rounded-full">IN ROUTE</span>
                         : <span className="px-2.5 py-1 bg-violet-500/20 text-violet-300 text-[10px] font-black rounded-full">IN DISPATCH</span>}
+                      {order._payment && (
+                        <span className={`px-2.5 py-1 text-[10px] font-black rounded-full ${
+                          order._payment.status === 'Paid' ? 'bg-emerald-500/20 text-emerald-300'
+                          : order._payment.status === 'Partially Paid' ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-red-500/20 text-red-300'
+                        }`}>
+                          {order._payment.status}
+                        </span>
+                      )}
                       <button onClick={() => toggleSelect(order.id)} disabled={inRoute}
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all border ${isSelected ? 'bg-blue-600 text-white border-blue-500' : inRoute ? 'bg-gray-800/50 text-gray-600 border-gray-700/40 cursor-not-allowed' : 'bg-gray-800/80 text-gray-300 border-gray-700/60 hover:border-blue-500/50 hover:text-blue-300'}`}>
                         <CheckSquare size={11} /> {isSelected ? 'Selected' : 'Add to Route'}
@@ -371,22 +514,32 @@ const InDispatch = () => {
                   <div className="flex items-center gap-2 text-xs text-gray-400">
                     <Calendar size={12} />
                     {formatDateOnly(order.createdAt)}
-                    {order.totalPrice > 0 && <span className="ml-auto font-bold text-white">₨{order.totalPrice.toLocaleString()}</span>}
+                    {(order._payment?.total || order.totalPrice) > 0 && <span className="ml-auto font-bold text-white">₨{(order._payment?.total || order.totalPrice || 0).toLocaleString()}</span>}
                   </div>
 
                   {!inRoute && (
-                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-gray-800">
-                      <button onClick={() => handleRouteOrder(order.id, 'sendToEnamelsDelivery')} disabled={actionLoading === order.id + 'sendToEnamelsDelivery'}
-                        className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[10px] font-bold rounded-xl transition-all">
-                        {actionLoading === order.id + 'sendToEnamelsDelivery' ? <RefreshCcw className="animate-spin" size={13} /> : <Truck size={13} />} Delivery Boy
-                      </button>
-                      <button onClick={() => handleRouteOrder(order.id, 'sendToOutlet', 'Jail Road Outlet')} disabled={actionLoading === order.id + 'sendToOutlet'}
-                        className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-[10px] font-bold rounded-xl transition-all">
-                        {actionLoading === order.id + 'sendToOutlet' ? <RefreshCcw className="animate-spin" size={13} /> : <Send size={13} />} To Jail Road
-                      </button>
-                      <button onClick={() => handleRouteOrder(order.id, 'customerTakeDeliver')} disabled={actionLoading === order.id + 'customerTakeDeliver'}
-                        className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[10px] font-bold rounded-xl transition-all">
-                        {actionLoading === order.id + 'customerTakeDeliver' ? <RefreshCcw className="animate-spin" size={13} /> : <UserCheck size={13} />} Customer Take
+                    <div className="space-y-2 pt-1 border-t border-gray-800">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handleRouteOrder(order.id, 'sendToEnamelsDelivery')} disabled={actionLoading === order.id + 'sendToEnamelsDelivery'}
+                          className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
+                          {actionLoading === order.id + 'sendToEnamelsDelivery' ? <RefreshCcw className="animate-spin" size={13} /> : <Truck size={13} />} Enamels Delivery Boy
+                        </button>
+                        <button onClick={() => handleRouteOrder(order.id, 'sendToOutlet', 'Jail Road')} disabled={actionLoading === order.id + 'sendToOutlet'}
+                          className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
+                          {actionLoading === order.id + 'sendToOutlet' ? <RefreshCcw className="animate-spin" size={13} /> : <Send size={13} />} Send to Jail Road
+                        </button>
+                        <button onClick={() => handleRouteOrder(order.id, 'sendToOutlet', 'Johar Town')} disabled={actionLoading === order.id + 'sendToOutlet'}
+                          className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
+                          {actionLoading === order.id + 'sendToOutlet' ? <RefreshCcw className="animate-spin" size={13} /> : <MapPin size={13} />} Send to Johar Town
+                        </button>
+                        <button onClick={() => handleRouteOrder(order.id, 'customerTakeDeliver')} disabled={actionLoading === order.id + 'customerTakeDeliver'}
+                          className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
+                          {actionLoading === order.id + 'customerTakeDeliver' ? <RefreshCcw className="animate-spin" size={13} /> : <UserCheck size={13} />} Customer Take
+                        </button>
+                      </div>
+                      <button onClick={() => printDispatchSlip(order)}
+                        className="w-full flex items-center justify-center gap-1.5 px-2 py-2 bg-gray-800 hover:bg-violet-700 disabled:opacity-50 text-gray-300 hover:text-white text-[10px] font-bold rounded-xl transition-all border border-gray-700/60">
+                        <Printer size={13} /> Print Dispatch Slip
                       </button>
                     </div>
                   )}
