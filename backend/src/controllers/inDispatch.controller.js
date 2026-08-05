@@ -343,7 +343,7 @@ const routeOrder = async (req, res) => {
     const whereUsers = { role: { in: roles } };
     if (destinationStage === 'OUTLET_RECEIVE' && targetOutletName) {
       const searchName = String(targetOutletName).replace(/\s*Outlet\s*$/i, '').trim();
-      whereUsers.outletName = { contains: searchName, mode: 'insensitive' };
+      whereUsers.name = { contains: searchName, mode: 'insensitive' };
     }
     const recipientUsers = await prisma.user.findMany({
       where: whereUsers,
