@@ -80,7 +80,7 @@ const MyTasks = () => {
   };
 
   // Cache-first: unseen tasks (hasTaskFilters users)
-  const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen } = useCache(
+  const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen, mutate: mutateUnseen } = useCache(
     hasTaskFilters ? `v2:my-tasks:unseen:${user?.role}` : null,
     { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 60 * 1000 }
   );
@@ -240,6 +240,17 @@ const MyTasks = () => {
   const fetchProductionTasks = () => refreshProduction();
 
   const handleMarkSeen = async (orderId) => {
+    // Optimistically move the order from New Orders → Accepted Orders immediately,
+    // so it never lingers in both lists while the background refetch is in flight.
+    if (unseenData && Array.isArray(unseenData.unseen)) {
+      const moved = unseenData.unseen.find(o => o.id === orderId);
+      if (moved) {
+        mutateUnseen({
+          unseen: unseenData.unseen.filter(o => o.id !== orderId),
+          seen: [...(unseenData.seen || []), moved]
+        });
+      }
+    }
     try {
       await api.post(`/api/orders/${orderId}/mark-seen`);
       fetchUnseenTasks();
@@ -247,6 +258,8 @@ const MyTasks = () => {
       if (isOutlet) fetchComeFromProduction();
     } catch (e) {
       console.error('Failed to mark order as seen:', e);
+      // Reconcile with the server in case the optimistic move was wrong
+      fetchUnseenTasks();
     }
   };
 
@@ -624,30 +637,21 @@ const MyTasks = () => {
             </div>
           )}
 
-          {/* OUTLET: Orders tab — New Orders (unseen) + Accepted Orders (seen), so no order ever disappears after Accept */}
+          {/* OUTLET: Orders tab — New Orders (unseen) only. Accepted orders move to the Assigned/Accepted tab,
+              so each order appears in exactly one list and never in both. */}
           {isOutlet && taskFilter === 'orders' && (
             <div className="space-y-6">
-              {filterBySearch(unseenData?.unseen).length > 0 && (
-                <div>
+              {filterBySearch(unseenData?.unseen).length > 0 ? (
+                <>
                   <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                     New Orders ({filterBySearch(unseenData.unseen).length})
                   </h3>
                   {renderOrderCards(filterBySearch(unseenData.unseen), { showUnseen: true, onMarkSeen: handleMarkSeen })}
-                </div>
+                </>
+              ) : (
+                renderEmpty(<Activity size={36} className="theme-text-muted" />, 'No New Orders', 'All new orders have been accepted. Check Assigned/Accepted for ongoing tasks.')
               )}
-              {filterBySearch(unseenData?.seen).length > 0 && (
-                <div>
-                  <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <CheckCircle size={14} className="text-emerald-400" />
-                    Accepted Orders ({filterBySearch(unseenData.seen).length})
-                  </h3>
-                  {renderOrderCards(filterBySearch(unseenData.seen))}
-                </div>
-              )}
-              {(!filterBySearch(unseenData?.unseen).length && !filterBySearch(unseenData?.seen).length) &&
-                renderEmpty(<Activity size={36} className="theme-text-muted" />, 'No New Orders', 'No new outlet orders right now.')
-              }
             </div>
           )}
 
