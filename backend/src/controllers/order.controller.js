@@ -2355,6 +2355,18 @@ const manualRouteOrder = async (req, res) => {
       where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
     }).catch(() => {});
 
+    // Mark the order as seen for the routing user at the destination stage, so it
+    // immediately appears in their Assigned/Accepted list (e.g. Production Out
+    // accepting PRODUCTION_ACCEPTANCE → PRODUCTION). Other recipient users still
+    // see it as unseen until they explicitly mark-seen.
+    if (req.user?.id) {
+      await prisma.seenTask.upsert({
+        where: { userId_orderId_stageName: { userId: req.user.id, orderId, stageName: destinationStage } },
+        update: {},
+        create: { userId: req.user.id, orderId, stageName: destinationStage, seenAt: new Date() }
+      }).catch(() => {});
+    }
+
     await createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id);
 
     const io = req.app.get('io');
