@@ -2475,8 +2475,8 @@ const getUnseenOrders = async (req, res) => {
       else if (rawName.includes('abbottabad')) normalizedName = 'Abbottabad';
       else normalizedName = req.user.name;
       if (normalizedName === 'Johar Town') {
-        // Johar Town sees both Johar Town and Jail Road orders in tasks
-        whereClause.outletName = { in: ['Johar Town', 'Jail Road'] };
+        // Johar Town is the hub — sees Johar Town, Jail Road, AND Abbottabad orders in tasks
+        whereClause.outletName = { in: ['Johar Town', 'Jail Road', 'Abbottabad'] };
       } else {
         whereClause.outletName = { contains: normalizedName, mode: 'insensitive' };
       }
@@ -3088,9 +3088,9 @@ const returnToOutlet = async (req, res) => {
     });
 
     // Production-returned orders route to the Johar Town outlet (the operational hub).
-    // Johar Town AND Jail Road orders both land in Johar Town (JT manages JR orders end-to-end).
-    // Other outlets keep their own originating-outlet routing.
-    const targetOutlet = (order.outletName === 'Jail Road')
+    // Johar Town, Jail Road, AND Abbottabad orders all land in Johar Town
+    // (JT manages JR + AB orders end-to-end). Other outlets keep originating-outlet routing.
+    const targetOutlet = ['Jail Road', 'Abbottabad'].includes(order.outletName)
       ? 'Johar Town'
       : (order.outletName?.replace(' Branch', '') || 'Unknown');
     const outletUsers = await prisma.user.findMany({

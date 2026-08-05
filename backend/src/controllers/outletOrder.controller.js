@@ -932,9 +932,9 @@ const outletRouteOrder = async (req, res) => {
     const isDeliveryBoy = req.user?.role === 'DELIVERY_BOY';
     const orderOutlet = order.outletName;
     const isSameOutlet = orderOutlet && (outletName.includes(orderOutlet) || orderOutlet.includes(outletName));
-    // Johar Town can also route Jail Road orders (they appear in JT tasks via auto-routing from Jail Road)
-    const joharTownRoutsJailRoad = outletName === 'Johar Town' && orderOutlet === 'Jail Road';
-    if (!isSameOutlet && !joharTownRoutsJailRoad && !isDeliveryBoy) {
+    // Johar Town can also route Jail Road and Abbottabad orders (they appear in JT tasks via auto-routing)
+    const joharTownRoutsOtherOutlet = outletName === 'Johar Town' && ['Jail Road', 'Abbottabad'].includes(orderOutlet);
+    if (!isSameOutlet && !joharTownRoutsOtherOutlet && !isDeliveryBoy) {
       return res.status(403).json({ message: `This order belongs to ${order.outletName}` });
     }
 
@@ -1120,7 +1120,7 @@ const getInDispatchOrders = async (req, res) => {
 
 // GET /api/outlet-orders/come-from-production — orders that completed Production and
 // returned to the outlet (OUTLET_RECEIVE stage). Split into unseen/seen for the user.
-// Johar Town users see both Johar Town and Jail Road orders (JT is the production-return hub).
+// Johar Town users see Johar Town, Jail Road, and Abbottabad orders (JT is the production-return hub).
 const getComeFromProduction = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1132,7 +1132,7 @@ const getComeFromProduction = async (req, res) => {
     else normalizedName = req.user.name;
 
     const outletFilter = normalizedName === 'Johar Town'
-      ? { in: ['Johar Town', 'Jail Road'] }
+      ? { in: ['Johar Town', 'Jail Road', 'Abbottabad'] }
       : { contains: normalizedName, mode: 'insensitive' };
 
     const orders = await prisma.order.findMany({
