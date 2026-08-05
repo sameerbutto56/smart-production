@@ -22,7 +22,7 @@ const MyTasks = () => {
   const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';
   const isOutlet = user?.role === 'OUTLET';
-  const [taskFilter, setTaskFilter] = useState(isOutlet ? 'orders' : (isProductionOut ? 'assigned' : 'unseen'));
+  const [taskFilter, setTaskFilter] = useState(isOutlet ? 'orders' : 'unseen');
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
   const [routingHistory, setRoutingHistory] = useState([]);
@@ -421,7 +421,7 @@ const MyTasks = () => {
                 <RefreshCcw size={14} /> Come From Production {((comeFromProduction?.unseen?.length || 0) + (comeFromProduction?.seen?.length || 0)) > 0 && <span className="ml-1 bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(comeFromProduction?.unseen?.length || 0) + (comeFromProduction?.seen?.length || 0)}</span>}
               </button>
             )}
-            {(!isOutlet) && (!isProductionOut) && (
+            {(!isOutlet) && (
               <button onClick={() => setTaskFilter('unseen')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
                   taskFilter === 'unseen' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
