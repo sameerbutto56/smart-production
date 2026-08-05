@@ -1571,18 +1571,40 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 ) : currentStage?.stageName === 'PRODUCTION' ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Production complete? Items will return to Store.')) {
-                          onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'STORE_RECEIVE' });
-                        }
-                      }}
-                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
-                    >
-                      <CheckCircle size={14} />
-                      <span>Production Complete</span>
-                      <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ Coming From Production</span>
-                    </button>
+                    {order.source === 'OUTLET' ? (
+                      <button
+                        onClick={async () => {
+                          const outletLabel = (order.outletName || 'Outlet').replace(/\s*Branch\s*$/i, '').trim();
+                          if (window.confirm(`Production complete? Send order back to ${outletLabel} Outlet?`)) {
+                            try {
+                              await api.post(`/api/orders/${order.id}/return-to-outlet`, {});
+                              toast.success(`Order sent to ${outletLabel} Outlet`);
+                              if (onMarkSeen) onMarkSeen();
+                            } catch (err) {
+                              toast.error('Failed to send to outlet: ' + (err.response?.data?.message || err.message));
+                            }
+                          }
+                        }}
+                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      >
+                        <CheckCircle size={14} />
+                        <span>Send to {(order.outletName || 'Outlet').replace(/\s*Branch\s*$/i, '').trim()} Outlet</span>
+                        <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ OUTLET_RECEIVE</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Production complete? Items will return to Store.')) {
+                            onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'STORE_RECEIVE' });
+                          }
+                        }}
+                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      >
+                        <CheckCircle size={14} />
+                        <span>Production Complete</span>
+                        <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ Coming From Production</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowProblemModal(true)}
                       className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
