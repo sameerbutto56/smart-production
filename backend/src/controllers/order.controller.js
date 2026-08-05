@@ -791,7 +791,10 @@ const requestStageCompletion = async (req, res) => {
           orderId,
           stageName: actualNextStage,
           status: 'PENDING',
-          deadlineAt: deadline
+          deadlineAt: deadline,
+          ...(currentStage.stageName === 'PRODUCTION' && order.source === 'OUTLET' && actualNextStage === 'OUTLET_RECEIVE'
+            ? { returnReason: 'Returned to Johar Town from Production' }
+            : {})
         }
       });
       await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
@@ -3081,17 +3084,22 @@ const returnToOutlet = async (req, res) => {
     const activeStage = order.stages.find(s =>
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
+    // All production-completed outlet orders return to the Johar Town outlet — the central
+    // dispatch hub. Johar Town, Jail Road, AND Abbottabad orders all land in Johar Town's
+    // "Come From Production" tab; the final destination is decided from the In Dispatch module.
+    const returnReason = 'Returned to Johar Town from Production';
+
     if (activeStage) {
       await prisma.orderStage.update({
         where: { id: activeStage.id },
-        data: { status: 'COMPLETED', completedAt: new Date(), returnReason: 'Returned to originating outlet from Production' }
+        data: { status: 'COMPLETED', completedAt: new Date(), returnReason }
       });
     }
 
     const durations = await getStageDurations(order.priority);
     const deadline = calculateDeadline(new Date(), durations['OUTLET_RECEIVE'] || 48);
     await prisma.orderStage.create({
-      data: { orderId, stageName: 'OUTLET_RECEIVE', status: 'PENDING', deadlineAt: deadline, returnReason: 'Returned to originating outlet from Production' }
+      data: { orderId, stageName: 'OUTLET_RECEIVE', status: 'PENDING', deadlineAt: deadline, returnReason }
     });
 
     await prisma.order.update({
@@ -3101,10 +3109,8 @@ const returnToOutlet = async (req, res) => {
 
     // Production-returned orders route to the Johar Town outlet (the operational hub).
     // Johar Town, Jail Road, AND Abbottabad orders all land in Johar Town
-    // (JT manages JR + AB orders end-to-end). Other outlets keep originating-outlet routing.
-    const targetOutlet = ['Jail Road', 'Abbottabad'].includes(order.outletName)
-      ? 'Johar Town'
-      : (order.outletName?.replace(' Branch', '') || 'Unknown');
+    // (JT manages JR + AB orders end-to-end).
+    const targetOutlet = 'Johar Town';
     const outletUsers = await prisma.user.findMany({
       where: { role: 'OUTLET', name: { contains: targetOutlet, mode: 'insensitive' } },
       select: { id: true }

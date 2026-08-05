@@ -1132,17 +1132,30 @@ const getComeFromProduction = async (req, res) => {
     else if (rawName.includes('abbottabad')) normalizedName = 'Abbottabad';
     else normalizedName = req.user.name;
 
-    const outletFilter = normalizedName === 'Johar Town'
-      ? { in: ['Johar Town', 'Jail Road', 'Abbottabad'] }
-      : { contains: normalizedName, mode: 'insensitive' };
+    // Johar Town is the central dispatch hub — it sees EVERY production-returned order
+    // (Johar Town, Jail Road, Abbottabad, or any other origin). Jail Road / Abbottabad see
+    // only orders routed TO them (e.g. from In Dispatch / delivery boy), never production returns.
+    const isJT = normalizedName === 'Johar Town';
+    const outletFilter = isJT ? undefined : { contains: normalizedName, mode: 'insensitive' };
 
     const orders = await prisma.order.findMany({
       where: {
         source: 'OUTLET',
-        outletName: outletFilter,
+        ...(outletFilter ? { outletName: outletFilter } : {}),
         currentStage: 'OUTLET_RECEIVE',
         status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-        stages: { some: { stageName: 'OUTLET_RECEIVE', status: { in: ['PENDING', 'IN_PROGRESS'] } } }
+        stages: {
+          some: {
+            stageName: 'OUTLET_RECEIVE',
+            status: { in: ['PENDING', 'IN_PROGRESS'] },
+            ...(isJT ? {} : {
+              OR: [
+                { returnReason: null },
+                { returnReason: { not: { contains: 'from Production', mode: 'insensitive' } } }
+              ]
+            })
+          }
+        }
       },
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
