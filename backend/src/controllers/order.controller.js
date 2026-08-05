@@ -2460,6 +2460,13 @@ const getUnseenOrders = async (req, res) => {
     };
     // Filter by outlet name for OUTLET role so each outlet only sees its own orders
     // Johar Town also sees Jail Road orders (auto-routing from Jail Road)
+    if (userRole === 'OUTLET') {
+      // Outlet My Tasks (Orders / Seen tabs) shows ONLY new outlet orders at ORDER_ENTRY.
+      // Production-returned orders live in the "Come From Production" tab (OUTLET_RECEIVE),
+      // and In Dispatch orders live in the dedicated In Dispatch module — neither appears here.
+      whereClause.currentStage = 'ORDER_ENTRY';
+      whereClause.stages = { some: { stageName: 'ORDER_ENTRY', status: { in: ['PENDING', 'IN_PROGRESS'] } } };
+    }
     if (userRole === 'OUTLET' && req.user?.name) {
       const rawName = req.user.name.toLowerCase();
       let normalizedName = 'Unknown';
@@ -3080,8 +3087,14 @@ const returnToOutlet = async (req, res) => {
       data: { currentStage: 'OUTLET_RECEIVE', status: 'PENDING' }
     });
 
+    // Production-returned orders route to the Johar Town outlet (the operational hub).
+    // Johar Town AND Jail Road orders both land in Johar Town (JT manages JR orders end-to-end).
+    // Other outlets keep their own originating-outlet routing.
+    const targetOutlet = (order.outletName === 'Jail Road')
+      ? 'Johar Town'
+      : (order.outletName?.replace(' Branch', '') || 'Unknown');
     const outletUsers = await prisma.user.findMany({
-      where: { role: 'OUTLET', name: { contains: order.outletName?.replace(' Branch', ''), mode: 'insensitive' } },
+      where: { role: 'OUTLET', name: { contains: targetOutlet, mode: 'insensitive' } },
       select: { id: true }
     });
 
@@ -3090,7 +3103,7 @@ const returnToOutlet = async (req, res) => {
         orderId, sentByUserId: req.user.id, sentToStage: 'OUTLET_RECEIVE',
         sentToUserIds: JSON.stringify(outletUsers.map(u => u.id)),
         previousStage: activeStage?.stageName || 'PRODUCTION', newStage: 'OUTLET_RECEIVE',
-        remarks: `Returned to originating outlet (${order.outletName || 'Unknown'}) from Production`,
+        remarks: `Returned to ${targetOutlet} outlet from Production (originated ${order.outletName || 'Unknown'})`,
         createdAt: new Date()
       }
     });
@@ -3099,19 +3112,19 @@ const returnToOutlet = async (req, res) => {
       where: { userId: { in: outletUsers.map(u => u.id) }, orderId, stageName: 'OUTLET_RECEIVE' }
     }).catch(() => {});
 
-    await createAuditLog(orderId, 'RETURN_TO_OUTLET', `Returned to originating outlet (${order.outletName || 'Unknown'}) from Production`, req.user.id);
+    await createAuditLog(orderId, 'RETURN_TO_OUTLET', `Returned to ${targetOutlet} from Production (originated ${order.outletName || 'Unknown'})`, req.user.id);
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
 
-    await notify.create(req, { type: 'outlet_task', moduleName: 'My Tasks', path: '/tasks', role: 'OUTLET', title: 'Order Returned to Outlet', message: `Order #${order.orderNumber} returned from Production`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned → Outlet', employeeName: req.user?.name }).catch(() => {});
+    await notify.create(req, { type: 'outlet_task', moduleName: 'My Tasks', path: '/tasks', role: 'OUTLET', title: 'Order Returned to Outlet', message: `Order #${order.orderNumber} returned from Production (originated ${order.outletName || 'Unknown'})`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned → Outlet', employeeName: req.user?.name }).catch(() => {});
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
       include: { stages: { orderBy: { createdAt: 'asc' } } }
     });
 
-    res.json({ message: `Order returned to ${order.outletName || 'Outlet'}`, order: updated });
+    res.json({ message: `Order returned to ${targetOutlet}`, order: updated });
   } catch (error) {
     res.status(500).json({ message: 'Error returning order to outlet', error: error.message });
   }

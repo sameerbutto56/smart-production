@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth.middleware');
-const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders } = require('../controllers/outletOrder.controller');
+const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction } = require('../controllers/outletOrder.controller');
 
 router.post('/', authenticate, createOutletOrder);
 router.get('/generate-number', authenticate, generateOrderNumberEndpoint);
@@ -23,6 +23,7 @@ router.get('/analytics', authenticate, getOutletAnalytics);
 // Tasks
 router.get('/tasks', authenticate, getOutletTasks);
 router.get('/in-dispatch', authenticate, getInDispatchOrders);
+router.get('/come-from-production', authenticate, getComeFromProduction);
 
 // Final actions
 router.post('/:orderId/customer-taken', authenticate, customerTaken);

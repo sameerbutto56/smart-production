@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer, Send, UserCheck, MapPin, ArrowRight, Palette, Factory } from 'lucide-react';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import Button from './Button';
 import { LoadingSpinner } from './LoadingSpinner';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
@@ -51,7 +52,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [outletRoutingTarget, setOutletRoutingTarget] = useState('');
   const [outletRoutingLoading, setOutletRoutingLoading] = useState(false);
   const outletName = (order.outletName || '').toLowerCase();
-  const isJoharTown = outletName.includes('johar');
+  // JT actions apply when the order belongs to Johar Town OR the current user is a Johar Town
+  // outlet user — JT manages both JT and Jail Road orders end-to-end (Come From Production → In Dispatch).
+  const { user: authUser } = useAuth();
+  const isJoharTown = outletName.includes('johar') || (authUser?.name || '').toLowerCase().includes('johar');
   const isJailRoad = outletName.includes('jail');
   const isAbbottabad = outletName.includes('abbottabad');
   const [verifiedProducts, setVerifiedProducts] = useState(new Set());
@@ -1574,11 +1578,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {order.source === 'OUTLET' ? (
                       <button
                         onClick={async () => {
-                          const outletLabel = (order.outletName || 'Outlet').replace(/\s*Branch\s*$/i, '').trim();
-                          if (window.confirm(`Production complete? Send order back to ${outletLabel} Outlet?`)) {
+                          const destLabel = (order.outletName === 'Jail Road' ? 'Johar Town' : (order.outletName || 'Outlet')).replace(/\s*Branch\s*$/i, '').trim();
+                          if (window.confirm(`Production complete? Send order back to ${destLabel} Outlet?`)) {
                             try {
                               await api.post(`/api/orders/${order.id}/return-to-outlet`, {});
-                              toast.success(`Order sent to ${outletLabel} Outlet`);
+                              toast.success(`Order sent to ${destLabel} Outlet`);
                               if (onMarkSeen) onMarkSeen();
                             } catch (err) {
                               toast.error('Failed to send to outlet: ' + (err.response?.data?.message || err.message));
@@ -1588,7 +1592,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
                         <CheckCircle size={14} />
-                        <span>Send to {(order.outletName || 'Outlet').replace(/\s*Branch\s*$/i, '').trim()} Outlet</span>
+                        <span>Send to {(order.outletName === 'Jail Road' ? 'Johar Town' : (order.outletName || 'Outlet')).replace(/\s*Branch\s*$/i, '').trim()} Outlet</span>
                         <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ OUTLET_RECEIVE</span>
                       </button>
                     ) : (

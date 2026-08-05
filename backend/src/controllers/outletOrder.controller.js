@@ -1118,4 +1118,53 @@ const getInDispatchOrders = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders };
+// GET /api/outlet-orders/come-from-production — orders that completed Production and
+// returned to the outlet (OUTLET_RECEIVE stage). Split into unseen/seen for the user.
+// Johar Town users see both Johar Town and Jail Road orders (JT is the production-return hub).
+const getComeFromProduction = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const rawName = String(req.user?.name || '').toLowerCase();
+    let normalizedName = 'Unknown';
+    if (rawName.includes('johar')) normalizedName = 'Johar Town';
+    else if (rawName.includes('jail')) normalizedName = 'Jail Road';
+    else if (rawName.includes('abbottabad')) normalizedName = 'Abbottabad';
+    else normalizedName = req.user.name;
+
+    const outletFilter = normalizedName === 'Johar Town'
+      ? { in: ['Johar Town', 'Jail Road'] }
+      : { contains: normalizedName, mode: 'insensitive' };
+
+    const orders = await prisma.order.findMany({
+      where: {
+        source: 'OUTLET',
+        outletName: outletFilter,
+        currentStage: 'OUTLET_RECEIVE',
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+        stages: { some: { stageName: 'OUTLET_RECEIVE', status: { in: ['PENDING', 'IN_PROGRESS'] } } }
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
+        createdBy: { select: { name: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 250
+    });
+
+    const seenRecords = await prisma.seenTask.findMany({
+      where: { userId, orderId: { in: orders.map(o => o.id) }, stageName: 'OUTLET_RECEIVE' }
+    });
+    const seenOrderIds = new Set(seenRecords.map(r => r.orderId));
+
+    res.json({
+      unseen: orders.filter(o => !seenOrderIds.has(o.id)),
+      seen: orders.filter(o => seenOrderIds.has(o.id))
+    });
+  } catch (error) {
+    console.error('getComeFromProduction error:', error);
+    res.status(500).json({ message: 'Error fetching production-returned orders', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction };

@@ -39,6 +39,22 @@ const MyTasks = () => {
   const [altActionLoading, setAltActionLoading] = useState(null);
   const [engActionLoading, setEngActionLoading] = useState(null);
 
+  // OUTLET-specific: orders returned from Production (OUTLET_RECEIVE stage)
+  const [comeFromProduction, setComeFromProduction] = useState(null);
+  const [cfpLoading, setCfpLoading] = useState(false);
+
+  const fetchComeFromProduction = useCallback(async () => {
+    if (!isOutlet) return;
+    setCfpLoading(true);
+    try {
+      const res = await api.get('/api/outlet-orders/come-from-production');
+      setComeFromProduction(res.data || { unseen: [], seen: [] });
+    } catch (e) {
+      console.error('Error fetching production-returned orders:', e);
+    }
+    setCfpLoading(false);
+  }, [isOutlet]);
+
   const fetchAltTasks = useCallback(async () => {
     setAltTasksLoading(true);
     try { const res = await api.get('/api/alterations/outlet-tasks'); setAltTasks(res.data); } catch {}
@@ -162,6 +178,7 @@ const MyTasks = () => {
     if (isOutlet) {
       fetchAltTasks();
       fetchEngTasks();
+      fetchComeFromProduction();
     }
   };
 
@@ -215,6 +232,7 @@ const MyTasks = () => {
   useEffect(() => {
     if (isOutlet && taskFilter === 'alterations') fetchAltTasks();
     if (isOutlet && taskFilter === 'engravings') fetchEngTasks();
+    if (isOutlet && taskFilter === 'come-from-production') fetchComeFromProduction();
   }, [taskFilter, isOutlet]);
 
   const fetchUnseenTasks = () => refreshUnseen();
@@ -226,6 +244,7 @@ const MyTasks = () => {
       await api.post(`/api/orders/${orderId}/mark-seen`);
       fetchUnseenTasks();
       fetchProductionTasks();
+      if (isOutlet) fetchComeFromProduction();
     } catch (e) {
       console.error('Failed to mark order as seen:', e);
     }
@@ -378,6 +397,15 @@ const MyTasks = () => {
                 }`}
               >
                 <Sparkles size={14} /> Engravings {engTasks.length > 0 && <span className="ml-1 bg-cyan-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{engTasks.length}</span>}
+              </button>
+            )}
+            {isOutlet && (
+              <button onClick={() => setTaskFilter('come-from-production')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                  taskFilter === 'come-from-production' ? 'bg-rose-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+                }`}
+              >
+                <RefreshCcw size={14} /> Come From Production {((comeFromProduction?.unseen?.length || 0) + (comeFromProduction?.seen?.length || 0)) > 0 && <span className="ml-1 bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(comeFromProduction?.unseen?.length || 0) + (comeFromProduction?.seen?.length || 0)}</span>}
               </button>
             )}
             {(!isOutlet) && (!isProductionOut) && (
@@ -596,10 +624,10 @@ const MyTasks = () => {
             </div>
           )}
 
-          {/* OUTLET: Orders tab (new/unseen orders only — accepted orders live in Assigned/Accepted tab) */}
+          {/* OUTLET: Orders tab — New Orders (unseen) + Accepted Orders (seen), so no order ever disappears after Accept */}
           {isOutlet && taskFilter === 'orders' && (
             <div className="space-y-6">
-              {filterBySearch(unseenData?.unseen).length > 0 ? (
+              {filterBySearch(unseenData?.unseen).length > 0 && (
                 <div>
                   <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
@@ -607,8 +635,51 @@ const MyTasks = () => {
                   </h3>
                   {renderOrderCards(filterBySearch(unseenData.unseen), { showUnseen: true, onMarkSeen: handleMarkSeen })}
                 </div>
+              )}
+              {filterBySearch(unseenData?.seen).length > 0 && (
+                <div>
+                  <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <CheckCircle size={14} className="text-emerald-400" />
+                    Accepted Orders ({filterBySearch(unseenData.seen).length})
+                  </h3>
+                  {renderOrderCards(filterBySearch(unseenData.seen))}
+                </div>
+              )}
+              {(!filterBySearch(unseenData?.unseen).length && !filterBySearch(unseenData?.seen).length) &&
+                renderEmpty(<Activity size={36} className="theme-text-muted" />, 'No New Orders', 'No new outlet orders right now.')
+              }
+            </div>
+          )}
+
+          {/* OUTLET: Come From Production tab — orders returned from Production (OUTLET_RECEIVE stage) */}
+          {isOutlet && taskFilter === 'come-from-production' && (
+            <div className="space-y-6">
+              {comeFromProduction === null || cfpLoading ? (
+                <PageLoader text="Loading production-returned orders..." />
               ) : (
-                renderEmpty(<Activity size={36} className="theme-text-muted" />, 'No New Orders', 'All new orders have been reviewed. Check Assigned/Accepted for ongoing tasks.')
+                <>
+                  {filterBySearch(comeFromProduction?.unseen).length > 0 && (
+                    <div>
+                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                        New From Production ({filterBySearch(comeFromProduction.unseen).length})
+                      </h3>
+                      {renderOrderCards(filterBySearch(comeFromProduction.unseen), { showUnseen: true, onMarkSeen: handleMarkSeen })}
+                    </div>
+                  )}
+                  {filterBySearch(comeFromProduction?.seen).length > 0 && (
+                    <div>
+                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <CheckCircle size={14} className="text-emerald-400" />
+                        Accepted From Production ({filterBySearch(comeFromProduction.seen).length})
+                      </h3>
+                      {renderOrderCards(filterBySearch(comeFromProduction.seen))}
+                    </div>
+                  )}
+                  {(!filterBySearch(comeFromProduction?.unseen).length && !filterBySearch(comeFromProduction?.seen).length) &&
+                    renderEmpty(<RefreshCcw size={36} className="theme-text-muted" />, 'Nothing From Production Yet', 'Orders that complete Production will appear here for dispatch.')
+                  }
+                </>
               )}
             </div>
           )}
