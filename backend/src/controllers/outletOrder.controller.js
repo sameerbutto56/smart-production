@@ -1151,7 +1151,7 @@ const getComeFromProduction = async (req, res) => {
             ...(isJT ? {} : {
               OR: [
                 { returnReason: null },
-                { returnReason: { not: { contains: 'from Production', mode: 'insensitive' } } }
+                { returnReason: { not: { contains: 'Production' } } }
               ]
             })
           }
