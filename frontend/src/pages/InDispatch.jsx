@@ -205,6 +205,25 @@ const InDispatch = () => {
     else if (typeof order.productDetails === 'string') raw = parseJsonSafe(order.productDetails) || [];
     else if (order.productDetails && typeof order.productDetails === 'object') raw = [order.productDetails];
     const orderSizeData = parseJsonSafe(order.sizeData) || {};
+    // Real per-product pricing from the linked POS transaction (when present).
+    // Outlet orders often store unitPrice 0 on productDetails, so fall back to
+    // the POS sale items so UNIT/TOTAL on the slip always match the receipt.
+    const posItems = (Array.isArray(order._posItems) ? order._posItems : []).map(it => ({
+      name: String(it.productName || '').trim().toLowerCase(),
+      color: String(it.color || '').trim().toLowerCase(),
+      size: String(it.size || '').trim().toLowerCase(),
+      unitPrice: Number(it.unitPrice) || 0,
+      lineTotal: Number(it.lineTotal) || 0
+    }));
+    const findPosItem = (name, color, size) => {
+      const n = String(name || '').trim().toLowerCase();
+      const c = String(color || '').trim().toLowerCase();
+      const s = String(size || '').trim().toLowerCase();
+      return posItems.find(x => x.name === n && x.color === c && x.size === s)
+        || posItems.find(x => x.name === n && x.color === c)
+        || posItems.find(x => x.name === n)
+        || null;
+    };
     return raw.map((item, idx) => {
       const p = (item && typeof item === 'object' && item.productDetails && typeof item.productDetails === 'object') ? item.productDetails : item;
       if (!p || typeof p !== 'object') return null;
@@ -221,14 +240,21 @@ const InDispatch = () => {
       const logoLines = Array.isArray(cust.logos)
         ? cust.logos.map(l => l && (l.name || l.design)).filter(Boolean)
         : [];
+      const name = p.productType || p.name || p.product || '—';
+      const qty = Number(p.quantity) || 1;
+      const fallbackUnit = Number(p.unitPrice) || 0;
+      const fallbackLine = Number(p.totalPrice) || (fallbackUnit * qty + (Number(p.capCharges) || 0));
+      const posItem = findPosItem(name, p.color, p.size);
+      const unitPrice = fallbackUnit > 0 ? fallbackUnit : (posItem ? posItem.unitPrice : fallbackUnit);
+      const lineTotal = fallbackLine > 0 ? fallbackLine : (posItem ? (posItem.lineTotal || (posItem.unitPrice * qty)) : fallbackLine);
       return {
-        name: p.productType || p.name || p.product || '—',
+        name,
         variant: p.variant || '',
         color: p.color || '—',
         size: p.size || '—',
-        qty: Number(p.quantity) || 1,
-        unitPrice: Number(p.unitPrice) || 0,
-        lineTotal: Number(p.totalPrice) || (Number(p.unitPrice || 0) * (Number(p.quantity) || 1) + (Number(p.capCharges) || 0)),
+        qty,
+        unitPrice,
+        lineTotal,
         fabric: p.fabricType || p.fabric || '',
         gender: p.gender || '',
         engravingType: cust.engravingType || '',

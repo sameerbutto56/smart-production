@@ -78,7 +78,13 @@ const getInDispatchOrders = async (req, res) => {
       select: {
         id: true, orderId: true, orderNumber: true, receiptNumber: true,
         grandTotal: true, advanceAmount: true, paymentMethod: true,
-        cashAmount: true, onlineAmount: true, createdAt: true
+        cashAmount: true, onlineAmount: true, createdAt: true,
+        items: {
+          select: {
+            productName: true, color: true, size: true, quantity: true,
+            unitPrice: true, lineTotal: true
+          }
+        }
       }
     });
     const posById = {};
@@ -118,8 +124,20 @@ const getInDispatchOrders = async (req, res) => {
       const status = remaining <= 0.01 ? 'Paid' : (paid > 0 ? 'Partially Paid' : 'Unpaid');
       const method = paid > 0 ? (ps?.paymentMethod || order.paymentMethod || 'CASH') : 'COD';
       const inStage = (order.stages || []).find(s => s.stageName === 'IN_DISPATCH');
+      // Per-product pricing from the original POS transaction. Outlet orders'
+      // productDetails often store unitPrice 0 (price lives only on the POS
+      // sale), so the Dispatch Slip must read these to show real UNIT/TOTAL.
+      const posItems = (ps && Array.isArray(ps.items) ? ps.items : []).map(it => ({
+        productName: it.productName,
+        color: it.color || null,
+        size: it.size || null,
+        quantity: Number(it.quantity || 0),
+        unitPrice: Number(it.unitPrice || 0),
+        lineTotal: Number(it.lineTotal || 0)
+      }));
       return {
         ...order,
+        _posItems: posItems,
         _payment: {
           total, advance, paid, remaining, status, method,
           receiptNumber: ps?.receiptNumber || null,
