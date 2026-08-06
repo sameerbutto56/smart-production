@@ -99,6 +99,41 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     }
   }, [order?.id, productVerification]);
 
+  // Per-product "Available ✓" ticks: control which items deduct from inventory when
+  // the Store processes & routes the order. Unticked items are NOT deducted and flow
+  // to Production. Defaults to available unless already persisted as not_available/produced.
+  const [availabilityTicks, setAvailabilityTicks] = useState(() => {
+    const init = new Set();
+    try {
+      const pd = order?.productDetails;
+      const parsed = typeof pd === 'string' ? JSON.parse(pd) : pd;
+      const items = Array.isArray(parsed) ? parsed : (parsed?.productType ? [parsed] : []);
+      items.forEach((it, idx) => {
+        const inner = it?.productDetails || it || {};
+        if (inner?.availabilityStatus !== 'not_available' && inner?.availabilityStatus !== 'produced') {
+          init.add(idx);
+        }
+      });
+    } catch (e) { /* ignore malformed productDetails */ }
+    return init;
+  });
+
+  const handleAvailabilityToggle = useCallback((idx) => {
+    setAvailabilityTicks(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }, []);
+
+  // Build the explicit { index: bool } map the STORE backend branch expects so that
+  // only ticked items deduct inventory and unticked ones persist not_available.
+  const buildProductAvailability = useCallback((itemCount) => {
+    const map = {};
+    for (let i = 0; i < itemCount; i++) map[String(i)] = availabilityTicks.has(i);
+    return map;
+  }, [availabilityTicks]);
+
   const [trackingUrl, setTrackingUrl] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -268,14 +303,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                  {p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}
                </span>
               {isStoreRole && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); handleVerificationToggle(idx); }}
-                  className={`rounded-lg flex items-center justify-center text-xs font-black tracking-wider transition-all px-2.5 h-8 min-w-[44px] ${productVerification[String(idx)] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
-                  title={productVerification[String(idx)] === true ? 'Verified ✓' : 'Mark as verified'}
-                >
-                  VER
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleAvailabilityToggle(idx); }}
+                    className={`rounded-lg flex items-center justify-center text-xs font-black tracking-wider transition-all px-2.5 h-8 min-w-[44px] ${availabilityTicks.has(idx) ? 'bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
+                    title={availabilityTicks.has(idx) ? 'Available ✓ — will deduct from inventory' : 'Not Available — no inventory deduction (goes to Production)'}
+                  >
+                    {availabilityTicks.has(idx) ? '✓ IN STK' : '✗ NO STK'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleVerificationToggle(idx); }}
+                    className={`rounded-lg flex items-center justify-center text-xs font-black tracking-wider transition-all px-2.5 h-8 min-w-[44px] ${productVerification[String(idx)] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
+                    title={productVerification[String(idx)] === true ? 'Verified ✓' : 'Mark as verified'}
+                  >
+                    VER
+                  </button>
+                </>
               )}
             </motion.li>
           );
@@ -295,14 +340,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {productVerification['0'] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[9px]" title="Verified">✓</span>}
                 Stock
               </span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handleVerificationToggle(0); }}
-                className={`rounded-lg flex items-center justify-center text-xs font-black tracking-wider transition-all px-2.5 h-8 min-w-[44px] ${productVerification['0'] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
-                title={productVerification['0'] === true ? 'Verified ✓' : 'Mark as verified'}
-              >
-                VER
-              </button>
+              <span className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleAvailabilityToggle(0); }}
+                  className={`rounded-lg flex items-center justify-center text-xs font-black tracking-wider transition-all px-2.5 h-8 min-w-[44px] ${availabilityTicks.has(0) ? 'bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
+                  title={availabilityTicks.has(0) ? 'Available ✓ — will deduct from inventory' : 'Not Available — no inventory deduction (goes to Production)'}
+                >
+                  {availabilityTicks.has(0) ? '✓ IN STK' : '✗ NO STK'}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleVerificationToggle(0); }}
+                  className={`rounded-lg flex items-center justify-center text-xs font-black tracking-wider transition-all px-2.5 h-8 min-w-[44px] ${productVerification['0'] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
+                  title={productVerification['0'] === true ? 'Verified ✓' : 'Mark as verified'}
+                >
+                  VER
+                </button>
+              </span>
             </li>
           )}
           {items.map((item, idx) => (
@@ -1501,7 +1556,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           } else {
                             const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
                             if (window.confirm(msg)) {
-                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined });
+                              const availCount = (isMultiItem && orderItems?.length > 1) ? orderItems.length : 1;
+                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined, productAvailability: buildProductAvailability(availCount) });
                             }
                           }
                         }}
