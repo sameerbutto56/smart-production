@@ -7,7 +7,8 @@ const {
   createRoute,
   completeRoute,
   cancelRoute,
-  routeOrder
+  routeOrder,
+  clearBalance
 } = require('../controllers/inDispatch.controller');
 
 // Dedicated In Dispatch module — JOHAR TOWN outlet only.
@@ -19,5 +20,6 @@ router.post('/routes', authenticate, createRoute);
 router.post('/routes/:id/complete', authenticate, completeRoute);
 router.post('/routes/:id/cancel', authenticate, cancelRoute);
 router.post('/orders/:id/route', authenticate, routeOrder);
+router.post('/orders/:id/clear-balance', authenticate, clearBalance);
 
 module.exports = router;

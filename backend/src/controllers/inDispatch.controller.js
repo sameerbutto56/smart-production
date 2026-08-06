@@ -1,6 +1,8 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
+const cache = require('../utils/cache');
 const { createAuditLog } = require('./order-helpers');
+const { generateBalanceReceiptNumber } = require('./pos.controller');
 
 // Dedicated In Dispatch module — JOHAR TOWN outlet only.
 // Completely isolated from the existing Dispatch (dispatch officer) workflow.
@@ -140,6 +142,7 @@ const getInDispatchOrders = async (req, res) => {
         _posItems: posItems,
         _payment: {
           total, advance, paid, remaining, status, method,
+          posSaleId: ps?.id || null,
           receiptNumber: ps?.receiptNumber || null,
           posDate: ps?.createdAt || null,
           cashAmount: ps ? Number(ps.cashAmount || 0) : 0,
@@ -452,11 +455,94 @@ const routeOrder = async (req, res) => {
   }
 };
 
+// POST /api/in-dispatch/orders/:id/clear-balance
+// Collect the remaining balance at dispatch time. The order number (or legacy
+// orderId FK) links the POS sale; the payment is recorded as a PosBalancePayment
+// exactly like the POS "Pay Remaining Balance" flow, so the POS Dashboard balance
+// section clears automatically. Safe-guards mirror pos.controller payBalance.
+const clearBalance = async (req, res) => {
+  if (!requireJoharTown(req, res)) return;
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, orderNumber: true, customerName: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const posSale = await prisma.posSale.findFirst({
+      where: {
+        OR: [
+          { orderId: order.id },
+          ...(order.orderNumber ? [{ orderNumber: order.orderNumber }] : [])
+        ]
+      },
+      include: { balancePayments: { select: { amountPaidNow: true } } }
+    });
+    if (!posSale) {
+      return res.status(400).json({ message: 'No linked POS sale found for this order — balance cannot be cleared. The POS sale must use the same Order Number.' });
+    }
+    if (posSale.faisalTake) return res.status(400).json({ message: 'Cannot clear balance on Faisal Take' });
+
+    const { amountPaidNow, paymentMethod, cashAmount: cashSplit, onlineAmount: onlineSplit } = req.body || {};
+
+    if (!amountPaidNow || amountPaidNow <= 0) return res.status(400).json({ message: 'Amount must be greater than 0' });
+    if (paymentMethod === 'CASH_ONLINE') {
+      const total = (cashSplit || 0) + (onlineSplit || 0);
+      if (Math.abs(total - amountPaidNow) > 0.01) {
+        return res.status(400).json({ message: `Cash (${cashSplit || 0}) + Online (${onlineSplit || 0}) must equal total amount (${amountPaidNow})` });
+      }
+    }
+
+    const totalPaidFromPayments = posSale.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
+    const totalPaid = posSale.advanceAmount + totalPaidFromPayments;
+    const remaining = posSale.grandTotal - totalPaid;
+
+    if (remaining <= 0.01) return res.status(400).json({ message: 'Invoice is already fully paid' });
+    if (amountPaidNow > remaining + 0.01) return res.status(400).json({ message: `Amount exceeds remaining balance of ₨${remaining.toFixed(2)}` });
+
+    const receiptNumber = await generateBalanceReceiptNumber();
+    const outstandingAfter = Math.max(0, remaining - amountPaidNow);
+
+    const payment = await prisma.posBalancePayment.create({
+      data: {
+        posSaleId: posSale.id,
+        receiptNumber,
+        originalInvoiceNumber: posSale.receiptNumber,
+        originalInvoiceTotal: posSale.grandTotal,
+        previouslyPaidAmount: totalPaid,
+        remainingBalanceBeforePayment: remaining,
+        amountPaidNow,
+        outstandingBalanceAfterPayment: outstandingAfter,
+        paymentMethod: paymentMethod || 'CASH',
+        cashAmount: paymentMethod === 'CASH_ONLINE' ? (cashSplit || 0) : (paymentMethod === 'CASH' ? amountPaidNow : 0),
+        onlineAmount: paymentMethod === 'CASH_ONLINE' ? (onlineSplit || 0) : (paymentMethod === 'ONLINE' ? amountPaidNow : 0),
+        cashierName: req.user?.name || 'Outlet Staff',
+        paidAt: new Date()
+      }
+    });
+
+    await createAuditLog(order.id, 'BALANCE_CLEARED',
+      `Balance cleared on In Dispatch — ${paymentMethod || 'CASH'} ₨${amountPaidNow}${receiptNumber ? ` (${receiptNumber})` : ''} by ${req.user?.name}`,
+      req.user?.id || 'SYSTEM');
+
+    // Invalidate POS caches so the Dashboard balance section reflects immediately.
+    cache.delPattern('pos:');
+    const io = req.app?.get('io');
+    if (io) io.emit('inventory-updated', { source: 'in-dispatch', outletName: 'Johar Town', balancePayment: true });
+
+    res.status(201).json(payment);
+  } catch (error) {
+    console.error('in-dispatch clearBalance error:', error);
+    res.status(500).json({ message: 'Error clearing balance', error: error.message });
+  }
+};
+
 module.exports = {
   getInDispatchOrders,
   getRoutes,
   createRoute,
   completeRoute,
   cancelRoute,
-  routeOrder
+  routeOrder,
+  clearBalance
 };

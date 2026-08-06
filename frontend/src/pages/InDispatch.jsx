@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Route as RouteIcon, Truck, Send, UserCheck, RefreshCcw,
   Calendar, Phone, Package, CheckCircle2, XCircle, Plus,
-  MapPin, User, FileText, CheckSquare, Layers, Printer
+  MapPin, User, FileText, CheckSquare, Layers, Printer, Wallet
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,6 +37,14 @@ const InDispatch = () => {
   const [selectedForRoute, setSelectedForRoute] = useState(new Set());
   const [routeForm, setRouteForm] = useState({ routeName: '', area: '', deliveryPerson: '', notes: '' });
   const [creating, setCreating] = useState(false);
+
+  // Clear Balance — collect the remaining balance when printing the Dispatch Slip.
+  const [clearBalanceOrder, setClearBalanceOrder] = useState(null);
+  const [clearAmount, setClearAmount] = useState('');
+  const [clearMethod, setClearMethod] = useState('CASH');
+  const [clearCashAmount, setClearCashAmount] = useState('');
+  const [clearOnlineAmount, setClearOnlineAmount] = useState('');
+  const [clearingBalance, setClearingBalance] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -155,6 +163,74 @@ const InDispatch = () => {
       toast.error(e.response?.data?.message || 'Failed to cancel route');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  // Print Dispatch Slip — when the order has an outstanding balance, prompt to
+  // collect it first (Clear Balance). If fully paid (or no POS link), print directly.
+  const handlePrintSlipClick = (order) => {
+    const pay = order._payment;
+    if (pay?.linked && pay?.remaining > 0.01) {
+      setClearBalanceOrder(order);
+      setClearAmount(String(pay.remaining));
+      setClearMethod('CASH');
+      setClearCashAmount('');
+      setClearOnlineAmount('');
+    } else {
+      printDispatchSlip(order);
+    }
+  };
+
+  const openClearBalance = (order) => {
+    const pay = order._payment || {};
+    setClearBalanceOrder(order);
+    setClearAmount(String(pay.remaining || ''));
+    setClearMethod('CASH');
+    setClearCashAmount('');
+    setClearOnlineAmount('');
+  };
+
+  const handleClearBalance = async () => {
+    const order = clearBalanceOrder;
+    if (!order) return;
+    const remaining = Number(order._payment?.remaining || 0);
+    const amount = Number(clearAmount);
+    if (!amount || amount <= 0) { toast.error('Enter the balance amount'); return; }
+    if (amount > remaining + 0.01) { toast.error(`Amount exceeds remaining balance of ₨${remaining.toLocaleString()}`); return; }
+    if (clearMethod === 'CASH_ONLINE') {
+      const total = (Number(clearCashAmount) || 0) + (Number(clearOnlineAmount) || 0);
+      if (Math.abs(total - amount) > 0.01) { toast.error('Cash + Online must equal the total amount'); return; }
+    }
+    setClearingBalance(true);
+    try {
+      const res = await api.post(`/api/in-dispatch/orders/${order.id}/clear-balance`, {
+        amountPaidNow: amount,
+        paymentMethod: clearMethod,
+        cashAmount: Number(clearCashAmount) || 0,
+        onlineAmount: Number(clearOnlineAmount) || 0
+      });
+      toast.success('Balance cleared — order is now Paid');
+      const pay = order._payment || {};
+      const newPaid = Math.round((Number(pay.paid || 0) + amount) * 100) / 100;
+      const newRemaining = Math.max(0, Math.round((Number(pay.remaining || 0) - amount) * 100) / 100);
+      const updatedPayment = {
+        ...pay,
+        paid: newPaid,
+        remaining: newRemaining,
+        status: newRemaining <= 0.01 ? 'Paid' : 'Partially Paid',
+        method: clearMethod,
+        balanceReceipt: res.data?.receiptNumber || null
+      };
+      order._payment = updatedPayment;
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, _payment: updatedPayment } : o));
+      setClearBalanceOrder(null);
+      setClearAmount(''); setClearCashAmount(''); setClearOnlineAmount(''); setClearMethod('CASH');
+      refreshAll();
+      printDispatchSlip({ ...order, _payment: updatedPayment });
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to clear balance');
+    } finally {
+      setClearingBalance(false);
     }
   };
 
@@ -663,7 +739,13 @@ const InDispatch = () => {
                           {actionLoading === order.id + 'customerTakeDeliver' ? <RefreshCcw className="animate-spin" size={13} /> : <UserCheck size={13} />} Customer Take
                         </button>
                       </div>
-                      <button onClick={() => printDispatchSlip(order)}
+                      {order._payment?.linked && order._payment?.remaining > 0.01 && (
+                        <button onClick={() => openClearBalance(order)} disabled={actionLoading === order.id + 'clearBalance'}
+                          className="w-full flex items-center justify-center gap-1.5 px-2 py-2 bg-amber-600/90 hover:bg-amber-600 disabled:opacity-50 text-white text-[10px] font-bold rounded-xl transition-all">
+                          {actionLoading === order.id + 'clearBalance' ? <RefreshCcw className="animate-spin" size={13} /> : <Wallet size={13} />} Clear Balance — ₨{(order._payment.remaining || 0).toLocaleString()}
+                        </button>
+                      )}
+                      <button onClick={() => handlePrintSlipClick(order)}
                         className="w-full flex items-center justify-center gap-1.5 px-2 py-2 bg-gray-800 hover:bg-violet-700 disabled:opacity-50 text-gray-300 hover:text-white text-[10px] font-bold rounded-xl transition-all border border-gray-700/60">
                         <Printer size={13} /> Print Dispatch Slip
                       </button>
@@ -742,6 +824,95 @@ const InDispatch = () => {
                 {creating ? <RefreshCcw className="animate-spin" size={16} /> : <RouteIcon size={16} />}
                 Create Delivery Route
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Clear Balance Modal */}
+      <AnimatePresence>
+        {clearBalanceOrder && (
+          <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gray-950/90 backdrop-blur-sm" onClick={() => setClearBalanceOrder(null)} />
+            <motion.div initial={{ opacity: 0, scale: 0.92, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              className="relative w-full max-w-md bg-gray-900 border border-amber-500/30 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Wallet size={18} className="text-amber-400" />
+                  <p className="text-white font-black">Clear Balance</p>
+                </div>
+                <button onClick={() => setClearBalanceOrder(null)} className="text-gray-500 hover:text-white"><XCircle size={20} /></button>
+              </div>
+
+              <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 mb-4 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Order</span>
+                  <span className="text-sm font-black text-white">{clearBalanceOrder.orderNumber}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Customer</span>
+                  <span className="text-xs font-bold text-gray-300">{clearBalanceOrder.customerName || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Total Amount</span>
+                  <span className="text-xs font-bold text-white">₨{(clearBalanceOrder._payment?.total || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Already Paid</span>
+                  <span className="text-xs font-bold text-emerald-400">₨{(clearBalanceOrder._payment?.paid || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-gray-700/60">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Remaining Balance</span>
+                  <span className="text-base font-black text-amber-400">₨{(clearBalanceOrder._payment?.remaining || 0).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Balance Amount *</label>
+                  <input type="number" value={clearAmount} onChange={e => setClearAmount(e.target.value)} min="0"
+                    placeholder="0" className="w-full mt-1 px-3 py-2.5 bg-gray-800/70 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-600 focus:border-amber-500/60 outline-none" />
+                  <p className="text-[10px] text-gray-500 mt-1">Full remaining balance is pre-filled. Enter a partial amount to collect only part of it.</p>
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Payment Method</label>
+                  <div className="grid grid-cols-4 gap-1.5 mt-1">
+                    {['CASH', 'ONLINE', 'CARD', 'CASH_ONLINE'].map(m => (
+                      <button key={m} onClick={() => setClearMethod(m)}
+                        className={`px-2 py-2 rounded-xl text-[10px] font-black transition-all border ${clearMethod === m ? 'bg-amber-600 text-white border-amber-500' : 'bg-gray-800/70 text-gray-400 border-gray-700/60 hover:border-amber-500/50'}`}>
+                        {methodLabel(m)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {clearMethod === 'CASH_ONLINE' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Cash Amount</label>
+                      <input type="number" value={clearCashAmount} onChange={e => setClearCashAmount(e.target.value)} min="0"
+                        placeholder="0" className="w-full mt-1 px-3 py-2.5 bg-gray-800/70 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-600 focus:border-amber-500/60 outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Online Amount</label>
+                      <input type="number" value={clearOnlineAmount} onChange={e => setClearOnlineAmount(e.target.value)} min="0"
+                        placeholder="0" className="w-full mt-1 px-3 py-2.5 bg-gray-800/70 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-600 focus:border-amber-500/60 outline-none" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 space-y-2">
+                <button onClick={handleClearBalance} disabled={clearingBalance}
+                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white text-sm font-black rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                  {clearingBalance ? <RefreshCcw className="animate-spin" size={16} /> : <Wallet size={16} />}
+                  {clearingBalance ? 'Clearing Balance...' : `Clear Balance & Print Slip`}
+                </button>
+                <button onClick={() => { setClearBalanceOrder(null); printDispatchSlip(clearBalanceOrder); }}
+                  className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold rounded-xl transition-all border border-gray-700/60">
+                  Skip — Print Slip Only
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

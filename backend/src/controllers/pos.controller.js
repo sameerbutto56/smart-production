@@ -1837,6 +1837,7 @@ const getEmployees = async (req, res) => {
 };
 
 module.exports = {
+  generateBalanceReceiptNumber,
   getPosInventory,
   getProducts,
   getVariant,
