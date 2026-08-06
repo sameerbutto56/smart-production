@@ -554,6 +554,35 @@ const getOrders = async (req, res) => {
         }
       } catch (e) { /* non-blocking */ }
     }
+    // Global order search — mirrors trackOrder so the Orders module finds every
+    // order that Order Tracking can find (order number / invoice number / customer
+    // name / phone). No role boundary: trackOrder itself is a global lookup, so the
+    // search must behave the same way or tracked orders would be "not found" in Orders.
+    const searchQuery = String(req.query.search || '').trim();
+    if (searchQuery) {
+      const searchResults = await prisma.order.findMany({
+        where: {
+          OR: [
+            { orderNumber: { contains: searchQuery, mode: 'insensitive' } },
+            { invoiceNumber: { contains: searchQuery, mode: 'insensitive' } },
+            { customerName: { contains: searchQuery, mode: 'insensitive' } },
+            { customerPhone: { contains: searchQuery } }
+          ]
+        },
+        include: {
+          stages: {
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true }
+          },
+          auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
+          createdBy: { select: { name: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100
+      });
+      return res.json(sortByPriority(searchResults));
+    }
+
     const pageNum = parseInt(page) || 0;
     const skipVal = parseInt(skip) || 0;
     const takeLimit = limit === 'all' ? undefined : (parseInt(limit) || 200);
@@ -2701,7 +2730,12 @@ const getOrderTimeline = async (req, res) => {
       }),
       prisma.order.findUnique({
         where: { id: orderId },
-        select: { id: true, currentStage: true, goForVerification: true, verifiedAt: true, verificationReturnedAt: true }
+        select: {
+          id: true, orderNumber: true, customerName: true, status: true,
+          currentStage: true, goForVerification: true, verifiedAt: true,
+          verificationReturnedAt: true, verificationReturnNote: true,
+          verifiedByName: true, source: true, createdAt: true, createdById: true
+        }
       })
     ]);
 
@@ -2723,8 +2757,9 @@ const getOrderTimeline = async (req, res) => {
       LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production Acceptance',
       PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
       DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery',
-      OUTLET_RECEIVE: 'Outlet Receive', ENAMELS_DELIVERY: 'Enamels Delivery',
-      VERIFICATION: 'Verification', DELIVERED: 'Delivered'
+      OUTLET_RECEIVE: 'Outlet Receive', IN_DISPATCH: 'In Dispatch',
+      ENAMELS_DELIVERY: 'Enamels Delivery', DELIVERED: 'Delivered',
+      VERIFICATION: 'Verification'
     };
 
     const ACTION_LABELS = {
@@ -2797,55 +2832,198 @@ const getOrderTimeline = async (req, res) => {
       remarks: rh.remarks || null
     }));
 
-    // --- Build flat audit entries (for OrderTrack.jsx chronological view) ---
-    const stageActions = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DISPATCH_ACCEPTED', 'DELIVERY_ACCEPTED']);
+    // ================================================================
+    // FLAT CANONICAL WORKFLOW EVENTS (chronological full-lifecycle trail)
+    // One event per meaningful step (Order Entered, Sent to X, X Accepted,
+    // X Completed, verification steps, deliveries). Repeated department
+    // visits stay as separate events — history is appended, never replaced.
+    // ================================================================
+    const labelOf = (s) => STAGE_LABELS_MAP[s] || String(s || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    const titleCase = (s) => String(s || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+    const isOutlet = order?.source === 'OUTLET';
+    const orderCreated = order?.createdAt ? new Date(order.createdAt).getTime() : 0;
+    const isFirstStage = (s) => s.stageName === 'ORDER_ENTRY' && Math.abs(new Date(s.createdAt).getTime() - orderCreated) < 120000;
+
+    const transitionLabel = (s) => {
+      const n = s.stageName;
+      if (isFirstStage(s)) return isOutlet ? 'Outlet Order Created' : 'Order Entered';
+      switch (n) {
+        case 'STORE': return 'Sent to Store';
+        case 'LOGO_DESIGN': return 'Sent to Logo Design';
+        case 'PRODUCTION': return 'Sent to Production';
+        case 'PRODUCTION_ACCEPTANCE': return 'Sent to Production Acceptance';
+        case 'STORE_RECEIVE': return (s.returnReason && s.returnReason.toLowerCase().includes('production')) ? 'Returned to Store (After Production)' : 'Sent to Store (After Production)';
+        case 'DISPATCH': return 'Sent to Dispatch';
+        case 'OUT_FOR_DELIVERY': return 'Moved to Assigned Tasks';
+        case 'OUTLET_RECEIVE': return (s.returnReason && s.returnReason.toLowerCase().includes('production')) ? 'Returned to Johar Town — Come From Production' : 'Received at Outlet';
+        case 'IN_DISPATCH': return 'Sent to In Dispatch';
+        case 'ENAMELS_DELIVERY': return 'Sent to Enamels Delivery Boy';
+        case 'VERIFICATION': return 'Sent to Verification';
+        case 'DELIVERED': return 'Order Delivered';
+        default: return `Received at ${labelOf(n)}`;
+      }
+    };
+
+    const acceptedLabel = (s) => {
+      const n = s.stageName;
+      switch (n) {
+        case 'ORDER_ENTRY': return isOutlet ? 'Order Accepted in My Tasks' : null;
+        case 'STORE': return 'Store Accepted';
+        case 'STORE_RECEIVE': return 'Store Accepted (After Production)';
+        case 'LOGO_DESIGN': return 'Logo Accepted';
+        case 'PRODUCTION': return 'Production Accepted';
+        case 'PRODUCTION_ACCEPTANCE': return 'Production Acceptance Accepted';
+        case 'DISPATCH': return 'Dispatch Accepted';
+        case 'OUT_FOR_DELIVERY': return 'Out for Delivery';
+        case 'OUTLET_RECEIVE': return 'Order Accepted (Come From Production)';
+        case 'IN_DISPATCH': return 'In Dispatch Accepted';
+        case 'ENAMELS_DELIVERY': return 'Delivery Boy Accepted';
+        case 'VERIFICATION': return 'Verification Started';
+        default: return `${labelOf(n)} Accepted`;
+      }
+    };
+
+    const completedLabel = (s) => {
+      const n = s.stageName;
+      switch (n) {
+        case 'STORE': return 'Store Processing Completed';
+        case 'STORE_RECEIVE': return 'Store Processing Completed (After Production)';
+        case 'LOGO_DESIGN': return 'Logo Completed';
+        case 'PRODUCTION': return 'Production Completed';
+        case 'DISPATCH': return 'Dispatch Completed';
+        case 'OUT_FOR_DELIVERY': return 'Delivered';
+        case 'OUTLET_RECEIVE': return 'Outlet Processing Completed';
+        case 'IN_DISPATCH': return 'In Dispatch Completed';
+        case 'ENAMELS_DELIVERY': return 'Enamels Delivery Completed';
+        default: return `${labelOf(n)} Completed`;
+      }
+    };
+
+    // Match each routing entry to the OrderStage it created (same stage name,
+    // near-identical timestamp) so we emit ONE transition event instead of both
+    // a "Sent to X" route AND a duplicate "X — Received" stage event.
+    const usedRouteIds = new Set();
+    stages.forEach(s => {
+      const candidates = routingHistory.filter(rh =>
+        !usedRouteIds.has(rh.id) &&
+        rh.newStage === s.stageName &&
+        Math.abs(new Date(rh.createdAt).getTime() - new Date(s.createdAt).getTime()) < 120000
+      );
+      if (!candidates.length) return;
+      candidates.sort((a, b) =>
+        Math.abs(new Date(a.createdAt).getTime() - new Date(s.createdAt).getTime()) -
+        Math.abs(new Date(b.createdAt).getTime() - new Date(s.createdAt).getTime())
+      );
+      s._route = candidates[0];
+      usedRouteIds.add(candidates[0].id);
+    });
+
+    // Verification flow steps are recorded only as audit logs (there is no
+    // OrderStage for VERIFICATION), so map them to canonical labels here and
+    // exclude them from the generic audit pass to avoid duplicates.
+    const VERIFICATION_ACTION_LABELS = {
+      SENT_FOR_VERIFICATION: 'Sent to Verification',
+      ORDER_VERIFIED: 'Verification Approved',
+      RETURNED_FOR_CORRECTION: 'Returned from Verification',
+      RESUBMITTED_AFTER_VERIFICATION: 'Order Updated & Resubmitted for Verification',
+      VERIFICATION_PENDING: 'Verification Pending'
+    };
+    const VERIFICATION_ACTION_STATUS = {
+      SENT_FOR_VERIFICATION: 'ROUTED',
+      ORDER_VERIFIED: 'VERIFIED',
+      RETURNED_FOR_CORRECTION: 'RETURNED',
+      RESUBMITTED_AFTER_VERIFICATION: 'RESUBMITTED',
+      VERIFICATION_PENDING: 'PENDING'
+    };
+
+    // Stage-lifecycle events already captured below; these audits would just repeat them.
+    const AUDIT_NOISE = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DISPATCH_ACCEPTED', 'DELIVERY_ACCEPTED', 'ORDER_CREATED', 'OUTLET_ORDER_CREATED', 'CUSTOMER_TAKEN', 'ESCALATION_OVERDUE']);
+
     const flatEntries = [];
 
-    // Flat stage entries for OrderTrack.jsx
+    // 1) Stage lifecycle: received (transition) / accepted / completed
     stages.forEach(s => {
-      const derivedActor = s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null;
-      const sLabel = STAGE_LABELS_MAP[s.stageName] || s.stageName;
+      const sLabel = labelOf(s.stageName);
+      const recvActor = s._route?.sentByUser?.name || s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null;
       flatEntries.push({
         id: `${s.id}-received`, type: 'stage', stage: s.stageName, stageLabel: sLabel,
-        timestamp: s.createdAt, action: 'RECEIVED', label: `${sLabel} — Received`,
-        actor: derivedActor, status: s.status,
-        details: s.returnedFrom ? `Returned from ${STAGE_LABELS_MAP[s.returnedFrom] || s.returnedFrom}` : null,
-        returnReason: s.returnReason || null
+        timestamp: s.createdAt, action: 'RECEIVED', label: transitionLabel(s),
+        actor: recvActor, status: s.status,
+        details: s.returnReason || (s.returnedFrom ? `Returned from ${labelOf(s.returnedFrom)}` : null),
+        remarks: s._route?.remarks || null, returnReason: s.returnReason || null,
+        from: s._route?.previousStage || s.returnedFrom || null, to: s.stageName
       });
-      if (s.startedAt) {
+      if (s.startedAt && acceptedLabel(s)) {
         flatEntries.push({
           id: `${s.id}-accepted`, type: 'stage', stage: s.stageName, stageLabel: sLabel,
-          timestamp: s.startedAt, action: 'ACCEPTED', label: `${sLabel} — Accepted`,
-          actor: derivedActor, status: 'IN_PROGRESS'
+          timestamp: s.startedAt, action: 'ACCEPTED', label: acceptedLabel(s),
+          actor: s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null,
+          status: 'IN_PROGRESS', details: null, remarks: null, returnReason: null,
+          from: null, to: s.stageName
         });
       }
-      if (s.completedAt) {
+      const skipComplete = s.stageName === 'ORDER_ENTRY' && isFirstStage(s);
+      if (s.completedAt && completedLabel(s) && !skipComplete) {
         flatEntries.push({
           id: `${s.id}-completed`, type: 'stage', stage: s.stageName, stageLabel: sLabel,
-          timestamp: s.completedAt, action: 'COMPLETED', label: `${sLabel} — Completed`,
-          actor: derivedActor, status: 'COMPLETED'
+          timestamp: s.completedAt, action: 'COMPLETED', label: completedLabel(s),
+          actor: s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null,
+          status: 'COMPLETED', details: null, remarks: null, returnReason: null,
+          from: null, to: s.stageName
         });
       }
     });
+
+    // 2) Routing transitions not tied to an OrderStage (e.g. VERIFICATION → STORE,
+    //    X → DELIVERED customer collection) — preserved as their own events.
     routingHistory.forEach(rh => {
+      if (usedRouteIds.has(rh.id)) return;
+      const toLabel = labelOf(rh.newStage);
+      const isDeliveredRoute = rh.newStage === 'DELIVERED';
       flatEntries.push({
-        id: rh.id, type: 'route', stage: rh.newStage,
-        stageLabel: STAGE_LABELS_MAP[rh.newStage] || rh.newStage,
+        id: rh.id, type: 'route', stage: rh.newStage, stageLabel: toLabel,
         timestamp: rh.createdAt, action: 'ROUTED',
-        label: `Sent to ${STAGE_LABELS_MAP[rh.newStage] || rh.newStage}`,
-        actor: rh.sentByUser?.name || 'System', remarks: rh.remarks || null
+        label: isDeliveredRoute ? 'Delivered (Customer Collection)' : `Sent to ${toLabel}`,
+        actor: rh.sentByUser?.name || 'System', status: 'ROUTED',
+        details: rh.remarks || null, remarks: rh.remarks || null, returnReason: null,
+        from: rh.previousStage, to: rh.newStage
       });
     });
+
+    // 3) Verification steps (deduped canonical labels + statuses)
     auditLogs.forEach(al => {
-      if (stageActions.has(al.action)) return;
+      const vLabel = VERIFICATION_ACTION_LABELS[al.action];
+      if (!vLabel) return;
+      flatEntries.push({
+        id: al.id, type: 'audit', stage: 'VERIFICATION', stageLabel: 'Verification',
+        timestamp: al.timestamp, action: al.action, label: vLabel,
+        actor: al.user?.name || al.performedBy || 'System',
+        status: VERIFICATION_ACTION_STATUS[al.action] || 'VERIFIED',
+        details: al.details || null, remarks: null, returnReason: null,
+        from: null, to: 'VERIFICATION'
+      });
+    });
+
+    // 4) Every other meaningful audit event — append-only full history (edits,
+    //    cancellations, re-approvals, returns, delivery updates, payments...).
+    const hasOutForDeliveryCompletion = stages.some(s => s.stageName === 'OUT_FOR_DELIVERY' && s.completedAt);
+    auditLogs.forEach(al => {
+      if (AUDIT_NOISE.has(al.action)) return;
+      if (VERIFICATION_ACTION_LABELS[al.action]) return;
+      if (al.action === 'DELIVERED' && hasOutForDeliveryCompletion) return;
       flatEntries.push({
         id: al.id, type: 'audit', stage: null, stageLabel: null,
         timestamp: al.timestamp, action: al.action,
-        label: ACTION_LABELS[al.action] || al.action.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
-        actor: al.user?.name || al.performedBy || 'System', details: al.details || null
+        label: ACTION_LABELS[al.action] || titleCase(al.action),
+        actor: al.user?.name || al.performedBy || 'System', status: 'AUDIT',
+        details: al.details || null, remarks: null, returnReason: null,
+        from: null, to: null
       });
     });
+
     flatEntries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    flatEntries.forEach((e, i) => { e.isLatest = i === flatEntries.length - 1; });
 
     // Return both formats — consolidated for AdminDashboard, flat for OrderTrack
     res.json({ stageEntries, routeEntries, flatEntries, trackingStatus: getTrackingStatus(order) });

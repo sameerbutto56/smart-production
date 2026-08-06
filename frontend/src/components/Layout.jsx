@@ -97,7 +97,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'OUTLET', 'CEO'] },
+    { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO'] },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['SUPER_ADMIN', 'ADMIN', 'OUTLET', 'STORE'] },
     { name: 'Analytics', path: '/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
 
@@ -153,7 +153,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
         const n = String(user?.name || '').toLowerCase();
         return n.includes('johar') || user?.name?.includes('1');
       }
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch'].includes(item.name);
+      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy

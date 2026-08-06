@@ -3461,15 +3461,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div className="text-center py-12 text-gray-500 font-black uppercase tracking-widest text-xs">No timeline data</div>
               ) : (
                 timelineData.map((entry, idx) => {
-                  const isStage = entry.type === 'stage';
-                  const isRoute = entry.type === 'route';
-                  const isAudit = entry.type === 'audit';
-                  const dotColor = isStage
-                    ? entry.status === 'COMPLETED' ? 'bg-emerald-500'
-                      : entry.acceptedAt ? 'bg-blue-500'
-                        : 'bg-gray-600'
-                    : isRoute ? 'bg-amber-500'
-                      : 'bg-purple-500';
+                  const dotColor = entry.action === 'COMPLETED' ? 'bg-emerald-500'
+                    : entry.action === 'ACCEPTED' ? 'bg-blue-500'
+                    : entry.action === 'RECEIVED' ? 'bg-amber-500'
+                    : entry.action === 'ROUTED' ? 'bg-purple-500'
+                    : entry.action === 'ORDER_VERIFIED' || entry.status === 'VERIFIED' ? 'bg-cyan-500'
+                    : (entry.action?.includes('RETURN') || entry.action?.includes('FAIL') || entry.status === 'RETURNED' || entry.action?.includes('CANCELL')) ? 'bg-red-500'
+                    : entry.action === 'WORKFLOW_RESTARTED' ? 'bg-orange-500'
+                    : 'bg-gray-500';
 
                   return (
                     <div key={entry.id || idx} className="relative pl-10 pb-4">
@@ -3477,60 +3476,43 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <div className="absolute left-[11px] top-6 bottom-0 w-[2px] bg-gray-800" />
                       )}
                       <div className={`absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-gray-900 flex items-center justify-center ${dotColor}`}>
-                        {isStage ? (
-                          <span className="text-[8px] text-white font-black">{entry.status === 'COMPLETED' ? '✓' : entry.acceptedAt ? '●' : '○'}</span>
-                        ) : isRoute ? (
-                          <span className="text-[8px]">→</span>
-                        ) : (
-                          <span className="text-[8px]">●</span>
-                        )}
+                        <span className="text-[8px] text-white font-black">●</span>
                       </div>
 
                       <div className="p-3 rounded-xl border border-gray-800 bg-gray-950/50">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-xs font-black uppercase tracking-wider"
-                            style={{ color: isStage
-                              ? entry.status === 'COMPLETED' ? '#10b981' : entry.acceptedAt ? '#3b82f6' : '#6b7280'
-                              : isRoute ? '#f59e0b' : '#a855f7'
-                            }}
-                          >
-                            {isStage ? entry.stage.replace(/_/g, ' ') : isRoute ? `${entry.from?.replace(/_/g, ' ')} → ${entry.to?.replace(/_/g, ' ')}` : entry.label}
+                          <span className="text-xs font-black uppercase tracking-wider text-white">
+                            {entry.label || entry.stageLabel || entry.stage?.replace(/_/g, ' ')}
                           </span>
                           <span className="text-[10px] text-gray-600 font-mono whitespace-nowrap">
                             {formatDateTime(entry.timestamp)}
                           </span>
                         </div>
 
-                        {isStage && (
+                        {(entry.stageLabel || entry.actor || entry.status) && (
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500 font-medium">
-                            <span>Received: {formatTimeOnly(entry.receivedAt)}</span>
-                            {entry.acceptedAt && (
-                              <span>Accepted: {formatTimeOnly(entry.acceptedAt)}</span>
+                            {entry.stageLabel && (
+                              <span className="font-black text-gray-400">{entry.stageLabel}</span>
                             )}
-                            {entry.completedAt && (
-                              <span>Completed: {formatTimeOnly(entry.completedAt)}</span>
+                            {entry.actor && (
+                              <span>by {entry.actor}</span>
                             )}
-                            {entry.delay !== null && (
-                              <span className={entry.delay > 60 ? 'text-red-400' : 'text-yellow-400'}>
-                                Delay: {entry.delay} min
+                            {entry.status && (
+                              <span className={entry.status === 'COMPLETED' ? 'text-emerald-400' : entry.status === 'IN_PROGRESS' ? 'text-blue-400' : entry.status === 'VERIFIED' ? 'text-cyan-400' : entry.status === 'RETURNED' ? 'text-red-400' : 'text-gray-500'}>
+                                {entry.status}
                               </span>
-                            )}
-                            {entry.returnedFrom && (
-                              <span className="text-orange-400">Returned from {entry.returnedFrom}</span>
                             )}
                           </div>
                         )}
 
-                        {isRoute && entry.remarks && (
-                          <p className="mt-1 text-[10px] text-gray-600 italic">{entry.remarks}</p>
-                        )}
-
-                        {isAudit && entry.details && (
+                        {entry.details && (
                           <p className="mt-1 text-[10px] text-gray-600 italic">{entry.details}</p>
                         )}
-
-                        {entry.actor && (
-                          <p className="mt-1 text-[9px] text-gray-700 font-bold">{entry.actor}</p>
+                        {entry.remarks && entry.details !== entry.remarks && (
+                          <p className="mt-1 text-[10px] text-gray-600 italic">Remarks: {entry.remarks}</p>
+                        )}
+                        {entry.returnReason && (
+                          <p className="mt-1 text-[10px] text-red-500 italic">Return reason: {entry.returnReason}</p>
                         )}
                       </div>
                     </div>

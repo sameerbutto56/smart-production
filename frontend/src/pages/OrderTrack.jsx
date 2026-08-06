@@ -13,6 +13,14 @@ const STAGE_LABELS = {
   VERIFICATION: 'Verification', RETURNED_FROM_VERIFICATION: 'Returned from Verification', DELIVERED: 'Delivered'
 };
 
+// Department for each workflow stage (shown alongside the responsible user)
+const STAGE_DEPARTMENTS = {
+  ORDER_ENTRY: 'Order Entry', VERIFICATION: 'Verification', STORE: 'Store', STORE_RECEIVE: 'Store',
+  WORKERS: 'Production', LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production', PRODUCTION: 'Production',
+  DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Delivery', OUTLET_RECEIVE: 'Outlet', IN_DISPATCH: 'Dispatch',
+  ENAMELS_DELIVERY: 'Delivery', DELIVERED: 'Delivery'
+};
+
 const STAGE_ORDER = ['ORDER_ENTRY', 'VERIFICATION', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'DELIVERED'];
 
 const STAGE_ICONS = {
@@ -40,11 +48,33 @@ const getEntryColors = (entry) => {
   if (entry.action === 'ACCEPTED') return ENTRY_COLORS.ACCEPTED;
   if (entry.action === 'ROUTED') return ENTRY_COLORS.ROUTED;
   if (entry.action === 'RECEIVED') return ENTRY_COLORS.RECEIVED;
-  if (entry.action === 'VERIFIED' || entry.action === 'ORDER_VERIFIED') return ENTRY_COLORS.VERIFIED;
-  if (entry.action?.includes('FAIL') || entry.action?.includes('RETURN')) return ENTRY_COLORS.FAILED;
-  if (entry.action?.includes('EDIT')) return ENTRY_COLORS.EDIT;
+  if (entry.action === 'ORDER_VERIFIED' || entry.action === 'VERIFIED') return ENTRY_COLORS.VERIFIED;
+  if (entry.action === 'RETURNED_FOR_CORRECTION' || entry.action === 'ORDER_CANCELLED' || entry.action === 'DELIVERY_FAILED') return ENTRY_COLORS.FAILED;
+  if (entry.action === 'RESUBMITTED_AFTER_VERIFICATION' || entry.action?.includes('EDIT')) return ENTRY_COLORS.EDIT;
   if (entry.action === 'WORKFLOW_RESTARTED') return ENTRY_COLORS.RESTART;
+  if (entry.status === 'VERIFIED') return ENTRY_COLORS.VERIFIED;
+  if (entry.status === 'RETURNED') return ENTRY_COLORS.FAILED;
+  if (entry.status === 'RESUBMITTED') return ENTRY_COLORS.EDIT;
+  if (entry.action?.includes('FAIL') || entry.action?.includes('RETURN') || entry.action?.includes('CANCELL')) return ENTRY_COLORS.FAILED;
   return ENTRY_COLORS.audit;
+};
+
+// Status badge text + styling derived from the entry's action/status
+const getStatusBadge = (entry) => {
+  if (entry.action === 'COMPLETED') return { text: 'COMPLETED', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' };
+  if (entry.action === 'ACCEPTED') return { text: 'IN PROGRESS', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/40' };
+  if (entry.action === 'ROUTED') return { text: 'ROUTED', cls: 'bg-purple-500/20 text-purple-400 border-purple-500/40' };
+  if (entry.action === 'RECEIVED') {
+    if (entry.status === 'COMPLETED') return { text: 'COMPLETED', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' };
+    return { text: 'RECEIVED', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/40' };
+  }
+  if (entry.status === 'VERIFIED') return { text: 'VERIFIED', cls: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' };
+  if (entry.status === 'RETURNED') return { text: 'RETURNED', cls: 'bg-red-500/20 text-red-400 border-red-500/40' };
+  if (entry.status === 'RESUBMITTED') return { text: 'RESUBMITTED', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/40' };
+  if (entry.status === 'PENDING') return { text: 'PENDING', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40' };
+  if (entry.status === 'ROUTED') return { text: 'ROUTED', cls: 'bg-purple-500/20 text-purple-400 border-purple-500/40' };
+  if (entry.status === 'IN_PROGRESS') return { text: 'IN PROGRESS', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/40' };
+  return { text: entry.status || 'LOG', cls: 'bg-gray-500/20 text-gray-400 border-gray-500/40' };
 };
 
 const formatDate = (ts) => {
@@ -234,7 +264,10 @@ const OrderTrack = () => {
           {/* Complete Timeline */}
           <div className="bg-gray-900/60 rounded-2xl border border-gray-800/50 p-4">
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Complete Timeline</p>
+              <div>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Full Lifecycle Timeline</p>
+                <p className="text-[10px] text-gray-600 font-bold mt-0.5">Complete audit trail — every stage, accepted &amp; completed, in order</p>
+              </div>
               {timelineLoading && <RefreshCcw size={12} className="text-purple-400 animate-spin" />}
             </div>
 
@@ -245,45 +278,55 @@ const OrderTrack = () => {
                 {timeline.map((entry, idx) => {
                   const colors = getEntryColors(entry);
                   const isLast = idx === timeline.length - 1;
+                  const badge = getStatusBadge(entry);
                   const dt = formatDate(entry.timestamp);
                   const tm = formatTime(entry.timestamp);
-                  const nextTs = idx < timeline.length - 1 ? timeline[idx + 1]?.timestamp : null;
-                  const duration = formatDuration(entry.timestamp, nextTs);
+                  const department = STAGE_DEPARTMENTS[entry.stage] || (entry.stage ? STAGE_LABELS[entry.stage] : null);
+                  const latest = entry.isLatest || isLast;
                   return (
                     <div key={entry.id || idx} className="flex gap-3">
                       <div className="flex flex-col items-center shrink-0">
-                        <div className={`w-3 h-3 rounded-full ${colors.dot} mt-1.5 shadow-lg`} />
-                        {!isLast && <div className={`w-0.5 flex-1 ${colors.border} border-l-2 border-dashed min-h-[20px] opacity-30`} />}
+                        <div className={`w-3 h-3 rounded-full ${colors.dot} mt-2 shadow-lg ${latest ? 'ring-4 ring-white/10' : ''}`} />
+                        {!isLast && <div className={`w-0.5 flex-1 border-l-2 border-dashed min-h-[16px] opacity-30 ${colors.border}`} />}
                       </div>
-                      <div className={`flex-1 border-l-2 ${colors.border} ${colors.bg} rounded-r-lg p-2.5 mb-2`}>
+                      <div className={`flex-1 border-l-2 ${colors.border} ${colors.bg} rounded-r-xl p-3 mb-2 ${latest ? 'ring-1 ring-white/10 shadow-lg' : ''}`}>
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded border ${colors.badge}`}>
-                              {entry.label}
-                            </span>
-                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                              {entry.actor && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-gray-800/80 px-2 py-0.5 rounded-full">
-                                  <User size={9} /> {entry.actor}
-                                </span>
-                              )}
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400">
-                                <Calendar size={9} /> {dt}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded border ${colors.badge}`}>
+                                {entry.label}
                               </span>
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400">
-                                <Clock size={9} /> {tm}
-                              </span>
-                              {duration && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
-                                  ⏱ {duration}
-                                </span>
+                              {latest && (
+                                <span className="text-[9px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-full">● Latest</span>
                               )}
                             </div>
-                            {entry.details && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">{entry.details}</p>}
-                            {entry.remarks && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">Remarks: {entry.remarks}</p>}
-                            {entry.returnReason && <p className="text-[10px] text-red-400 font-bold mt-1">Return reason: {entry.returnReason}</p>}
+                            {/* Workflow stage + department */}
+                            {(entry.stageLabel || entry.stage) && (
+                              <p className="text-[10px] font-black text-gray-300 mt-1.5 uppercase tracking-wider">
+                                {entry.stageLabel || STAGE_LABELS[entry.stage] || entry.stage}
+                                {department && <span className="text-gray-500 font-bold normal-case tracking-normal"> · {department}</span>}
+                              </p>
+                            )}
+                            {/* Responsible user */}
+                            {entry.actor && (
+                              <p className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-gray-800/80 px-2 py-0.5 rounded-full mt-1.5">
+                                <User size={9} /> {entry.actor}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${badge.cls}`}>{badge.text}</span>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-white">
+                              <Calendar size={10} className="text-gray-500" /> {dt}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-gray-400">
+                              <Clock size={10} className="text-gray-600" /> {tm}
+                            </span>
                           </div>
                         </div>
+                        {entry.details && <p className="text-[10px] text-gray-400 font-bold mt-1.5 italic">{entry.details}</p>}
+                        {entry.remarks && entry.details !== entry.remarks && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">Remarks: {entry.remarks}</p>}
+                        {entry.returnReason && <p className="text-[10px] text-red-400 font-bold mt-1">Return reason: {entry.returnReason}</p>}
                       </div>
                     </div>
                   );

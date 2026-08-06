@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { debounce } from '../utils/debounce';
@@ -71,6 +71,40 @@ const AllOrders = () => {
     setSearchTerm(val);
     setContextSearch(val);
   };
+
+  // Server-side global search — mirrors Order Tracking so every tracked order is
+  // findable in Orders by Order Number / Invoice / customer name / phone, even when
+  // it falls outside the default role-scoped list (e.g. old completed orders).
+  const [serverSearchResults, setServerSearchResults] = useState(null);
+  const [serverSearchLoading, setServerSearchLoading] = useState(false);
+  const serverSearchRef = useRef(0);
+
+  useEffect(() => {
+    const q = (searchTerm || '').trim();
+    const ref = ++serverSearchRef.current;
+    if (q.length < 2) {
+      setServerSearchResults(null);
+      setServerSearchLoading(false);
+      return;
+    }
+    setServerSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get(`/api/orders?search=${encodeURIComponent(q)}`);
+        if (serverSearchRef.current !== ref) return;
+        setServerSearchResults(Array.isArray(res.data) ? res.data : []);
+      } catch (e) {
+        if (serverSearchRef.current !== ref) return;
+        setServerSearchResults([]);
+      } finally {
+        if (serverSearchRef.current === ref) setServerSearchLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const isServerSearchActive = serverSearchResults !== null;
+  const baseOrders = isServerSearchActive ? serverSearchResults : orders;
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [productAvailability, setProductAvailability] = useState({});
 
@@ -311,12 +345,12 @@ const AllOrders = () => {
 
   const delayMap = useMemo(() => {
     const map = {};
-    (orders || []).forEach(o => {
+    (baseOrders || []).forEach(o => {
       const d = getDelayInfo(o);
       if (d) map[o.id] = d;
     });
     return map;
-  }, [orders]);
+  }, [baseOrders]);
 
   const departmentDelays = useMemo(() => {
     const counts = {};
@@ -326,13 +360,13 @@ const AllOrders = () => {
     return counts;
   }, [delayMap]);
 
-  const stageDelays = useMemo(() => getStageDelays(orders), [orders]);
+  const stageDelays = useMemo(() => getStageDelays(baseOrders), [baseOrders]);
 
   const dateRange = useMemo(() => getDateRange(dateFilter), [dateFilter]);
 
   const summaryCounts = useMemo(() => {
     const counts = { total: 0, standard: 0, custom: 0, urgent: 0, superUrgent: 0, delayed: 0 };
-    (orders || []).forEach(o => {
+    (baseOrders || []).forEach(o => {
       const created = o.createdAt ? new Date(o.createdAt).getTime() : 0;
       if (dateRange && (created < dateRange.start || created >= dateRange.end)) return;
       counts.total++;
@@ -343,9 +377,9 @@ const AllOrders = () => {
       if (delayMap[o.id]) counts.delayed++;
     });
     return counts;
-  }, [orders, dateRange, delayMap]);
+  }, [baseOrders, dateRange, delayMap]);
 
-  const filteredOrders = useMemo(() => (orders || []).filter(order => {
+  const filteredOrders = useMemo(() => (baseOrders || []).filter(order => {
     if (!order) return false;
     const name = (order.customerName || '').toLowerCase();
     const id = (order.id || '').toLowerCase();
@@ -354,6 +388,11 @@ const AllOrders = () => {
 
     const cityField = (order.city || '').toLowerCase();
     const matchesSearch = name.includes(search) || id.includes(search) || orderNum.includes(search) || cityField.includes(search);
+
+    // Server search already returned the tracked order(s) — bypass all the
+    // role/status/date/category gates so a tracked order can never be hidden.
+    if (isServerSearchActive) return true;
+
     const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
     const matchesType = filterType === 'ALL' || order.type === filterType;
     const matchesUrgent = !filterUrgent || order.urgent;
@@ -386,7 +425,7 @@ const AllOrders = () => {
     const numA = parseInt(a.orderNumber) || 0;
     const numB = parseInt(b.orderNumber) || 0;
     return sortOrder === 'asc' ? numA - numB : numB - numA;
-  }), [orders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, filterDelayStage, dateRange, delayMap]);
+  }), [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, filterDelayStage, dateRange, delayMap, isServerSearchActive]);
 
   const groupedOrders = useMemo(() => {
     const groups = {};
@@ -437,16 +476,21 @@ const AllOrders = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-           <div className="relative group w-full sm:w-72">
-               <Search className="absolute left-6 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-emerald-500 transition-all duration-300" size={16} />
-              <input
-                type="text"
-                placeholder="Search order number or name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full theme-input rounded-[1.5rem] py-4 pl-16 pr-6 focus:border-emerald-500 outline-none transition-all text-sm font-black placeholder-gray-800"
-              />
-            </div>
+               <div className="relative group w-full sm:w-72">
+                   <Search className="absolute left-6 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-emerald-500 transition-all duration-300" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search order number or name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full theme-input rounded-[1.5rem] py-4 pl-16 pr-14 focus:border-emerald-500 outline-none transition-all text-sm font-black placeholder-gray-800"
+                  />
+                  {serverSearchLoading && (
+                    <span className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-black text-emerald-500">
+                      <RefreshCcw size={12} className="animate-spin" /> Searching…
+                    </span>
+                  )}
+                </div>
             
             <button
               onClick={() => setIsGroupedView(!isGroupedView)}
@@ -464,7 +508,7 @@ const AllOrders = () => {
         <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest bg-blue-600 text-white shadow-lg shadow-blue-900/40">
           <Package size={13} />
           All Orders
-          <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">{orders.length}</span>
+          <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">{baseOrders.length}</span>
         </div>
       </div>
 
