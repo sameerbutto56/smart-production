@@ -240,6 +240,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const flatSizes = isOutletSizeData ? Object.values(rawSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawSizes;
   const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : (standardMeasurements[product?.size] || {});
   const custom = parseJSON(order.customization);
+  const isOutletOrder = order.source === 'OUTLET';
+  const outletItems = isMultiItem ? orderItems : [{ productDetails: product, quantity: order.quantity }];
 
   const productionStages = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'];
   const productionDeadline = order.productionDeadline || order.stages?.find(s => s.stageName === 'PRODUCTION')?.deadlineAt;
@@ -2309,6 +2311,233 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-10 custom-scrollbar">
+              {isOutletOrder && (
+              <>
+                {/* ─── OUTLET: 01. PRODUCT DETAILS ─── */}
+                <section>
+                  <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Product Details</h4>
+                  <div className="space-y-4">
+                    {outletItems.map((item, idx) => {
+                      const p = item.productDetails || {};
+                      const pname = p.productType || p.name || `Product ${idx + 1}`;
+                      const capQty = p.matchingCap ? (p.matchingCapQty || 0) : (item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
+                      const sleeveMap = { 'full': 'Full', 'half': 'Half', 'three-quarter': '3 Quarter', 'medium': 'Medium' };
+                      const lengthMap = { 'long': 'Long', 'short': 'Short', 'regular': 'Regular' };
+                      const sleeveVal = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
+                      const lengthVal = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
+                      const isProdStage = currentStage?.stageName === 'PRODUCTION';
+                      const isStoreRecv = currentStage?.stageName === 'STORE_RECEIVE';
+                      const rows = [
+                        { l: 'Product', v: pname },
+                        ...(p.color ? [{ l: 'Color', v: isUrdu ? toUrduName(p.color) : p.color }] : []),
+                        ...(p.fabricType || p.fabric ? [{ l: 'Fabric', v: isUrdu ? toUrduName(p.fabricType || p.fabric) : (p.fabricType || p.fabric) }] : []),
+                        { l: 'Size', v: p.size ? `Size ${p.size}` : 'Custom' },
+                        ...(p.gender ? [{ l: 'Gender', v: translateGender(p.gender, isUrdu) }] : []),
+                        { l: 'Qty', v: item.quantity || 1 },
+                        ...(sleeveVal ? [{ l: 'Sleeve', v: isUrdu ? toUrduName(sleeveMap[sleeveVal] || sleeveVal) : (sleeveMap[sleeveVal] || sleeveVal) }] : []),
+                        ...(lengthVal ? [{ l: 'Length', v: isUrdu ? toUrduName(lengthMap[lengthVal] || lengthVal) : (lengthMap[lengthVal] || lengthVal) }] : []),
+                        ...(capQty ? [{ l: 'Cap', v: capQty }] : []),
+                        ...(p.design ? [{ l: 'Design', v: p.design }] : []),
+                        ...(p.stitchingNotes ? [{ l: 'Stitching', v: p.stitchingNotes }] : []),
+                        ...(p.accessories ? [{ l: 'Accessories', v: p.accessories }] : []),
+                      ];
+                      return (
+                        <div key={idx} className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70">
+                          <div className="flex items-center gap-3 mb-4">
+                            <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black">#{idx + 1}</span>
+                            <span className="text-sm font-black text-white uppercase">{pname}</span>
+                            {p.color && <span className="text-xs font-black text-gray-400">({isUrdu ? toUrduName(p.color) : p.color})</span>}
+                            {['STORE', 'STORE_EMPLOYEE'].includes(userRole) && !isProdStage && !isStoreRecv && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleVerificationToggle(idx); }}
+                                className={`ml-auto rounded-lg flex items-center justify-center text-xs font-black tracking-wider transition-all px-2.5 h-8 min-w-[44px] ${productVerification[String(idx)] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
+                                title={productVerification[String(idx)] === true ? 'Verified ✓' : 'Mark as verified'}
+                              >
+                                VER
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {rows.map((f, i) => (
+                              <div key={i} className="bg-gray-800/60 p-3 rounded-xl">
+                                <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">{f.l}</p>
+                                <p className="text-sm font-black text-gray-100">{f.v}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                {/* ─── OUTLET: 02. MEASUREMENTS ─── */}
+                {(() => {
+                  const selectedSize = order.size || '';
+                  const perProductEntries = isOutletSizeData ? outletItems.map((item, idx) => {
+                    const p = item.productDetails || {};
+                    const key = p.productType || p.name || `Product ${idx + 1}`;
+                    const sd = (rawSizes && typeof rawSizes === 'object') ? (rawSizes[key] || null) : null;
+                    const entries = sd ? Object.entries(sd).filter(([k, v]) => v && k !== '_extra' && k !== '_standardSize' && k !== 'specialNote') : [];
+                    return { name: key, entries };
+                  }).filter(x => x.entries.length > 0) : [];
+                  if (!selectedSize && perProductEntries.length === 0) return null;
+                  return (
+                    <section>
+                      <h4 className="text-xs md:text-sm font-black text-teal-500 uppercase tracking-[0.3em] mb-6">02. Measurements</h4>
+                      {selectedSize && (
+                        <p className="text-sm font-black text-white mb-4">Selected Size: {selectedSize}</p>
+                      )}
+                      {perProductEntries.length > 0 ? (
+                        <div className="space-y-4">
+                          {perProductEntries.map((pp, idx) => (
+                            <div key={idx} className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70">
+                              <div className="flex items-center gap-3 mb-4">
+                                <span className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black">#{idx + 1}</span>
+                                <span className="text-sm font-black text-white uppercase">{pp.name}</span>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {pp.entries.map(([k, v], i) => (
+                                  <div key={i} className="bg-gray-800/60 p-3 rounded-xl">
+                                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">{k}</p>
+                                    <p className="text-sm font-black text-gray-100">{v}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70 grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {Object.entries(sizes).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra').map(([k, v], i) => (
+                            <div key={i} className="bg-gray-800/60 p-3 rounded-xl">
+                              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">{k}</p>
+                              <p className="text-sm font-black text-gray-100">{v}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })()}
+
+                {/* ─── OUTLET: 03. ENGRAVING DETAILS (per product) ─── */}
+                {(() => {
+                  const en = order.engravingNames ? (typeof order.engravingNames === 'string' ? (() => { try { return JSON.parse(order.engravingNames); } catch { return []; } })() : order.engravingNames) : [];
+                  const el = order.engravingLogos ? (typeof order.engravingLogos === 'string' ? (() => { try { return JSON.parse(order.engravingLogos); } catch { return []; } })() : order.engravingLogos) : [];
+                  const nameLines = (Array.isArray(en) && en.length > 0) ? en : getFilledArticleNames(custom);
+                  const hasEng = hasEngravingData(custom) || (Array.isArray(en) && en.length > 0) || (Array.isArray(el) && el.length > 0) || order.engravingText || order.engravingInstructions || order.logoRequired || order.logoDesign || order.instructionNotes;
+                  if (!hasEng) return null;
+                  const plcMap = { 'LeftChest': 'Left Chest', 'RightChest': 'Right Chest', 'Sleeve': 'Sleeve Cuff', 'Back': 'Upper Back', 'Cuff': 'Cuff' };
+                  return (
+                    <section>
+                      <h4 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.3em] mb-6">03. Engraving Details</h4>
+                      <div className="space-y-4">
+                        {outletItems.map((item, idx) => {
+                          const p = item.productDetails || {};
+                          const pname = p.productType || p.name || `Product ${idx + 1}`;
+                          return (
+                            <div key={idx} className="bg-purple-600/5 p-4 md:p-6 rounded-2xl border border-purple-500/10">
+                              <div className="flex items-center gap-3 mb-4">
+                                <span className="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-black">#{idx + 1}</span>
+                                <span className="text-sm font-black text-purple-300 uppercase">Engraving {idx + 1} — {pname}</span>
+                                {p.color && <span className="text-xs font-black text-gray-400">({isUrdu ? toUrduName(p.color) : p.color})</span>}
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {(order.engravingType || custom?.engravingType) && (
+                                  <div className="bg-gray-800/60 p-3 rounded-xl">
+                                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Engraving Type</p>
+                                    <p className="text-xs font-black text-violet-400">{(order.engravingType || custom?.engravingType) === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</p>
+                                  </div>
+                                )}
+                                {nameLines.length > 0 && (
+                                  <div className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/10">
+                                    <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
+                                    <div className="space-y-1.5">
+                                      {nameLines.map((an, ai) => (
+                                        an?.trim() ? (
+                                          <div key={ai} className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black text-purple-500 bg-purple-900/30 w-10 py-0.5 rounded text-center">L{ai + 1}</span>
+                                            <span className="text-sm font-black text-purple-300">{an}</span>
+                                          </div>
+                                        ) : null
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {(custom?.nameColor || custom?.logoPlacement || custom?.logoColor) && (
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap gap-1">
+                                      {custom?.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {custom.nameColor}</span>}
+                                      {custom?.logoPlacement && <span className="text-[9px] font-black text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">Pos: {plcMap[custom.logoPlacement] || custom.logoPlacement}</span>}
+                                      {custom?.logoColor && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Logo: {custom.logoColor}</span>}
+                                    </div>
+                                  </div>
+                                )}
+                                {(Array.isArray(el) && el.length > 0) && (
+                                  <div className="space-y-2">
+                                    <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest">Logos</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {el.filter(Boolean).map((l, li) => (
+                                        <span key={li} className="text-xs font-black text-amber-300 bg-amber-900/30 px-1.5 py-0.5 rounded">{l}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              {(custom?.designNotes || order.engravingText || order.engravingInstructions) && (
+                                <div className="mt-3 bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
+                                  <p className="text-[10px] text-yellow-400 font-black uppercase tracking-widest mb-1">Special Note</p>
+                                  <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{isUrdu ? romanToUrdu(custom?.designNotes || order.engravingText || order.engravingInstructions) : (custom?.designNotes || order.engravingText || order.engravingInstructions)}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })()}
+
+                {/* ─── OUTLET: 04. SPECIAL INSTRUCTIONS (per product) ─── */}
+                {(() => {
+                  const getItemSizeNote = (item) => {
+                    if (!item.sizeData) return '';
+                    const sd = typeof item.sizeData === 'string' ? (() => { try { return JSON.parse(item.sizeData); } catch { return {}; } })() : item.sizeData;
+                    return sd?.specialNote || '';
+                  };
+                  const productNotes = outletItems.map((item, idx) => {
+                    const p = item.productDetails || {};
+                    const note = p.measurementSpecialNote || getItemSizeNote(item) || '';
+                    return { name: p.productType || p.name || `Product ${idx + 1}`, note };
+                  }).filter(x => x.note);
+                  const orderNotes = [order.instructionNotes, order.engravingInstructions].filter(Boolean);
+                  if (productNotes.length === 0 && orderNotes.length === 0) return null;
+                  return (
+                    <section>
+                      <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">04. Special Instructions</h4>
+                      <div className="space-y-3">
+                        {productNotes.map((pn, idx) => (
+                          <div key={idx} className="bg-blue-500/5 p-4 rounded-2xl border border-blue-500/10">
+                            <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest mb-1">Special Note {idx + 1} — {pn.name}</p>
+                            <p className="text-sm font-bold text-blue-300 italic leading-tight">{isUrdu ? romanToUrdu(pn.note) : pn.note}</p>
+                          </div>
+                        ))}
+                        {orderNotes.map((n, i) => (
+                          <div key={`o${i}`} className="bg-yellow-500/5 p-4 rounded-2xl border border-yellow-500/10">
+                            <p className="text-[10px] text-yellow-400 font-black uppercase tracking-widest mb-1">Instruction Note</p>
+                            <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{isUrdu ? romanToUrdu(n) : n}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })()}
+              </>
+              )}
+              {!isOutletOrder && (
+              <>
               <section>
                 <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">{t('01. Material & Product Specs')}</h4>
                   {isMultiItem ? (
@@ -2627,6 +2856,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 </div>
               </section>
+              )}
+              </>
               )}
             </div>
 
