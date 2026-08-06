@@ -24,7 +24,7 @@ import { formatDateOnly, formatTimeOnly, formatDateTime } from '../utils/dateTim
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'analytics', 'inventory', 'inv-print', 'production', 'allocation', 'demands', 'returns', 'audit'];
+const TABS = ['dashboard', 'analytics', 'inventory', 'inv-print', 'production', 'prod-log', 'allocation', 'demands', 'returns', 'audit'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
@@ -224,6 +224,13 @@ const WarehouseDashboard = () => {
     activeTab === 'production' ? 'warehouse:production-inventory' : null,
     { fetcher: () => api.get('/api/production/inventory').then(r => r.data), ttl: 60 * 1000 }
   );
+  // Cache-first: production log (historical) tab
+  const [prodLogSearch, setProdLogSearch] = useState('');
+  const [prodLogStatus, setProdLogStatus] = useState('');
+  const { data: productionLog = [], refresh: refreshProductionLog } = useCache(
+    activeTab === 'prod-log' ? `warehouse:production-log:${prodLogSearch}:${prodLogStatus}` : null,
+    { fetcher: () => api.get('/api/production/log', { params: { search: prodLogSearch || undefined, status: prodLogStatus || undefined } }).then(r => r.data?.records || []), ttl: 60 * 1000 }
+  );
 
   const fetchAllocations = async () => {
     setAllocLoading(true);
@@ -338,6 +345,10 @@ const WarehouseDashboard = () => {
       toast.success(`Demand request ${status.toLowerCase()}`);
       setDemandApproveModal(null);
       fetchDemands();
+      // Approval deducts warehouse stock server-side — refresh inventory views
+      // so the numbers update instantly without a manual page reload.
+      refreshInventory();
+      refreshActiveTab();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update demand');
     }
@@ -491,6 +502,7 @@ const WarehouseDashboard = () => {
                 {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
                 {tab === 'inv-print' && <><Printer size={14} className="inline mr-2" />Print Stock</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
+                {tab === 'prod-log' && <><ClipboardList size={14} className="inline mr-2" />Production Log</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
                 {tab === 'demands' && <><ShoppingCart size={14} className="inline mr-2" />Demands {demandStats.pending > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{demandStats.pending}</span>}</>}
                 {tab === 'returns' && <><RotateCcw size={14} className="inline mr-2" />Returns</>}
@@ -1113,6 +1125,88 @@ const WarehouseDashboard = () => {
             </div>
           )}
 
+          {/* Production Log Tab — historical production records (read-only) */}
+          {activeTab === 'prod-log' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider flex items-center gap-2">
+                  <ClipboardList size={20} className="text-amber-400" />
+                  Production Log
+                  <span className="text-[10px] font-bold theme-text-muted uppercase tracking-widest ml-2">Historical · Read-only</span>
+                </h2>
+                <div className="flex items-center gap-2">
+                  <input type="text" placeholder="Search order #, product, employee..."
+                    className="theme-input rounded-xl py-2 px-4 text-xs font-medium outline-none focus:border-amber-500 w-56"
+                    value={prodLogSearch} onChange={(e) => setProdLogSearch(e.target.value)} />
+                  <select value={prodLogStatus || ''} onChange={(e) => setProdLogStatus(e.target.value)}
+                    className="theme-input rounded-xl py-2 px-3 text-xs font-bold outline-none focus:border-amber-500">
+                    <option value="">All Statuses</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="CANCELLED">Cancelled</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                  <button onClick={() => refreshProductionLog()} className="theme-input rounded-xl p-2 hover:bg-gray-800 transition-all" title="Refresh">
+                    <RefreshCcw size={14} className="text-amber-400" />
+                  </button>
+                  <span className="text-xs font-bold theme-text-muted">{productionLog.length} records</span>
+                </div>
+              </div>
+
+              <div className="glass rounded-2xl border-2 theme-border overflow-x-auto">
+                <table className="w-full text-xs md:text-sm min-w-[900px]">
+                  <thead>
+                    <tr className="border-b border-gray-800 text-[10px] md:text-xs font-black uppercase tracking-widest theme-text-muted">
+                      <th className="text-left p-3">Order #</th>
+                      <th className="text-left p-3">Product</th>
+                      <th className="text-center p-3">Variant</th>
+                      <th className="text-center p-3">Qty</th>
+                      <th className="text-center p-3">Status</th>
+                      <th className="text-left p-3">Production Date</th>
+                      <th className="text-left p-3">Completion Date</th>
+                      <th className="text-left p-3">Employee</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productionLog.map((rec) => (
+                      <tr key={rec.id} className="border-b border-gray-800/50 hover:bg-gray-900/40 transition-colors">
+                        <td className="p-3 font-mono font-black text-blue-400">{rec.orderNumber || (rec.orderId ? rec.orderId.slice(0, 8) + '...' : '—')}</td>
+                        <td className="p-3 font-black theme-text-primary">{rec.productName}</td>
+                        <td className="p-3 text-center">
+                          {(rec.color || rec.size || rec.variantLabel) ? (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-black uppercase">
+                              {rec.variantLabel || [rec.color, rec.size].filter(Boolean).join(' / ')}
+                            </span>
+                          ) : <span className="theme-text-muted">—</span>}
+                        </td>
+                        <td className="p-3 text-center font-black theme-text-primary">{rec.quantity}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                            rec.productionStatus === 'COMPLETED' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                            rec.productionStatus === 'IN_PROGRESS' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                            rec.productionStatus === 'CANCELLED' || rec.productionStatus === 'REJECTED' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                            'bg-gray-500/10 border-gray-500/20 theme-text-muted'
+                          }`}>
+                            {rec.productionStatus || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="p-3 theme-text-muted font-bold">{formatDateOnly(rec.productionDate)}</td>
+                        <td className="p-3 theme-text-muted font-bold">{rec.completedAt ? formatDateOnly(rec.completedAt) : '—'}</td>
+                        <td className="p-3 theme-text-muted">{rec.productionEmployee || '—'}</td>
+                      </tr>
+                    ))}
+                    {productionLog.length === 0 && (
+                      <tr>
+                        <td colSpan="8" className="p-10 text-center theme-text-muted font-black text-xs uppercase tracking-widest">
+                          No production records match your search
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
 
           {/* Allocation Tab */}

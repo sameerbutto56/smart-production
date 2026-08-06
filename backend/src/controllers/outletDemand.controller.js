@@ -140,11 +140,32 @@ const approveDemandRequest = async (req, res) => {
       data: updateData
     });
 
+    // Deduct approved quantities from live warehouse inventory immediately
+    // (APPROVED / PARTIALLY_APPROVED). Stock is taken out the moment the demand
+    // is approved so dashboard/reports always reflect actual available stock.
+    let deductedCount = 0;
+    let deductedSummary = [];
+    if (status !== 'REJECTED') {
+      for (const item of updated.items || []) {
+        const approvedQty = parseInt(item.approvedQty) || 0;
+        if (approvedQty <= 0) continue;
+        const deducted = await deductWarehouseStock(item.inventoryItemId, item.color, item.size, approvedQty);
+        if (deducted > 0) {
+          deductedCount++;
+          deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
+        }
+      }
+      // Force inventory-dependent caches to rebuild immediately
+      cache.delPattern('pos:').catch(() => {});
+      cache.delPattern('warehouse:').catch(() => {});
+      cache.delPattern('products:').catch(() => {});
+    }
+
     await prisma.auditLog.create({
       data: {
         orderId: null,
         action: 'DEMAND_REQUEST_' + status,
-        details: `Demand request ${id} from ${existing.outletName} ${status.toLowerCase()} by ${req.user.name || req.user.id}`,
+        details: `Demand request ${id} from ${existing.outletName} ${status.toLowerCase()} by ${req.user.name || req.user.id}${deductedCount ? ` | warehouse stock deducted: ${deductedSummary.join(', ')}` : ''}`,
         performedBy: req.user.id
       }
     });
@@ -158,9 +179,10 @@ const approveDemandRequest = async (req, res) => {
         status: updated.status,
         storeNotes: updated.storeNotes
       });
+      if (deductedCount) io.emit('inventory-updated', { source: 'demand-approval', demandId: id });
     }
 
-    await notify.create(req, { type: 'demand', moduleName: 'Outlet Requests', path: '/outlet-requests', role: 'OUTLET', title: 'Demand Updated', message: `Demand #${demand.transferNumber} ${status}`, action: `Demand ${status}`, employeeName: req.user?.name }).catch(() => {});
+    await notify.create(req, { type: 'demand', moduleName: 'Outlet Requests', path: '/outlet-requests', role: 'OUTLET', title: 'Demand Updated', message: `Demand #${existing.transferNumber} ${status}`, action: `Demand ${status}`, employeeName: req.user?.name }).catch(() => {});
 
     res.json(updated);
   } catch (error) {
@@ -255,32 +277,43 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
 };
 
 const deductWarehouseStock = async (inventoryItemId, color, size, qty) => {
+  if (!inventoryItemId || !qty || qty <= 0) return false;
   const inv = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
   if (!inv) return false;
 
+  let deductedQty = 0;
+
   if (Array.isArray(inv.variants) && inv.variants.length > 0) {
-    // Find matching variant in variants JSON
+    // Find the matching variant in variants JSON (case-insensitive, empty color/size = any)
+    let found = false;
     const variants = inv.variants.map(v => {
-      if (v.color === (color || null) && v.size === (size || null)) {
-        return { ...v, stock: Math.max(0, (v.stock || 0) - qty) };
-      }
-      return v;
+      if (found) return v;
+      const matchColor = !color || (v.color || '').toString().toLowerCase() === String(color).toLowerCase();
+      const matchSize = !size || (v.size || '').toString().toLowerCase() === String(size).toLowerCase();
+      if (!matchColor || !matchSize) return v;
+      const deduct = Math.min(qty, v.stock || 0);
+      if (deduct <= 0) return v;
+      found = true;
+      deductedQty = deduct;
+      return { ...v, stock: (v.stock || 0) - deduct };
     });
-    await prisma.inventoryItem.update({
-      where: { id: inventoryItemId },
-      data: {
-        variants,
-        stock: { decrement: qty } // also decrement total stock
-      }
-    });
+    if (found) {
+      // Recompute total stock from variants so Dashboard/Reports always stay consistent
+      const newTotal = variants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItemId },
+        data: { variants, stock: newTotal }
+      });
+    }
   } else {
-    // Simple stock field
+    // Simple stock field — clamp so stock never goes negative
+    deductedQty = Math.min(qty, inv.stock || 0);
     await prisma.inventoryItem.update({
       where: { id: inventoryItemId },
-      data: { stock: { decrement: qty } }
+      data: { stock: { decrement: deductedQty } }
     });
   }
-  return true;
+  return deductedQty;
 };
 
 const acceptDemandRequest = async (req, res) => {
@@ -374,7 +407,6 @@ const acceptDemandRequest = async (req, res) => {
             });
           }
 
-          await deductWarehouseStock(inv.id, it.color || null, it.size || null, parseInt(it.approvedQty) || 0);
           results.push({
             productName: it.productName,
             color: it.color,
@@ -388,7 +420,7 @@ const acceptDemandRequest = async (req, res) => {
           data: {
             orderId: null,
             action: 'DEMAND_REQUEST_ACCEPTED',
-            details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items processed, warehouse deducted`,
+            details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items added to outlet inventory`,
             performedBy: req.user.id
           }
         });

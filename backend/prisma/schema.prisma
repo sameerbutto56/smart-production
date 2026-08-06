@@ -409,23 +409,33 @@ model SystemSetting {
 }
 
 model ProductionRecord {
-  id              String   @id @default(uuid())
-  productName     String
-  quantity        Int
-  rawMaterialCost Float    @default(0)
-  productionCost  Float    @default(0)
-  totalCost       Float    @default(0)
-  sellingValue    Float    @default(0)
-  profit          Float    @default(0)
-  productionDate  DateTime @default(now())
-  source          String   @default("OUTLET")
-  orderId         String?
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String   @id @default(uuid())
+  productName           String
+  quantity              Int
+  color                 String?
+  size                  String?
+  variantLabel          String?
+  productionStatus      String   @default("COMPLETED")
+  productionEmployee    String?
+  completedAt           DateTime?
+  orderNumber           String?
+  rawMaterialCost       Float    @default(0)
+  productionCost        Float    @default(0)
+  totalCost             Float    @default(0)
+  sellingValue          Float    @default(0)
+  profit                Float    @default(0)
+  productionDate        DateTime @default(now())
+  source                String   @default("OUTLET")
+  orderId               String?
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@index([productionDate])
   @@index([source])
+  @@index([orderNumber])
+  @@index([productionStatus])
+  @@index([productionEmployee])
 }
 
 model ProductionInventory {

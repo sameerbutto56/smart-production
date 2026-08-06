@@ -504,12 +504,6 @@ const StoreDashboardPage = () => {
             <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Inventory Items</p>
             <p className="text-[8px] text-gray-600 mt-0.5">Value: {formatCurrency(inventory.totalStockValue)}</p>
           </div>
-          <div onClick={() => navigate('/warehouse-pos')} className="glass p-4 rounded-2xl border-2 border-gray-700/50 hover:border-emerald-500/30 cursor-pointer transition-all">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 w-fit mb-2"><ShoppingCart size={16} className="text-emerald-400" /></div>
-            <p className="text-lg font-black text-white">{sales.totalSales}</p>
-            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">POS Sales</p>
-            <p className="text-[8px] text-gray-600 mt-0.5">Revenue: {formatCurrency(sales.totalRevenue)}</p>
-          </div>
           <div onClick={() => navigate('/warehouse')} className="glass p-4 rounded-2xl border-2 border-gray-700/50 hover:border-orange-500/30 cursor-pointer transition-all">
             <div className="p-2.5 rounded-xl bg-orange-500/10 w-fit mb-2"><ShoppingBag size={16} className="text-orange-400" /></div>
             <p className="text-lg font-black text-white">{demands.total}</p>
@@ -522,12 +516,6 @@ const StoreDashboardPage = () => {
             <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Allocations</p>
             <p className="text-[8px] text-gray-600 mt-0.5">{allocations.pending} pending</p>
           </div>
-          <div onClick={() => navigate('/warehouse-pos')} className="glass p-4 rounded-2xl border-2 border-gray-700/50 hover:border-red-500/30 cursor-pointer transition-all">
-            <div className="p-2.5 rounded-xl bg-red-500/10 w-fit mb-2"><RotateCcw size={16} className="text-red-400" /></div>
-            <p className="text-lg font-black text-white">{returns.totalReturns}</p>
-            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Returns</p>
-            <p className="text-[8px] text-gray-600 mt-0.5">Rate: {returns.returnPercentage}%</p>
-          </div>
           <div onClick={() => navigate('/tasks')} className="glass p-4 rounded-2xl border-2 border-gray-700/50 hover:border-amber-500/30 cursor-pointer transition-all">
             <div className="p-2.5 rounded-xl bg-amber-500/10 w-fit mb-2"><Activity size={16} className="text-amber-400" /></div>
             <p className="text-lg font-black text-white">{tasks.unseenTasks + tasks.activeTasks}</p>
@@ -539,12 +527,6 @@ const StoreDashboardPage = () => {
             <p className="text-lg font-black text-white">{products.totalSoldQty}</p>
             <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Units Sold</p>
             <p className="text-[8px] text-gray-600 mt-0.5">{products.totalProductsSold} unique products</p>
-          </div>
-          <div onClick={() => navigate('/warehouse-pos')} className="glass p-4 rounded-2xl border-2 border-gray-700/50 hover:border-pink-500/30 cursor-pointer transition-all">
-            <div className="p-2.5 rounded-xl bg-pink-500/10 w-fit mb-2"><DollarSign size={16} className="text-pink-400" /></div>
-            <p className="text-lg font-black text-white">{formatCurrency(sales.totalRevenue)}</p>
-            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Total Revenue</p>
-            <p className="text-[8px] text-gray-600 mt-0.5">{sales.totalSales} transactions</p>
           </div>
         </div>
 

@@ -193,6 +193,13 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
           data: {
             productName,
             quantity: qty,
+            color: pd.color || null,
+            size: pd.size || null,
+            variantLabel: [pd.color, pd.size].filter(Boolean).join(' / ') || null,
+            productionStatus: 'COMPLETED',
+            productionEmployee: order.productionEmployee || null,
+            completedAt: new Date(),
+            orderNumber: order.orderNumber || null,
             rawMaterialCost: rawCost,
             productionCost: prodCost,
             totalCost,
@@ -738,7 +745,8 @@ const requestStageCompletion = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // STORE stage: update availability status only (no inventory deduction)
+    // STORE stage: verify availability. Available items auto-deduct inventory;
+    // Verify / Not Available items are NOT deducted and flow to Production.
     if (currentStage.stageName === 'STORE' && (inventoryStatus === 'have_it' || inventoryStatus === 'Available')) {
       try {
         let parsedDetails;
@@ -750,6 +758,7 @@ const requestStageCompletion = async (req, res) => {
         const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
         const productAvailability = req.body.productAvailability || {};
 
+        // Persist per-item availability from an explicit map (if the frontend sent one)
         if (Object.keys(productAvailability).length > 0) {
           const updatedItems = items.map((item, idx) => {
             const av = productAvailability[idx];
@@ -765,6 +774,37 @@ const requestStageCompletion = async (req, res) => {
           await createAuditLog(orderId, 'AVAILABILITY_UPDATED',
             `Store verified availability for ${Object.keys(productAvailability).length} item(s).`,
             req.user.id);
+        }
+
+        // Decide which items are AVAILABLE: explicit map wins, else respect an already
+        // persisted 'not_available'/'produced' status, else treat the item as available.
+        const availableIndices = new Set();
+        if (Object.keys(productAvailability).length > 0) {
+          for (const [k, v] of Object.entries(productAvailability)) {
+            if (v === true) availableIndices.add(Number(k));
+          }
+        } else {
+          const pv = order.productVerification || {};
+          items.forEach((item, idx) => {
+            const pd = item.productDetails || item;
+            const explicit = pd?.availabilityStatus;
+            if (explicit === 'not_available' || explicit === 'produced') return;
+            if (Object.keys(pv).length > 0) {
+              if (pv[String(idx)] === true) availableIndices.add(idx);
+            } else {
+              availableIndices.add(idx);
+            }
+          });
+        }
+
+        if (availableIndices.size > 0) {
+          const availableItems = items
+            .filter((_, idx) => availableIndices.has(idx))
+            .map(item => ({ productDetails: item.productDetails || item, quantity: item.quantity || 1 }));
+          const { inventoryItems } = await classifyOrderItems(order, availableItems);
+          if (inventoryItems.length > 0) {
+            await deductInventoryItems(order, req.user.id, inventoryItems);
+          }
         }
       } catch (invErr) {
         console.error('Availability update error:', invErr);
@@ -1847,7 +1887,13 @@ const addOrderToInventory = async (req, res) => {
           data: {
             productName, quantity: qty, rawMaterialCost: rawCost, productionCost: prodCost,
             totalCost, sellingValue: sellVal, profit, source: orderSource,
-            orderId: order.id, notes: 'Added to inventory by Store',
+            orderId: order.id, orderNumber: order.orderNumber || null,
+            color: prod.color || null, size: prod.size || null,
+            variantLabel: [prod.color, prod.size].filter(Boolean).join(' / ') || null,
+            productionStatus: 'COMPLETED',
+            productionEmployee: order.productionEmployee || null,
+            completedAt: new Date(),
+            notes: 'Added to inventory by Store',
             productionDate: new Date()
           }
         });

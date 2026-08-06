@@ -48,6 +48,9 @@ const getProductionRecords = async (req, res) => {
         take: parseInt(limit),
         select: {
           id: true, productName: true, quantity: true,
+          color: true, size: true, variantLabel: true,
+          productionStatus: true, productionEmployee: true,
+          completedAt: true, orderNumber: true,
           rawMaterialCost: true, productionCost: true, totalCost: true,
           sellingValue: true, profit: true, productionDate: true,
           source: true, notes: true
@@ -63,7 +66,7 @@ const getProductionRecords = async (req, res) => {
 
 const createProductionRecord = async (req, res) => {
   try {
-    const { productName, quantity, rawMaterialCost, productionCost, sellingValue, source, orderId, notes, productionDate } = req.body;
+    const { productName, quantity, rawMaterialCost, productionCost, sellingValue, source, orderId, notes, productionDate, color, size, variantLabel, productionStatus, productionEmployee, completedAt, orderNumber } = req.body;
     if (!productName || !quantity) {
       return res.status(400).json({ message: 'productName and quantity are required' });
     }
@@ -78,6 +81,13 @@ const createProductionRecord = async (req, res) => {
       data: {
         productName,
         quantity: qty,
+        color: color || null,
+        size: size || null,
+        variantLabel: variantLabel || null,
+        productionStatus: productionStatus || 'COMPLETED',
+        productionEmployee: productionEmployee || null,
+        completedAt: completedAt ? new Date(completedAt) : (productionStatus === 'COMPLETED' ? new Date() : null),
+        orderNumber: orderNumber || null,
         rawMaterialCost: rawCost,
         productionCost: prodCost,
         totalCost,
@@ -244,6 +254,59 @@ const getProductionInventory = async (req, res) => {
   }
 };
 
+// GET /api/production/log — historical production log for the Store/Warehouse module.
+// Read-only; joins orderNumber for tracking/audit. Never mutates inventory.
+const getProductionLog = async (req, res) => {
+  try {
+    const { search, status, startDate, endDate, limit = 200 } = req.query;
+    const where = {};
+    if (search) {
+      where.OR = [
+        { productName: { contains: search, mode: 'insensitive' } },
+        { orderNumber: { contains: search, mode: 'insensitive' } },
+        { orderId: { contains: search, mode: 'insensitive' } },
+        { productionEmployee: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    if (status) where.productionStatus = status;
+    if (startDate || endDate) {
+      where.productionDate = {};
+      if (startDate) where.productionDate.gte = new Date(startDate);
+      if (endDate) where.productionDate.lte = new Date(endDate);
+    }
+
+    const records = await safeQuery(() => prisma.productionRecord.findMany({
+      where,
+      orderBy: { productionDate: 'desc' },
+      take: Math.min(parseInt(limit) || 200, 500),
+      select: {
+        id: true, productName: true, quantity: true, color: true, size: true,
+        variantLabel: true, productionStatus: true, productionEmployee: true,
+        completedAt: true, orderNumber: true, orderId: true,
+        rawMaterialCost: true, productionCost: true, totalCost: true,
+        sellingValue: true, profit: true, productionDate: true, source: true, notes: true
+      }
+    }), []);
+
+    // Backfill order numbers for legacy records that predate the new column
+    const orderIds = [...new Set(records.map(r => r.orderId).filter(Boolean))];
+    if (orderIds.length > 0) {
+      const orders = await prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        select: { id: true, orderNumber: true }
+      }).catch(() => []);
+      const orderMap = Object.fromEntries(orders.map(o => [o.id, o.orderNumber]));
+      records.forEach(r => {
+        if (!r.orderNumber && orderMap[r.orderId]) r.orderNumber = orderMap[r.orderId];
+      });
+    }
+
+    res.json({ records, total: records.length });
+  } catch (error) {
+    res.status(500).json({ records: [], total: 0, message: 'Error fetching production log', error: error.message });
+  }
+};
+
 const addToProductionInventory = async (req, res) => {
   try {
     const { productName, category, quantity, productionCost, sellingValue, source, orderId, productionDate } = req.body;
@@ -298,6 +361,7 @@ module.exports = {
   deleteProductionRecord,
   getProductionDashboard,
   getProductionInventory,
+  getProductionLog,
   addToProductionInventory,
   deleteProductionInventoryItem
 };

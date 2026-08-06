@@ -6,6 +6,7 @@ const {
   deleteProductionRecord,
   getProductionDashboard,
   getProductionInventory,
+  getProductionLog,
   addToProductionInventory,
   deleteProductionInventoryItem
 } = require('../controllers/production.controller');
@@ -18,6 +19,7 @@ router.put('/records/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAI
 router.delete('/records/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteProductionRecord);
 router.get('/dashboard', authenticate, getProductionDashboard);
 router.get('/inventory', authenticate, getProductionInventory);
+router.get('/log', authenticate, getProductionLog);
 router.post('/inventory', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'PRODUCTION', 'STORE']), addToProductionInventory);
 router.delete('/inventory/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteProductionInventoryItem);
 
