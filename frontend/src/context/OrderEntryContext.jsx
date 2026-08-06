@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatDateOnly } from '../utils/dateTime';
+import { hasEngravingData } from '../utils/engravingUtils';
 
 const URDU_LABELS = {
   identity: 'شناختی معلومات', orderNo: 'آرڈر نمبر', customerName: 'کسٹمر کا نام', customerPhone: 'فون نمبر',
@@ -227,7 +228,14 @@ export const OrderEntryProvider = ({ children }) => {
             logoDesign: found.logoDesign || '',
             logoName: found.logoName || '',
             engravingInstructions: found.engravingInstructions || '',
-            skipEngraving: found.engravingRequired === undefined ? true : !found.engravingRequired,
+            skipEngraving: (() => {
+              const perItemHasEngraving = Array.isArray(found.productDetails) ? found.productDetails.some(item => {
+                let c = item?.customization;
+                if (typeof c === 'string') { try { c = JSON.parse(c); } catch { c = {}; } }
+                return hasEngravingData(c || {});
+              }) : false;
+              return !(found.engravingRequired === true || hasEngravingData(custData) || perItemHasEngraving);
+            })(),
             logoCharges: found.logoCharges?.toString() || '',
             namePrintingCharges: found.namePrintingCharges?.toString() || '',
             customizationPrice: found.customizationPrice?.toString() || '',
@@ -298,7 +306,9 @@ export const OrderEntryProvider = ({ children }) => {
                   designReference: custItem.designReference || '',
                   additionalFeatures: custItem.additionalFeatures || [],
                   articleNames: custItem.articleNames || [],
-                  logos: custItem.logos || []
+                  logos: custItem.logos || [],
+                  engravingType: custItem.engravingType || '',
+                  skipEngraving: !hasEngravingData(custItem)
                 },
                 sizeData: sizeDataObj,
                 totalPrice: parseFloat(item.totalPrice) || 0,
@@ -522,7 +532,12 @@ export const OrderEntryProvider = ({ children }) => {
             deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
             deliveryType: formData.deliveryType || 'DELIVERY',
             engravingInstructions: formData.engravingInstructions || null,
-            engravingRequired: !formData.skipEngraving,
+            engravingRequired: !formData.skipEngraving || hasEngravingData({
+              nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
+              nameColor: formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
+              designNotes: formData.designNotes, designReference: formData.designReference,
+              logos: logoEntries, engravingType: formData.engravingType || ''
+            }),
             instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null
           },
           reason: editReason
@@ -698,7 +713,12 @@ export const OrderEntryProvider = ({ children }) => {
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
         totalPrice: adjTotal,
         engravingInstructions: formData.engravingInstructions || '',
-        engravingRequired: !formData.skipEngraving,
+        engravingRequired: !formData.skipEngraving || hasEngravingData({
+          nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
+          nameColor: formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
+          designNotes: formData.designNotes, designReference: formData.designReference,
+          logos: logoEntries, engravingType: formData.engravingType || ''
+        }),
         instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || '',
         shopifyOrderDate: formData.shopifyOrderDate || null,
         placedBy: faisalEmp,
@@ -851,13 +871,17 @@ export const OrderEntryProvider = ({ children }) => {
           sleeveLength: formData.alteration.sleeveLength || ''
         } : { trouserLength: '', shirtLength: '', sleeveLength: '' }
       },
-      customization: {
-        nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
-        nameColor: formData.nameColor === 'Custom' ? (formData.customColor || 'Custom') : formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
-        designNotes: formData.designNotes, designReference: formData.designReference,
-        additionalFeatures: formData.additionalFeatures, logos: logoEntries,
-        engravingType: formData.engravingType || '', skipEngraving: formData.skipEngraving || false
-      },
+      customization: (() => {
+        const custData = {
+          nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
+          nameColor: formData.nameColor === 'Custom' ? (formData.customColor || 'Custom') : formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
+          designNotes: formData.designNotes, designReference: formData.designReference,
+          additionalFeatures: formData.additionalFeatures, logos: logoEntries,
+          engravingType: formData.engravingType || ''
+        };
+        // Derive skipEngraving from actual content so the flag can never be stale.
+        return { ...custData, skipEngraving: !hasEngravingData(custData) };
+      })(),
       sizeData: formData.measurements, capCharges,
       totalPrice: (computedTotalPriceCalc > 0 ? computedTotalPriceCalc : (parseFloat(formData.totalPrice) || 0)) + brandingTotal + capCharges
     };

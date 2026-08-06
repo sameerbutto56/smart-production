@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ImageIcon, Type, Trash2 } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
+import { hasEngravingData } from '../utils/engravingUtils';
 
 const EngravingTab = () => {
   const {
@@ -9,6 +10,22 @@ const EngravingTab = () => {
     articleNameEntries, setArticleNameEntries, isCustomizableProduct, selectedProductCategory,
     preventEnterSubmit
   } = useOrderEntry();
+
+  useEffect(() => {
+    // Auto-derive skipEngraving from actual content so a stale `skipEngraving: true`
+    // is never persisted while engraving data exists (see READY_LOGO #50175 bug).
+    const cust = {
+      articleNames: articleNameEntries,
+      nameSpelling: articleNameEntries.filter(Boolean).join(', '),
+      nameColor: formData.nameColor, logoColor: formData.logoColor,
+      logoPlacement: formData.logoPlacement, designNotes: formData.designNotes,
+      logos: logoEntries, engravingType: formData.engravingType || ''
+    };
+    if (hasEngravingData(cust) && formData.skipEngraving !== false) {
+      setFormData(prev => ({ ...prev, skipEngraving: false }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articleNameEntries, logoEntries, formData.engravingType, formData.nameColor, formData.logoColor, formData.logoPlacement, formData.designNotes]);
 
   if (formData.type !== 'FULL_CUSTOM' && formData.type !== 'READY_LOGO') return null;
   if (!isCustomizableProduct(selectedProductCategory)) return null;
