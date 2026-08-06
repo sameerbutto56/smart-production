@@ -1,6 +1,7 @@
 import { toUrduName } from './urduDictionary';
 import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from './dateTime';
+import { hasEngravingData, getFilledArticleNames } from './engravingUtils';
 
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
@@ -1391,8 +1392,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     const hasAnyCustomization = brandingItems.some(item => {
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
-      if (c?.skipEngraving) return false;
-      return c?.engravingType || c?.nameSpelling?.trim() || c?.nameColor || c?.logoPlacement || c?.logos?.length > 0 || c?.designNotes || c?.articleNames?.filter(n => n?.trim())?.length > 0;
+      return hasEngravingData(c);
     });
 
     if (hasAnyCustomization || outHasEngraving) {
@@ -1402,7 +1402,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         brandingItems.forEach((item, idx) => {
           const p = getItemProduct(item);
           const c = item.customization ? parseJSON(item.customization) : custom;
-          const filteredNames = c?.articleNames?.filter(n => n?.trim()) || [];
+          const filteredNames = getFilledArticleNames(c);
           const hasNames = filteredNames.length > 0 || c?.nameSpelling?.trim();
           const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
           const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;

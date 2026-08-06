@@ -10,6 +10,7 @@ import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
+import { getFilledArticleNames, hasEngravingData } from '../utils/engravingUtils';
 import toast from 'react-hot-toast';
 
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
@@ -399,7 +400,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20 mt-3">
                   <p className="text-xs text-indigo-400 font-black uppercase tracking-widest mb-2">Production Specs</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {!c?.skipEngraving && c?.engravingType && (
+                    {c?.engravingType && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Engraving</p>
                         <p className="text-xs md:text-sm font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p>
@@ -446,12 +447,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
 
                 {/* Name Lines per product */}
-                {!c?.skipEngraving && (c?.articleNames?.length > 0 || c?.nameSpelling) && (
+                {(getFilledArticleNames(c).length > 0 || c?.nameSpelling) && (
                   <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-500/20 mt-3">
                     <p className="text-xs text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
                     <div className="flex flex-wrap gap-2">
-                      {c.articleNames?.length > 0 ? (
-                        c.articleNames.map((an, ai) => (
+                      {getFilledArticleNames(c).length > 0 ? (
+                        getFilledArticleNames(c).map((an, ai) => (
                           <span key={ai} className="px-2 py-1 bg-purple-900/30 rounded text-xs font-black text-purple-300 border border-purple-500/20">
                             L{ai + 1}: {an}
                           </span>
@@ -464,7 +465,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
 
                 {/* Logos per product */}
-                {!c?.skipEngraving && c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
+                {c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
                   <div className="bg-amber-600/10 p-3 rounded-xl border border-amber-500/20 mt-3">
                     <p className="text-xs text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
                     <div className="space-y-2">
@@ -479,7 +480,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
 
                 {/* Special Notes per product */}
-                {!c?.skipEngraving && c?.designNotes && (
+                {c?.designNotes && (
                   <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
                     <p className="text-xs text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
                       <MessageSquare size={10} />
@@ -826,13 +827,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {isz?.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">Note: {isz.specialNote}</p>}
                           </div>
                         )}
-                        {ic && !ic.skipEngraving && (ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0 || ic.logos?.length > 0 || ic.designNotes || ic.nameColor || ic.logoPlacement) && (
+                        {ic && hasEngravingData(ic) && (
                           <div className="border-t border-gray-800 pt-2 space-y-1">
-                            {(ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0) && (
+                            {(ic.engravingType || ic.nameSpelling || getFilledArticleNames(ic).length > 0) && (
                               <div>
                                 <span className="text-[9px] font-black text-amber-500 uppercase">Engraving</span>
                                 {ic.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{isUrdu ? toUrduName(ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving') : (ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving')}</span>}
-                                {ic.articleNames?.length > 0 ? ic.articleNames.map((n, ai) => (
+                                {getFilledArticleNames(ic).length > 0 ? getFilledArticleNames(ic).map((n, ai) => (
                                   <p key={ai} className="text-[10px] text-white font-bold ml-2">L{ai + 1}: {n}</p>
                                 )) : ic.nameSpelling && <p className="text-[10px] text-white font-bold ml-2">{ic.nameSpelling}</p>}
                               </div>
@@ -887,13 +888,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {sizes?.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">Note: {sizes.specialNote}</p>}
                       </div>
                     )}
-                    {custom && !custom.skipEngraving && (custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0 || custom.logos?.length > 0 || custom.designNotes || custom.nameColor || custom.logoPlacement) && (
+                    {custom && hasEngravingData(custom) && (
                       <div className="border-t border-gray-800 pt-2 space-y-1">
-                        {(custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0) && (
+                        {(custom.engravingType || custom.nameSpelling || getFilledArticleNames(custom).length > 0) && (
                           <div>
                             <span className="text-[9px] font-black text-amber-500 uppercase">Engraving</span>
                             {custom.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{custom.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
-                            {custom.articleNames?.length > 0 ? custom.articleNames.map((n, ai) => (
+                            {getFilledArticleNames(custom).length > 0 ? getFilledArticleNames(custom).map((n, ai) => (
                               <p key={ai} className="text-[10px] text-white font-bold ml-2">L{ai + 1}: {n}</p>
                             )) : custom.nameSpelling && <p className="text-[10px] text-white font-bold ml-2">{custom.nameSpelling}</p>}
                           </div>
@@ -2334,8 +2335,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               const itemSizes = (flatItemSizes && Object.keys(flatItemSizes).length > 0) ? flatItemSizes : (isMultiItem ? null : sizes);
                               const hasSleeves = p.sleeveLength || (p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full');
                               const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
-                              const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
-                              const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
+                              const hasArticleNames = getFilledArticleNames(itemCust).length > 0;
+                              const hasLogos = itemCust?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
                               const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling;
                               const isProdStage = currentStage?.stageName === 'PRODUCTION';
                               const isStoreRecv = currentStage?.stageName === 'STORE_RECEIVE';
@@ -2392,7 +2393,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <tr className="bg-purple-900/5 border-b border-gray-800/50">
                                     <td colSpan={7} className="py-3 px-6">
                                       <div className="flex flex-wrap gap-3">
-                                        {hasArticleNames && itemCust.articleNames.map((an, ai) => (
+                                        {hasArticleNames && getFilledArticleNames(itemCust).map((an, ai) => (
                                           <span key={ai} className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
                                             Name: {an}
                                           </span>
@@ -2402,7 +2403,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                             {t('Name:')} {itemCust.nameSpelling}
                                           </span>
                                         )}
-                                        {hasLogos && itemCust.logos.map((logo, li) => (
+                                        {hasLogos && itemCust.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((logo, li) => (
                                           <span key={li} className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md">
                                             {t('Logo:')} {logo.name || `#${li + 1}`}{logo.design ? ` — ${logo.design.substring(0, 40)}${logo.design.length > 40 ? '...' : ''}` : ''}
                                           </span>
@@ -2555,10 +2556,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div>
                   <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">{t('03. Engraving')}</h4>
                   <div className="space-y-4">
-                    {custom?.articleNames && custom.articleNames.length > 0
-                      ? custom.articleNames.map((an, ai) => (
+                    {getFilledArticleNames(custom).length > 0
+                      ? getFilledArticleNames(custom).map((an, ai) => (
                           <div key={`an-${ai}`} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
-                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{t('Article Name')} {custom.articleNames.length > 1 ? `#${ai + 1}` : ''}</span>
+                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{t('Article Name')} {getFilledArticleNames(custom).length > 1 ? `#${ai + 1}` : ''}</span>
                             <span className="text-sm font-black text-emerald-400">{an || 'N/A'}</span>
                           </div>
                         ))
@@ -2604,10 +2605,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     ) : (
                       <p className="italic text-gray-500">{t('No special design notes provided for this order.')}</p>
                     )}
-                    {custom?.articleNames && custom.articleNames.length > 0 && (
+                    {getFilledArticleNames(custom).length > 0 && (
                       <div className="mt-4 pt-4 border-t border-yellow-500/10 space-y-2">
                         <p className="text-xs font-black text-yellow-400 uppercase tracking-widest not-italic">{t('Article Names')}</p>
-                        {custom.articleNames.map((an, ai) => (
+                        {getFilledArticleNames(custom).map((an, ai) => (
                           <p key={ai} className="font-bold text-yellow-200/80 not-italic">{an}</p>
                         ))}
                       </div>

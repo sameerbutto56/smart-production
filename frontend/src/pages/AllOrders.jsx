@@ -27,6 +27,7 @@ import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { getDelayInfo, getStageDelays, fmtDuration, stageLabel } from '../utils/delayUtils';
+import { getFilledArticleNames, hasEngravingData } from '../utils/engravingUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -1054,10 +1055,10 @@ const AllOrders = () => {
         const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : (standardMeasurements[product?.size] || {});
         const hasCustomData = isMultiItem
           ? allItems.some(item => {
-              const c = item.customization || {};
-              return !c.skipEngraving && (c.engravingType || c.nameSpelling || c.nameColor || c.logoPlacement || c.logos?.length > 0 || c.designNotes || c.designReference || c.articleNames?.length > 0);
+              const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : {};
+              return hasEngravingData(c);
             })
-          : !custom?.skipEngraving && (custom?.engravingType || custom?.nameSpelling || custom?.nameColor || custom?.logoPlacement || custom?.logos?.length > 0 || custom?.designNotes || custom?.designReference || custom?.articleNames?.length > 0);
+          : hasEngravingData(typeof custom === 'string' ? JSON.parse(custom) : custom);
         
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
@@ -1195,15 +1196,15 @@ const AllOrders = () => {
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
-                                    {(c.nameSpelling || c.articleNames?.length || c.logos?.length) && (
+                                    {(c.nameSpelling || getFilledArticleNames(c).length || c.logos?.length) && (
                                       <div className="mt-1.5 space-y-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
                                         {/* Name Lines */}
-                                        {(c.articleNames?.length > 0 || c.nameSpelling) && (
+                                        {(getFilledArticleNames(c).length > 0 || c.nameSpelling) && (
                                           <div className="bg-purple-900/15 rounded-lg p-1.5 border border-purple-500/10">
                                             <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest">Names:</span>
                                             <div className="flex flex-wrap gap-1 mt-0.5">
-                                              {c.articleNames?.length > 0 ? (
-                                                c.articleNames.map((an, ai) => (
+                                              {getFilledArticleNames(c).length > 0 ? (
+                                                getFilledArticleNames(c).map((an, ai) => (
                                                   <span key={ai} className="text-xs font-black text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">L{ai + 1}: {an}</span>
                                                 ))
                                               ) : (
@@ -1468,6 +1469,7 @@ const AllOrders = () => {
                       {allItems.map((item, idx) => {
                         const c = item.customization || {};
                         const p = item.productDetails || {};
+                        const filledArticles = getFilledArticleNames(c);
                         return (
                           <div key={idx} className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70">
                             <div className="flex items-center gap-3 mb-4">
@@ -1477,12 +1479,12 @@ const AllOrders = () => {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {/* Names / Lines */}
-                              {(c.articleNames?.length > 0 || c.nameSpelling) && (
+                              {(filledArticles.length > 0 || c.nameSpelling) && (
                                 <div className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/10">
                                   <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
                                   <div className="space-y-1.5">
-                                    {c.articleNames?.length > 0 ? (
-                                      c.articleNames.map((an, ai) => (
+                                    {filledArticles.length > 0 ? (
+                                      filledArticles.map((an, ai) => (
                                         <div key={ai} className="flex items-center gap-2">
                                           <span className="text-[9px] font-black text-purple-500 bg-purple-900/30 w-10 py-0.5 rounded text-center">L{ai + 1}</span>
                                           <span className="text-sm font-black text-purple-300">{an}</span>
