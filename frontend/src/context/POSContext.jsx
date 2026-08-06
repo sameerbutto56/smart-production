@@ -816,25 +816,17 @@ export function POSProvider({ children }) {
       // Canonical summary from the shared backend endpoint (same source & rules as the
       // Register / Close Book and POS History). Search-mode exports span the whole DB with
       // no date window, so they fall back to a client-side canonical computation over the
-      // filtered rows instead.
+      // filtered rows instead. Revenue counts for ALL rows (incl. refunded — the refund is
+      // deducted via returnedAmount), matching the backend canonical convention.
       const canonicalSummary = (rows) => {
-        const nonRefunded = rows.filter(s => !s.refundedAt);
         let CASH = 0, ONLINE = 0, CARD = 0, CASH_ONLINE = 0;
-        nonRefunded.forEach(s => {
+        rows.forEach(s => {
           const received = s._amountReceived || 0;
           if (s.paymentMethod === 'CASH') CASH += received;
           else if (s.paymentMethod === 'ONLINE') ONLINE += received;
           else if (s.paymentMethod === 'CARD') CARD += received;
           else if (s.paymentMethod === 'CASH_ONLINE') {
             CASH_ONLINE += received;
-            const splitTotal = (s.cashAmount || 0) + (s.onlineAmount || 0);
-            if (splitTotal > 0) {
-              CASH += received * ((s.cashAmount || 0) / splitTotal);
-              ONLINE += received * ((s.onlineAmount || 0) / splitTotal);
-            } else {
-              CASH += received * 0.5;
-              ONLINE += received * 0.5;
-            }
           } else CASH += received;
         });
         const returnedAmount = rows.flatMap(s => (s.returns || [])).reduce((sum, r) => sum + (r.refundAmount || 0), 0);

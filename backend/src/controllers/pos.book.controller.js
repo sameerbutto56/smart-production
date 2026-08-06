@@ -63,23 +63,19 @@ const getBookById = async (req, res) => {
   }
 };
 
-// Compute summary for a book session
-const getBookSummary = async (req, res) => {
-  try {
-    const session = await prisma.posBookSession.findUnique({
-      where: { id: req.params.id },
-    });
-    if (!session) return res.status(404).json({ message: 'Book session not found' });
-
-    const outlet = session.outletName;
-    const startTime = session.openedAt;
-    // A CLOSED register covers the full business day (00:00 → 23:59:59.999) so its figures
-    // exactly match POS History / Excel export for the same date. An OPEN register runs to now.
-    let endTime = session.closedAt ? new Date(startTime) : new Date();
-    if (session.closedAt) endTime.setHours(23, 59, 59, 999);
-    const dayStart = new Date(startTime);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayFilter = { gte: dayStart, lte: endTime };
+// Pure computation of a register (book) session summary — shared by the Close Book /
+// Register detail endpoint and the historical reconciliation backfill so a closed
+// register always shows the same figures as POS History / Excel for its business day.
+const computeBookSummary = async (session) => {
+  const outlet = session.outletName;
+  const startTime = session.openedAt;
+  // A CLOSED register covers the full business day (00:00 → 23:59:59.999) so its figures
+  // exactly match POS History / Excel export for the same date. An OPEN register runs to now.
+  let endTime = session.closedAt ? new Date(startTime) : new Date();
+  if (session.closedAt) endTime.setHours(23, 59, 59, 999);
+  const dayStart = new Date(startTime);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayFilter = { gte: dayStart, lte: endTime };
 
     // Parallel queries
     const [allSales, returns, journals, balancePayments, bankDeposits] = await Promise.all([
@@ -88,9 +84,10 @@ const getBookSummary = async (req, res) => {
         where: { outletName: outlet, createdAt: dayFilter },
         orderBy: { createdAt: 'asc' },
       }),
-      // Returns in day range
+      // Returns in day range — ALL returns (incl. those not linked to a POS sale) so the register
+      // matches POS History / Excel / Dashboard, which count every refund in the range.
       prisma.posReturn.findMany({
-        where: { outletName: outlet, createdAt: dayFilter, saleId: { not: null } },
+        where: { outletName: outlet, createdAt: dayFilter },
         include: { sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } },
       }),
       // Journal entries from start of day (match Dashboard's getCashSummary range)
@@ -119,8 +116,10 @@ const getBookSummary = async (req, res) => {
       _sales: allSales, _returns: returns, _journals: journals, _balancePayments: balancePayments,
     });
 
-    // Revenue-driving sales (refunded sales carry no revenue); Faisal Takes ARE sales (match History)
-    const sales = allSales.filter(s => !s.refundedAt);
+    // All sales (incl. Faisal Takes + refunded) — revenue counts on the SALE day; the refund
+    // is deducted on its processing date via returnSummary (matches POS History / Dashboard /
+    // Excel under the shared canonical convention). Faisal Takes ARE sales (match History).
+    const sales = allSales;
     const faisalTakes = allSales.filter(s => s.faisalTake);
 
     // Revenue calculation matching getSalesDashboard
@@ -182,8 +181,19 @@ const getBookSummary = async (req, res) => {
         employeeMap[cashier] = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE_CASH: 0, CASH_ONLINE_ONLINE: 0, CASH_ONLINE_TOTAL: 0, total: 0, revenue: 0, salesCount: 0, sales: [] };
       }
       const method = bp.paymentMethod;
-      if (paymentSummary[method] !== undefined) paymentSummary[method] += bp.amountPaidNow;
-      if (employeeMap[cashier][method] !== undefined) employeeMap[cashier][method] += bp.amountPaidNow;
+      // CASH_ONLINE balance payments go to the CASH_ONLINE bucket (non-overlapping), split 50/50
+      // into the cash/online portions for display — mirrors computeSalesSummary.
+      if (method === 'CASH_ONLINE') {
+        paymentSummary.CASH_ONLINE_TOTAL += bp.amountPaidNow;
+        paymentSummary.CASH_ONLINE_CASH += bp.amountPaidNow / 2;
+        paymentSummary.CASH_ONLINE_ONLINE += bp.amountPaidNow / 2;
+        employeeMap[cashier].CASH_ONLINE_TOTAL += bp.amountPaidNow;
+        employeeMap[cashier].CASH_ONLINE_CASH += bp.amountPaidNow / 2;
+        employeeMap[cashier].CASH_ONLINE_ONLINE += bp.amountPaidNow / 2;
+      } else if (paymentSummary[method] !== undefined) {
+        paymentSummary[method] += bp.amountPaidNow;
+        if (employeeMap[cashier][method] !== undefined) employeeMap[cashier][method] += bp.amountPaidNow;
+      }
       employeeMap[cashier].total += bp.amountPaidNow;
       employeeMap[cashier].revenue += bp.amountPaidNow;
       employeeMap[cashier].salesCount += 1;
@@ -236,10 +246,14 @@ const getBookSummary = async (req, res) => {
     // Bank deposits total — cash moved to bank, deducted from till
     const totalBankDeposits = bankDeposits.reduce((s, d) => s + d.amount, 0);
 
-    // Totals — Cash+Online cash portion is included in cash, online portion in online
-    const totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH;
+    // Totals — Payment Summary is NON-OVERLAPPING (accounting view): Cash / Online / Card
+    // are PURE method amounts and the CASH_ONLINE split is reported separately via
+    // cashOnlineCash / cashOnlineOnline / cashOnlineTotal, so Cash + Card + Online + CashOnline
+    // == Grand Total exactly (identical to POS History / Dashboard / Excel). The raw till figure
+    // remains available as cashCollected (operational, includes the CASH_ONLINE cash portion).
+    const totalCashSales = paymentSummary.CASH;
     const totalCardSales = paymentSummary.CARD;
-    const totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE;
+    const totalOnlineSales = paymentSummary.ONLINE;
     const totalRevenueSales = shared.grandTotal;
 
     // Cash actually collected — only count what was received, not invoice total
@@ -315,11 +329,22 @@ const getBookSummary = async (req, res) => {
       totalBalancePaymentCount: balancePayments.length,
       totalBankDeposits,
       bankDeposits,
-      sales, // non-refunded sales (incl. Faisal Takes) for drill-down
+      sales, // all sales (incl. Faisal Takes + refunded) for drill-down
       discountTotal: shared.discountTotal,
       netSales: shared.netSales,
     };
 
+  return summary;
+};
+
+// Get book summary for a session (Register detail / Close Book)
+const getBookSummary = async (req, res) => {
+  try {
+    const session = await prisma.posBookSession.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!session) return res.status(404).json({ message: 'Book session not found' });
+    const summary = await computeBookSummary(session);
     res.json(summary);
   } catch (error) {
     res.status(500).json({ message: 'Failed to compute book summary', error: error.message });
@@ -382,4 +407,4 @@ const getBookHistory = async (req, res) => {
   }
 };
 
-module.exports = { openBook, getCurrentBook, getBookById, getBookSummary, closeBook, getBookHistory };
+module.exports = { openBook, getCurrentBook, getBookById, getBookSummary, computeBookSummary, closeBook, getBookHistory };

@@ -641,11 +641,12 @@ const resolveSalesDateRange = ({ range, dateFrom, dateTo }) => {
 };
 
 /* ─── Canonical POS sales summary for a date window — single source of truth so that
-       POS History, the Register (Close Book) and the Excel export produce identical
-       figures (invoice count, totals, cash/online/card split, discounts, returns,
+       POS History, the Register (Close Book), the Dashboard and the Excel export produce
+       identical figures (invoice count, totals, cash/online/card split, discounts, returns,
        net sales). Rules:
-       - Sales counted by createdAt in window (incl. Faisal Takes; refunded sales carry
-         no revenue).
+       - Sales counted by createdAt in window (incl. Faisal Takes, incl. refunded sales —
+         the revenue is counted on the SALE day, so History/Register/Dashboard/Excel all
+         agree; the refund is deducted on its PROCESSING date via returnedAmount).
        - Balance payments counted on their paidAt (date-based revenue).
        - Returns counted by their own createdAt, using the refundAmount actually refunded.
        - Revenue per sale: advance>0 ? min(advance, grandTotal) : grandTotal. ─── */
@@ -667,7 +668,9 @@ const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _
 
   let CASH = 0, CARD = 0, ONLINE = 0, CASH_ONLINE = 0, CASH_ONLINE_CASH = 0, CASH_ONLINE_ONLINE = 0;
   for (const s of allSales) {
-    if (s.refundedAt) continue;
+    // Revenue is counted on the sale day even for refunded sales (refund deducted on its
+    // processing date) — prevents double-deduction for cross-day refunds and keeps every
+    // module (History / Register / Dashboard / Excel) identical.
     const revenue = saleRevenue(s);
     if (s.paymentMethod === 'CASH_ONLINE') {
       const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
@@ -950,10 +953,8 @@ const getSalesDashboard = async (req, res) => {
     allSales.forEach(s => {
       const received = saleRevenue(s);
       if (s.paymentMethod === 'CASH_ONLINE') {
-        const total = (s.cashAmount || 0) + (s.onlineAmount || 0);
-        const ratio = total > 0 ? received / total : 1;
-        paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + (s.cashAmount || 0) * ratio;
-        paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + (s.onlineAmount || 0) * ratio;
+        // Non-overlapping: full hybrid amount goes to the CASH_ONLINE bucket (the cash/online
+        // split is available separately). Matches History / Register / Excel.
         paymentTotals['CASH_ONLINE'] = (paymentTotals['CASH_ONLINE'] || 0) + received;
       } else {
         const method = KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
@@ -964,10 +965,7 @@ const getSalesDashboard = async (req, res) => {
     balancePayments.forEach(bp => {
       const method = KNOWN_METHODS.includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
       if (method === 'CASH_ONLINE') {
-        const cashAmt = bp.cashAmount || bp.amountPaidNow * 0.5;
-        const onlineAmt = bp.onlineAmount || bp.amountPaidNow * 0.5;
-        paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + cashAmt;
-        paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + onlineAmt;
+        paymentTotals['CASH_ONLINE'] = (paymentTotals['CASH_ONLINE'] || 0) + bp.amountPaidNow;
       } else {
         paymentTotals[method] = (paymentTotals[method] || 0) + bp.amountPaidNow;
       }
@@ -984,13 +982,7 @@ const getSalesDashboard = async (req, res) => {
     const returnsByMethod = {};
     returnsWithSale.forEach(r => {
       if (r.sale?.paymentMethod === 'CASH_ONLINE') {
-        const cashAmt = r.sale?.cashAmount || 0;
-        const onlineAmt = r.sale?.onlineAmount || 0;
-        const total = cashAmt + onlineAmt;
-        const cashRatio = total > 0 ? cashAmt / total : 0.5;
-        const onlineRatio = total > 0 ? onlineAmt / total : 0.5;
-        returnsByMethod['CASH'] = (returnsByMethod['CASH'] || 0) + r.refundAmount * cashRatio;
-        returnsByMethod['ONLINE'] = (returnsByMethod['ONLINE'] || 0) + r.refundAmount * onlineRatio;
+        // Non-overlapping: full refund amount goes to the CASH_ONLINE returns bucket.
         returnsByMethod['CASH_ONLINE'] = (returnsByMethod['CASH_ONLINE'] || 0) + r.refundAmount;
       } else {
         const rawMethod = r.sale?.paymentMethod || 'CASH';

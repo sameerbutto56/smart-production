@@ -369,25 +369,17 @@ const OutletInvoiceHistory = ({ outlet }) => {
       // Canonical summary from the shared backend endpoint (same source & rules as the
       // Register / Close Book and POS History). Search-mode exports filter a subset of rows
       // client-side with no date window, so they fall back to a client-side canonical
-      // computation over the filtered rows instead.
+      // computation over the filtered rows instead. Revenue counts for ALL rows (incl.
+      // refunded — the refund is deducted via returnedAmount), matching the backend convention.
       const canonicalSummary = (rows) => {
-        const nonRefunded = rows.filter(s => !s.refundedAt);
         let CASH = 0, ONLINE = 0, CARD = 0, CASH_ONLINE = 0;
-        nonRefunded.forEach(s => {
+        rows.forEach(s => {
           const received = s._amountReceived || 0;
           if (s.paymentMethod === 'CASH') CASH += received;
           else if (s.paymentMethod === 'ONLINE') ONLINE += received;
           else if (s.paymentMethod === 'CARD') CARD += received;
           else if (s.paymentMethod === 'CASH_ONLINE') {
             CASH_ONLINE += received;
-            const splitTotal = (s.cashAmount || 0) + (s.onlineAmount || 0);
-            if (splitTotal > 0) {
-              CASH += received * ((s.cashAmount || 0) / splitTotal);
-              ONLINE += received * ((s.onlineAmount || 0) / splitTotal);
-            } else {
-              CASH += received * 0.5;
-              ONLINE += received * 0.5;
-            }
           } else CASH += received;
         });
         const returnedAmount = rows.flatMap(s => (s.returns || [])).reduce((sum, r) => sum + (r.refundAmount || 0), 0);
@@ -499,20 +491,12 @@ const OutletInvoiceHistory = ({ outlet }) => {
         || (s.cashierName || '').toLowerCase().includes(q);
   });
 
-  /* ─── Payment Summary (matches Register / Excel — received-based, refunded excluded) ─── */
+  /* ─── Payment Summary (matches Register / Excel — received-based, all invoices incl. refunded,
+         non-overlapping: CASH_ONLINE goes to its own bucket, matching the canonical summary) ─── */
   const paymentSummary = filteredSales.reduce((acc, s) => {
     const received = s._amountReceived || 0;
-    if (s.refundedAt) return acc;
     const method = s.paymentMethod || 'CASH';
     if (method === 'CASH_ONLINE') {
-      const splitTotal = (parseFloat(s.cashAmount) || 0) + (parseFloat(s.onlineAmount) || 0);
-      if (splitTotal > 0) {
-        acc.CASH = (acc.CASH || 0) + received * ((parseFloat(s.cashAmount) || 0) / splitTotal);
-        acc.ONLINE = (acc.ONLINE || 0) + received * ((parseFloat(s.onlineAmount) || 0) / splitTotal);
-      } else {
-        acc.CASH = (acc.CASH || 0) + received * 0.5;
-        acc.ONLINE = (acc.ONLINE || 0) + received * 0.5;
-      }
       acc.CASH_ONLINE = (acc.CASH_ONLINE || 0) + received;
     } else if (['CASH', 'ONLINE', 'CARD'].includes(method)) {
       acc[method] = (acc[method] || 0) + received;
