@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
+const { computeSalesSummary } = require('./pos.controller');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
@@ -72,23 +73,19 @@ const getBookSummary = async (req, res) => {
 
     const outlet = session.outletName;
     const startTime = session.openedAt;
-    const endTime = session.closedAt || new Date();
-
-    // Use start of day for all queries (matches Dashboard's getCashSummary range)
+    // A CLOSED register covers the full business day (00:00 → 23:59:59.999) so its figures
+    // exactly match POS History / Excel export for the same date. An OPEN register runs to now.
+    let endTime = session.closedAt ? new Date(startTime) : new Date();
+    if (session.closedAt) endTime.setHours(23, 59, 59, 999);
     const dayStart = new Date(startTime);
     dayStart.setHours(0, 0, 0, 0);
     const dayFilter = { gte: dayStart, lte: endTime };
 
     // Parallel queries
-    const [sales, faisalTakes, returns, journals, balancePayments, bankDeposits] = await Promise.all([
-      // Sales in day range (matches Dashboard's cash summary)
+    const [allSales, returns, journals, balancePayments, bankDeposits] = await Promise.all([
+      // ALL sales in day range (incl. Faisal Takes + refunded) — matches POS History invoice list
       prisma.posSale.findMany({
-        where: { outletName: outlet, createdAt: dayFilter, faisalTake: { not: true }, refundedAt: null },
-        orderBy: { createdAt: 'asc' },
-      }),
-      // Faisal Takes in day range
-      prisma.posSale.findMany({
-        where: { outletName: outlet, createdAt: dayFilter, faisalTake: true },
+        where: { outletName: outlet, createdAt: dayFilter },
         orderBy: { createdAt: 'asc' },
       }),
       // Returns in day range
@@ -115,6 +112,16 @@ const getBookSummary = async (req, res) => {
         orderBy: { createdAt: 'asc' },
       }),
     ]);
+
+    // Canonical totals shared with POS History / Excel export — guaranteed identical by construction
+    const shared = await computeSalesSummary(prisma, {
+      outlet, start: dayStart, end: endTime,
+      _sales: allSales, _returns: returns, _journals: journals, _balancePayments: balancePayments,
+    });
+
+    // Revenue-driving sales (refunded sales carry no revenue); Faisal Takes ARE sales (match History)
+    const sales = allSales.filter(s => !s.refundedAt);
+    const faisalTakes = allSales.filter(s => s.faisalTake);
 
     // Revenue calculation matching getSalesDashboard
     const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
@@ -233,7 +240,7 @@ const getBookSummary = async (req, res) => {
     const totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH;
     const totalCardSales = paymentSummary.CARD;
     const totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE;
-    const totalRevenueSales = sales.reduce((s, sale) => s + saleRevenue(sale), 0) + balancePayments.reduce((s, bp) => s + bp.amountPaidNow, 0);
+    const totalRevenueSales = shared.grandTotal;
 
     // Cash actually collected — only count what was received, not invoice total
     const rawCashCollected = sales
@@ -248,14 +255,15 @@ const getBookSummary = async (req, res) => {
           return sum + revenue * ratio;
         }, 0);
 
-    // Available cash — using raw cash amounts to match Dashboard
+    // Available cash — Faisal Take cash leaves the till, so it is deducted here.
     // returnSummary.CASH includes CASH_ONLINE cash returns portion (necessary for till calculation)
     const totalCashRefunded = returnSummary.CASH;
-    const availableCash = rawCashCollected - totalJournalEntries - totalCashRefunded - totalBankDeposits;
+    const availableCash = rawCashCollected - totalFaisalTake - totalJournalEntries - totalCashRefunded - totalBankDeposits;
 
-    // Payment breakdown — ONLINE returns are pure (no CASH_ONLINE portion) to match non-overlapping Payment Summary
+    // Payment breakdown — gross matches the shared summary (incl. Faisal Takes); CASH net deducts
+    // Faisal Take cash from the till
     const paymentBreakdown = [
-      { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, bankDeposits: totalBankDeposits, net: rawCashCollected - totalJournalEntries - returnSummary.CASH - totalBankDeposits },
+      { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, bankDeposits: totalBankDeposits, faisalTake: totalFaisalTake, net: rawCashCollected - totalJournalEntries - returnSummary.CASH - totalBankDeposits - totalFaisalTake },
       { method: 'CARD', gross: totalCardSales, returns: returnSummary.CARD, journalExpenses: 0, net: totalCardSales - returnSummary.CARD },
       { method: 'ONLINE', gross: totalOnlineSales, returns: returnSummary.ONLINE, journalExpenses: 0, net: totalOnlineSales - returnSummary.ONLINE },
     ];
@@ -300,14 +308,16 @@ const getBookSummary = async (req, res) => {
       },
       totalReturns: returnSummary.total,
       availableCash,
-      totalSales: sales.length,
+      totalSales: allSales.length, // invoice count — matches POS History / Excel for the same date
       totalFaisalTakesCount: faisalTakes.length,
       totalReturnsCount: returns.length,
       totalJournalCount: journals.length,
       totalBalancePaymentCount: balancePayments.length,
       totalBankDeposits,
       bankDeposits,
-      sales, // full sale objects for drill-down
+      sales, // non-refunded sales (incl. Faisal Takes) for drill-down
+      discountTotal: shared.discountTotal,
+      netSales: shared.netSales,
     };
 
     res.json(summary);

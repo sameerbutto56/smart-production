@@ -366,33 +366,60 @@ const OutletInvoiceHistory = ({ outlet }) => {
         'Status': s.refundedAt ? 'RETURN' : (s._balanceStatus === 'balance' ? 'BALANCE' : '')
       }));
 
-      const nonRefundedSales = src.filter(s => !s.refundedAt);
-      let cashPayments = 0, onlinePayments = 0, cardPayments = 0, cashOnlinePayments = 0;
-      nonRefundedSales.forEach(s => {
-        const received = s._amountReceived || 0;
-        if (s.paymentMethod === 'CASH') cashPayments += received;
-        else if (s.paymentMethod === 'ONLINE') onlinePayments += received;
-        else if (s.paymentMethod === 'CARD') cardPayments += received;
-        else if (s.paymentMethod === 'CASH_ONLINE') {
-          cashOnlinePayments += received;
-          const splitTotal = (s.cashAmount || 0) + (s.onlineAmount || 0);
-          if (splitTotal > 0) {
-            cashPayments += received * ((s.cashAmount || 0) / splitTotal);
-            onlinePayments += received * ((s.onlineAmount || 0) / splitTotal);
-          } else {
-            cashPayments += received * 0.5;
-            onlinePayments += received * 0.5;
-          }
-        } else {
-          cashPayments += received;
-        }
-      });
-      cashPayments = Math.round(cashPayments);
-      onlinePayments = Math.round(onlinePayments);
-      cardPayments = Math.round(cardPayments);
-      cashOnlinePayments = Math.round(cashOnlinePayments);
+      // Canonical summary from the shared backend endpoint (same source & rules as the
+      // Register / Close Book and POS History). Search-mode exports filter a subset of rows
+      // client-side with no date window, so they fall back to a client-side canonical
+      // computation over the filtered rows instead.
+      const canonicalSummary = (rows) => {
+        const nonRefunded = rows.filter(s => !s.refundedAt);
+        let CASH = 0, ONLINE = 0, CARD = 0, CASH_ONLINE = 0;
+        nonRefunded.forEach(s => {
+          const received = s._amountReceived || 0;
+          if (s.paymentMethod === 'CASH') CASH += received;
+          else if (s.paymentMethod === 'ONLINE') ONLINE += received;
+          else if (s.paymentMethod === 'CARD') CARD += received;
+          else if (s.paymentMethod === 'CASH_ONLINE') {
+            CASH_ONLINE += received;
+            const splitTotal = (s.cashAmount || 0) + (s.onlineAmount || 0);
+            if (splitTotal > 0) {
+              CASH += received * ((s.cashAmount || 0) / splitTotal);
+              ONLINE += received * ((s.onlineAmount || 0) / splitTotal);
+            } else {
+              CASH += received * 0.5;
+              ONLINE += received * 0.5;
+            }
+          } else CASH += received;
+        });
+        const returnedAmount = rows.flatMap(s => (s.returns || [])).reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+        return {
+          cash: CASH, online: ONLINE, card: CARD, cashOnline: CASH_ONLINE,
+          returnedAmount,
+          discountTotal: rows.reduce((sum, s) => sum + (s.discountAmount || 0), 0),
+          invoiceCount: rows.length,
+        };
+      };
+
+      let summary = null;
+      if (!(search || '').trim()) {
+        try {
+          const params = { outlet, skipCache: 'true' };
+          if (dateFrom) params.dateFrom = dateFrom;
+          if (dateTo) params.dateTo = dateTo;
+          if (!dateFrom && !dateTo && range !== 'all') params.range = range;
+          const res = await api.get('/api/pos/sales-summary', { params });
+          summary = res.data || null;
+        } catch (e) { /* silent fallback below */ }
+      }
+      if (!summary) summary = canonicalSummary(src);
+
+      const cashPayments = Math.round(summary.cash || 0);
+      const onlinePayments = Math.round(summary.online || 0);
+      const cardPayments = Math.round(summary.card || 0);
+      const cashOnlinePayments = Math.round(summary.cashOnline || 0);
       const grandTotalSales = cashPayments + onlinePayments + cardPayments + cashOnlinePayments;
-      const returnedAmount = src.filter(s => s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const returnedAmount = summary.returnedAmount || 0;
+      const discountTotal = summary.discountTotal || 0;
+      const invoiceCount = summary.invoiceCount ?? src.length;
       const totalAdvancePayments = src.reduce((sum, s) => sum + (s.advanceAmount || 0), 0);
       const outstandingBalance = src.reduce((sum, s) => sum + (s._outstandingBalance || 0), 0);
       const netCash = cashPayments - totalGeneralEntries;
@@ -419,17 +446,19 @@ const OutletInvoiceHistory = ({ outlet }) => {
       const summaryRows = [
         {}, {},
         { 'Receipt #': 'S U M M A R Y', 'Grand Total': '' },
+        { 'Receipt #': 'Invoice Count', 'Grand Total': invoiceCount },
         { 'Receipt #': 'Grand Total Sales (Received)', 'Grand Total': grandTotalSales },
         { 'Receipt #': 'Cash Payments', 'Grand Total': cashPayments },
         { 'Receipt #': 'Online Payments', 'Grand Total': onlinePayments },
         { 'Receipt #': 'Card Payments', 'Grand Total': cardPayments },
         { 'Receipt #': 'Cash + Online Payments', 'Grand Total': cashOnlinePayments },
         { 'Receipt #': 'Total Advance Payments', 'Grand Total': totalAdvancePayments },
+        { 'Receipt #': 'Discounts', 'Grand Total': Math.round(discountTotal) },
         { 'Receipt #': 'Outstanding Balance', 'Grand Total': outstandingBalance },
         { 'Receipt #': 'General Entries (Expenses)', 'Grand Total': totalGeneralEntries },
         { 'Receipt #': 'Net Cash', 'Grand Total': netCash },
-        { 'Receipt #': 'Returned Amount', 'Grand Total': returnedAmount },
-        { 'Receipt #': 'Net Sales', 'Grand Total': netSales },
+        { 'Receipt #': 'Returned Amount', 'Grand Total': Math.round(returnedAmount) },
+        { 'Receipt #': 'Net Sales', 'Grand Total': Math.round(netSales) },
       ];
 
       const allRows = [...data, ...journalDataRows, ...summaryRows];
@@ -470,17 +499,25 @@ const OutletInvoiceHistory = ({ outlet }) => {
         || (s.cashierName || '').toLowerCase().includes(q);
   });
 
-  /* ─── Payment Summary ─── */
+  /* ─── Payment Summary (matches Register / Excel — received-based, refunded excluded) ─── */
   const paymentSummary = filteredSales.reduce((acc, s) => {
+    const received = s._amountReceived || 0;
+    if (s.refundedAt) return acc;
     const method = s.paymentMethod || 'CASH';
     if (method === 'CASH_ONLINE') {
-      acc.CASH = (acc.CASH || 0) + (parseFloat(s.cashAmount) || 0);
-      acc.ONLINE = (acc.ONLINE || 0) + (parseFloat(s.onlineAmount) || 0);
-      acc.CASH_ONLINE = (acc.CASH_ONLINE || 0) + s.grandTotal;
+      const splitTotal = (parseFloat(s.cashAmount) || 0) + (parseFloat(s.onlineAmount) || 0);
+      if (splitTotal > 0) {
+        acc.CASH = (acc.CASH || 0) + received * ((parseFloat(s.cashAmount) || 0) / splitTotal);
+        acc.ONLINE = (acc.ONLINE || 0) + received * ((parseFloat(s.onlineAmount) || 0) / splitTotal);
+      } else {
+        acc.CASH = (acc.CASH || 0) + received * 0.5;
+        acc.ONLINE = (acc.ONLINE || 0) + received * 0.5;
+      }
+      acc.CASH_ONLINE = (acc.CASH_ONLINE || 0) + received;
     } else if (['CASH', 'ONLINE', 'CARD'].includes(method)) {
-      acc[method] = (acc[method] || 0) + s.grandTotal;
+      acc[method] = (acc[method] || 0) + received;
     } else {
-      acc.CASH = (acc.CASH || 0) + s.grandTotal;
+      acc.CASH = (acc.CASH || 0) + received;
     }
     return acc;
   }, {});

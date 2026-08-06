@@ -624,6 +624,110 @@ const createSale = async (req, res) => {
   }
 };
 
+/* ─── Shared POS sales-date range — single source for POS History, Register (Close Book) and Excel export ─── */
+const resolveSalesDateRange = ({ range, dateFrom, dateTo }) => {
+  const now = new Date();
+  let start = null;
+  let end = null;
+  if (dateFrom || dateTo) {
+    if (dateFrom) { start = new Date(dateFrom); start.setHours(0, 0, 0, 0); }
+    if (dateTo) { end = new Date(dateTo); end.setHours(23, 59, 59, 999); }
+  } else if (range === 'today') { start = new Date(now); start.setHours(0, 0, 0, 0); end = now; }
+  else if (range === 'yesterday') { start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0); end = new Date(start); end.setHours(23, 59, 59, 999); }
+  else if (range === 'week') { start = new Date(now); start.setDate(start.getDate() - 7); start.setHours(0, 0, 0, 0); end = now; }
+  else if (range === 'month') { start = new Date(now); start.setMonth(start.getMonth() - 1); start.setHours(0, 0, 0, 0); end = now; }
+  else if (range === 'year') { start = new Date(now); start.setFullYear(start.getFullYear() - 1); start.setHours(0, 0, 0, 0); end = now; }
+  return { start, end };
+};
+
+/* ─── Canonical POS sales summary for a date window — single source of truth so that
+       POS History, the Register (Close Book) and the Excel export produce identical
+       figures (invoice count, totals, cash/online/card split, discounts, returns,
+       net sales). Rules:
+       - Sales counted by createdAt in window (incl. Faisal Takes; refunded sales carry
+         no revenue).
+       - Balance payments counted on their paidAt (date-based revenue).
+       - Returns counted by their own createdAt, using the refundAmount actually refunded.
+       - Revenue per sale: advance>0 ? min(advance, grandTotal) : grandTotal. ─── */
+const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _balancePayments, _returns, _journals }) => {
+  const dayEnd = end || new Date();
+  const dayFilter = {};
+  if (start) dayFilter.gte = start;
+  if (end) dayFilter.lte = end;
+  const [allSales, balancePayments, returns, journals] = _sales
+    ? [_sales, _balancePayments || [], _returns || [], _journals || []]
+    : await Promise.all([
+        prismaClient.posSale.findMany({ where: { outletName: outlet, ...(Object.keys(dayFilter).length ? { createdAt: dayFilter } : {}) }, orderBy: { createdAt: 'asc' } }),
+        prismaClient.posBalancePayment.findMany({ where: { posSale: { outletName: outlet }, ...(Object.keys(dayFilter).length ? { paidAt: dayFilter } : {}) }, orderBy: { paidAt: 'asc' } }),
+        prismaClient.posReturn.findMany({ where: { outletName: outlet, ...(Object.keys(dayFilter).length ? { createdAt: dayFilter } : {}) } }),
+        prismaClient.journalEntry.findMany({ where: { outletName: outlet, ...(Object.keys(dayFilter).length ? { createdAt: dayFilter } : {}) } }),
+      ]);
+
+  const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
+
+  let CASH = 0, CARD = 0, ONLINE = 0, CASH_ONLINE = 0, CASH_ONLINE_CASH = 0, CASH_ONLINE_ONLINE = 0;
+  for (const s of allSales) {
+    if (s.refundedAt) continue;
+    const revenue = saleRevenue(s);
+    if (s.paymentMethod === 'CASH_ONLINE') {
+      const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
+      const ratio = totalCO > 0 ? revenue / totalCO : 1;
+      CASH_ONLINE += revenue;
+      CASH_ONLINE_CASH += (s.cashAmount || 0) * ratio;
+      CASH_ONLINE_ONLINE += (s.onlineAmount || 0) * ratio;
+    } else if (s.paymentMethod === 'CARD') CARD += revenue;
+    else if (s.paymentMethod === 'ONLINE') ONLINE += revenue;
+    else CASH += revenue;
+  }
+  for (const bp of balancePayments) {
+    const amt = bp.amountPaidNow || 0;
+    if (bp.paymentMethod === 'CARD') CARD += amt;
+    else if (bp.paymentMethod === 'ONLINE') ONLINE += amt;
+    else if (bp.paymentMethod === 'CASH_ONLINE') { CASH_ONLINE += amt; CASH_ONLINE_CASH += amt / 2; CASH_ONLINE_ONLINE += amt / 2; }
+    else CASH += amt;
+  }
+
+  return {
+    outlet,
+    start,
+    end: dayEnd,
+    invoiceCount: allSales.length,
+    grandTotal: CASH + CARD + ONLINE + CASH_ONLINE,
+    cash: CASH,
+    online: ONLINE,
+    card: CARD,
+    cashOnline: CASH_ONLINE,
+    cashOnlineCash: CASH_ONLINE_CASH,
+    cashOnlineOnline: CASH_ONLINE_ONLINE,
+    discountTotal: allSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0),
+    returnedAmount: returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0),
+    totalFaisalTake: allSales.filter(s => s.faisalTake).reduce((sum, s) => sum + (s.grandTotal || 0), 0),
+    journalExpenses: journals.reduce((sum, j) => sum + (j.amount || 0), 0),
+    netSales: (CASH + CARD + ONLINE + CASH_ONLINE) - returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0),
+    balancePaymentTotal: balancePayments.reduce((sum, b) => sum + (b.amountPaidNow || 0), 0),
+  };
+};
+
+const getSalesSummary = async (req, res) => {
+  try {
+    const outlet = getOutletName(req);
+    const { range, dateFrom, dateTo } = req.query;
+    const skip = req.query.skipCache === 'true';
+    if (!outlet) return res.status(400).json({ message: 'Outlet is required' });
+    const cacheKey = `${CACHE_KEY_PREFIX}summary:${outlet}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}`;
+    if (!skip) {
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+    }
+    const { start, end } = resolveSalesDateRange({ range, dateFrom, dateTo });
+    const summary = await computeSalesSummary(prisma, { outlet, start, end });
+    res.json(summary);
+    cache.set(cacheKey, summary, cache.DASHBOARD_TTL);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch sales summary', error: error.message });
+  }
+};
+
 const getSales = async (req, res) => {
   try {
     const outlet = getOutletName(req);
@@ -642,15 +746,12 @@ const getSales = async (req, res) => {
     let dateFilter = {};
     // Search mode queries the ENTIRE POS invoice database — date/range filters are ignored.
     if (!search) {
-      if (dateFrom || dateTo) {
+      const { start, end } = resolveSalesDateRange({ range, dateFrom, dateTo });
+      if (start || end) {
         dateFilter.createdAt = {};
-        if (dateFrom) { const s = new Date(dateFrom); s.setHours(0, 0, 0, 0); dateFilter.createdAt.gte = s; }
-        if (dateTo) { const e = new Date(dateTo); e.setHours(23, 59, 59, 999); dateFilter.createdAt.lte = e; }
-      } else if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
-      else if (range === 'yesterday') { const s = new Date(now); s.setDate(s.getDate() - 1); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setHours(23, 59, 59, 999); dateFilter = { createdAt: { gte: s, lte: e } }; }
-      else if (range === 'week') { const s = new Date(now); s.setDate(s.getDate() - 7); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
-      else if (range === 'month') { const s = new Date(now); s.setMonth(s.getMonth() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
-      else if (range === 'year') { const s = new Date(now); s.setFullYear(s.getFullYear() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
+        if (start) dateFilter.createdAt.gte = start;
+        if (end) dateFilter.createdAt.lte = end;
+      }
     }
 
     const where = { ...dateFilter };
@@ -1749,7 +1850,8 @@ module.exports = {
   getVariant,
   updateVariantStock, updateVariantPrice,
   createVariant, deleteVariant, deleteProductVariants, updateVariant,
-  createSale, getSales, getSalesDashboard,
+  createSale, getSales, getSalesDashboard, getSalesSummary,
+  computeSalesSummary,
   createReturn, getReturns,
   lookupBarcode, orderLookup, getAllOutletsView,
   createPosProduct,

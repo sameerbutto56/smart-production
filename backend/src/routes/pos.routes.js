@@ -5,7 +5,7 @@ const {
   getVariant,
   updateVariantStock, updateVariantPrice,
   createVariant,   deleteVariant, deleteProductVariants, updateVariant,
-  createSale, getSales, getSalesDashboard,
+  createSale, getSales, getSalesDashboard, getSalesSummary,
   createReturn, getReturns,
   lookupBarcode, orderLookup, getAllOutletsView,
   createPosProduct,
@@ -48,6 +48,8 @@ router.delete('/products/:productName/variants', authenticate, deleteProductVari
 router.post('/sales', authenticate, createSale);
 router.get('/sales', authenticate, getSales);
 router.get('/sales/dashboard', authenticate, getSalesDashboard);
+// Shared sales summary — single source of truth for POS History / Register / Excel export
+router.get('/sales-summary', authenticate, getSalesSummary);
 
 // Returns
 router.post('/returns', authenticate, createReturn);
