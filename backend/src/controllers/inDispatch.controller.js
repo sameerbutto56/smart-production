@@ -63,15 +63,30 @@ const getInDispatchOrders = async (req, res) => {
       try { JSON.parse(r.orderIds).forEach(id => assignedIds.add(id)); } catch (_) {}
     });
 
-    // Payment enrichment — link each order to its POS sale (orderId) + balance payments
-    // so the Dispatch Slip can show total / advance / paid / remaining / status / method.
+    // Payment enrichment — the Order Number is the primary link to the POS sale
+    // (falls back to the orderId FK for older sales). This is the exact data the
+    // Dispatch Slip shows, so it must always mirror the original POS transaction.
     const orderIds = orders.map(o => o.id);
+    const orderNumbers = orders.map(o => o.orderNumber).filter(Boolean);
     const linkedPos = await prisma.posSale.findMany({
-      where: { orderId: { in: orderIds } },
-      select: { id: true, orderId: true, grandTotal: true, advanceAmount: true, paymentMethod: true }
+      where: {
+        OR: [
+          { orderId: { in: orderIds } },
+          ...(orderNumbers.length ? [{ orderNumber: { in: orderNumbers } }] : [])
+        ]
+      },
+      select: {
+        id: true, orderId: true, orderNumber: true, receiptNumber: true,
+        grandTotal: true, advanceAmount: true, paymentMethod: true,
+        cashAmount: true, onlineAmount: true, createdAt: true
+      }
     });
-    const posMap = {};
-    linkedPos.forEach(ps => { if (ps.orderId) posMap[ps.orderId] = ps; });
+    const posById = {};
+    const posByNumber = {};
+    linkedPos.forEach(ps => {
+      if (ps.orderId) posById[ps.orderId] = ps;
+      if (ps.orderNumber) posByNumber[ps.orderNumber] = ps;
+    });
     const bpAgg = await prisma.posBalancePayment.groupBy({
       by: ['posSaleId'],
       where: { posSaleId: { in: linkedPos.map(p => p.id) } },
@@ -79,19 +94,42 @@ const getInDispatchOrders = async (req, res) => {
     });
     const bpMap = {};
     bpAgg.forEach(b => { bpMap[b.posSaleId] = Number(b._sum.amountPaidNow || 0); });
+    const refundAgg = await prisma.posReturn.groupBy({
+      by: ['saleId'],
+      where: { saleId: { in: linkedPos.map(p => p.id) } },
+      _sum: { refundAmount: true }
+    });
+    const refundMap = {};
+    refundAgg.forEach(r => { refundMap[r.saleId] = Number(r._sum.refundAmount || 0); });
 
     const items = orders.map(order => {
-      const ps = posMap[order.id] || null;
+      const ps = posById[order.id] || posByNumber[order.orderNumber] || null;
       const total = ps ? Number(ps.grandTotal || 0) : (Number(order.totalPrice || 0) + Number(order.deliveryCharges || 0));
       const advance = ps ? Number(ps.advanceAmount || 0) : Number(order.advanceAmount || 0);
-      const paid = advance + (ps ? (bpMap[ps.id] || 0) : 0);
+      const refunded = ps ? Number(refundMap[ps.id] || 0) : 0;
+      // Same convention as getSalesDashboard / getSales `_amountReceived`:
+      // a regular fully-paid-at-checkout sale (advance 0, no balance payments)
+      // has already collected the full grandTotal; advance/balance sales count
+      // only what was actually received so far.
+      const receivedAtCheckout = ps ? (advance > 0 ? Math.min(advance, total) : total) : advance;
+      const balanceCollected = ps ? Number(bpMap[ps.id] || 0) : 0;
+      const paid = Math.max(0, Math.round((receivedAtCheckout + balanceCollected - refunded) * 100) / 100);
       const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);
       const status = remaining <= 0.01 ? 'Paid' : (paid > 0 ? 'Partially Paid' : 'Unpaid');
       const method = paid > 0 ? (ps?.paymentMethod || order.paymentMethod || 'CASH') : 'COD';
       const inStage = (order.stages || []).find(s => s.stageName === 'IN_DISPATCH');
       return {
         ...order,
-        _payment: { total, advance, paid, remaining, status, method },
+        _payment: {
+          total, advance, paid, remaining, status, method,
+          receiptNumber: ps?.receiptNumber || null,
+          posDate: ps?.createdAt || null,
+          cashAmount: ps ? Number(ps.cashAmount || 0) : 0,
+          onlineAmount: ps ? Number(ps.onlineAmount || 0) : 0,
+          refunded,
+          linked: !!ps,
+          linkedBy: ps ? (ps.orderId === order.id ? 'orderId' : 'orderNumber') : null
+        },
         _dispatchDate: inStage?.startedAt || inStage?.createdAt || order.createdAt,
         _assignedToRoute: assignedIds.has(order.id)
       };

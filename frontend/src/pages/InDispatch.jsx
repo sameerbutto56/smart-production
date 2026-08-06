@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatDateOnly } from '../utils/dateTime';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 // Dedicated In Dispatch module — JOHAR TOWN outlet only.
 // Isolated from the existing Dispatch (dispatch officer) workflow.
@@ -187,108 +187,189 @@ const InDispatch = () => {
     return '#dc2626';
   };
 
-  // Print Dispatch Slip — hidden iframe to avoid popup blockers (same pattern as POS receipt).
-  // Payment info appears ONLY on this slip, never on the Production Job Sheet.
-  const printDispatchSlip = (order) => {
-    const pay = order._payment || {};
-    const rawProducts = Array.isArray(order.productDetails) && order.productDetails.length
-      ? order.productDetails
-      : (order.productDetails && typeof order.productDetails === 'object' ? [order.productDetails] : []);
-    const products = rawProducts.map(p => ({
-      name: p.name || p.productType || '—',
-      variant: p.variant || '',
-      color: p.color || '—',
-      size: p.size || '—',
-      qty: Number(p.quantity) || 1,
-      price: Number(p.unitPrice) || 0
-    }));
-    const productRows = products.map((p, i) => `
-      <tr>
-        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${i + 1}</td>
-        <td style="padding:4px 2px;vertical-align:top;">${esc(p.name)}${p.variant ? ` <span style="color:#555">(${esc(p.variant)})</span>` : ''}</td>
-        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${esc(p.color)}</td>
-        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${esc(p.size)}</td>
-        <td style="padding:4px 2px;text-align:center;vertical-align:top;">${p.qty}</td>
-        <td style="padding:4px 2px;text-align:right;vertical-align:top;">${fmtPkr(p.price * p.qty)}</td>
-      </tr>`).join('');
-    const productTotal = products.reduce((s, p) => s + (p.price * p.qty), 0);
+  const parseCustom = (v) => {
+    if (!v) return {};
+    if (typeof v === 'object') return v;
+    try { return JSON.parse(v); } catch { return {}; }
+  };
+  const parseJsonSafe = (v) => {
+    if (!v) return null;
+    if (typeof v === 'object') return v;
+    try { return JSON.parse(v); } catch { return null; }
+  };
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Dispatch Slip — ${esc(order.orderNumber || '')}</title>
+  // Flatten order.productDetails (array / single object / JSON string) into slip rows.
+  const slipProducts = (order) => {
+    let raw = [];
+    if (Array.isArray(order.productDetails)) raw = order.productDetails;
+    else if (typeof order.productDetails === 'string') raw = parseJsonSafe(order.productDetails) || [];
+    else if (order.productDetails && typeof order.productDetails === 'object') raw = [order.productDetails];
+    const orderSizeData = parseJsonSafe(order.sizeData) || {};
+    return raw.map((item, idx) => {
+      const p = (item && typeof item === 'object' && item.productDetails && typeof item.productDetails === 'object') ? item.productDetails : item;
+      if (!p || typeof p !== 'object') return null;
+      const cust = parseCustom(p.customization);
+      const pSizeData = (orderSizeData && typeof orderSizeData === 'object')
+        ? (orderSizeData[p.productType || p.name] || orderSizeData[idx] || {})
+        : (parseJsonSafe(p.sizeData) || {});
+      const measurements = Object.entries(pSizeData || {})
+        .filter(([k, v]) => v && k !== '_standardSize' && k !== 'specialNote')
+        .map(([k, v]) => `${k}: ${v}`);
+      const articleNames = Array.isArray(cust.articleNames)
+        ? cust.articleNames.filter(Boolean)
+        : (cust.nameSpelling ? [cust.nameSpelling] : []);
+      const logoLines = Array.isArray(cust.logos)
+        ? cust.logos.map(l => l && (l.name || l.design)).filter(Boolean)
+        : [];
+      return {
+        name: p.productType || p.name || p.product || '—',
+        variant: p.variant || '',
+        color: p.color || '—',
+        size: p.size || '—',
+        qty: Number(p.quantity) || 1,
+        unitPrice: Number(p.unitPrice) || 0,
+        lineTotal: Number(p.totalPrice) || (Number(p.unitPrice || 0) * (Number(p.quantity) || 1) + (Number(p.capCharges) || 0)),
+        fabric: p.fabricType || p.fabric || '',
+        gender: p.gender || '',
+        engravingType: cust.engravingType || '',
+        logoPlacement: cust.logoPlacement || p.logoPlacement || '',
+        nameColor: cust.nameColor || '',
+        articleNames,
+        logos: logoLines,
+        notes: p.specialNote || p.measurementSpecialNote || cust.designNotes || '',
+        measurements
+      };
+    }).filter(Boolean);
+  };
+
+  // Print Dispatch Slip — A4 professional layout mirroring the Dispatch Sheet
+  // (ENAMELS branding, customer box, product table, financial summary, officer).
+  // Payment info is auto-retrieved from the linked POS sale via the Order Number
+  // and appears ONLY on this slip, never on the Production Job Sheet.
+  const printDispatchSlip = async (order) => {
+    const pay = order._payment || {};
+    const products = slipProducts(order);
+    const productTotal = products.reduce((s, p) => s + (Number(p.lineTotal) || 0), 0);
+    const title = `Dispatch Slip — ${order.orderNumber || ''}`;
+    let logoUrl = window.location.origin + '/logo.png';
+    try { const r = await fetch(logoUrl); const b = await r.blob(); logoUrl = URL.createObjectURL(b); } catch {}
+
+    const productRows = products.map((p, i) => {
+      const detailParts = [
+        p.variant, p.fabric, p.gender ? `For ${p.gender}` : '',
+        p.engravingType ? `Logo/Engraving: ${p.engravingType}` : '',
+        p.logoPlacement ? `Placement: ${p.logoPlacement}` : ''
+      ].filter(Boolean);
+      const names = p.articleNames.length ? `Names: ${esc(p.articleNames.join(', '))}${p.nameColor ? ` (${esc(p.nameColor)})` : ''}` : '';
+      const logos = p.logos.length ? `Logos: ${esc(p.logos.join(', '))}` : '';
+      const notes = p.notes ? `Notes: ${esc(p.notes)}` : '';
+      const msr = p.measurements.length ? `Measurements: ${esc(p.measurements.join(' · '))}` : '';
+      const detail = [names, logos, ...detailParts, notes, msr].filter(Boolean).join('<br>');
+      return `<tr>
+        <td style="text-align:center;font-weight:700">${i + 1}</td>
+        <td style="font-weight:700">${esc(p.name)}</td>
+        <td style="text-align:center">${esc(p.color)}</td>
+        <td style="text-align:center">${esc(p.size)}</td>
+        <td style="text-align:center;font-weight:700">${p.qty}</td>
+        <td style="text-align:right">${fmtPkr(p.unitPrice)}</td>
+        <td style="text-align:right;font-weight:700">${fmtPkr(p.lineTotal)}</td>
+      </tr>${detail ? `<tr><td></td><td colspan="6" style="font-size:9px;color:#444;background:#fafafa;line-height:1.5">${detail}</td></tr>` : ''}`;
+    }).join('');
+
+    const payMethod = methodLabel(pay.method);
+    const statusBg = statusColor(pay.status);
+    const deliveryCharges = Number(order.deliveryCharges) || 0;
+    const showDelivery = deliveryCharges > 0;
+    const orderInfoRows = [
+      ['Order No.', esc(order.orderNumber || '—')],
+      ['Invoice No.', esc(order.invoiceNumber || '—')],
+      ['POS Reference', pay.receiptNumber ? esc(pay.receiptNumber) : (pay.linked ? '—' : '<em style="color:#b45309">Not linked</em>')],
+      ['Order Date', fmtDate(order.createdAt)],
+      ['Dispatch Date', fmtDate(order._dispatchDate)],
+      ['Order Type', esc((order.type || 'STANDARD').replace(/_/g, ' '))],
+      ['Priority', esc(order.urgent ? 'Urgent' : (order.priority === 'SUPER_URGENT' ? 'Super Urgent' : (order.priority === 'URGENT' ? 'Urgent' : 'Regular')))]
+    ].map(([k, v]) => `<tr><td style="width:40%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">${k}</td><td style="font-weight:700">${v}</td></tr>`).join('');
+
+    const financeRows = [
+      ['Products Subtotal', fmtPkr(productTotal)],
+      ...(showDelivery ? [['Delivery Charges', fmtPkr(deliveryCharges)]] : []),
+      ['Total Order Amount', fmtPkr(pay.total)],
+      ['Advance Payment', fmtPkr(pay.advance)],
+      ['Paid Amount', `<b>${fmtPkr(pay.paid)}</b>`],
+      ['Remaining Balance', `<span style="color:${statusBg};font-weight:900">${fmtPkr(pay.remaining)}</span>`],
+      ['Payment Method', esc(payMethod)],
+      ['Payment Status', `<span style="display:inline-block;padding:2px 10px;border-radius:3px;color:#fff;font-weight:900;font-size:10px;background:${statusBg}">${esc(pay.status)}</span>`]
+    ].map(([k, v]) => `<tr><td style="width:40%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">${k}</td><td style="font-weight:700">${v}</td></tr>`).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; width: 90mm; margin: 0 auto; padding: 10px 4px; color: #111; font-size: 11px; line-height: 1.4; }
-  .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 8px; }
-  .header h1 { margin: 0; font-size: 17px; letter-spacing: 2px; text-transform: uppercase; }
-  .header .sub { font-size: 10px; letter-spacing: 1px; margin-top: 2px; }
-  .section { margin-bottom: 9px; }
-  .section-title { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; background: #111; color: #fff; padding: 3px 6px; border-radius: 3px; margin-bottom: 5px; }
-  .row { display: flex; justify-content: space-between; padding: 1.5px 0; }
-  .row .lbl { color: #555; }
-  .row .val { font-weight: 700; text-align: right; }
-  table { width: 100%; border-collapse: collapse; }
-  th { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; background: #eee; padding: 3px 2px; border-bottom: 1px solid #111; }
-  td { border-bottom: 1px dotted #ccc; }
-  .pay-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; color: #fff; font-weight: 800; font-size: 10px; }
-  .totals { border-top: 2px solid #111; margin-top: 4px; padding-top: 4px; }
-  .totals .row .val { font-size: 12px; }
-  .footer { text-align: center; margin-top: 10px; border-top: 1px dashed #999; padding-top: 6px; font-size: 10px; letter-spacing: 1px; }
+  body { font-family: sans-serif; color: #000; padding: 6px; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+  th, td { padding: 3px 5px; border: 1px solid #000; text-align: left; }
+  th { background: #f3f4f6; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+  td { font-size: 11px; }
+  .brand-header { text-align: center; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 3px solid #000; }
+  .brand-header p { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin: 2px 0 0; }
+  .brand-header .sub { font-size: 9px; font-weight: 700; letter-spacing: 2px; margin: 0; color: #444; }
+  .officer { text-align: center; margin-bottom: 4px; }
+  .officer span { font-size: 13px; font-weight: 900; color: #1d4ed8; background: #dbeafe; display: inline-block; padding: 3px 12px; }
+  .order-title { text-align: center; margin-bottom: 4px; }
+  .order-title h2 { font-size: 18px; font-weight: 900; text-transform: uppercase; margin: 0; letter-spacing: 1px; }
+  .customer-box { border: 1.5px solid #000; padding: 5px 8px; margin-bottom: 4px; }
+  .customer-box .name { font-size: 14px; font-weight: 900; margin: 0 0 2px; }
+  .customer-box .phone { font-size: 12px; font-weight: 600; margin: 0 0 1px; }
+  .customer-box .addr { font-size: 11px; margin: 0 0 1px; }
+  .city-badge { font-size: 13px; font-weight: 900; background: #fef3c7; display: inline-block; padding: 2px 8px; margin-top: 2px; text-transform: uppercase; }
+  .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; margin: 6px 0 2px; padding-bottom: 2px; border-bottom: 2px solid #000; }
   .sig { display: flex; justify-content: space-between; margin-top: 14px; }
-  .sig div { text-align: center; width: 45%; border-top: 1px solid #111; padding-top: 3px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #555; }
+  .sig div { text-align: center; }
+  .sig .line { width: 150px; border-top: 1.5px solid #000; margin: 0 auto 2px; }
+  .sig span { font-size: 10px; font-weight: 700; }
+  .footer { text-align: center; margin-top: 10px; border-top: 1px dashed #999; padding-top: 5px; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #444; }
+  @media print { @page { margin: 6mm; } body { padding: 0; } }
 </style></head><body>
-  <div class="header">
-    <h1>Dispatch Slip</h1>
+  <div class="brand-header">
+    <img src="${logoUrl}" alt="ENAMELS" style="height:50px;margin-bottom:2px;">
+    <p>Dispatch Slip</p>
     <div class="sub">JOHAR TOWN OUTLET · IN DISPATCH</div>
-    <div class="sub" style="margin-top:2px;">Dispatch Date: ${fmtDate(new Date())}</div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Customer</div>
-    <div class="row"><span class="lbl">Name</span><span class="val">${esc(order.customerName)}</span></div>
-    <div class="row"><span class="lbl">Phone</span><span class="val">${esc(order.customerPhone)}</span></div>
-    <div class="row"><span class="lbl">Address</span><span class="val" style="text-align:right">${esc(order.address)}</span></div>
-    <div class="row"><span class="lbl">City</span><span class="val">${esc(order.city)}</span></div>
+  <div class="officer"><span>Dispatch Officer: Johar Town</span></div>
+
+  <div class="order-title"><h2>Order #${esc(order.orderNumber || order.id?.slice(0, 8))}</h2></div>
+
+  <div class="customer-box">
+    <p class="name">${esc(order.customerName || '—')}</p>
+    ${order.customerPhone ? `<p class="phone">${esc(order.customerPhone)}</p>` : ''}
+    ${order.address ? `<p class="addr">${esc(order.address)}</p>` : ''}
+    ${order.city ? `<span class="city-badge">City: ${esc(order.city)}</span>` : ''}
   </div>
 
-  <div class="section">
-    <div class="section-title">Order</div>
-    <div class="row"><span class="lbl">Order No.</span><span class="val">${esc(order.orderNumber)}</span></div>
-    <div class="row"><span class="lbl">Invoice No.</span><span class="val">${esc(order.invoiceNumber) || '—'}</span></div>
-    <div class="row"><span class="lbl">Order Date</span><span class="val">${fmtDate(order.createdAt)}</span></div>
-    <div class="row"><span class="lbl">Dispatch Date</span><span class="val">${fmtDate(order._dispatchDate)}</span></div>
-    <div class="row"><span class="lbl">Order Type</span><span class="val">${esc((order.type || 'STANDARD').replace(/_/g, ' '))}</span></div>
-    <div class="row"><span class="lbl">Priority</span><span class="val">${esc((order.urgent || order.priority === 'URGENT') ? 'Urgent' : (order.priority === 'SUPER_URGENT' ? 'Super Urgent' : (order.priority === 'URGENT' ? 'Urgent' : 'Regular')))}</span></div>
-  </div>
+  <div class="section-title">Order Information</div>
+  <table>${orderInfoRows}</table>
 
-  <div class="section">
-    <div class="section-title">Products (${products.length})</div>
-    <table>
-      <thead><tr><th>#</th><th style="text-align:left">Product</th><th>Color</th><th>Size</th><th>Qty</th><th style="text-align:right">Total</th></tr></thead>
-      <tbody>${productRows || '<tr><td colspan="6" style="text-align:center;padding:6px">No products</td></tr>'}</tbody>
-    </table>
-    <div class="row totals"><span class="lbl">Product Total</span><span class="val">${fmtPkr(productTotal)}</span></div>
-  </div>
+  <div class="section-title">Products (${products.length})</div>
+  ${products.length ? `<table>
+    <thead><tr><th style="text-align:center">#</th><th>Product</th><th style="text-align:center">Color</th><th style="text-align:center">Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>${productRows}</tbody>
+  </table>` : '<p style="color:#444">No products</p>'}
 
-  <div class="section">
-    <div class="section-title">Payment</div>
-    <div class="row"><span class="lbl">Total</span><span class="val">${fmtPkr(pay.total)}</span></div>
-    <div class="row"><span class="lbl">Advance</span><span class="val">${fmtPkr(pay.advance)}</span></div>
-    <div class="row"><span class="lbl">Paid</span><span class="val">${fmtPkr(pay.paid)}</span></div>
-    <div class="row"><span class="lbl">Remaining</span><span class="val">${fmtPkr(pay.remaining)}</span></div>
-    <div class="row"><span class="lbl">Status</span><span class="val"><span class="pay-badge" style="background:${statusColor(pay.status)}">${esc(pay.status)}</span></span></div>
-    <div class="row"><span class="lbl">Method</span><span class="val">${esc(methodLabel(pay.method))}</span></div>
-  </div>
+  <div class="section-title">Financial Summary</div>
+  <table>${financeRows}</table>
+  ${pay.linked ? '' : `<p style="font-size:9px;color:#b45309;margin:2px 0">No POS sale was linked to this Order Number — amounts shown are from the order record. Link the POS sale by using the same Order Number in the POS and in Outlet Order Entry.</p>`}
 
   <div class="sig">
-    <div>Prepared By</div>
-    <div>Received By</div>
+    <div><div class="line"></div><span>Dispatch Officer Signature</span></div>
+    <div><div class="line"></div><span>Receiver Signature</span></div>
   </div>
-  <div class="footer">JOHAR TOWN OUTLET · IN DISPATCH</div>
+  <div class="footer">ENAMELS · Johar Town Outlet · ${fmtDate(new Date())}</div>
 </body></html>`;
 
     const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
+    iframe.style.position = 'absolute';
+    iframe.style.left = '0';
+    iframe.style.top = '0';
     iframe.style.width = '0';
     iframe.style.height = '0';
     iframe.style.border = '0';
@@ -300,6 +381,10 @@ const InDispatch = () => {
     setTimeout(() => {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl);
+      }, 1000);
     }, 350);
   };
 
@@ -516,6 +601,21 @@ const InDispatch = () => {
                     {formatDateOnly(order.createdAt)}
                     {(order._payment?.total || order.totalPrice) > 0 && <span className="ml-auto font-bold text-white">₨{(order._payment?.total || order.totalPrice || 0).toLocaleString()}</span>}
                   </div>
+
+                  {order._payment && (
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                      <span className={order._payment.paid > 0 ? 'text-emerald-400 font-bold' : 'text-gray-500'}>Paid ₨{(order._payment.paid || 0).toLocaleString()}</span>
+                      <span className="text-gray-700">•</span>
+                      <span className={order._payment.remaining > 0.01 ? 'text-amber-400 font-bold' : 'text-gray-500'}>Balance ₨{(order._payment.remaining || 0).toLocaleString()}</span>
+                      {order._payment.linked && (
+                        <>
+                          <span className="text-gray-700">•</span>
+                          <span>{order._payment.receiptNumber}</span>
+                        </>
+                      )}
+                      {!order._payment.linked && <span className="text-red-400">• No POS link</span>}
+                    </div>
+                  )}
 
                   {!inRoute && (
                     <div className="space-y-2 pt-1 border-t border-gray-800">
