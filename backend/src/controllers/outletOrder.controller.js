@@ -1022,9 +1022,14 @@ const outletRouteOrder = async (req, res) => {
     });
 
     // Update order's currentStage
+    const orderUpdateData = { currentStage: destinationStage, status: 'PENDING' };
+    if (destinationStage === 'ENAMELS_DELIVERY') {
+      orderUpdateData.deliveryType = 'ENAMELS';
+      orderUpdateData.deliveryMethod = 'Enamels Delivery';
+    }
     await prisma.order.update({
       where: { id: orderId },
-      data: { currentStage: destinationStage, status: 'PENDING' }
+      data: orderUpdateData
     });
 
     // Find recipient users

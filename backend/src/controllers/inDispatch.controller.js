@@ -333,9 +333,14 @@ const routeOrder = async (req, res) => {
       data: { orderId: order.id, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
     });
 
+    const orderUpdateData = { currentStage: destinationStage, status: 'PENDING' };
+    if (destinationStage === 'ENAMELS_DELIVERY') {
+      orderUpdateData.deliveryType = 'ENAMELS';
+      orderUpdateData.deliveryMethod = 'Enamels Delivery';
+    }
     await prisma.order.update({
       where: { id: order.id },
-      data: { currentStage: destinationStage, status: 'PENDING' }
+      data: orderUpdateData
     });
 
     // Recipient users

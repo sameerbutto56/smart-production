@@ -776,6 +776,7 @@ const DeliveryDashboard = () => {
       return res.data.filter(o =>
         o.currentStage === 'OUT_FOR_DELIVERY' ||
         o.currentStage === 'DELIVERED' ||
+        o.currentStage === 'ENAMELS_DELIVERY' ||
         o.status === 'COMPLETED'
       );
     },

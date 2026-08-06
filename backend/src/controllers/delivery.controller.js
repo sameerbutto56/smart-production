@@ -27,9 +27,12 @@ const getDeliveryOrders = async (req, res) => {
     if (deliveryType) {
       const methodMap = { 'ENAMELS': 'Enamels Delivery', 'TCS': 'TCS', 'POST_EX': 'PostEx' };
       const methodStr = methodMap[deliveryType] || deliveryType;
-      where.AND = [
-        { OR: [{ deliveryType }, { deliveryMethod: methodStr }] }
-      ];
+      const deliveryOrs = [{ deliveryType }, { deliveryMethod: methodStr }];
+      // Orders routed from In Dispatch / outlet to ENAMELS_DELIVERY may not be
+      // tagged with deliveryType/deliveryMethod — match them by stage so the
+      // delivery boy sees them.
+      if (deliveryType === 'ENAMELS') deliveryOrs.push({ currentStage: 'ENAMELS_DELIVERY' });
+      where.AND = [{ OR: deliveryOrs }];
     }
     const dateFilter = parseDateRange(dateFrom, dateTo);
     if (dateFilter) where.createdAt = dateFilter;
