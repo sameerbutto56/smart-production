@@ -1136,7 +1136,8 @@ const getSalesDashboard = async (req, res) => {
     });
     const balanceOrders = balanceSales.map(ps => {
       const collected = (ps.balancePayments || []).reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
-      const paid = (ps.advanceAmount || 0) + collected;
+      const fullCheckout = (ps.advanceAmount === 0 && (ps.balancePayments || []).length === 0);
+      const paid = fullCheckout ? ps.grandTotal : (ps.advanceAmount || 0) + collected;
       const remaining = Math.max(0, ps.grandTotal - paid);
       return {
         id: ps.id,
