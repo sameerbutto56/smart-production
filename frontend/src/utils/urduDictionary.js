@@ -195,6 +195,7 @@ const urduDictionary = {
   'Crown Grey': 'کراؤن گرے',
   'Crown Navy': 'کراؤن نیوی',
   'Crown Olive': 'کراؤن اولیو',
+  Contrast: 'کانٹراسٹ',
   'CT-Scan': 'سی ٹی اسکین',
   'CT-Texture': 'سی ٹی ٹیکسچر',
   'CT-Testure': 'سی ٹی ٹیسچر',
@@ -358,6 +359,7 @@ const urduDictionary = {
   Turquoise: 'ٹرکواز',
 
   // U
+  Unstitch: 'اَن سٹچ',
   'Urologist Kidney': 'یورولوجسٹ کڈنی',
 
   // V

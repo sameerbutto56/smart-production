@@ -1557,7 +1557,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
       productNotes.forEach((pn) => {
         const noteDisplay = isUrdu ? romanToUrdu(pn.note) : pn.note;
-        const productNameDisplay = isUrdu ? romanToUrdu(pn.name) : pn.name;
+        const productNameDisplay = isUrdu ? pu(pn.name) : pn.name;
         win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-bottom:4px">`);
         win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:2px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote} — ${productNameDisplay}</p>`);
         win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
