@@ -31,7 +31,7 @@ const getOutletDetailed = async (req, res) => {
       prisma.posReturn.aggregate({ where: { outletName: outlet, createdAt: dateWhere }, _sum: { refundAmount: true }, _count: true }),
       prisma.posReturn.findMany({ where: { outletName: outlet, createdAt: dateWhere }, include: { sale: { select: { id: true, receiptNumber: true, customerName: true, paymentMethod: true, grandTotal: true, cashAmount: true, onlineAmount: true, items: { select: { productName: true, quantity: true, unitPrice: true, size: true, color: true } } } } }, orderBy: { createdAt: 'desc' } }),
       prisma.posSale.aggregate({ where: { outletName: outlet, createdAt: dateWhere, faisalTake: { not: true } }, _sum: { discountAmount: true } }),
-      prisma.posBalancePayment.findMany({ where: { posSale: { outletName: outlet, createdAt: dateWhere } }, select: { id: true, receiptNumber: true, originalInvoiceNumber: true, originalInvoiceTotal: true, previouslyPaidAmount: true, remainingBalanceBeforePayment: true, amountPaidNow: true, outstandingBalanceAfterPayment: true, paymentMethod: true, cashierName: true, paidAt: true, posSale: { select: { customerName: true, receiptNumber: true, grandTotal: true } } }, orderBy: { paidAt: 'desc' } }),
+      prisma.posBalancePayment.findMany({ where: { posSale: { outletName: outlet }, paidAt: dateWhere }, select: { id: true, receiptNumber: true, originalInvoiceNumber: true, originalInvoiceTotal: true, previouslyPaidAmount: true, remainingBalanceBeforePayment: true, amountPaidNow: true, outstandingBalanceAfterPayment: true, paymentMethod: true, cashierName: true, paidAt: true, posSale: { select: { customerName: true, receiptNumber: true, grandTotal: true } } }, orderBy: { paidAt: 'desc' } }),
       prisma.order.findMany({ where: { source: 'OUTLET', outletName: outlet, createdAt: dateWhere }, select: { id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true, priority: true, createdAt: true, deliveredAt: true, paymentStatus: true, productDetails: true, orderDestination: true, urgent: true, _count: { select: { stages: true } } }, orderBy: { createdAt: 'desc' } }),
       prisma.orderStage.findMany({ where: { order: { source: 'OUTLET', outletName: outlet } }, select: { stageName: true, status: true, startedAt: true, completedAt: true } }),
       prisma.client.findMany({ where: { outletName: outlet, isActive: true }, select: { id: true, clientNumber: true, name: true, phone: true, gender: true, city: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
@@ -68,7 +68,7 @@ const getOutletDetailed = async (req, res) => {
     const returnCount = returnsAgg.status === 'fulfilled' ? (returnsAgg.value._count || 0) : 0;
     const totalDiscount = discountAgg.status === 'fulfilled' ? (discountAgg.value._sum.discountAmount || 0) : 0;
     const totalSalesCount = salesAgg.status === 'fulfilled' ? (salesAgg.value._count || 0) : 0;
-    const netRevenue = totalSales - totalReturns;
+    const netRevenue = Math.max(0, totalSales - totalReturns);
 
     const paymentBreakdown = { CASH: { gross: 0, returns: 0, net: 0 }, CARD: { gross: 0, returns: 0, net: 0 }, ONLINE: { gross: 0, returns: 0, net: 0 }, CASH_ONLINE: { gross: 0, returns: 0, net: 0 } };
     nonFaisalSales.forEach(s => {
@@ -91,7 +91,7 @@ const getOutletDetailed = async (req, res) => {
       if (paymentBreakdown[method]) paymentBreakdown[method].returns += r.refundAmount || 0;
       else paymentBreakdown.CASH.returns += r.refundAmount || 0;
     });
-    Object.keys(paymentBreakdown).forEach(k => { paymentBreakdown[k].net = paymentBreakdown[k].gross - paymentBreakdown[k].returns; });
+    Object.keys(paymentBreakdown).forEach(k => { paymentBreakdown[k].net = Math.max(0, paymentBreakdown[k].gross - paymentBreakdown[k].returns); });
 
     const totalRefunds = Object.values(paymentBreakdown).reduce((s, m) => s + m.returns, 0);
 
@@ -120,6 +120,12 @@ const getOutletDetailed = async (req, res) => {
       if (!salesByDay[day]) salesByDay[day] = { date: day, label: day, sales: 0, count: 0 };
       salesByDay[day].sales += saleRevenue(s);
       salesByDay[day].count += 1;
+    });
+    safeBalancePayments.forEach(bp => {
+      if (!bp.paidAt) return;
+      const day = new Date(bp.paidAt).toISOString().split('T')[0];
+      if (!salesByDay[day]) salesByDay[day] = { date: day, label: day, sales: 0, count: 0 };
+      salesByDay[day].sales += bp.amountPaidNow || 0;
     });
     const salesTrend = Object.values(salesByDay).sort((a, b) => a.date.localeCompare(b.date));
 

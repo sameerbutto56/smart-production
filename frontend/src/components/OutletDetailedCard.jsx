@@ -707,7 +707,7 @@ const OutletDetailedCard = ({ outlet }) => {
             </div>
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
               <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Sales</p>
-              <p className="text-emerald-400 font-black text-xl">{fmt(nonFaisalSales.reduce((s, inv) => s + saleRevenue(inv), 0))}</p>
+              <p className="text-emerald-400 font-black text-xl">{fmt(summary.totalSales)}</p>
             </div>
           </div>
 

@@ -922,11 +922,13 @@ const getSalesDashboard = async (req, res) => {
       take: 500,
       select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true, orderNumber: true, cashierName: true, cashAmount: true, onlineAmount: true }
     });
-    const saleIds = allSales.map(s => s.id);
-    const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
-      where: { posSaleId: { in: saleIds } },
-      select: { posSaleId: true, amountPaidNow: true, paidAt: true, paymentMethod: true, cashAmount: true, onlineAmount: true }
-    }) : [];
+    const balancePayments = await prisma.posBalancePayment.findMany({
+      where: {
+        ...(outlet ? { posSale: { outletName: outlet } } : {}),
+        ...(startLimit || endLimit ? { paidAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {})
+      },
+      select: { posSaleId: true, amountPaidNow: true, paidAt: true, paymentMethod: true, cashAmount: true, onlineAmount: true, posSale: { select: { outletName: true } } }
+    });
 
     // Calculate total sales by actual payment dates
     // Regular sales (no orderId): full grandTotal counted on sale date
@@ -942,7 +944,7 @@ const getSalesDashboard = async (req, res) => {
     const totalOrders = salesAgg._count || 0;
     const totalReturns = returnsAgg._count || 0;
     const refundAmount = returnsAgg._sum.refundAmount || 0;
-    const netRevenue = totalSales - refundAmount;
+    const netRevenue = Math.max(0, totalSales - refundAmount);
     const totalDiscount = discountAgg._sum.discountAmount || 0;
 
     // Payment method breakdown — by actual payment received (not invoice total)
@@ -1101,7 +1103,13 @@ const getSalesDashboard = async (req, res) => {
       const branches = ['Johar Town', 'Jail Road', 'Abbottabad'];
       for (const b of branches) {
         const bSales = allSales.filter(s => s.outletName && s.outletName.toLowerCase().includes(b.toLowerCase()));
-        const revenue = bSales.reduce((sum, s) => sum + s.grandTotal, 0);
+        let revenue = bSales.reduce((sum, s) => sum + saleRevenue(s), 0);
+        balancePayments.forEach(bp => {
+          const ownerOutlet = bp.posSale?.outletName;
+          if (ownerOutlet && ownerOutlet.toLowerCase().includes(b.toLowerCase())) {
+            revenue += bp.amountPaidNow || 0;
+          }
+        });
         const orders = bSales.length;
         branchPerformance.push({ branch: b, revenue, orders });
       }
@@ -1120,22 +1128,29 @@ const getSalesDashboard = async (req, res) => {
       where: { ...whereClause, orderId: { not: null } },
       select: {
         id: true, receiptNumber: true, grandTotal: true, advanceAmount: true,
-        customerName: true, paymentMethod: true, createdAt: true, orderId: true
+        customerName: true, paymentMethod: true, createdAt: true, orderId: true,
+        balancePayments: { select: { amountPaidNow: true } }
       },
       orderBy: { createdAt: 'desc' },
       take: 20
     });
-    const balanceOrders = balanceSales.map(ps => ({
-      id: ps.id,
-      receiptNumber: ps.receiptNumber,
-      customerName: ps.customerName,
-      paid: ps.grandTotal,
-      advanceAmount: ps.advanceAmount,
-      totalWithAdvance: ps.grandTotal + ps.advanceAmount,
-      paymentMethod: ps.paymentMethod,
-      createdAt: ps.createdAt,
-      orderId: ps.orderId
-    }));
+    const balanceOrders = balanceSales.map(ps => {
+      const collected = (ps.balancePayments || []).reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
+      const paid = (ps.advanceAmount || 0) + collected;
+      const remaining = Math.max(0, ps.grandTotal - paid);
+      return {
+        id: ps.id,
+        receiptNumber: ps.receiptNumber,
+        customerName: ps.customerName,
+        paid,
+        advanceAmount: ps.advanceAmount,
+        totalWithAdvance: ps.grandTotal,
+        remaining,
+        paymentMethod: ps.paymentMethod,
+        createdAt: ps.createdAt,
+        orderId: ps.orderId
+      };
+    });
 
     // 8. Faisal Takes — products taken by Faisal (not sales)
     const faisalTakes = await prisma.posSale.findMany({
