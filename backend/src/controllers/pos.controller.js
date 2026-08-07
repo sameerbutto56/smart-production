@@ -1125,10 +1125,10 @@ const getSalesDashboard = async (req, res) => {
 
     // 7. Balance orders — POS sales linked to orders with advance
     const balanceSales = await prisma.posSale.findMany({
-      where: { ...whereClause, orderId: { not: null } },
+      where: { ...whereClause, OR: [{ orderId: { not: null } }, { orderNumber: { not: null } }] },
       select: {
         id: true, receiptNumber: true, grandTotal: true, advanceAmount: true,
-        customerName: true, paymentMethod: true, createdAt: true, orderId: true,
+        customerName: true, paymentMethod: true, createdAt: true, orderId: true, orderNumber: true,
         balancePayments: { select: { amountPaidNow: true } }
       },
       orderBy: { createdAt: 'desc' },
@@ -1148,7 +1148,8 @@ const getSalesDashboard = async (req, res) => {
         remaining,
         paymentMethod: ps.paymentMethod,
         createdAt: ps.createdAt,
-        orderId: ps.orderId
+        orderId: ps.orderId,
+        orderNumber: ps.orderNumber
       };
     });
 
