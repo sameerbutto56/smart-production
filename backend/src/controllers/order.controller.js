@@ -1631,51 +1631,69 @@ const bulkRouteOrders = async (req, res) => {
 const deductInventoryItems = async (order, userId, itemList) => {
   if (!order || !itemList?.length) return;
 
-  const operations = [];
-
+  // Group all deductions per inventory item so multiple order items that map to
+  // the SAME inventory item (same product, different colors/sizes, e.g. 2x BunFit
+  // Cap in Navy Palm + Floral) are applied against one evolving variants array.
+  // Previously each item re-derived variants from the same stale snapshot, so the
+  // later $transaction UPDATE overwrote the earlier one and only one product ever
+  // got deducted.
+  const byItem = new Map();
   for (const prod of itemList) {
     const inventoryItem = prod.inventoryItem;
     if (!inventoryItem) continue;
+    if (!byItem.has(inventoryItem.id)) {
+      byItem.set(inventoryItem.id, { inventoryItem, deductions: [] });
+    }
+    byItem.get(inventoryItem.id).deductions.push({
+      color: prod.color,
+      size: prod.size,
+      qty: prod.quantity || 1
+    });
+  }
 
-    const deductQty = prod.quantity || 1;
-    let variantLabel = '';
+  const operations = [];
+  const auditedItems = [];
 
+  for (const { inventoryItem, deductions } of byItem.values()) {
     if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
       let updatedVariants = [...inventoryItem.variants];
-      let deducted = 0;
+      let anyDeducted = false;
 
-      if (prod.color || prod.size) {
-        const matchIdx = updatedVariants.findIndex(v =>
-          (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
-          (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
-        );
-        if (matchIdx >= 0) {
-          const available = updatedVariants[matchIdx].stock || 0;
-          if (available >= deductQty) {
-            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
-            variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
-            deducted = deductQty;
-          }
+      for (const d of deductions) {
+        let matchIdx = -1;
+        if (d.color || d.size) {
+          matchIdx = updatedVariants.findIndex(v =>
+            (!d.color || (v.color && v.color.toLowerCase() === d.color.toLowerCase())) &&
+            (!d.size || (v.size && v.size.toLowerCase() === d.size.toLowerCase()))
+          );
         }
+        if (matchIdx < 0) continue;
+        const available = updatedVariants[matchIdx].stock || 0;
+        if (available < d.qty) continue;
+        updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - d.qty };
+        anyDeducted = true;
       }
 
-      if (deducted <= 0) continue;
-
-      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
-      operations.push(
-        prisma.inventoryItem.update({
-          where: { id: inventoryItem.id },
-          data: { variants: updatedVariants, stock: newTotalStock }
-        })
-      );
+      if (anyDeducted) {
+        const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+        operations.push(
+          prisma.inventoryItem.update({
+            where: { id: inventoryItem.id },
+            data: { variants: updatedVariants, stock: newTotalStock }
+          })
+        );
+        auditedItems.push({ inventoryItem, qty: deductions.reduce((s, d) => s + d.qty, 0) });
+      }
     } else {
-      const actualDeduct = Math.min(deductQty, inventoryItem.stock);
+      const totalQty = deductions.reduce((s, d) => s + d.qty, 0);
+      const actualDeduct = Math.min(totalQty, inventoryItem.stock);
       operations.push(
         prisma.inventoryItem.update({
           where: { id: inventoryItem.id },
           data: { stock: { decrement: actualDeduct } }
         })
       );
+      auditedItems.push({ inventoryItem, qty: actualDeduct });
     }
   }
 
@@ -1683,13 +1701,9 @@ const deductInventoryItems = async (order, userId, itemList) => {
 
   await prisma.$transaction(operations);
 
-  const auditLogs = itemList.map(prod => {
-    const inventoryItem = prod.inventoryItem;
-    if (!inventoryItem) return null;
-    const deductQty = prod.quantity || 1;
-    return createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId);
-  }).filter(Boolean);
-
+  const auditLogs = auditedItems.map(({ inventoryItem, qty }) =>
+    createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${qty} unit(s) of ${inventoryItem.name} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId)
+  );
   await Promise.all(auditLogs);
 };
 

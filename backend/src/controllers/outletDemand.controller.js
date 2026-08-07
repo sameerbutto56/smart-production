@@ -155,10 +155,15 @@ const approveDemandRequest = async (req, res) => {
           deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
         }
       }
-      // Force inventory-dependent caches to rebuild immediately
-      cache.delPattern('pos:').catch(() => {});
-      cache.delPattern('warehouse:').catch(() => {});
-      cache.delPattern('products:').catch(() => {});
+      // Force inventory-dependent caches to rebuild immediately.
+      // NOTE: delPattern is synchronous — no .catch() on it (would throw TypeError).
+      try {
+        cache.delPattern('pos:');
+        cache.delPattern('warehouse:');
+        cache.delPattern('products:');
+      } catch (cacheErr) {
+        console.error('Cache invalidation error after demand approval:', cacheErr);
+      }
     }
 
     await prisma.auditLog.create({
