@@ -203,4 +203,54 @@ const calculateAndRecordRevenue = async (order) => {
   }
 };
 
-module.exports = { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue };
+// When a replacement order (source: REPLACEMENT, linked via replacementCaseId) completes its
+// pipeline, auto-sync the ReturnExchange case so its status follows the actual order outcome.
+// Idempotent — no-op if the case was already marked completed.
+const syncReplacementCaseOnOrderCompletion = async (order) => {
+  try {
+    if (!order || !order.replacementCaseId) return { synced: false, reason: 'not-replacement' };
+    const fresh = await prisma.order.findUnique({
+      where: { id: order.id },
+      select: { status: true, currentStage: true, deliveredAt: true, orderNumber: true }
+    });
+    const isComplete = fresh && (
+      fresh.status === 'COMPLETED' ||
+      fresh.currentStage === 'DELIVERED' ||
+      fresh.deliveredAt
+    );
+    if (!isComplete) return { synced: false, reason: 'not-complete' };
+
+    const record = await prisma.returnExchange.findUnique({ where: { id: order.replacementCaseId } });
+    if (!record) return { synced: false, reason: 'case-not-found' };
+    if (record.replacementCompleted) return { synced: true, caseId: record.id, skipped: 'already-completed' };
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      await tx.returnExchange.update({
+        where: { id: record.id },
+        data: {
+          status: 'REPLACEMENT_COMPLETED',
+          replacementCompleted: true,
+          replacementCompletedAt: now,
+          replacementCompletedBy: 'System (replacement order completed)'
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'REPLACEMENT_STATUS_UPDATED',
+          details: `Replacement order ${fresh?.orderNumber || order.orderNumber || ''} completed its pipeline — case auto-marked REPLACEMENT_COMPLETED.`,
+          performedBy: 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id: record.id } });
+    });
+
+    return { synced: true, caseId: record.id, updated };
+  } catch (err) {
+    console.error('Replacement case auto-sync error:', err);
+    return { synced: false, reason: 'error', error: err.message };
+  }
+};
+
+module.exports = { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion };

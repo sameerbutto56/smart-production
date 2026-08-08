@@ -654,6 +654,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   }`}>
                     {order.type}
                   </span>
+                  {order.source === 'REPLACEMENT' && (
+                    <span className="bg-blue-500 text-white text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
+                      <RotateCcw size={8} /> REPLACEMENT
+                    </span>
+                  )}
                   {order.deliveryMethod && (
                     <span className="bg-emerald-600 text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
                        <Truck size={7} /> {order.deliveryMethod.replace(/_/g, ' ')}

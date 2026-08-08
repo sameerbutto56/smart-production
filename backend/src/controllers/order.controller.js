@@ -1,6 +1,6 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
-const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue } = require('./order-helpers');
+const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const notify = require('../utils/notify');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
@@ -915,7 +915,10 @@ const requestStageCompletion = async (req, res) => {
       });
       await createAuditLog(orderId, 'ORDER_COMPLETED', `Order fully completed after final delivery stage.`, req.user.id);
       const completedOrder = await prisma.order.findUnique({ where: { id: orderId } });
-      if (completedOrder) await calculateAndRecordRevenue(completedOrder);
+      if (completedOrder) {
+        await calculateAndRecordRevenue(completedOrder);
+        await syncReplacementCaseOnOrderCompletion(completedOrder);
+      }
     }
     
     const io = req.app.get('io');
@@ -1058,7 +1061,10 @@ const approveStageCompletion = async (req, res) => {
       });
       // Record revenue on completion
       const completedOrder = await prisma.order.findUnique({ where: { id: orderId } });
-      if (completedOrder) await calculateAndRecordRevenue(completedOrder);
+      if (completedOrder) {
+        await calculateAndRecordRevenue(completedOrder);
+        await syncReplacementCaseOnOrderCompletion(completedOrder);
+      }
     }
 
     await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} processed. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Order completed.'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}${deliveryMethod ? ` | Delivery: ${deliveryMethod}` : ''}`, req.user.id);

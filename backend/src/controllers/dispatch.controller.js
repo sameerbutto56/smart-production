@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const notify = require('../utils/notify');
+const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 
 const createAuditLog = async (orderId, action, details, userId) => {
   try {
@@ -349,6 +350,7 @@ const markPickedUp = async (req, res) => {
     });
 
     await createAuditLog(orderId, 'PICKED_UP', `Order picked up by customer. Marked by: ${req.user.name}`, req.user.id);
+    await syncReplacementCaseOnOrderCompletion(order);
 
     const io = req.app?.get('io');
     if (io) {

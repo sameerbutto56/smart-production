@@ -1,7 +1,7 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const cache = require('../utils/cache');
-const { createAuditLog } = require('./order-helpers');
+const { createAuditLog, syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const { generateBalanceReceiptNumber } = require('./pos.controller');
 
 // Dedicated In Dispatch module — JOHAR TOWN outlet only.
@@ -352,6 +352,7 @@ const routeOrder = async (req, res) => {
       await createAuditLog(order.id, 'CUSTOMER_TAKEN',
         `Customer taken from In Dispatch by ${outletName}`,
         req.user?.id || 'SYSTEM');
+      await syncReplacementCaseOnOrderCompletion(order);
 
       await prisma.routingHistory.create({
         data: {

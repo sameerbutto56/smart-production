@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
+const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 
 const parseDateRange = (dateFrom, dateTo) => {
   const dateFilter = {};
@@ -114,6 +115,7 @@ const deliverOrder = async (req, res) => {
     else if (paymentMethod === 'MULTIPLE_ONLINE') updateData.paymentMethod = 'MULTIPLE_ONLINE';
 
     await prisma.order.update({ where: { id: orderId }, data: updateData });
+    await syncReplacementCaseOnOrderCompletion(order);
 
     // Complete OUT_FOR_DELIVERY stage if exists
     const stage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status !== 'COMPLETED');

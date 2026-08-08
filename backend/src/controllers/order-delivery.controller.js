@@ -2,7 +2,7 @@ const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const {
   isSystemPaused, createAuditLog, calculateAndRecordRevenue,
-  reverseInventoryForRefund
+  reverseInventoryForRefund, syncReplacementCaseOnOrderCompletion
 } = require('./order-helpers');
 const { asyncHandler, AppError } = require('../middleware/error.middleware');
 
@@ -56,6 +56,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
     const updatedOrder = await prisma.order.update({ where: { id: orderId }, data: updateData, include: { stages: true } });
     await prisma.deliveryAttempt.create({ data: { orderId, attemptNumber: (order.noResponseCount || 0) + 1, status: 'DELIVERED', riderId: userId, riderName, notes: remarks || 'Order delivered successfully' } });
     await calculateAndRecordRevenue(updatedOrder);
+    await syncReplacementCaseOnOrderCompletion(updatedOrder);
     await createAuditLog(orderId, 'DELIVERED', remarks || 'Order delivered', userId);
     const io = req.app.get('io');
     io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
