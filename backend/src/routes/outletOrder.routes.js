@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth.middleware');
-const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction } = require('../controllers/outletOrder.controller');
+const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee } = require('../controllers/outletOrder.controller');
 
 router.post('/', authenticate, createOutletOrder);
 router.get('/generate-number', authenticate, generateOrderNumberEndpoint);
 router.get('/generate-invoice-number', authenticate, generateInvoiceNumberEndpoint);
+router.get('/employees', authenticate, getOutletEmployees);
+router.post('/verify-employee', authenticate, verifyOutletEmployee);
 router.get('/track/:query', authenticate, trackOrder);
 router.get('/lookup', authenticate, lookupClientByNumber);
 router.post('/save-client', authenticate, saveUnregisteredClient);

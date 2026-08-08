@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store } from 'lucide-react';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock } from 'lucide-react';
 import { formatDateOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 
@@ -63,6 +63,68 @@ const OutletOrderEntry = () => {
   const outletName = user?.name || 'Outlet';
   const [searchParams] = useSearchParams();
   const prefilledOrderNumber = searchParams.get('orderNumber') || '';
+
+  const employeeOutlet = (() => {
+    const n = (user?.name || '').toLowerCase();
+    if (n.includes('jail')) return 'Jail Road';
+    if (n.includes('abbottabad')) return 'Abbottabad';
+    return 'Johar Town';
+  })();
+
+  // ── Employee login ──
+  const [employee, setEmployee] = useState(() => {
+    try { const s = sessionStorage.getItem('outlet_employee'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [employeeList, setEmployeeList] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
+  const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
+  const [employeePassword, setEmployeePassword] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    setEmployeesLoading(true);
+    api.get(`/api/outlet-orders/employees?outlet=${encodeURIComponent(employeeOutlet)}`)
+      .then(res => { if (mounted) setEmployeeList(res.data?.employees || []); })
+      .catch(() => { if (mounted) setEmployeeList([]); })
+      .finally(() => { if (mounted) setEmployeesLoading(false); });
+    return () => { mounted = false; };
+  }, [employeeOutlet]);
+
+  const handleEmployeeLogin = useCallback(async () => {
+    if (!selectedEmployeeName.trim()) return setLoginError('Select your employee name');
+    if (!employeePassword) return setLoginError('Enter your password');
+    setLoggingIn(true);
+    setLoginError('');
+    try {
+      const res = await api.post('/api/outlet-orders/verify-employee', {
+        name: selectedEmployeeName,
+        password: employeePassword,
+        outlet: employeeOutlet
+      });
+      if (res.data?.ok) {
+        const emp = res.data.employee;
+        setEmployee(emp);
+        try { sessionStorage.setItem('outlet_employee', JSON.stringify(emp)); } catch {}
+        setEmployeePassword('');
+        toast.success(`Logged in as ${emp.name}`);
+      } else {
+        setLoginError(res.data?.message || 'Login failed');
+      }
+    } catch (err) {
+      setLoginError(err.response?.data?.message || 'Login failed');
+    }
+    setLoggingIn(false);
+  }, [selectedEmployeeName, employeePassword, employeeOutlet]);
+
+  const handleEmployeeLogout = useCallback(() => {
+    setEmployee(null);
+    setSelectedEmployeeName('');
+    setEmployeePassword('');
+    setLoginError('');
+    try { sessionStorage.removeItem('outlet_employee'); } catch {}
+  }, []);
 
   const [step, setStep] = useState(0);
 
@@ -383,7 +445,9 @@ const OutletOrderEntry = () => {
         standardSize: sizingMode === 'standard' ? selectedStandardSize : null,
         measurementChart: sizingMode === 'custom' ? 'Custom Measurements' : (selectedStandardSize || null),
         advanceAmount: advance,
-        placedBy: user?.name || user?.id || null,
+        placedBy: employee?.name || user?.name || user?.id || null,
+        placedByEmployeeId: employee?.id || null,
+        placedByEmployeeName: employee?.name || null,
         priority,
         deliveryType
       };
@@ -459,6 +523,65 @@ const OutletOrderEntry = () => {
     );
   }
 
+  if (!employee) {
+    return (
+      <div className="max-w-md mx-auto space-y-6 pb-20 px-4 mt-6">
+        <div className="flex items-center gap-4 justify-center">
+          <div className="p-3 bg-amber-600 rounded-2xl"><Lock className="text-white" size={24} /></div>
+          <div>
+            <h1 className="text-2xl font-black text-white">Outlet Order Entry</h1>
+            <p className="text-sm font-bold text-gray-400">{employeeOutlet}</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 space-y-4">
+          <div className="text-center space-y-1">
+            <h2 className="text-lg font-black text-white flex items-center justify-center gap-2"><UserCheck size={18} />Employee Login</h2>
+            <p className="text-xs font-bold text-gray-500">Authenticate to begin creating orders</p>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-gray-400 block mb-1">Employee Name</label>
+            <select
+              value={selectedEmployeeName}
+              onChange={e => { setSelectedEmployeeName(e.target.value); setLoginError(''); }}
+              disabled={employeesLoading}
+              className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-amber-500 outline-none appearance-none disabled:opacity-50">
+              <option value="">{employeesLoading ? 'Loading employees...' : 'Select employee'}</option>
+              {employeeList.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
+            </select>
+            {!employeesLoading && employeeList.length === 0 && (
+              <p className="text-[11px] font-bold text-red-400 mt-1">No active employees found for {employeeOutlet}. Contact Admin.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-gray-400 block mb-1">Password</label>
+            <input
+              type="password"
+              value={employeePassword}
+              onChange={e => { setEmployeePassword(e.target.value); setLoginError(''); }}
+              onKeyDown={e => { if (e.key === 'Enter') handleEmployeeLogin(); }}
+              placeholder="Enter employee password"
+              className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none" />
+          </div>
+
+          {loginError && (
+            <div className="bg-red-900/20 border border-red-700 rounded-xl px-4 py-3 flex items-start gap-2">
+              <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
+              <p className="text-xs font-bold text-red-400">{loginError}</p>
+            </div>
+          )}
+
+          <button onClick={handleEmployeeLogin} disabled={loggingIn || employeesLoading}
+            className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+            {loggingIn ? 'Verifying...' : 'Login & Start Order'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20 px-4">
       <div className="flex items-center gap-4">
@@ -466,6 +589,13 @@ const OutletOrderEntry = () => {
         <div>
           <h1 className="text-2xl font-black text-white">Outlet Order Entry</h1>
           <p className="text-sm font-bold text-gray-400">{outletName}</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2 bg-emerald-700/30 border border-emerald-600 rounded-xl px-3 py-2">
+          <UserCheck size={15} className="text-emerald-400" />
+          <span className="text-xs font-black text-emerald-300">{employee?.name}</span>
+          <button onClick={handleEmployeeLogout} title="Logout employee" className="text-gray-400 hover:text-red-400 ml-1 cursor-pointer">
+            <LogOut size={14} />
+          </button>
         </div>
       </div>
 

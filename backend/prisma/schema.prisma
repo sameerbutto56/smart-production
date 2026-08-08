@@ -110,9 +110,10 @@ model Order {
   productionCost   Float?     @default(0)
   grossProfit      Float?     @default(0)
    netProfit        Float?     @default(0)
-   customerTakenAt  DateTime?
-    orderTakenBy     String?
-    placedBy         String?
+    customerTakenAt  DateTime?
+     orderTakenBy     String?
+     placedBy         String?
+     placedByEmployeeId String?   // OutletEmployee id who entered the order
     productVerification Json?   // { "0": true, "2": true } — product indices marked as verified in Store
     // Order verification fields
     goForVerification    Boolean   @default(false)

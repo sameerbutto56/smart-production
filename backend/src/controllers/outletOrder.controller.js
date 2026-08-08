@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const notify = require('../utils/notify');
+const bcrypt = require('bcryptjs');
 const { createAuditLog } = require('./order-helpers');
 
 const getOutletName = (req) => {
@@ -38,12 +39,34 @@ const generateInvoiceNumber = async (outletName) => {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement, deliveryType } = req.body;
+    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement, deliveryType, placedByEmployeeId, placedByEmployeeName } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
+
+    // Resolve authenticated employee (server-side, tied to this outlet)
+    let resolvedEmployee = null;
+    const empIdInput = (placedByEmployeeId || '').toString().trim();
+    const empNameInput = (placedByEmployeeName || placedBy || '').toString().trim();
+    if (empIdInput || empNameInput) {
+      try {
+        resolvedEmployee = await prisma.outletEmployee.findFirst({
+          where: {
+            outletName,
+            isActive: true,
+            OR: [
+              ...(empIdInput ? [{ id: empIdInput }] : []),
+              ...(empNameInput ? [{ name: empNameInput }] : [])
+            ]
+          },
+          select: { id: true, name: true }
+        });
+      } catch (empErr) {
+        console.error('Outlet employee resolve failed:', empErr.message);
+      }
+    }
 
     // Auto-generate order number if not provided
     let orderNumber;
@@ -131,7 +154,8 @@ const createOutletOrder = async (req, res) => {
           engravingNames: engravingNames ? (typeof engravingNames === 'string' ? engravingNames : JSON.stringify(engravingNames)) : null,
           engravingLogos: engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null,
           orderDestination: orderDestination || null,
-          placedBy: placedBy || null,
+          placedBy: resolvedEmployee?.name || placedBy || null,
+          placedByEmployeeId: resolvedEmployee?.id || null,
           deliveryType: deliveryType || 'DELIVERY',
           advanceAmount: adv,
           totalPrice,
@@ -149,7 +173,7 @@ const createOutletOrder = async (req, res) => {
         data: {
           orderId: created.id,
           action: 'OUTLET_ORDER_CREATED',
-          details: `Outlet order created, pending acceptance at ${outletName}`,
+          details: `Outlet order created, pending acceptance at ${outletName}${resolvedEmployee ? ` — entered by ${resolvedEmployee.name}` : ''}`,
           performedBy: req.user?.id || 'SYSTEM'
         }
       });
@@ -1186,4 +1210,49 @@ const getComeFromProduction = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction };
+const getOutletEmployees = async (req, res) => {
+  try {
+    const outlet = req.query.outlet || getOutletName(req) || 'Johar Town';
+    const emps = await prisma.outletEmployee.findMany({
+      where: { outletName: outlet, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json({ employees: emps.map(e => ({ id: e.id, name: e.name })) });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch employees', error: error.message });
+  }
+};
+
+const verifyOutletEmployee = async (req, res) => {
+  try {
+    const { name, password, outlet } = req.body || {};
+    const outletName = outlet || getOutletName(req) || 'Johar Town';
+    const empName = (name || '').toString().trim();
+    const empPass = (password || '').toString();
+
+    if (!empName) return res.status(400).json({ message: 'Employee name is required' });
+    if (!empPass) return res.status(400).json({ message: 'Password is required' });
+
+    const employee = await prisma.outletEmployee.findFirst({
+      where: { name: empName, outletName }
+    });
+
+    if (!employee) {
+      return res.status(401).json({ message: `No employee "${empName}" found at ${outletName}` });
+    }
+    if (!employee.isActive) {
+      return res.status(403).json({ message: `Employee "${empName}" is not active. Contact Admin.` });
+    }
+    const match = await bcrypt.compare(empPass, employee.password);
+    if (!match) {
+      return res.status(401).json({ message: 'Incorrect password. Please try again.' });
+    }
+
+    res.json({ ok: true, employee: { id: employee.id, name: employee.name, outletName: employee.outletName } });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to verify employee', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee };
