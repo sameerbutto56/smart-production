@@ -54,6 +54,8 @@ const NotificationHistory = lazy(() => import('./pages/NotificationHistory'));
 const CEODashboard = lazy(() => import('./pages/CEODashboard'));
 const WarehouseAudit = lazy(() => import('./components/WarehouseAudit'));
 const AuditReview = lazy(() => import('./pages/AuditReview'));
+const StoreReturns = lazy(() => import('./pages/StoreReturns'));
+const FaisalReplacements = lazy(() => import('./pages/FaisalReplacements'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -165,6 +167,8 @@ function App() {
                   <Route path="ceo-dashboard" element={<CEODashboard />} />
                   <Route path="audit" element={<WarehouseAudit />} />
                   <Route path="audit-review" element={<AuditReview />} />
+                  <Route path="returns" element={<StoreReturns />} />
+                  <Route path="replacements" element={<FaisalReplacements />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

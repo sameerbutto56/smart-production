@@ -827,8 +827,10 @@ model ReturnExchange {
   customerName     String?
   customerPhone    String?
   type             String   // RETURN, REPLACEMENT, NO_RESPONSE
-  status           String   @default("PENDING") // PENDING, WAREHOUSE_APPROVED, WAREHOUSE_REJECTED, DISPATCH_READY, COMPLETED, CANCELLED
+  status           String   @default("PENDING") // PENDING, FAISAL_APPROVED, DISPATCH_READY, COMPLETED, IN_PRODUCTION, CANCELLED, WAREHOUSE_REJECTED
+  routedTo         String   @default("STORE") // STORE, FAISAL — where the case currently sits
   returnReason     String?
+  specialNote      String?  // mandatory for REPLACEMENT — goes to Faisal
   originalProducts Json?    // original order items snapshot
   replacementItems Json?    // replacement items (for REPLACEMENT type)
   deliveryAttempts Int      @default(0)
@@ -840,6 +842,14 @@ model ReturnExchange {
   warehouseApprovedBy String?
   warehouseApprovedAt  DateTime?
   dispatchedAt     DateTime?
+  faisalApprovedBy String?
+  faisalApprovedAt DateTime?
+  storeProcessedBy String?
+  storeProcessedById String?
+  storeProcessedAt DateTime?
+  inventoryAdjusted Boolean  @default(false)
+  productionRouted Boolean   @default(false)
+  productionRoutedAt DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

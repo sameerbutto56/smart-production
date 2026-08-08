@@ -179,7 +179,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
             className={`p-4 rounded-xl border-2 transition-all text-center ${activeAction === 'return' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
             <RotateCcw size={24} className="mx-auto mb-2" />
             <p className="text-sm font-black">Return</p>
-            <p className="text-[10px] text-gray-500 mt-0.5">Send back to Warehouse</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Send to Store</p>
           </button>
           <button onClick={() => setActiveAction('replace')}
             className={`p-4 rounded-xl border-2 transition-all text-center ${activeAction === 'replace' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
@@ -240,7 +240,7 @@ const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
         orderId: order.id, type: 'RETURN', returnReason: reason,
         notes: `Return initiated by ${user?.name || 'Inventory View'}`
       });
-      toast.success('Return sent to Warehouse for approval!');
+      toast.success('Return sent to Store for processing!');
       setReason(''); onRefresh();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
     setSubmitting(false);
@@ -249,14 +249,14 @@ const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
   return (
     <div className="bg-gray-800 rounded-xl p-5 border border-red-500/30 space-y-4">
       <h3 className="text-sm font-black text-red-400 flex items-center gap-2"><RotateCcw size={16} /> Initiate Return</h3>
-      <p className="text-xs text-gray-400">Items to be returned to Warehouse:</p>
+      <p className="text-xs text-gray-400">Items to be returned to Store (removed from Warehouse):</p>
       <div className="space-y-1">
         {products.map((item, i) => {
           const pd = item.productDetails || item;
           return (
             <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex justify-between">
               <span className="text-white font-bold">{pd.name || pd.productType} {pd.color ? `(${pd.color})` : ''} ×{item.quantity || 1}</span>
-              <span className="text-gray-500">Will be added back to inventory</span>
+              <span className="text-gray-500">Will be restocked by Store</span>
             </div>
           );
         })}
@@ -268,7 +268,7 @@ const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
       </div>
       <button onClick={handleSubmit} disabled={submitting || !reason.trim()}
         className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all">
-        {submitting ? 'Submitting...' : 'Send Return to Warehouse'}
+        {submitting ? 'Submitting...' : 'Send Return to Store'}
       </button>
     </div>
   );
@@ -276,6 +276,7 @@ const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
 
 const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
   const [reason, setReason] = useState('');
+  const [specialNote, setSpecialNote] = useState('');
   const [replacementItems, setReplacementItems] = useState([{ name: '', color: '', size: '', quantity: 1, notes: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const products = parseProducts(order.productDetails);
@@ -286,16 +287,18 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
 
   const handleSubmit = async () => {
     if (!reason.trim()) return toast.error('Enter replacement reason');
+    if (!specialNote.trim()) return toast.error('A Special Note is required — Faisal reviews it before approval');
     if (!replacementItems.some(r => r.name.trim())) return toast.error('Enter at least one replacement item');
     setSubmitting(true);
     try {
       await api.post('/api/return-exchange/initiate', {
         orderId: order.id, type: 'REPLACEMENT', returnReason: reason,
+        specialNote,
         replacementItems: replacementItems.filter(r => r.name.trim()),
         notes: `Replacement initiated by ${user?.name || 'Inventory View'}`
       });
-      toast.success('Replacement request sent to Warehouse!');
-      setReason(''); setReplacementItems([{ name: '', color: '', size: '', quantity: 1, notes: '' }]); onRefresh();
+      toast.success('Replacement sent to Faisal for review!');
+      setReason(''); setSpecialNote(''); setReplacementItems([{ name: '', color: '', size: '', quantity: 1, notes: '' }]); onRefresh();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
     setSubmitting(false);
   };
@@ -353,9 +356,14 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
         <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="Why is this order being replaced?"
           className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 resize-none" />
       </div>
-      <button onClick={handleSubmit} disabled={submitting}
+      <div>
+        <label className="text-xs font-bold text-amber-400 block mb-1">Special Note (mandatory — reviewed by Faisal)</label>
+        <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2} placeholder="Special instructions for Faisal (e.g. exact size/color/fabric to deliver)"
+          className="w-full bg-gray-900 border border-amber-500/40 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-amber-500 resize-none" />
+      </div>
+      <button onClick={handleSubmit} disabled={submitting || !specialNote.trim()}
         className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all">
-        {submitting ? 'Submitting...' : 'Send Replacement to Warehouse'}
+        {submitting ? 'Submitting...' : 'Send Replacement to Faisal'}
       </button>
     </div>
   );

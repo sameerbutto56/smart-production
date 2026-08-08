@@ -2853,7 +2853,14 @@ const getOrderTimeline = async (req, res) => {
       SENT_FOR_VERIFICATION: 'Sent for Verification', ORDER_VERIFIED: 'Order Verified',
       VERIFICATION_PENDING: 'Verification Pending',
       RETURNED_FOR_CORRECTION: 'Returned from Verification',
-      RESUBMITTED_AFTER_VERIFICATION: 'Resubmitted after Verification'
+      RESUBMITTED_AFTER_VERIFICATION: 'Resubmitted after Verification',
+      RETURN_INITIATED: 'Return Initiated', REPLACEMENT_INITIATED: 'Replacement Initiated',
+      RETURN_STORE_PROCESSED: 'Return Processed by Store',
+      REPLACEMENT_STORE_PROCESSED: 'Replacement Processed by Store',
+      RETURN_ROUTED_TO_PRODUCTION: 'Return Routed to Production',
+      REPLACEMENT_ROUTED_TO_PRODUCTION: 'Replacement Routed to Production',
+      REPLACEMENT_FAISAL_APPROVED: 'Replacement Approved by Faisal',
+      REPLACEMENT_FAISAL_REJECTED: 'Replacement Rejected by Faisal'
     };
 
     // --- Build CONSOLIDATED stage entries (one per OrderStage) ---

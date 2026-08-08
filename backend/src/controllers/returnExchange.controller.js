@@ -33,9 +33,18 @@ const lookupOrder = async (req, res) => {
 
 const createReturnExchange = async (req, res) => {
   try {
-    const { orderId, type, returnReason, replacementItems, notes } = req.body;
+    const { orderId, type, returnReason, replacementItems, notes, specialNote } = req.body;
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // REPLACEMENT requires a mandatory Special Note that routes through Faisal
+    if (type === 'REPLACEMENT' && !(specialNote || '').trim()) {
+      return res.status(400).json({ message: 'A Special Note is required for replacements. It will be reviewed by Faisal.' });
+    }
+
+    // RETURN → Store takes over; REPLACEMENT → Faisal reviews first, then Store
+    const routedTo = type === 'REPLACEMENT' ? 'FAISAL' : 'STORE';
+    const initialStatus = type === 'REPLACEMENT' ? 'PENDING' : 'PENDING';
 
     const record = await prisma.returnExchange.create({
       data: {
@@ -44,8 +53,10 @@ const createReturnExchange = async (req, res) => {
         customerName: order.customerName,
         customerPhone: order.customerPhone,
         type,
-        status: 'PENDING',
+        status: initialStatus,
+        routedTo,
         returnReason,
+        specialNote: type === 'REPLACEMENT' ? specialNote : null,
         originalProducts: order.productDetails,
         replacementItems: replacementItems ? JSON.stringify(replacementItems) : null,
         deliveryAttempts: order.noResponseCount || 0,
@@ -66,17 +77,212 @@ const createReturnExchange = async (req, res) => {
       data: {
         orderId,
         action: type === 'RETURN' ? 'RETURN_INITIATED' : type === 'REPLACEMENT' ? 'REPLACEMENT_INITIATED' : 'NO_RESPONSE_LOGGED',
-        details: `${type} initiated by ${req.user?.name || 'Inventory View'}. Reason: ${returnReason || 'N/A'}`,
+        details: `${type} initiated by ${req.user?.name || 'Inventory View'}${type === 'REPLACEMENT' && specialNote ? `. Special Note: ${specialNote}` : ''}. Reason: ${returnReason || 'N/A'}`,
         performedBy: req.user?.id || 'SYSTEM'
       }
     });
 
-    await notify.create(req, { type: 'return_exchange', moduleName: 'Return & Exchange', path: '/return-exchange', role: 'STORE', title: 'New Return/Exchange Request', message: `${type} request for ${order?.customerName || 'customer'}`, orderId: order?.id, customerName: order?.customerName, action: `${type} Requested`, employeeName: req.user?.name }).catch(() => {});
+    await notify.create(req, {
+      type: 'return_exchange',
+      moduleName: routedTo === 'FAISAL' ? 'Replacements' : 'Returns',
+      path: routedTo === 'FAISAL' ? '/replacements' : '/returns',
+      role: routedTo === 'FAISAL' ? 'FAISAL' : 'STORE',
+      title: 'New Return/Exchange Request',
+      message: `${type} request for ${order?.customerName || 'customer'}`,
+      orderId: order?.id,
+      customerName: order?.customerName,
+      action: `${type} Requested`,
+      employeeName: req.user?.name
+    }).catch(() => {});
 
     res.status(201).json(record);
   } catch (error) {
     console.error('Error creating return/exchange:', error);
     res.status(500).json({ message: 'Failed to create record', error: error.message });
+  }
+};
+
+// Faisal reviews a REPLACEMENT (with its mandatory special note) → routes to Store
+const approveFaisal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, notes } = req.body;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.type !== 'REPLACEMENT') return res.status(400).json({ message: 'Only replacement cases are reviewed by Faisal' });
+    if (record.routedTo !== 'FAISAL') return res.status(400).json({ message: 'This case is not awaiting Faisal review' });
+
+    if (action === 'REJECT') {
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.returnExchange.update({
+          where: { id },
+          data: { status: 'CANCELLED', routedTo: 'FAISAL', faisalApprovedBy: req.user?.name, faisalApprovedAt: new Date() }
+        });
+        await tx.auditLog.create({
+          data: {
+            orderId: record.orderId,
+            action: 'REPLACEMENT_FAISAL_REJECTED',
+            details: `Faisal rejected replacement for ${record.orderNumber}. Notes: ${notes || 'N/A'}`,
+            performedBy: req.user?.id || 'SYSTEM'
+          }
+        });
+        return tx.returnExchange.findUnique({ where: { id } });
+      });
+      res.json(updated);
+      return;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.returnExchange.update({
+        where: { id },
+        data: {
+          status: 'FAISAL_APPROVED',
+          routedTo: 'STORE',
+          warehouseNotes: notes || null,
+          faisalApprovedBy: req.user?.name || 'Faisal',
+          faisalApprovedAt: new Date()
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'REPLACEMENT_FAISAL_APPROVED',
+          details: `Faisal approved replacement for ${record.orderNumber}. Notes: ${notes || 'N/A'}. Now with Store.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    await notify.create(req, { type: 'return_exchange', moduleName: 'Returns', path: '/returns', role: 'STORE', title: 'Replacement Approved by Faisal', message: `Replacement for ${record.customerName || 'customer'} approved — ready for Store processing`, orderId: record.orderId, customerName: record.customerName, action: 'Faisal → Store', employeeName: req.user?.name }).catch(() => {});
+    res.json(updated);
+  } catch (error) {
+    console.error('Error in Faisal approval:', error);
+    res.status(500).json({ message: 'Failed to process', error: error.message });
+  }
+};
+
+// Store processes a RETURN (restock returned goods) or REPLACEMENT (deduct new items or route to Production)
+const processByStore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, productAvailability, notes } = req.body;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+
+    // Validate per-type actions
+    if (record.type === 'RETURN' && !['restock', 'route_to_production'].includes(action)) {
+      return res.status(400).json({ message: 'Return can be restocked into inventory or routed to Production' });
+    }
+    if (record.type === 'REPLACEMENT' && !['deduct', 'route_to_production'].includes(action)) {
+      return res.status(400).json({ message: 'Replacement can be deducted from stock or routed to Production' });
+    }
+
+    let newStatus = 'COMPLETED';
+    let actionLabel = record.type === 'RETURN' ? 'RETURN_STORE_PROCESSED' : 'REPLACEMENT_STORE_PROCESSED';
+    let actionDetail = '';
+
+    if (action === 'restock') {
+      // Add original returned goods back into inventory
+      const originals = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
+      for (const item of originals) {
+        const pd = item.productDetails || item;
+        const name = pd.name || pd.productType || '';
+        if (!name) continue;
+        const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+        for (const inv of invItems) {
+          const variants = inv.variants || [];
+          const color = pd.color || '';
+          const size = pd.size || '';
+          const updatedVariants = variants.map(v => {
+            const colorMatch = color ? v.color === color : true;
+            const sizeMatch = size ? v.size === size : true;
+            if (colorMatch && sizeMatch) {
+              return { ...v, stock: (v.stock || 0) + (item.quantity || 1) };
+            }
+            return v;
+          });
+          const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+          await prisma.inventoryItem.update({
+            where: { id: inv.id },
+            data: { variants: updatedVariants, stock: newTotal }
+          });
+        }
+      }
+      actionDetail = `Returned goods restocked into inventory by ${req.user?.name || 'Store'}.`;
+    } else if (action === 'deduct') {
+      // Deduct replacement items from inventory (availability-checked per item)
+      const replacements = typeof record.replacementItems === 'string' ? JSON.parse(record.replacementItems) : (record.replacementItems || []);
+      for (const item of replacements) {
+        const name = item.name || item.productName || '';
+        if (!name) continue;
+        const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+        for (const inv of invItems) {
+          const variants = inv.variants || [];
+          const color = item.color || '';
+          const size = item.size || '';
+          const updatedVariants = variants.map(v => {
+            const colorMatch = color ? v.color === color : true;
+            const sizeMatch = size ? v.size === size : true;
+            if (colorMatch && sizeMatch) {
+              return { ...v, stock: Math.max(0, (v.stock || 0) - (item.quantity || 1)) };
+            }
+            return v;
+          });
+          const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+          await prisma.inventoryItem.update({
+            where: { id: inv.id },
+            data: { variants: updatedVariants, stock: newTotal }
+          });
+        }
+      }
+      newStatus = 'DISPATCH_READY'; // existing dispatch flow completes fulfilment
+      actionDetail = `Replacement items deducted from inventory by ${req.user?.name || 'Store'} — ready for dispatch.`;
+    } else if (action === 'route_to_production') {
+      newStatus = 'IN_PRODUCTION';
+      actionLabel = record.type === 'RETURN' ? 'RETURN_ROUTED_TO_PRODUCTION' : 'REPLACEMENT_ROUTED_TO_PRODUCTION';
+      actionDetail = `${record.type} for ${record.orderNumber} routed to Production by ${req.user?.name || 'Store'}${notes ? `. Notes: ${notes}` : ''}.`;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.returnExchange.update({
+        where: { id },
+        data: {
+          status: newStatus,
+          routedTo: newStatus === 'IN_PRODUCTION' ? 'STORE' : 'STORE',
+          storeProcessedBy: req.user?.name || 'Store',
+          storeProcessedById: req.user?.id || null,
+          storeProcessedAt: new Date(),
+          inventoryAdjusted: action !== 'route_to_production',
+          productionRouted: action === 'route_to_production',
+          productionRoutedAt: action === 'route_to_production' ? new Date() : null,
+          warehouseNotes: notes || record.warehouseNotes
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: actionLabel,
+          details: actionDetail,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    const io = req.app?.get('io');
+    if (io) io.emit('order-updated', { orderId: record.orderId });
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+
+    if (action === 'route_to_production') {
+      await notify.create(req, { type: 'return_exchange', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION', title: 'New Return/Replacement in Production', message: `${record.type} for ${record.customerName || 'customer'} routed to Production`, orderId: record.orderId, customerName: record.customerName, action: '→ Production', employeeName: req.user?.name }).catch(() => {});
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error processing by Store:', error);
+    res.status(500).json({ message: 'Failed to process', error: error.message });
   }
 };
 
@@ -419,4 +625,4 @@ const checkStockAvailability = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability };
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability };
