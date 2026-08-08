@@ -44,7 +44,8 @@ const SmartOrderForm = () => {
     validateCurrentTab, handleAddToCart, removeCartItem, editCartItem,
     handleAddMoreProducts, handleCheckout, setShowAddMore, setIsCartOpen, setShowProductSelector,
     setShowEditReview, setError, filteredTabs, setLoading, setIsSubmitting,
-    goForVerification, setGoForVerification, fromVerification, setIsEditMode, setFromVerification
+    goForVerification, setGoForVerification, fromVerification, setIsEditMode, setFromVerification,
+    duplicateOrder, setDuplicateOrder, openDuplicateOrder
   } = useOrderEntry();
 
   if (dataLoading) return <PageLoader text="Loading Order Entry..." />;
@@ -270,6 +271,26 @@ const SmartOrderForm = () => {
 
       {!isEditMode && !fromVerification && (
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+          {duplicateOrder && (
+            <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-red-500/10 border-2 border-red-500/30 rounded-[1.5rem] px-6 py-4 ${useUrdu ? 'text-right' : ''}`}>
+              <div className="flex items-center gap-3 text-red-400">
+                <AlertCircle size={18} className="shrink-0" />
+                <span className="text-xs font-black uppercase tracking-wider">
+                  {useUrdu ? `آرڈر نمبر ${duplicateOrder} پہلے سے موجود ہے` : `Order #${duplicateOrder} already exists`}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={openDuplicateOrder}
+                  className="px-4 py-2 bg-amber-500 text-black rounded-xl font-black text-xs uppercase tracking-wider hover:bg-amber-400 transition-all active:scale-95">
+                  {useUrdu ? 'موجودہ آرڈر کھولیں' : 'OPEN EXISTING ORDER'}
+                </button>
+                <button type="button" onClick={() => setDuplicateOrder(null)}
+                  className="px-3 py-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95">
+                  {useUrdu ? 'بند کریں' : 'DISMISS'}
+                </button>
+              </div>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             {activeTab === 'basic' && <BasicInfoTab key="basic" />}
             {activeTab === 'product' && <ProductSelectionTab key="product" />}

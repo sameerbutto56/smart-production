@@ -125,6 +125,8 @@ export const OrderEntryProvider = ({ children }) => {
   const [showAddMore, setShowAddMore] = useState(false);
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [goForVerification, setGoForVerification] = useState(false);
+  const [requiredErrors, setRequiredErrors] = useState({});
+  const [duplicateOrder, setDuplicateOrder] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [fromVerification, setFromVerification] = useState(urlFromVerification && !!urlEditOrderId);
   const dateInputRef = useRef(null);
@@ -359,6 +361,9 @@ export const OrderEntryProvider = ({ children }) => {
 
   const resetFormData = useCallback(() => {
     setFormData({ ...INITIAL_FORM_DATA });
+    setRequiredErrors({});
+    setDuplicateOrder(null);
+    setGoForVerification(false);
   }, []);
 
   const toggleEditMode = useCallback(() => {
@@ -378,8 +383,9 @@ export const OrderEntryProvider = ({ children }) => {
     }
   }, [isEditMode, resetFormData]);
 
-  const fetchOrderByNumber = useCallback(async () => {
-    if (!editOrderNumber.trim()) { setEditOrderError('Please enter an order number'); return; }
+  const fetchOrderByNumber = useCallback(async (optionalNumber) => {
+    const query = (optionalNumber ?? editOrderNumber) || '';
+    if (!query.trim()) { setEditOrderError('Please enter an order number'); return; }
     setEditOrderLoading(true);
     setEditOrderError('');
     setEditOrderData(null);
@@ -388,8 +394,8 @@ export const OrderEntryProvider = ({ children }) => {
       const response = await api.get('/api/orders', { params: { limit: 'all' } });
       const orders = Array.isArray(response.data) ? response.data : [];
       found = orders.find(o =>
-        o.orderNumber?.toLowerCase() === editOrderNumber.trim().toLowerCase() ||
-        o.id?.toLowerCase() === editOrderNumber.trim().toLowerCase()
+        o.orderNumber?.toLowerCase() === query.trim().toLowerCase() ||
+        o.id?.toLowerCase() === query.trim().toLowerCase()
       );
       if (found) {
         const userRole = user?.role;
@@ -488,7 +494,7 @@ export const OrderEntryProvider = ({ children }) => {
           else if (name.includes('2') || name.toLowerCase().includes('jail')) mySource = 'JAIL ROAD BRANCH';
           else if (name.includes('3') || name.toLowerCase().includes('abbottabad')) mySource = 'ABBOTTABAD BRANCH';
         }
-        const delRes = await api.get('/api/orders/deleted-check', { params: { number: editOrderNumber.trim(), source: mySource || undefined } });
+        const delRes = await api.get('/api/orders/deleted-check', { params: { number: query.trim(), source: mySource || undefined } });
         if (delRes.data) {
           setEditOrderData(null);
           setEditOrderError(`This order (${delRes.data.orderNumber || editOrderNumber.trim()}) was deleted by Admin on ${formatDateOnly(delRes.data.deletedAt)}. No changes can be made.`);
@@ -580,29 +586,46 @@ export const OrderEntryProvider = ({ children }) => {
     });
   }, []);
 
+  const validateBasicInfo = useCallback(() => {
+    const errs = {};
+    const orderNo = String(formData.orderNumber || '').trim();
+    if (!orderNo) {
+      errs.orderNumber = t('orderNo') + ' ' + t('required');
+    } else if (/[^\d]/.test(orderNo)) {
+      errs.orderNumber = useUrdu ? 'آرڈر نمبر صرف نمبر (0-9) ہو سکتا ہے' : 'Order number must be numbers only (0-9)';
+    }
+    if (!String(formData.customerName || '').trim()) errs.customerName = t('customerName') + ' ' + t('required');
+    if (!String(formData.customerPhone || '').trim()) errs.customerPhone = t('customerPhone') + ' ' + t('required');
+    if (!String(formData.city || '').trim()) errs.city = useUrdu ? 'شہر لازمی ہے' : 'City is required';
+    if (!String(formData.address || '').trim()) errs.address = useUrdu ? 'پتہ لازمی ہے' : 'Address is required';
+    setRequiredErrors(errs);
+    if (Object.keys(errs).length > 0) return useUrdu ? 'براہ کرم تمام لازمی خانے پُر کریں' : 'Please fill all required fields correctly.';
+    return null;
+  }, [formData, t, useUrdu]);
+
   const validateProductConfig = useCallback(() => {
-    if (!formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
-    if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
-    if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
+    const basicErr = validateBasicInfo();
+    if (basicErr) return basicErr;
     if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product first.';
 
     return null;
-  }, [formData, t]);
+  }, [formData, validateBasicInfo]);
 
   const validateCurrentTab = useCallback(() => {
     setError('');
     if (activeTab === 'basic') {
-      if (!formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
-      if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
-      if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
+      const basicErr = validateBasicInfo();
+      if (basicErr) return basicErr;
     }
     if (activeTab === 'product') {
-      if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product.';
-    }
-    if (activeTab === 'custom') {
+      if (formData.type === 'FULL_CUSTOM') {
+        if (!String(formData.customProductName || '').trim()) return useUrdu ? 'براہ کرم ایک پروڈکٹ منتخب کریں' : 'Please select a Product.';
+      } else if (!formData.productType) {
+        return 'Please select a Product.';
+      }
     }
     return null;
-  }, [activeTab, formData, t]);
+  }, [activeTab, formData, validateBasicInfo, useUrdu]);
 
   const preventEnterSubmit = useCallback((e) => { if (e.key === 'Enter') e.preventDefault(); }, []);
 
@@ -677,6 +700,8 @@ export const OrderEntryProvider = ({ children }) => {
 
   const handleCheckout = useCallback(async () => {
     if (cartItems.length === 0 || isSubmitting) return;
+    const basicErr = validateBasicInfo();
+    if (basicErr) { setError(basicErr); return; }
     setIsSubmitting(true); setLoading(true); setError('');
     try {
       const finalItems = cartItems.map(item => ({
@@ -697,11 +722,11 @@ export const OrderEntryProvider = ({ children }) => {
       const adjTotal = (parseFloat(formData.adjProductPrice) || calcProductPrice) + (parseFloat(formData.adjLogoCharges) || calcLogo) + (parseFloat(formData.adjNamePrinting) || calcName) + (parseFloat(formData.adjCustomization) || calcCustomization) + (parseFloat(formData.adjCapCharges) || calcCap) + calcDelivery - (parseFloat(formData.adjDiscount) || 0);
       const faisalEmp = localStorage.getItem('faisalEmployee') || null;
       await api.post('/api/orders', {
-        orderNumber: firstItem.orderNumber, customerName: firstItem.customerName,
-        customerPhone: firstItem.customerPhone, address: firstItem.address, city: firstItem.city,
-        type: firstItem.type, priority: firstItem.priority, advancePaid: firstItem.advancePaid,
+        orderNumber: formData.orderNumber || firstItem.orderNumber, customerName: formData.customerName || firstItem.customerName,
+        customerPhone: formData.customerPhone || firstItem.customerPhone, address: formData.address || firstItem.address, city: formData.city || firstItem.city,
+        type: formData.type || firstItem.type, priority: formData.priority || firstItem.priority, advancePaid: firstItem.advancePaid,
         advanceAmount: parseFloat(formData.advanceAmount) || 0,
-        paymentStatus: firstItem.paymentStatus || 'PENDING',
+        paymentStatus: formData.paymentStatus || firstItem.paymentStatus || 'PENDING',
         logoDesign: firstItem.logoDesign, logoName: firstItem.logoName,
         logoCharges: cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0),
         namePrintingCharges: cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0),
@@ -732,10 +757,23 @@ export const OrderEntryProvider = ({ children }) => {
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Error during checkout:', error);
-      setError(error.response?.data?.message || error.response?.data?.error || 'Error processing checkout. Please try again.');
+      const errMsg = error.response?.data?.message || error.response?.data?.error || 'Error processing checkout. Please try again.';
+      setError(errMsg);
+      if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('already in use')) {
+        setDuplicateOrder(formData.orderNumber || '');
+      }
     }
     setLoading(false); setIsSubmitting(false);
-  }, [cartItems, isSubmitting, formData, resetFormData, goForVerification]);
+  }, [cartItems, isSubmitting, formData, resetFormData, goForVerification, validateBasicInfo]);
+
+  const openDuplicateOrder = useCallback(() => {
+    const num = duplicateOrder;
+    if (!num) return;
+    setDuplicateOrder(null);
+    setIsEditMode(true);
+    setEditOrderNumber(num);
+    fetchOrderByNumber(num);
+  }, [duplicateOrder, fetchOrderByNumber]);
 
   // Derived data
   const productCategories = useMemo(() => {
@@ -829,6 +867,8 @@ export const OrderEntryProvider = ({ children }) => {
   const memoIsFreeDelivery = useMemo(() => memoCartTotalPrice > 7000, [memoCartTotalPrice]);
 
   const handleAddToCart = useCallback(() => {
+    const basicErr = validateBasicInfo();
+    if (basicErr) { setError(basicErr); setActiveTab('basic'); return; }
     const validationError = validateProductConfig();
     if (validationError) { setError(validationError); return; }
     const brandingTotal = (parseFloat(formData.logoCharges) || 0) + (parseFloat(formData.namePrintingCharges) || 0) + (parseFloat(formData.customizationPrice) || 0);
@@ -890,7 +930,7 @@ export const OrderEntryProvider = ({ children }) => {
     setLogoEntries([{ name: '', design: '' }]);
     setArticleNameEntries(['']);
     setShowAddMore(true);
-  }, [formData, selectedProduct, selectedProductVariants, articleNameEntries, logoEntries, validateProductConfig, capCharges]);
+  }, [formData, selectedProduct, selectedProductVariants, articleNameEntries, logoEntries, validateProductConfig, validateBasicInfo, capCharges]);
 
   // Tab configuration
   const allTabs = useMemo(() => [
@@ -914,19 +954,22 @@ export const OrderEntryProvider = ({ children }) => {
     showReview, isEditMode, editOrderId, originalOrder, showEditReview,
     editReason, editOrderNumber, editOrderData, editOrderLoading, editOrderError,
     logoEntries, articleNameEntries, formData, cartItems, showAddMore, showProductSelector, isCartOpen, dateInputRef,
+    requiredErrors, duplicateOrder,
     // Setters
     setSelectedProductCategory, setProductSearchTerm, setColorSearchTerm, setExpandedProducts,
     setShowReview, setIsEditMode, setEditOrderId, setOriginalOrder, setShowEditReview,
     setEditReason, setEditOrderNumber, setEditOrderData, setEditOrderLoading, setEditOrderError,
     setLogoEntries, setArticleNameEntries, setFormData, setCartItems, setShowAddMore,
     setShowProductSelector, setIsCartOpen, setError, setLoading, setSuccess, setIsSubmitting,
+    setRequiredErrors, setDuplicateOrder,
     goForVerification, setGoForVerification, fromVerification, setFromVerification,
     // Handlers
     t, useUrdu, isUrdu, isOutlet, LanguageToggle,
     fetchInventory, toggleEditMode, fetchOrderByNumber, submitOrderEditRequest,
-    getSizeChart, handleSizeSelect, validateProductConfig, validateCurrentTab,
+    getSizeChart, handleSizeSelect, validateProductConfig, validateCurrentTab, validateBasicInfo,
     preventEnterSubmit, fmtDate, parseDate,
     handleAddToCart, removeCartItem, editCartItem, handleAddMoreProducts, handleCheckout,
+    openDuplicateOrder,
     hasChanged, hasChangedBool,
     // Derived data
     productCategories, isAccessory, isCustomizableProduct, isShoes,

@@ -7,7 +7,8 @@ const BasicInfoTab = () => {
   const {
     formData, setFormData, t, useUrdu, isOutlet, isEditMode,
     memoCartTotalItems, memoCartTotalPrice, memoIsFreeDelivery,
-    preventEnterSubmit, dateInputRef, fmtDate, parseDate, cartItems
+    preventEnterSubmit, dateInputRef, fmtDate, parseDate, cartItems,
+    requiredErrors, setRequiredErrors
   } = useOrderEntry();
 
   const [shopifyInput, setShopifyInput] = useState(() => fmtDate(formData.shopifyOrderDate));
@@ -15,6 +16,15 @@ const BasicInfoTab = () => {
   useEffect(() => {
     setShopifyInput(fmtDate(formData.shopifyOrderDate));
   }, [formData.shopifyOrderDate, fmtDate]);
+
+  const clearFieldError = (field) => setRequiredErrors(prev => {
+    if (!prev || !prev[field]) return prev;
+    const next = { ...prev };
+    delete next[field];
+    return next;
+  });
+
+  const errStyle = (err) => err ? { borderColor: 'rgba(239,68,68,0.7)', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)' } : undefined;
 
   return (
     <motion.div
@@ -32,50 +42,58 @@ const BasicInfoTab = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           <div className="space-y-4">
-            <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ml-4">Order No.</label>
+            <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ml-4">Order No. <span className="text-red-500">*</span></label>
             <div className="relative group">
               <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
-              <input type="text" onKeyDown={preventEnterSubmit} value={formData.orderNumber}
-                onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
+              <input type="text" inputMode="numeric" onKeyDown={preventEnterSubmit} value={formData.orderNumber}
+                onChange={(e) => { setFormData({ ...formData, orderNumber: e.target.value.replace(/\D/g, '') }); clearFieldError('orderNumber'); }}
+                style={errStyle(requiredErrors?.orderNumber)}
                 className={`w-full theme-input rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} transition-all text-2xl font-black shadow-inner`}
-                placeholder="ORD-772" required />
+                placeholder="772" required />
             </div>
+            {requiredErrors?.orderNumber && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.orderNumber}</p>}
           </div>
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')}</label>
+            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <User className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
               <input type="text" onKeyDown={preventEnterSubmit} value={formData.customerName}
-                onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, customerName: e.target.value }); clearFieldError('customerName'); }}
+                style={errStyle(requiredErrors?.customerName)}
                 className={`w-full theme-input rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} transition-all text-2xl font-black shadow-inner`}
                 placeholder={useUrdu ? 'کسٹمر کا نام' : "Dr. Alex Rivera"} required />
             </div>
+            {requiredErrors?.customerName && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.customerName}</p>}
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')}</label>
+            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-pink-500/10 text-pink-500`}>
                 <Phone size={18} />
               </div>
               <input type="tel" onKeyDown={preventEnterSubmit} value={formData.customerPhone}
-                onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, customerPhone: e.target.value }); clearFieldError('customerPhone'); }}
+                style={errStyle(requiredErrors?.customerPhone)}
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
                 placeholder="0300-1234567" required />
             </div>
+            {requiredErrors?.customerPhone && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.customerPhone}</p>}
           </div>
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address) - اختیاری' : 'Customer Address (Optional)'}</label>
+            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address)' : 'Customer Address'} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                 <span className="font-black text-xs">📍</span>
               </div>
               <input type="text" onKeyDown={preventEnterSubmit} value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, address: e.target.value }); clearFieldError('address'); }}
+                style={errStyle(requiredErrors?.address)}
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                placeholder={useUrdu ? 'گھر کا پتہ' : "House #123, Street #4"} />
+                placeholder={useUrdu ? 'گھر کا پتہ' : "House #123, Street #4"} required />
             </div>
+            {requiredErrors?.address && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.address}</p>}
           </div>
           <div className="col-span-1 md:col-span-2">
             <label className={`flex items-center justify-between p-3 md:p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentStatus === 'PAID' ? 'border-emerald-500/60 bg-emerald-500/10 shadow-lg shadow-emerald-900/20' : 'border-gray-700/50 bg-gray-900'}`}>
@@ -94,16 +112,18 @@ const BasicInfoTab = () => {
             </label>
           </div>
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City) - اختیاری' : 'City (Optional)'}</label>
+            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City)' : 'City'} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                 <span className="font-black text-xs">🏙️</span>
               </div>
               <input type="text" onKeyDown={preventEnterSubmit} value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, city: e.target.value }); clearFieldError('city'); }}
+                style={errStyle(requiredErrors?.city)}
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                placeholder={useUrdu ? 'شہر کا نام' : "Lahore"} />
+                placeholder={useUrdu ? 'شہر کا نام' : "Lahore"} required />
             </div>
+            {requiredErrors?.city && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.city}</p>}
           </div>
         </div>
           <div className="col-span-1 md:col-span-2 space-y-3">
