@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
+const { calculateDeadline } = require('../utils/deadline');
 
 const lookupOrder = async (req, res) => {
   try {
@@ -560,6 +561,269 @@ const getCaseHistory = async (req, res) => {
   }
 };
 
+// Faisal finalizes the replacement — creates a real replacement Order (source=REPLACEMENT)
+// linked to this case at STORE stage, so it flows through the normal stage/routing machinery.
+const sendToStore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { replacementItems, replacementSummary, notes } = req.body;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.type !== 'REPLACEMENT') return res.status(400).json({ message: 'Only replacement cases can be sent to Store' });
+    if (record.routedTo !== 'FAISAL') return res.status(400).json({ message: 'This case is not awaiting Faisal' });
+    if (record.replacementOrderId) return res.status(400).json({ message: 'Replacement order already created for this case' });
+
+    let items = replacementItems;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      try { items = JSON.parse(record.replacementItems || '[]'); } catch { items = []; }
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Replacement items are required before sending to Store' });
+    }
+
+    const originalOrder = await prisma.order.findUnique({ where: { id: record.orderId } });
+    if (!originalOrder) return res.status(404).json({ message: 'Original order not found' });
+
+    const productDetails = items.map((it) => {
+      const qty = parseInt(it.quantity) || 1;
+      const unitPrice = parseFloat(it.unitPrice) || 0;
+      const name = it.name || it.productName || '';
+      return {
+        name,
+        productType: name,
+        color: it.color || '',
+        size: it.size || '',
+        quantity: qty,
+        unitPrice,
+        totalPrice: Math.round((unitPrice * qty) * 100) / 100,
+        notes: it.notes || ''
+      };
+    });
+
+    // Generate a unique REP-xxxxxx order number
+    let replacementOrderNumber = '';
+    let isUnique = false;
+    while (!isUnique) {
+      const randomNum = Math.floor(100000 + Math.random() * 900000);
+      replacementOrderNumber = `REP-${randomNum}`;
+      const existing = await prisma.order.findUnique({ where: { orderNumber: replacementOrderNumber }, select: { id: true } });
+      if (!existing) isUnique = true;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber: replacementOrderNumber,
+          customerName: originalOrder.customerName,
+          customerPhone: originalOrder.customerPhone,
+          address: originalOrder.address,
+          city: originalOrder.city,
+          createdById: req.user?.id || null,
+          source: 'REPLACEMENT',
+          type: 'STANDARD',
+          priority: 'NORMAL',
+          quantity: items.length,
+          productDetails,
+          totalPrice: productDetails.reduce((s, p) => s + (p.totalPrice || 0), 0),
+          paymentStatus: 'PENDING',
+          paymentMethod: 'CASH',
+          currentStage: 'STORE',
+          status: 'IN_PROGRESS',
+          placedBy: req.user?.name || 'Faisal',
+          replacementCaseId: id,
+          instructionNotes: record.specialNote || record.returnReason || null
+        }
+      });
+
+      await tx.orderStage.create({ data: { orderId: newOrder.id, stageName: 'ORDER_ENTRY', status: 'COMPLETED', completedAt: new Date() } });
+      const deadline = calculateDeadline(new Date(), 24);
+      await tx.orderStage.create({ data: { orderId: newOrder.id, stageName: 'STORE', status: 'PENDING', deadlineAt: deadline } });
+
+      await tx.routingHistory.create({
+        data: {
+          orderId: newOrder.id,
+          sentByUserId: req.user?.id || null,
+          previousStage: 'ORDER_ENTRY',
+          newStage: 'STORE',
+          sentToStage: 'STORE',
+          remarks: 'Replacement order created and routed to Store'
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          orderId: originalOrder.id,
+          action: 'REPLACEMENT_ORDER_CREATED',
+          details: `Replacement order ${replacementOrderNumber} created by ${req.user?.name || 'Faisal'} and routed to Store.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: newOrder.id,
+          action: 'REPLACEMENT_ORDER_CREATED',
+          details: `Replacement order created for original order ${record.orderNumber || ''}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+
+      const caseData = {
+        status: 'FAISAL_APPROVED',
+        routedTo: 'STORE',
+        replacementOrderId: newOrder.id,
+        replacementItems: JSON.stringify(items),
+        replacementSummary: replacementSummary ? JSON.stringify(replacementSummary) : null,
+        faisalApprovedBy: req.user?.name || 'Faisal',
+        faisalApprovedAt: new Date(),
+        warehouseNotes: notes || record.warehouseNotes
+      };
+      await tx.returnExchange.update({ where: { id }, data: caseData });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    await notify.create(req, {
+      type: 'return_exchange',
+      moduleName: 'Returns',
+      path: '/returns',
+      role: 'STORE',
+      title: 'Replacement Sent to Store',
+      message: `Replacement for ${record.customerName || 'customer'} sent to Store — order ${replacementOrderNumber}`,
+      orderId: record.orderId,
+      customerName: record.customerName,
+      action: 'Faisal → Store',
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+    if (io) io.emit('order-updated', { orderId: updated.replacementOrderId });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error sending replacement to Store:', error);
+    res.status(500).json({ message: 'Failed to send to Store', error: error.message });
+  }
+};
+
+const getCase = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    let replacementOrder = null;
+    if (record.replacementOrderId) {
+      replacementOrder = await prisma.order.findUnique({
+        where: { id: record.replacementOrderId },
+        include: { stages: { orderBy: { createdAt: 'asc' } } }
+      });
+    }
+    res.json({ ...record, replacementOrder });
+  } catch (error) {
+    console.error('Error fetching case:', error);
+    res.status(500).json({ message: 'Failed to fetch case', error: error.message });
+  }
+};
+
+// Store adds the original returned goods back into inventory for a replacement case
+const restockOriginal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    if (record.originalRestocked) return res.status(400).json({ message: 'Returned goods already restocked' });
+
+    const originals = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
+    for (const item of originals) {
+      const pd = item.productDetails || item;
+      const name = pd.name || pd.productType || '';
+      if (!name) continue;
+      const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+      for (const inv of invItems) {
+        const variants = inv.variants || [];
+        const color = pd.color || '';
+        const size = pd.size || '';
+        const updatedVariants = variants.map(v => {
+          const colorMatch = color ? v.color === color : true;
+          const sizeMatch = size ? v.size === size : true;
+          if (colorMatch && sizeMatch) {
+            return { ...v, stock: (v.stock || 0) + (item.quantity || 1) };
+          }
+          return v;
+        });
+        const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+        await prisma.inventoryItem.update({
+          where: { id: inv.id },
+          data: { variants: updatedVariants, stock: newTotal }
+        });
+      }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.returnExchange.update({
+        where: { id },
+        data: { originalRestocked: true, originalRestockedAt: new Date(), originalRestockedBy: req.user?.name || 'Store' }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'RETURN_STORE_PROCESSED',
+          details: `Returned goods for ${record.orderNumber || ''} restocked into inventory by ${req.user?.name || 'Store'}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error restocking original goods:', error);
+    res.status(500).json({ message: 'Failed to restock', error: error.message });
+  }
+};
+
+// Manual case status sync (IN_PRODUCTION / STORE_RECEIVE / REPLACEMENT_COMPLETED / CANCELLED)
+const updateStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+    const allowed = ['IN_PRODUCTION', 'STORE_RECEIVE', 'REPLACEMENT_COMPLETED', 'CANCELLED'];
+    if (!allowed.includes(status)) return res.status(400).json({ message: 'Invalid status' });
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const data = { status, warehouseNotes: notes || record.warehouseNotes };
+      if (status === 'REPLACEMENT_COMPLETED') {
+        data.replacementCompleted = true;
+        data.replacementCompletedAt = new Date();
+        data.replacementCompletedBy = req.user?.name || 'Store';
+      }
+      await tx.returnExchange.update({ where: { id }, data });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'REPLACEMENT_STATUS_UPDATED',
+          details: `Replacement case for ${record.orderNumber || ''} marked ${status} by ${req.user?.name || 'Store'}${notes ? `. Notes: ${notes}` : ''}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating case status:', error);
+    res.status(500).json({ message: 'Failed to update status', error: error.message });
+  }
+};
+
 const getAllCases = async (req, res) => {
   try {
     const { type, status, search, page = 1, limit = 50, dateFrom, dateTo } = req.query;
@@ -579,10 +843,26 @@ const getAllCases = async (req, res) => {
       if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); where.createdAt.lte = d; }
     }
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [cases, total] = await Promise.all([
+    const [list, total] = await Promise.all([
       prisma.returnExchange.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: parseInt(limit) }),
       prisma.returnExchange.count({ where })
     ]);
+
+    // Enrich with linked replacement order (number + current stage) for at-a-glance tracking
+    const replacementOrderIds = list.filter(c => c.replacementOrderId).map(c => c.replacementOrderId);
+    let repMap = {};
+    if (replacementOrderIds.length) {
+      const repOrders = await prisma.order.findMany({
+        where: { id: { in: replacementOrderIds } },
+        select: { id: true, orderNumber: true, currentStage: true, status: true, createdAt: true, deliveredAt: true }
+      });
+      repMap = Object.fromEntries(repOrders.map(o => [o.id, o]));
+    }
+    const cases = list.map(c => ({
+      ...c,
+      replacementOrderInfo: c.replacementOrderId ? (repMap[c.replacementOrderId] || null) : null
+    }));
+
     res.json({ cases, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
   } catch (error) {
     console.error('Error fetching cases:', error);
@@ -625,4 +905,4 @@ const checkStockAvailability = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability };
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus };

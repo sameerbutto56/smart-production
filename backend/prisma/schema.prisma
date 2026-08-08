@@ -157,6 +157,7 @@ model Order {
   deliveryChargeRecords DeliveryCharge[] @relation("DeliveryChargeToOrder")
   orderAcceptances  OrderAcceptance[]
   returnExchangeCases ReturnExchange[]
+  replacementCaseId String?   // link back to the ReturnExchange case when this order is a replacement
 }
 
 model DispatchLog {
@@ -828,7 +829,7 @@ model ReturnExchange {
   customerName     String?
   customerPhone    String?
   type             String   // RETURN, REPLACEMENT, NO_RESPONSE
-  status           String   @default("PENDING") // PENDING, FAISAL_APPROVED, DISPATCH_READY, COMPLETED, IN_PRODUCTION, CANCELLED, WAREHOUSE_REJECTED
+  status           String   @default("PENDING") // PENDING, FAISAL_APPROVED, DISPATCH_READY, COMPLETED, IN_PRODUCTION, STORE_RECEIVE, REPLACEMENT_COMPLETED, CANCELLED, WAREHOUSE_REJECTED
   routedTo         String   @default("STORE") // STORE, FAISAL — where the case currently sits
   returnReason     String?
   specialNote      String?  // mandatory for REPLACEMENT — goes to Faisal
@@ -851,6 +852,15 @@ model ReturnExchange {
   inventoryAdjusted Boolean  @default(false)
   productionRouted Boolean   @default(false)
   productionRoutedAt DateTime?
+  // Replacement workflow (real replacement Order created by Faisal)
+  replacementOrderId String?      // the created replacement Order id
+  replacementSummary Json?        // Faisal-generated original vs new summary
+  originalRestocked Boolean  @default(false)   // returned goods added back to inventory
+  originalRestockedAt DateTime?
+  originalRestockedBy String?
+  replacementCompleted Boolean  @default(false)
+  replacementCompletedAt DateTime?
+  replacementCompletedBy String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
