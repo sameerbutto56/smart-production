@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const defaultPassword = await bcrypt.hash('1234', 10);
+  const gulPassword = await bcrypt.hash('G1122', 10);
   const junaidPassword = await bcrypt.hash('J125', 10);
   const sajawalPassword = await bcrypt.hash('Sajawal12', 10);
   const ibrarPassword = await bcrypt.hash('Ibrar562', 10);
@@ -13,7 +14,7 @@ async function main() {
     // Johar Town (matches existing POS employee list)
     { name: 'Sajawal', outletName: 'Johar Town', password: sajawalPassword },
     { name: 'Junaid', outletName: 'Johar Town', password: junaidPassword },
-    { name: 'Gul', outletName: 'Johar Town', password: defaultPassword },
+    { name: 'Gul', outletName: 'Johar Town', password: gulPassword },
     { name: 'Zain', outletName: 'Johar Town', password: defaultPassword },
     { name: 'Mudassir', outletName: 'Johar Town', password: mudassirPassword },
     // Jail Road
