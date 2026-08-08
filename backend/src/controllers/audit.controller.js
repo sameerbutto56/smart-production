@@ -43,18 +43,21 @@ const computeItemDiff = (item) => {
 
 const computeAuditSummary = (items) => {
   let scannedCount = 0, matchedCount = 0, missingCount = 0, extraCount = 0;
-  let lossValue = 0, extraValue = 0, totalScans = 0;
+  let lossValue = 0, extraValue = 0, totalScans = 0, zeroedCount = 0, scannedQty = 0, totalValue = 0;
   for (const it of items) {
     const diff = (it.physicalQty || 0) - (it.systemQty || 0);
-    if (it.scanned) scannedCount++;
+    if (it.scanned) { scannedCount++; scannedQty += it.physicalQty || 0; }
+    if (it.zeroed) zeroedCount++;
     totalScans += it.scanCount || 0;
+    totalValue += (it.systemQty || 0) * (it.price || 0);
     if (diff === 0) matchedCount++;
     else if (diff > 0) { extraCount++; extraValue += diff * (it.price || 0); }
     else { missingCount++; lossValue += Math.abs(diff) * (it.price || 0); }
   }
   return {
     scannedCount, totalScans, matchedCount, missingCount, extraCount,
-    lossValue, extraValue, differenceValue: lossValue + extraValue
+    lossValue, extraValue, differenceValue: lossValue + extraValue,
+    unscannedCount: items.length - scannedCount, zeroedCount, scannedQty, totalValue
   };
 };
 
@@ -69,10 +72,35 @@ const persistSummary = async (auditId, items, tx) => {
       matchedCount: s.matchedCount,
       missingCount: s.missingCount,
       extraCount: s.extraCount,
-      differenceValue: s.differenceValue
+      differenceValue: s.differenceValue,
+      unscannedCount: s.unscannedCount,
+      zeroedCount: s.zeroedCount,
+      scannedQty: s.scannedQty,
+      totalValue: s.totalValue
     }
   });
   return s;
+};
+
+// Pending demand requests that must be cleared before an audit of a scope may
+// start: demands awaiting the Store decision (PENDING) and approved/partially
+// approved demands not yet accepted by the outlet (stock already deducted from
+// Warehouse, still mid-flight). For OUTLET audits only demands belonging to that
+// outlet matter; WAREHOUSE audits block on any demand.
+const getPendingDemandsForAudit = async (auditType, outletName) => {
+  const statusOr = [
+    { status: 'PENDING' },
+    { status: { in: ['APPROVED', 'PARTIALLY_APPROVED'] }, acceptedAt: null }
+  ];
+  const where = auditType === 'OUTLET'
+    ? { outletName, OR: statusOr }
+    : { OR: statusOr };
+  return prisma.outletDemandRequest.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    select: { id: true, transferNumber: true, outletName: true, status: true, acceptedAt: true, createdAt: true }
+  });
 };
 
 const generateAuditNumber = async () => {
@@ -141,6 +169,40 @@ const getAuditStats = async (req, res) => {
   }
 };
 
+// ─── GET /api/audit/precheck — is the scope ready for a new audit? ───
+// Blocks starting when pending demand requests exist for the scope (incoming
+// awaiting Store decision, or approved/partially-approved not yet accepted) or
+// when an audit is already IN_PROGRESS / SUBMITTED there.
+const getAuditPrecheck = async (req, res) => {
+  try {
+    const type = (req.query.type || 'WAREHOUSE').toUpperCase();
+    const outletName = req.query.outletName || null;
+    if (!['WAREHOUSE', 'OUTLET'].includes(type)) {
+      return res.status(400).json({ message: 'type must be WAREHOUSE or OUTLET' });
+    }
+    if (type === 'OUTLET' && !outletName) {
+      return res.status(400).json({ message: 'outletName is required for OUTLET audit' });
+    }
+    const [demands, existing] = await Promise.all([
+      getPendingDemandsForAudit(type, outletName),
+      prisma.inventoryAudit.findFirst({
+        where: type === 'OUTLET'
+          ? { type: 'OUTLET', outletName, status: { in: ['IN_PROGRESS', 'SUBMITTED'] } }
+          : { type: 'WAREHOUSE', status: { in: ['IN_PROGRESS', 'SUBMITTED'] } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, auditNumber: true, status: true }
+      })
+    ]);
+    res.json({
+      ok: demands.length === 0 && !existing,
+      demands,
+      pendingAudit: existing ? { id: existing.id, auditNumber: existing.auditNumber, status: existing.status } : null
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error checking audit readiness', error: error.message });
+  }
+};
+
 // ─── POST /api/audit — start new audit (snapshot) ───
 const startAudit = async (req, res) => {
   try {
@@ -153,14 +215,25 @@ const startAudit = async (req, res) => {
       return res.status(400).json({ message: 'outletName is required for OUTLET audit' });
     }
 
-    // Only one in-progress audit of the same scope at a time
-    const existing = await prisma.inventoryAudit.findFirst({
-      where: auditType === 'OUTLET'
-        ? { type: 'OUTLET', outletName, status: { in: ['IN_PROGRESS', 'SUBMITTED'] } }
-        : { type: 'WAREHOUSE', status: { in: ['IN_PROGRESS', 'SUBMITTED'] } }
-    });
+    // Only one in-progress audit of the same scope at a time — and no pending
+    // demand requests for that scope may be outstanding (their stock is still in
+    // flux, so the snapshot would be unreliable).
+    const [existing, pendingDemands] = await Promise.all([
+      prisma.inventoryAudit.findFirst({
+        where: auditType === 'OUTLET'
+          ? { type: 'OUTLET', outletName, status: { in: ['IN_PROGRESS', 'SUBMITTED'] } }
+          : { type: 'WAREHOUSE', status: { in: ['IN_PROGRESS', 'SUBMITTED'] } }
+      }),
+      getPendingDemandsForAudit(auditType, outletName)
+    ]);
     if (existing) {
       return res.status(400).json({ message: `An audit (${existing.auditNumber}) is already in progress for this scope` });
+    }
+    if (pendingDemands.length > 0) {
+      const refs = pendingDemands.map(d => `${d.transferNumber || d.id} (${d.outletName || '?'} · ${d.status}${d.acceptedAt ? '' : ', not accepted'})`).join(', ');
+      return res.status(400).json({
+        message: `Cannot start audit — ${pendingDemands.length} pending demand request(s) must be cleared first: ${refs}`
+      });
     }
 
     let snapshotItems = [];
@@ -223,6 +296,9 @@ const startAudit = async (req, res) => {
       return res.status(400).json({ message: 'No inventory variants found to audit' });
     }
 
+    // Total Inventory Value = system qty × price across the whole snapshot
+    const totalValue = snapshotItems.reduce((s, i) => s + ((i.systemQty || 0) * (i.price || 0)), 0);
+
     const audit = await prisma.$transaction(async (tx) => {
       const created = await tx.inventoryAudit.create({
         data: {
@@ -232,6 +308,8 @@ const startAudit = async (req, res) => {
           status: 'IN_PROGRESS',
           totalVariants: snapshotItems.length,
           totalStock,
+          totalValue,
+          startedAt: new Date(),
           notes: notes || null,
           createdBy: req.user?.name || 'Warehouse',
           createdById: req.user?.id || null
@@ -268,10 +346,15 @@ const listAudits = async (req, res) => {
       take: parseInt(req.query.limit) || 100,
       select: {
         id: true, auditNumber: true, type: true, outletName: true, status: true,
-        totalVariants: true, totalStock: true, scannedCount: true, totalScans: true, matchedCount: true,
+        totalVariants: true, totalStock: true, totalValue: true,
+        scannedCount: true, scannedQty: true, unscannedCount: true, zeroedCount: true,
+        totalScans: true, matchedCount: true,
         missingCount: true, extraCount: true, differenceValue: true,
-        createdBy: true, submittedAt: true, approvedBy: true, approvedAt: true,
-        rejectedBy: true, rejectedAt: true, rejectionReason: true, createdAt: true
+        createdBy: true, startedAt: true, submittedAt: true,
+        approvedBy: true, approvedAt: true,
+        rejectedBy: true, rejectedAt: true, rejectionReason: true, endedAt: true,
+        createdAt: true,
+        _count: { select: { adjustments: true } }
       }
     });
     res.json(audits);
@@ -312,7 +395,7 @@ const scanBarcode = async (req, res) => {
 
     const updated = await prisma.inventoryAuditItem.update({
       where: { id: item.id },
-      data: { physicalQty: { increment: 1 }, scanCount: { increment: 1 }, scanned: true, lastScannedAt: new Date() }
+      data: { physicalQty: { increment: 1 }, scanCount: { increment: 1 }, scanned: true, zeroed: false, lastScannedAt: new Date() }
     });
 
     await persistSummary(audit.id, await prisma.inventoryAuditItem.findMany({ where: { auditId: audit.id } }));
@@ -364,9 +447,11 @@ const batchScan = async (req, res) => {
       const g = groups.get(item.id) || { item, current: item.physicalQty || 0, newScans: 0 };
       if (op.op === 'set') {
         g.current = Math.max(0, parseInt(op.qty) || 0);
+        g.zeroed = g.current === 0;
       } else {
         g.current += 1;
         g.newScans += 1;
+        g.zeroed = false;
       }
       groups.set(item.id, g);
     }
@@ -383,6 +468,7 @@ const batchScan = async (req, res) => {
             physicalQty: g.current,
             scanCount: { increment: g.newScans },
             scanned: true,
+            zeroed: g.zeroed === true,
             ...(g.newScans > 0 ? { lastScannedAt: now } : {})
           }
         });
@@ -405,6 +491,66 @@ const batchScan = async (req, res) => {
   }
 };
 
+// ─── POST /api/audit/:id/zero — declare items absent (physicalQty = 0) ───
+// Accepts { itemIds: string[] } for specific items or { all: true } for every
+// currently-unscanned item. Zeroed items are marked scanned + zeroed so the
+// unscanned list shrinks and the summary reflects the declared absence. Single
+// parametrized UPDATE — fast even for a full zero-all on large audits.
+const zeroItems = async (req, res) => {
+  try {
+    const { itemIds, all } = req.body;
+    const audit = await prisma.inventoryAudit.findUnique({ where: { id: req.params.id } });
+    if (!audit) return res.status(404).json({ message: 'Audit not found' });
+    if (audit.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Audit is not in progress' });
+
+    let ids = [];
+    if (all) {
+      const unscanned = await prisma.inventoryAuditItem.findMany({
+        where: { auditId: audit.id, scanned: false },
+        select: { id: true }
+      });
+      ids = unscanned.map(u => u.id);
+    } else if (Array.isArray(itemIds) && itemIds.length > 0) {
+      const owned = await prisma.inventoryAuditItem.findMany({
+        where: { auditId: audit.id, id: { in: itemIds } },
+        select: { id: true }
+      });
+      ids = owned.map(o => o.id);
+    }
+    if (ids.length === 0) return res.status(400).json({ message: 'No unscanned items to zero' });
+    if (ids.length > 3000) return res.status(400).json({ message: 'Too many items (max 3000)' });
+
+    const idList = ids.map(id => Prisma.sql`${id}`);
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE "InventoryAuditItem"
+      SET "physicalQty" = 0, "scanned" = true, "zeroed" = true, "updatedAt" = now()
+      WHERE "auditId"::text = ${audit.id}
+        AND "id"::text IN (${Prisma.join(idList, ',')})
+    `);
+
+    const items = await prisma.inventoryAuditItem.findMany({
+      where: { auditId: audit.id },
+      orderBy: { productName: 'asc' }
+    });
+    const summary = await persistSummary(audit.id, items);
+
+    const io = req.app.get('io');
+    if (io) io.emit('audit-updated', { auditId: audit.id, status: 'IN_PROGRESS', zeroed: ids.length });
+
+    res.json({ zeroed: ids.length, summary, items: items.map(computeItemDiff) });
+  } catch (error) {
+    errorLogger.logError({
+      module: 'audit:zero',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      context: `audit ${req.params?.id}`,
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ message: 'Error zeroing items', error: error.message });
+  }
+};
+
 // ─── POST /api/audit/:id/items/:itemId — manual physical qty ───
 const setPhysicalQty = async (req, res) => {
   try {
@@ -416,7 +562,7 @@ const setPhysicalQty = async (req, res) => {
     const qty = Math.max(0, parseInt(physicalQty) || 0);
     await prisma.inventoryAuditItem.update({
       where: { id: req.params.itemId },
-      data: { physicalQty: qty, scanned: true }
+      data: { physicalQty: qty, scanned: true, zeroed: qty === 0 }
     });
 
     await persistSummary(audit.id, await prisma.inventoryAuditItem.findMany({ where: { auditId: audit.id } }));
@@ -482,6 +628,10 @@ const submitAudit = async (req, res) => {
         missingCount: summary.missingCount,
         extraCount: summary.extraCount,
         differenceValue: summary.differenceValue,
+        unscannedCount: summary.unscannedCount,
+        zeroedCount: summary.zeroedCount,
+        scannedQty: summary.scannedQty,
+        totalValue: summary.totalValue,
         summary
       }
     });
@@ -666,7 +816,7 @@ const approveAudit = async (req, res) => {
       }
       await tx.inventoryAudit.update({
         where: { id: audit.id },
-        data: { status: 'APPROVED', approvedBy: req.user?.name || 'Admin', approvedAt: new Date() }
+        data: { status: 'APPROVED', approvedBy: req.user?.name || 'Admin', approvedAt: new Date(), endedAt: new Date() }
       });
       if (adjustments.length > 0) {
         await tx.inventoryAdjustmentLog.createMany({ data: adjustments });
@@ -722,7 +872,8 @@ const rejectAudit = async (req, res) => {
         status: 'REJECTED',
         rejectedBy: req.user?.name || 'Admin',
         rejectedAt: new Date(),
-        rejectionReason: req.body?.reason || null
+        rejectionReason: req.body?.reason || null,
+        endedAt: new Date()
       }
     });
 
@@ -774,8 +925,10 @@ module.exports = {
   startAudit,
   listAudits,
   getAudit,
+  getAuditPrecheck,
   scanBarcode,
   batchScan,
+  zeroItems,
   setPhysicalQty,
   submitAudit,
   approveAudit,

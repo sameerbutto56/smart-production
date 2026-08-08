@@ -46,18 +46,24 @@ const beep = (ok) => {
 };
 
 // Mirrors backend computeAuditSummary — recomputed locally per scan so header
-// cards (Scanned / Total Scans / Matched / Missing / Extra / Difference Value) always match the table.
+// cards (Value / Scanned / Scanned Qty / Unscanned / Zeroed / Matched / Missing /
+// Extra / Difference Value) always match the table.
 const computeLocalSummary = (items) => {
-  let scannedCount = 0, matchedCount = 0, missingCount = 0, extraCount = 0, differenceValue = 0, totalScans = 0;
+  let scannedCount = 0, matchedCount = 0, missingCount = 0, extraCount = 0, differenceValue = 0, totalScans = 0, zeroedCount = 0, scannedQty = 0, totalValue = 0;
   for (const it of items) {
     const d = (it.physicalQty || 0) - (it.systemQty || 0);
-    if (it.scanned) scannedCount++;
+    if (it.scanned) { scannedCount++; scannedQty += it.physicalQty || 0; }
+    if (it.zeroed) zeroedCount++;
     totalScans += it.scanCount || 0;
+    totalValue += (it.systemQty || 0) * (it.price || 0);
     if (d === 0) matchedCount++;
     else if (d > 0) { extraCount++; differenceValue += d * (it.price || 0); }
     else { missingCount++; differenceValue += Math.abs(d) * (it.price || 0); }
   }
-  return { scannedCount, matchedCount, missingCount, extraCount, differenceValue, totalScans };
+  return {
+    scannedCount, matchedCount, missingCount, extraCount, differenceValue, totalScans,
+    zeroedCount, scannedQty, totalValue, unscannedCount: items.length - scannedCount
+  };
 };
 
 // Memoized table row — only the row whose item changed re-renders, keeping the
@@ -84,7 +90,9 @@ const VariantRow = React.memo(({ item, isActive, qtyInput, onMinus, onPlus, onQt
             <button onClick={() => onPlus(item.id)} className="p-1 bg-gray-800 hover:bg-gray-700 rounded-md text-gray-300"><Plus size={12} /></button>
           </div>
         ) : (
-          <span className="font-black theme-text-primary">{item.physicalQty}</span>
+          <span className="font-black theme-text-primary">{item.physicalQty}
+            {item.zeroed && <span className="ml-1 text-[9px] font-black text-red-400 bg-red-500/10 px-1 py-0.5 rounded border border-red-500/40">ABSENT</span>}
+          </span>
         )}
       </td>
       <td className="px-4 py-2.5 text-center">
@@ -116,6 +124,9 @@ const WarehouseAudit = () => {
   const [outletName, setOutletName] = useState('');
   const [notes, setNotes] = useState('');
   const [starting, setStarting] = useState(false);
+  // readiness precheck (pending demand requests / existing in-progress audit)
+  const [precheck, setPrecheck] = useState(null);
+  const [precheckLoading, setPrecheckLoading] = useState(false);
 
   // live scanning
   const [barcode, setBarcode] = useState('');
@@ -281,8 +292,31 @@ const WarehouseAudit = () => {
     }
   };
 
+  // Readiness precheck — pending demand requests (incoming or approved-not-accepted)
+  // for the scope block a new audit; the backend enforces it too, this is the UX gate.
+  const runPrecheck = useCallback(async () => {
+    if (auditType === 'OUTLET' && !outletName) { setPrecheck(null); return; }
+    setPrecheckLoading(true);
+    try {
+      const res = await api.get('/api/audit/precheck', { params: { type: auditType, outletName: auditType === 'OUTLET' ? outletName : undefined } });
+      setPrecheck(res.data);
+    } catch {
+      setPrecheck(null);
+    } finally { setPrecheckLoading(false); }
+  }, [auditType, outletName]);
+
+  useEffect(() => {
+    if (view === 'start') runPrecheck();
+  }, [view, runPrecheck]);
+
   const startAudit = async () => {
     if (auditType === 'OUTLET' && !outletName) { toast.error('Select an outlet'); return; }
+    if (precheck && !precheck.ok) {
+      toast.error(precheck.pendingAudit
+        ? `Audit ${precheck.pendingAudit.auditNumber} is already ${precheck.pendingAudit.status.replace('_', ' ').toLowerCase()} — finish or wait for its decision first`
+        : `${precheck.demands.length} pending demand request(s) block a new audit`);
+      return;
+    }
     setStarting(true);
     try {
       const res = await api.post('/api/audit', { type: auditType, outletName: auditType === 'OUTLET' ? outletName : undefined, notes });
@@ -390,6 +424,39 @@ const WarehouseAudit = () => {
     updateManualQty(itemId, typed);
   }, [updateManualQty]);
 
+  // Zeroing — declare items absent (physicalQty = 0). Marks them scanned + zeroed
+  // so the unscanned list shrinks and they count toward Missing. A later re-scan
+  // (barcode) simply flips them back to a real physical count.
+  const applyZeroResponse = (res) => {
+    setActiveAudit(a => ({ ...a, items: res.data.items, ...res.data.summary }));
+    setManualQty(prev => { const n = { ...prev }; (res.data.items || []).forEach(i => delete n[i.id]); return n; });
+  };
+
+  const zeroItem = async (itemId) => {
+    if (!activeAudit || activeAudit.status !== 'IN_PROGRESS') return;
+    try {
+      const res = await api.post(`/api/audit/${activeAudit.id}/zero`, { itemIds: [itemId] });
+      applyZeroResponse(res);
+      toast.success('Item declared absent (qty 0)');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to zero item');
+    }
+  };
+
+  const zeroAllUnscanned = async () => {
+    if (!activeAudit || activeAudit.status !== 'IN_PROGRESS') return;
+    const count = (activeAudit.items || []).filter(i => !i.scanned).length;
+    if (count === 0) return;
+    if (!window.confirm(`Declare all ${count} unscanned item(s) as absent (physical qty 0)? They will count toward Missing.`)) return;
+    try {
+      const res = await api.post(`/api/audit/${activeAudit.id}/zero`, { all: true });
+      applyZeroResponse(res);
+      toast.success(`${res.data.zeroed} item(s) declared absent`);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to zero unscanned items');
+    }
+  };
+
   const submitAudit = async () => {
     if (!window.confirm(`Submit audit ${activeAudit.auditNumber}? It becomes read-only and moves to Admin review.`)) return;
     setSubmitting(true);
@@ -439,8 +506,12 @@ const WarehouseAudit = () => {
       <h2>${a.auditNumber} • ${a.type === 'OUTLET' ? a.outletName : 'Warehouse'} • ${new Date(a.createdAt).toLocaleString()}</h2>
       <div class="meta">
         <span>Auditor: ${a.createdBy || '-'}</span>
-        <span>Total Variants: ${a.totalVariants}</span>
-        <span>Scanned: ${a.scannedCount}</span>
+        <span>Total Items: ${a.totalVariants}</span>
+        <span>Inventory Value: ${fmt(a.totalValue ?? 0)}</span>
+        <span>Scanned Items: ${a.scannedCount}</span>
+        <span>Scanned Qty: ${a.scannedQty || 0}</span>
+        <span>Unscanned: ${a.unscannedCount || 0}</span>
+        <span>Zeroed: ${a.zeroedCount || 0}</span>
         <span>Total Scans: ${a.totalScans || 0}</span>
         <span>Matched: ${a.matchedCount}</span>
         <span>Missing: ${a.missingCount}</span>
@@ -505,7 +576,10 @@ const WarehouseAudit = () => {
                   <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-800/50">
                     <th className="px-5 py-3 text-left">Audit #</th>
                     <th className="px-5 py-3 text-left">Type</th>
-                    <th className="px-5 py-3 text-left">Variants</th>
+                    <th className="px-5 py-3 text-center">Variants</th>
+                    <th className="px-5 py-3 text-center">Scanned</th>
+                    <th className="px-5 py-3 text-center">Unscanned</th>
+                    <th className="px-5 py-3 text-center">Zeroed</th>
                     <th className="px-5 py-3 text-left">Diff Value</th>
                     <th className="px-5 py-3 text-left">Auditor</th>
                     <th className="px-5 py-3 text-left">Date</th>
@@ -520,7 +594,10 @@ const WarehouseAudit = () => {
                       <td className="px-5 py-3 text-gray-300 font-bold">
                         {a.type === 'OUTLET' ? <><Building2 size={12} className="inline mr-1 text-purple-400" />{a.outletName}</> : <><Package size={12} className="inline mr-1 text-amber-400" />Warehouse</>}
                       </td>
-                      <td className="px-5 py-3 text-gray-300 font-bold">{a.totalVariants}</td>
+                      <td className="px-5 py-3 text-center text-gray-300 font-bold">{a.totalVariants}</td>
+                      <td className="px-5 py-3 text-center font-black text-blue-400">{a.scannedCount}</td>
+                      <td className="px-5 py-3 text-center font-black text-gray-400">{a.unscannedCount || 0}</td>
+                      <td className="px-5 py-3 text-center font-black text-red-400">{a.zeroedCount || 0}</td>
                       <td className="px-5 py-3 font-black text-orange-400">{fmt(a.differenceValue)}</td>
                       <td className="px-5 py-3 text-gray-300 font-bold">{a.createdBy}</td>
                       <td className="px-5 py-3 text-gray-400 font-bold text-xs">{new Date(a.createdAt).toLocaleDateString()}</td>
@@ -587,9 +664,46 @@ const WarehouseAudit = () => {
               className="w-full bg-gray-900 border-2 border-gray-800 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-purple-500 resize-none" />
           </div>
 
+          {/* Readiness precheck — pending demands / existing audit block the start */}
+          {precheckLoading ? (
+            <div className="flex items-center gap-2 text-xs font-bold theme-text-muted py-3">
+              <RefreshCcw size={13} className="animate-spin" /> Checking readiness…
+            </div>
+          ) : precheck && !precheck.ok ? (
+            <div className={`rounded-2xl border-2 p-4 ${precheck.pendingAudit ? 'border-blue-500/40 bg-blue-500/10' : 'border-amber-500/40 bg-amber-500/10'}`}>
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={18} className={`shrink-0 ${precheck.pendingAudit ? 'text-blue-400' : 'text-amber-400'}`} />
+                <div className="space-y-2">
+                  <p className="text-sm font-black theme-text-primary">
+                    {precheck.pendingAudit
+                      ? <>An audit is already {precheck.pendingAudit.status.replace('_', ' ').toLowerCase()} for this scope — <span className="text-blue-400">{precheck.pendingAudit.auditNumber}</span></>
+                      : <>Audit start blocked — pending demand request(s)</>}
+                  </p>
+                  {!precheck.pendingAudit && (
+                    <ul className="space-y-1">
+                      {precheck.demands.map(d => (
+                        <li key={d.id} className="text-[11px] font-bold text-gray-300">
+                          {d.transferNumber || d.id} · {d.outletName || '?'} · <span className="text-amber-400">{d.status.replace('_', ' ')}</span>{d.acceptedAt ? '' : ' — not accepted'}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-[10px] font-bold theme-text-muted">
+                    {precheck.pendingAudit ? 'Complete it or wait for the Admin decision before starting a new one.' : 'Clear the pending demand requests (accept or reject them) before the stock snapshot can be trusted.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : precheck && precheck.ok ? (
+            <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 px-4 py-3 flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              <p className="text-xs font-black text-emerald-400">Scope is ready — no pending demand requests, no active audit. You can start.</p>
+            </div>
+          ) : null}
+
           <div className="flex gap-3">
             <button onClick={() => setView('history')} className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-2xl font-black text-xs uppercase tracking-widest">Cancel</button>
-            <button onClick={startAudit} disabled={starting}
+            <button onClick={startAudit} disabled={starting || (precheck && !precheck.ok)}
               className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2">
               {starting ? <RefreshCcw size={14} className="animate-spin" /> : <Play size={14} />} Start Audit
             </button>
@@ -609,6 +723,7 @@ const WarehouseAudit = () => {
     : items;
   const totalVariants = audit.totalVariants || items.length;
   const progressPct = totalVariants > 0 ? Math.round(((audit.scannedCount || 0) / totalVariants) * 100) : 0;
+  const unscannedItems = items.filter(i => !i.scanned);
 
   return (
     <div className="space-y-4">
@@ -636,26 +751,38 @@ const WarehouseAudit = () => {
       </div>
 
       {/* Snapshot header */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="glass p-4 rounded-2xl border-2 theme-border">
           <p className="text-2xl font-black theme-text-primary">{totalVariants}</p>
-          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Total Variants</p>
+          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Total Items</p>
         </div>
         <div className="glass p-4 rounded-2xl border-2 theme-border">
           <p className="text-2xl font-black theme-text-primary">{audit.totalStock}</p>
           <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Snapshot Stock</p>
         </div>
+        <div className="glass p-4 rounded-2xl border-2 border-emerald-500/20">
+          <p className="text-xl font-black text-emerald-400">{fmt(audit.totalValue ?? 0)}</p>
+          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Total Inventory Value</p>
+        </div>
         <div className="glass p-4 rounded-2xl border-2 border-blue-500/20">
           <p className="text-2xl font-black text-blue-400">{audit.scannedCount || 0}</p>
-          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Scanned</p>
+          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Scanned Items</p>
+        </div>
+        <div className="glass p-4 rounded-2xl border-2 border-cyan-500/20">
+          <p className="text-2xl font-black text-cyan-400">{audit.scannedQty || 0}</p>
+          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Scanned Qty</p>
+        </div>
+        <div className="glass p-4 rounded-2xl border-2 border-amber-500/20">
+          <p className="text-2xl font-black text-amber-400">{Math.max(0, totalVariants - (audit.scannedCount || 0))}</p>
+          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Unscanned</p>
+        </div>
+        <div className="glass p-4 rounded-2xl border-2 border-red-500/20">
+          <p className="text-2xl font-black text-red-400">{audit.zeroedCount || 0}</p>
+          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Zeroed</p>
         </div>
         <div className="glass p-4 rounded-2xl border-2 border-purple-500/20">
           <p className="text-2xl font-black text-purple-400">{audit.totalScans || 0}</p>
           <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Total Scans</p>
-        </div>
-        <div className="glass p-4 rounded-2xl border-2 border-gray-700/50">
-          <p className="text-2xl font-black text-gray-300">{Math.max(0, totalVariants - (audit.scannedCount || 0))}</p>
-          <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mt-1">Remaining</p>
         </div>
       </div>
 
@@ -752,6 +879,64 @@ const WarehouseAudit = () => {
         </div>
       )}
 
+      {/* Unscanned item analysis — zero absent items or re-scan their barcodes */}
+      {isActive && (
+        <div className="glass rounded-2xl border-2 border-amber-500/20 overflow-hidden">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-5 py-4 border-b border-gray-800/50">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-amber-400" />
+              <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Unscanned Item Analysis</span>
+              <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg">{unscannedItems.length} unscanned</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold theme-text-muted">Re-scan a barcode to count it, or declare absent:</span>
+              <button onClick={zeroAllUnscanned} disabled={unscannedItems.length === 0}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-red-600/20 text-red-400 border border-red-500/40 hover:bg-red-600/30 disabled:opacity-40 flex items-center gap-1">
+                <X size={12} /> Zero All Unscanned ({unscannedItems.length})
+              </button>
+            </div>
+          </div>
+          {unscannedItems.length === 0 ? (
+            <p className="text-center text-xs font-bold theme-text-muted py-6">No unscanned items — every variant has been counted.</p>
+          ) : (
+            <div className="max-h-64 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-900 z-10">
+                  <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-800/50">
+                    <th className="px-4 py-2.5 text-left">Product</th>
+                    <th className="px-4 py-2.5 text-left">Color</th>
+                    <th className="px-4 py-2.5 text-left">Size</th>
+                    <th className="px-4 py-2.5 text-left">Barcode</th>
+                    <th className="px-4 py-2.5 text-center">System</th>
+                    <th className="px-4 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unscannedItems.slice(0, 100).map(i => (
+                    <tr key={i.id} className="border-b border-gray-800/40">
+                      <td className="px-4 py-2 font-black theme-text-primary">{i.productName}</td>
+                      <td className="px-4 py-2 text-gray-300 font-bold">{i.color || '—'}</td>
+                      <td className="px-4 py-2 text-gray-300 font-bold">{i.size || '—'}</td>
+                      <td className="px-4 py-2 text-gray-500 font-bold text-xs">{i.barcode || '—'}</td>
+                      <td className="px-4 py-2 text-center font-black text-gray-300">{i.systemQty}</td>
+                      <td className="px-4 py-2 text-right">
+                        <button onClick={() => zeroItem(i.id)}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-red-600/20 text-red-400 border border-red-500/40 hover:bg-red-600/30">
+                          Zero — declare absent
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {unscannedItems.length > 100 && (
+                <p className="text-center text-[10px] font-bold text-gray-500 py-3">Showing first 100 of {unscannedItems.length} — refine with the search bar below to zero specific items</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Live comparison grid */}
       <div className="glass rounded-2xl border-2 theme-border overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-5 py-4 border-b border-gray-800/50">
@@ -764,7 +949,7 @@ const WarehouseAudit = () => {
             </div>
             <div className="flex items-center gap-1.5">
               <ListFilter size={13} className="text-gray-500" />
-              {[['all', 'All'], ['scanned', 'Scanned'], ['diff', 'Diff > 0']].map(([k, label]) => (
+              {[['all', 'All'], ['scanned', 'Scanned'], ['unscanned', 'Unscanned'], ['zeroed', 'Zeroed'], ['diff', 'Diff > 0']].map(([k, label]) => (
                 <button key={k} onClick={() => setTableFilter(k)}
                   className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors ${tableFilter === k ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
                   {label}
@@ -790,12 +975,12 @@ const WarehouseAudit = () => {
             </thead>
             <tbody>
               {filteredItems
-                .filter(i => tableFilter === 'all' ? true : tableFilter === 'scanned' ? !!i.scanned : (i.difference || 0) !== 0)
+                .filter(i => tableFilter === 'all' ? true : tableFilter === 'scanned' ? !!i.scanned : tableFilter === 'unscanned' ? !i.scanned : tableFilter === 'zeroed' ? !!i.zeroed : (i.difference || 0) !== 0)
                 .map(i => (
                   <VariantRow key={i.id} item={i} isActive={isActive} qtyInput={manualQty[i.id]}
                     onMinus={handleMinus} onPlus={handlePlus} onQty={handleQtyChange} onCommit={commitQty} />
                 ))}
-              {filteredItems.filter(i => tableFilter === 'all' ? true : tableFilter === 'scanned' ? !!i.scanned : (i.difference || 0) !== 0).length === 0 &&
+              {filteredItems.filter(i => tableFilter === 'all' ? true : tableFilter === 'scanned' ? !!i.scanned : tableFilter === 'unscanned' ? !i.scanned : tableFilter === 'zeroed' ? !!i.zeroed : (i.difference || 0) !== 0).length === 0 &&
                 <tr><td colSpan={9} className="px-4 py-8 text-center text-sm font-bold text-gray-500">No variants match the current filter</td></tr>}
             </tbody>
           </table>

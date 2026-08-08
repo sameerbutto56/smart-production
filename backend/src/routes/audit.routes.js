@@ -4,8 +4,10 @@ const {
   startAudit,
   listAudits,
   getAudit,
+  getAuditPrecheck,
   scanBarcode,
   batchScan,
+  zeroItems,
   setPhysicalQty,
   submitAudit,
   approveAudit,
@@ -22,6 +24,9 @@ router.get('/stats', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_
 // POS lock check — any authenticated user (OUTLET opens /pos, STORE opens /warehouse-pos)
 router.get('/pos-lock', authenticate, getPosLock);
 
+// Readiness precheck — blocks start when pending demand requests exist for the scope
+router.get('/precheck', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN']), getAuditPrecheck);
+
 // Start audit (warehouse only)
 router.post('/', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), startAudit);
 
@@ -32,6 +37,7 @@ router.get('/', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN
 router.get('/:id', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN']), getAudit);
 router.post('/:id/scan', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), scanBarcode);
 router.post('/:id/batch-scan', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), batchScan);
+router.post('/:id/zero', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), zeroItems);
 router.post('/:id/items/:itemId', authenticate, authorize(['STORE', 'STORE_EMPLOYEE']), setPhysicalQty);
 
 // Submit (warehouse only)

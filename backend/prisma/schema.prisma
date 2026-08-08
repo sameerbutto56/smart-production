@@ -1318,7 +1318,11 @@ model InventoryAudit {
   status           String   @default("IN_PROGRESS") // IN_PROGRESS / SUBMITTED / APPROVED / REJECTED
   totalVariants    Int      @default(0)
   totalStock       Int      @default(0)
+  totalValue       Float    @default(0)   // system qty × price at snapshot (Total Inventory Value)
   scannedCount     Int      @default(0)
+  scannedQty       Int      @default(0)   // Σ physicalQty of scanned/zeroed items (Scanned Quantity)
+  unscannedCount   Int      @default(0)   // items not yet scanned at submit
+  zeroedCount      Int      @default(0)   // items explicitly declared absent (physicalQty set to 0)
   totalScans       Int      @default(0)
   matchedCount     Int      @default(0)
   missingCount     Int      @default(0)
@@ -1328,12 +1332,14 @@ model InventoryAudit {
   notes            String?
   createdBy        String   // employee name
   createdById      String?
+  startedAt        DateTime?  // audit start (snapshot created)
   submittedAt      DateTime?
   approvedBy       String?
   approvedAt       DateTime?
   rejectedBy       String?
   rejectedAt       DateTime?
   rejectionReason  String?
+  endedAt          DateTime?  // final decision (approved or rejected)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   items            InventoryAuditItem[]
@@ -1359,6 +1365,7 @@ model InventoryAuditItem {
   scanCount   Int      @default(0)
   lastScannedAt DateTime?
   scanned     Boolean  @default(false)
+  zeroed      Boolean  @default(false) // explicitly declared absent (physicalQty = 0) by the auditor
   difference  Int      @default(0)
   price       Float    @default(0)
   status      String   @default("PENDING") // MATCH / MISSING / EXTRA

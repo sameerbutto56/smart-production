@@ -31,16 +31,19 @@ const AuditReview = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [decisionLoading, setDecisionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [pendingList, setPendingList] = useState([]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, a] = await Promise.all([
+      const [s, a, p] = await Promise.all([
         api.get('/api/audit/stats'),
-        api.get('/api/audit', { params: statusFilter ? { status: statusFilter } : {} })
+        api.get('/api/audit', { params: statusFilter ? { status: statusFilter } : {} }),
+        api.get('/api/audit', { params: { status: 'SUBMITTED' } })
       ]);
       setStats(s.data);
       setAudits(a.data);
+      setPendingList(p.data);
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to load audits');
     } finally { setLoading(false); }
@@ -98,6 +101,27 @@ const AuditReview = () => {
           <RefreshCcw size={15} /> Refresh
         </button>
       </div>
+
+      {/* Pending-approval banner — branches locked until decision */}
+      {pendingList.length > 0 && (
+        <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-500/10 p-4 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-black theme-text-primary">Audit approval pending — affected branches' POS is locked</p>
+            <p className="text-xs font-bold theme-text-muted mt-1">
+              Warehouse/Outlet stays locked ("Audit Approval Pending") until each submitted audit is approved or rejected. No inventory has changed yet — adjustments apply only on approval.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {pendingList.map(a => (
+                <button key={a.id} onClick={() => openDetail(a)}
+                  className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-black text-amber-400 border border-amber-500/30">
+                  Review {a.auditNumber} <span className="text-gray-500">({a.type === 'OUTLET' ? a.outletName : 'Warehouse'})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       {stats && (
@@ -183,10 +207,14 @@ const AuditReview = () => {
                 <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-800/50">
                   <th className="px-5 py-3 text-left">Audit #</th>
                   <th className="px-5 py-3 text-left">Type</th>
-                  <th className="px-5 py-3 text-left">Variants</th>
+                  <th className="px-5 py-3 text-center">Items</th>
+                  <th className="px-5 py-3 text-center">Scanned</th>
+                  <th className="px-5 py-3 text-center">Unscanned</th>
+                  <th className="px-5 py-3 text-center">Zeroed</th>
                   <th className="px-5 py-3 text-left">Diff Value</th>
                   <th className="px-5 py-3 text-left">Auditor</th>
                   <th className="px-5 py-3 text-left">Submitted</th>
+                  <th className="px-5 py-3 text-left">Decision</th>
                   <th className="px-5 py-3 text-left">Status</th>
                   <th className="px-5 py-3 text-left"></th>
                 </tr>
@@ -198,10 +226,20 @@ const AuditReview = () => {
                     <td className="px-5 py-3 text-gray-300 font-bold">
                       {a.type === 'OUTLET' ? <><Building2 size={12} className="inline mr-1 text-purple-400" />{a.outletName}</> : <><Package size={12} className="inline mr-1 text-amber-400" />Warehouse</>}
                     </td>
-                    <td className="px-5 py-3 text-gray-300 font-bold">{a.totalVariants}</td>
+                    <td className="px-5 py-3 text-center text-gray-300 font-bold">{a.totalVariants}</td>
+                    <td className="px-5 py-3 text-center font-black text-blue-400">{a.scannedCount}</td>
+                    <td className="px-5 py-3 text-center font-black text-gray-400">{a.unscannedCount || 0}</td>
+                    <td className="px-5 py-3 text-center font-black text-red-400">{a.zeroedCount || 0}</td>
                     <td className="px-5 py-3 font-black text-orange-400">{fmt(a.differenceValue)}</td>
                     <td className="px-5 py-3 text-gray-300 font-bold">{a.createdBy}</td>
                     <td className="px-5 py-3 text-gray-400 font-bold text-xs">{a.submittedAt ? new Date(a.submittedAt).toLocaleString() : '—'}</td>
+                    <td className="px-5 py-3 text-[10px] font-black">
+                      {a.status === 'APPROVED'
+                        ? <span className="text-emerald-400">✓ {a.approvedBy} • {new Date(a.approvedAt).toLocaleDateString()}</span>
+                        : a.status === 'REJECTED'
+                          ? <span className="text-red-400">✕ {a.rejectedBy} • {new Date(a.rejectedAt).toLocaleDateString()}</span>
+                          : <span className="text-gray-500">—</span>}
+                    </td>
                     <td className="px-5 py-3"><span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${STATUS_STYLES[a.status]}`}>{a.status.replace('_', ' ')}</span></td>
                     <td className="px-5 py-3 text-purple-400 font-black text-xs"><Eye size={13} className="inline" /> Review</td>
                   </tr>
@@ -232,10 +270,19 @@ const AuditReview = () => {
                   <button onClick={() => setSelected(null)} className="p-2 bg-gray-800 rounded-xl hover:bg-gray-700 text-gray-300"><XCircle size={16} /></button>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
-                  {[['Total Variants', selected.totalVariants], ['Scanned', selected.scannedCount], ['Matched', selected.matchedCount], ['Missing', selected.missingCount], ['Extra', selected.extraCount]].map(([l, v]) => (
-                    <div key={l} className="bg-gray-800/50 rounded-xl p-3">
-                      <p className="text-xl font-black theme-text-primary">{v}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                  {[
+                    ['Total Items', selected.totalVariants],
+                    ['Inventory Value', fmt(selected.totalValue ?? 0)],
+                    ['Scanned Items', selected.scannedCount],
+                    ['Scanned Qty', selected.scannedQty || 0],
+                    ['Unscanned', selected.unscannedCount || 0],
+                    ['Zeroed', selected.zeroedCount || 0],
+                    ['Missing', selected.missingCount],
+                    ['Extra', selected.extraCount]
+                  ].map(([l, v]) => (
+                    <div key={l} className={`bg-gray-800/50 rounded-xl p-3 ${l === 'Zeroed' ? 'border border-red-500/30' : ''}`}>
+                      <p className={`text-xl font-black ${l === 'Zeroed' ? 'text-red-400' : 'theme-text-primary'}`}>{v}</p>
                       <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider mt-0.5">{l}</p>
                     </div>
                   ))}
@@ -249,9 +296,10 @@ const AuditReview = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[10px] font-bold theme-text-muted">
+                <div className="flex items-center gap-2 text-[10px] font-bold theme-text-muted flex-wrap">
                   <User size={12} /> Auditor: {selected.createdBy} • Submitted: {selected.submittedAt ? new Date(selected.submittedAt).toLocaleString() : '—'}
                   {selected.approvedBy && <><Clock size={12} className="ml-2" /> Approved: {new Date(selected.approvedAt).toLocaleString()} by {selected.approvedBy}</>}
+                  {selected.rejectedBy && <><XCircle size={12} className="ml-2 text-red-400" /> Rejected: {selected.rejectedAt ? new Date(selected.rejectedAt).toLocaleString() : ''} by {selected.rejectedBy}{selected.rejectionReason ? ` — ${selected.rejectionReason}` : ''}</>}
                 </div>
 
                 {selected.status === 'SUBMITTED' && (
@@ -293,7 +341,9 @@ const AuditReview = () => {
                           <td className="px-4 py-2.5 text-gray-300 font-bold">{i.color || '—'}</td>
                           <td className="px-4 py-2.5 text-gray-300 font-bold">{i.size || '—'}</td>
                           <td className="px-4 py-2.5 text-center font-black text-gray-300">{i.systemQty}</td>
-                          <td className="px-4 py-2.5 text-center font-black theme-text-primary">{i.physicalQty}</td>
+                          <td className="px-4 py-2.5 text-center font-black theme-text-primary">{i.physicalQty}
+                            {i.zeroed && <span className="ml-1 text-[9px] font-black text-red-400 bg-red-500/10 px-1 py-0.5 rounded border border-red-500/40">ABSENT</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-center">
                             <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg border ${diffBadge(i.difference)}`}>
                               {i.difference > 0 ? `+${i.difference}` : i.difference}
