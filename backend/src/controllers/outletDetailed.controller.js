@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
 
 const getOutletDetailed = async (req, res) => {
@@ -60,42 +61,29 @@ const getOutletDetailed = async (req, res) => {
 
     const nonFaisalSales = safeSalesAll.filter(s => !s.faisalTake);
 
-    let totalSales = 0;
-    nonFaisalSales.forEach(s => { totalSales += saleRevenue(s); });
-    safeBalancePayments.forEach(bp => { totalSales += bp.amountPaidNow || 0; });
-
-    const totalReturns = returnsAgg.status === 'fulfilled' ? (returnsAgg.value._sum.refundAmount || 0) : 0;
-    const returnCount = returnsAgg.status === 'fulfilled' ? (returnsAgg.value._count || 0) : 0;
-    const totalDiscount = discountAgg.status === 'fulfilled' ? (discountAgg.value._sum.discountAmount || 0) : 0;
-    const totalSalesCount = salesAgg.status === 'fulfilled' ? (salesAgg.value._count || 0) : 0;
-    const netRevenue = Math.max(0, totalSales - totalReturns);
-
-    const paymentBreakdown = { CASH: { gross: 0, returns: 0, net: 0 }, CARD: { gross: 0, returns: 0, net: 0 }, ONLINE: { gross: 0, returns: 0, net: 0 }, CASH_ONLINE: { gross: 0, returns: 0, net: 0 } };
-    nonFaisalSales.forEach(s => {
-      const rev = saleRevenue(s);
-      const method = s.paymentMethod || 'CASH';
-      if (method === 'CASH_ONLINE') {
-        paymentBreakdown.CASH_ONLINE.gross += rev;
-      } else if (paymentBreakdown[method]) {
-        paymentBreakdown[method].gross += rev;
-      }
+    // UNIFIED sales calculation — single source of truth shared by POS Dashboard,
+    // Outlet Dashboard (POS Sales card), Admin Outlet Detailed, and Register Close
+    // Book. Faisal Takes excluded; balance payments counted on their paidAt date.
+    const unified = await computeUnifiedSalesSummary(prisma, {
+      outlet,
+      start: startLimit,
+      end: endLimit,
     });
-    safeBalancePayments.forEach(bp => {
-      const method = bp.paymentMethod || 'CASH';
-      if (paymentBreakdown[method]) paymentBreakdown[method].gross += bp.amountPaidNow || 0;
-      else paymentBreakdown.CASH.gross += bp.amountPaidNow || 0;
-    });
-    safeReturns.forEach(r => {
-      const sale = r.sale;
-      const method = (sale?.paymentMethod) || 'CASH';
-      if (paymentBreakdown[method]) paymentBreakdown[method].returns += r.refundAmount || 0;
-      else paymentBreakdown.CASH.returns += r.refundAmount || 0;
-    });
-    Object.keys(paymentBreakdown).forEach(k => { paymentBreakdown[k].net = Math.max(0, paymentBreakdown[k].gross - paymentBreakdown[k].returns); });
+    const totalSales = unified.totalSales;
+    const totalReturns = unified.refundAmount;
+    const returnCount = unified.returns.length;
+    const totalDiscount = unified.totalDiscount;
+    const totalSalesCount = unified.totalOrders;
+    const netRevenue = unified.netRevenue;
+    const totalRefunds = unified.refundAmount;
+    const totalJournalExpenses = unified.totalJournalExpenses;
 
-    const totalRefunds = Object.values(paymentBreakdown).reduce((s, m) => s + m.returns, 0);
-
-    const totalJournalExpenses = safeJournal.reduce((sum, j) => sum + (j.amount || 0), 0);
+    // Same non-overlapping payment breakdown as the POS Dashboard (object form kept
+    // for backward compatibility with the Admin card consumers).
+    const paymentBreakdown = {};
+    unified.paymentBreakdown.forEach(p => {
+      paymentBreakdown[p.method] = { gross: p.gross, returns: p.returns, net: p.net };
+    });
 
     let highestSale = null;
     let highestInvoice = null;
@@ -114,20 +102,9 @@ const getOutletDetailed = async (req, res) => {
     });
     const bestSellingProducts = Object.values(productMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
 
-    const salesByDay = {};
-    nonFaisalSales.forEach(s => {
-      const day = new Date(s.createdAt).toISOString().split('T')[0];
-      if (!salesByDay[day]) salesByDay[day] = { date: day, label: day, sales: 0, count: 0 };
-      salesByDay[day].sales += saleRevenue(s);
-      salesByDay[day].count += 1;
-    });
-    safeBalancePayments.forEach(bp => {
-      if (!bp.paidAt) return;
-      const day = new Date(bp.paidAt).toISOString().split('T')[0];
-      if (!salesByDay[day]) salesByDay[day] = { date: day, label: day, sales: 0, count: 0 };
-      salesByDay[day].sales += bp.amountPaidNow || 0;
-    });
-    const salesTrend = Object.values(salesByDay).sort((a, b) => a.date.localeCompare(b.date));
+    const salesTrend = Object.keys(unified.salesByDay)
+      .sort((a, b) => a.localeCompare(b))
+      .map(date => ({ date, label: date, sales: unified.salesByDay[date], count: unified.ordersByDay[date] || 0 }));
 
     const balanceInvoices = nonFaisalSales.filter(s => {
       const paid = (s.advanceAmount || 0) + (s.balancePayments || []).reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);

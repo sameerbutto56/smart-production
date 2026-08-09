@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const { getPendingAudit } = require('../utils/auditLock');
 const errorLogger = require('../utils/errorLogger');
+const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 const CACHE_KEY_PREFIX = 'pos:';
 
 const getOutletName = (req) => {
@@ -897,121 +898,33 @@ const getSalesDashboard = async (req, res) => {
       if (endLimit) whereClause.createdAt.lte = endLimit;
     }
 
-    // 1. Basic Stats aggregation
-    const [salesAgg, returnsAgg, discountAgg] = await Promise.all([
-      prisma.posSale.aggregate({
-        where: whereClause,
-        _sum: { grandTotal: true, subtotal: true },
-        _count: true
-      }),
-      prisma.posReturn.aggregate({
-        where: outlet ? { outletName: outlet, ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}) } : (startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
-        _sum: { refundAmount: true },
-        _count: true
-      }),
-      prisma.posSale.aggregate({
-        where: whereClause,
-        _sum: { discountAmount: true }
-      })
-    ]);
-
-    // 3. Fetch all sales for trend charts & revenue calculation
-    const allSales = await prisma.posSale.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true, orderNumber: true, cashierName: true, cashAmount: true, onlineAmount: true }
-    });
-    const balancePayments = await prisma.posBalancePayment.findMany({
-      where: {
-        ...(outlet ? { posSale: { outletName: outlet } } : {}),
-        ...(startLimit || endLimit ? { paidAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {})
-      },
-      select: { posSaleId: true, amountPaidNow: true, paidAt: true, paymentMethod: true, cashAmount: true, onlineAmount: true, posSale: { select: { outletName: true } } }
+    // 1. UNIFIED sales calculation — single source of truth shared by the POS
+    //    Dashboard, Outlet Dashboard (POS Sales card), Admin Outlet Detailed, and
+    //    Register/Close Book. Same outlet + window ⇒ identical numbers everywhere.
+    const unified = await computeUnifiedSalesSummary(prisma, {
+      outlet,
+      start: startLimit,
+      end: endLimit,
+      cashier,
     });
 
-    // Calculate total sales by actual payment dates
-    // Regular sales (no orderId): full grandTotal counted on sale date
-    // Advance/balance sales: only advanceAmount counted on sale date (balance tracked via PosBalancePayment)
+    const {
+      totalSales,
+      totalOrders,
+      refundAmount,
+      netRevenue,
+      totalDiscount,
+      totalJournalExpenses,
+      totalBankDeposits,
+      paymentBreakdown,
+      salesByDay,
+      ordersByDay,
+      bestSellingProducts,
+      sales: allSales,
+      balancePayments,
+    } = unified;
+    const totalReturns = unified.returns.length;
     const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
-    let totalSales = 0;
-    allSales.forEach(s => {
-      totalSales += saleRevenue(s);
-    });
-    balancePayments.forEach(bp => {
-      totalSales += bp.amountPaidNow;
-    });
-    const totalOrders = salesAgg._count || 0;
-    const totalReturns = returnsAgg._count || 0;
-    const refundAmount = returnsAgg._sum.refundAmount || 0;
-    const netRevenue = Math.max(0, totalSales - refundAmount);
-    const totalDiscount = discountAgg._sum.discountAmount || 0;
-
-    // Payment method breakdown — by actual payment received (not invoice total)
-    // For original sales: count advanceAmount (or full grandTotal if paid upfront) by sale's paymentMethod
-    // For balance payments: count amountPaidNow by balance payment's paymentMethod
-    const KNOWN_METHODS = ['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'];
-    const paymentTotals = {};
-    allSales.forEach(s => {
-      const received = saleRevenue(s);
-      if (s.paymentMethod === 'CASH_ONLINE') {
-        // Non-overlapping: full hybrid amount goes to the CASH_ONLINE bucket (the cash/online
-        // split is available separately). Matches History / Register / Excel.
-        paymentTotals['CASH_ONLINE'] = (paymentTotals['CASH_ONLINE'] || 0) + received;
-      } else {
-        const method = KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
-        paymentTotals[method] = (paymentTotals[method] || 0) + received;
-      }
-    });
-    // Add balance payments by their payment method
-    balancePayments.forEach(bp => {
-      const method = KNOWN_METHODS.includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
-      if (method === 'CASH_ONLINE') {
-        paymentTotals['CASH_ONLINE'] = (paymentTotals['CASH_ONLINE'] || 0) + bp.amountPaidNow;
-      } else {
-        paymentTotals[method] = (paymentTotals[method] || 0) + bp.amountPaidNow;
-      }
-    });
-
-    const returnsWithSale = await prisma.posReturn.findMany({
-      where: {
-        ...(outlet ? { outletName: outlet } : {}),
-        ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
-        saleId: { not: null }
-      },
-      select: { refundAmount: true, sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } }
-    });
-    const returnsByMethod = {};
-    returnsWithSale.forEach(r => {
-      if (r.sale?.paymentMethod === 'CASH_ONLINE') {
-        // Non-overlapping: full refund amount goes to the CASH_ONLINE returns bucket.
-        returnsByMethod['CASH_ONLINE'] = (returnsByMethod['CASH_ONLINE'] || 0) + r.refundAmount;
-      } else {
-        const rawMethod = r.sale?.paymentMethod || 'CASH';
-        const method = KNOWN_METHODS.includes(rawMethod) ? rawMethod : 'CASH';
-        returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
-      }
-    });
-
-    // Fetch journal expenses for the same date range and deduct from CASH
-    const journalAgg = await prisma.journalEntry.aggregate({
-      where: {
-        ...(outlet ? { outletName: outlet } : {}),
-        ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
-      },
-      _sum: { amount: true }
-    });
-    const totalJournalExpenses = journalAgg._sum.amount || 0;
-
-    // Fetch bank deposits in the same range — deducted from cash in till
-    const bankDepositAgg = await prisma.bankDeposit.aggregate({
-      where: {
-        ...(outlet ? { outletName: outlet } : {}),
-        ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
-      },
-      _sum: { amount: true }
-    });
-    const totalBankDeposits = bankDepositAgg._sum.amount || 0;
 
     // Fetch bank deposits list for display
     const bankDeposits = await prisma.bankDeposit.findMany({
@@ -1021,14 +934,6 @@ const getSalesDashboard = async (req, res) => {
       },
       orderBy: { createdAt: 'desc' },
       take: 50
-    });
-
-    const paymentBreakdown = KNOWN_METHODS.map(method => {
-      const gross = paymentTotals[method] || 0;
-      const ret = returnsByMethod[method] || 0;
-      let net = gross - ret;
-      if (method === 'CASH') net -= (totalJournalExpenses + totalBankDeposits);
-      return { method, gross, returns: ret, net };
     });
 
     // 2. Balance orders — POS sales linked to orders with advance payments
@@ -1049,21 +954,6 @@ const getSalesDashboard = async (req, res) => {
       prisma.order.count({ where: { ...orderWhere, status: 'CANCELLED' } })
     ]);
 
-    const salesByDay = {};
-    const ordersByDay = {};
-
-    allSales.forEach(s => {
-      const day = s.createdAt.toISOString().split('T')[0];
-      salesByDay[day] = (salesByDay[day] || 0) + saleRevenue(s);
-      ordersByDay[day] = (ordersByDay[day] || 0) + 1;
-    });
-
-    // Add balance payments by their payment dates
-    balancePayments.forEach(bp => {
-      const day = bp.paidAt.toISOString().split('T')[0];
-      salesByDay[day] = (salesByDay[day] || 0) + bp.amountPaidNow;
-    });
-
     let highestSalesDay = { date: 'N/A', amount: 0 };
     let highestOrdersDay = { date: 'N/A', count: 0 };
 
@@ -1078,24 +968,6 @@ const getSalesDashboard = async (req, res) => {
         highestOrdersDay = { date, count };
       }
     });
-
-    // 4. Best selling products (aggregate line items)
-    const saleItems = await prisma.posSaleItem.findMany({
-      where: {
-        sale: whereClause
-      },
-      select: { productName: true, quantity: true }
-    });
-
-    const productCounts = {};
-    saleItems.forEach(item => {
-      productCounts[item.productName] = (productCounts[item.productName] || 0) + item.quantity;
-    });
-
-    const bestSellingProducts = Object.entries(productCounts)
-      .map(([name, qty]) => ({ name, qty }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 5);
 
     // 5. Best performing branch (comparison if viewing 'all')
     const branchPerformance = [];

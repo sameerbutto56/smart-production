@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const bcrypt = require('bcryptjs');
+const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 const { createAuditLog } = require('./order-helpers');
 
 const getOutletName = (req) => {
@@ -828,17 +829,10 @@ const getOutletAnalytics = async (req, res) => {
     });
 
     // 3. Order type distribution
-    const [orders, posSalesData] = await Promise.all([
-      prisma.order.findMany({
-        where: orderWhere,
-        select: { createdAt: true, totalPrice: true, paymentStatus: true, type: true }
-      }),
-      prisma.posSale.aggregate({
-        where: outletName ? { outletName, ...(startDate || endDate ? { createdAt: dateFilter } : {}) } : (startDate || endDate ? { createdAt: dateFilter } : {}),
-        _sum: { grandTotal: true, advanceAmount: true },
-        _count: true
-      })
-    ]);
+    const orders = await prisma.order.findMany({
+      where: orderWhere,
+      select: { createdAt: true, totalPrice: true, paymentStatus: true, type: true }
+    });
 
     // Order type distribution
     const typeDist = {};
@@ -896,9 +890,15 @@ const getOutletAnalytics = async (req, res) => {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 10);
 
-    // 6. POS summary
-    const posTotal = posSalesData._sum.grandTotal || 0;
-    const posCount = posSalesData._count || 0;
+    // 6. POS summary — UNIFIED calculation (same source as POS Dashboard + Admin
+    //    Outlet Detailed). Faisal Takes excluded, balance payments on paidAt.
+    const posUnified = await computeUnifiedSalesSummary(prisma, {
+      outlet: outletName,
+      start: startDate,
+      end: endDate,
+    });
+    const posTotal = posUnified.totalSales;
+    const posCount = posUnified.totalOrders;
 
     // 7. Inventory overview
     const invWhere = outletName ? { outletName } : {};

@@ -135,28 +135,56 @@ const approveDemandRequest = async (req, res) => {
       updateData.approvedAt = new Date();
     }
 
-    const updated = await prisma.outletDemandRequest.update({
-      where: { id },
-      data: updateData
-    });
-
-    // Deduct approved quantities from live warehouse inventory immediately
-    // (APPROVED / PARTIALLY_APPROVED). Stock is taken out the moment the demand
-    // is approved so dashboard/reports always reflect actual available stock.
+    // Atomic approval: status update + warehouse deduction + audit log in ONE
+    // transaction. Previously the status was updated first and the deduction loop
+    // ran outside a transaction — a mid-loop DB failure left the demand APPROVED
+    // with a partial deduction and no audit log (retry was then blocked by the
+    // PENDING-only guard). The in-transaction PENDING re-check also closes the
+    // race where two concurrent approvals both passed the outer guard.
+    let updated;
     let deductedCount = 0;
     let deductedSummary = [];
-    if (status !== 'REJECTED') {
-      for (const item of updated.items || []) {
-        const approvedQty = parseInt(item.approvedQty) || 0;
-        if (approvedQty <= 0) continue;
-        const deducted = await deductWarehouseStock(item.inventoryItemId, item.color, item.size, approvedQty);
-        if (deducted > 0) {
-          deductedCount++;
-          deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
+
+    await prisma.$transaction(async (tx) => {
+      const existingNow = await tx.outletDemandRequest.findUnique({ where: { id } });
+      if (!existingNow || existingNow.status !== 'PENDING') {
+        const err = new Error('Demand request is no longer pending. Cannot approve.');
+        err.code = 'DEMAND_NOT_PENDING';
+        throw err;
+      }
+
+      updated = await tx.outletDemandRequest.update({
+        where: { id },
+        data: updateData
+      });
+
+      // Deduct approved quantities from live warehouse inventory immediately
+      // (APPROVED / PARTIALLY_APPROVED). Stock is taken out the moment the demand
+      // is approved so dashboard/reports always reflect actual available stock.
+      if (status !== 'REJECTED') {
+        for (const item of updated.items || []) {
+          const approvedQty = parseInt(item.approvedQty) || 0;
+          if (approvedQty <= 0) continue;
+          const deducted = await deductWarehouseStock(item.inventoryItemId, item.color, item.size, approvedQty, tx);
+          if (deducted > 0) {
+            deductedCount++;
+            deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
+          }
         }
       }
-      // Force inventory-dependent caches to rebuild immediately.
-      // NOTE: delPattern is synchronous — no .catch() on it (would throw TypeError).
+
+      await tx.auditLog.create({
+        data: {
+          orderId: null,
+          action: 'DEMAND_REQUEST_' + status,
+          details: `Demand request ${id} from ${existing.outletName} ${status.toLowerCase()} by ${req.user.name || req.user.id}${deductedCount ? ` | warehouse stock deducted: ${deductedSummary.join(', ')}` : ''}`,
+          performedBy: req.user.id
+        }
+      });
+    }, { timeout: 30000 });
+
+    // Force inventory-dependent caches to rebuild immediately (synchronous — no .catch()).
+    if (status !== 'REJECTED') {
       try {
         cache.delPattern('pos:');
         cache.delPattern('warehouse:');
@@ -165,15 +193,6 @@ const approveDemandRequest = async (req, res) => {
         console.error('Cache invalidation error after demand approval:', cacheErr);
       }
     }
-
-    await prisma.auditLog.create({
-      data: {
-        orderId: null,
-        action: 'DEMAND_REQUEST_' + status,
-        details: `Demand request ${id} from ${existing.outletName} ${status.toLowerCase()} by ${req.user.name || req.user.id}${deductedCount ? ` | warehouse stock deducted: ${deductedSummary.join(', ')}` : ''}`,
-        performedBy: req.user.id
-      }
-    });
 
     const io = req.app.get('io');
     if (io) {
@@ -191,6 +210,9 @@ const approveDemandRequest = async (req, res) => {
 
     res.json(updated);
   } catch (error) {
+    if (error.code === 'DEMAND_NOT_PENDING') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error updating demand request', error: error.message });
   }
 };
@@ -281,9 +303,10 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
   return `${prefix}${base}`;
 };
 
-const deductWarehouseStock = async (inventoryItemId, color, size, qty) => {
+const deductWarehouseStock = async (inventoryItemId, color, size, qty, tx) => {
   if (!inventoryItemId || !qty || qty <= 0) return false;
-  const inv = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+  const client = tx || prisma;
+  const inv = await client.inventoryItem.findUnique({ where: { id: inventoryItemId } });
   if (!inv) return false;
 
   let deductedQty = 0;
@@ -305,7 +328,7 @@ const deductWarehouseStock = async (inventoryItemId, color, size, qty) => {
     if (found) {
       // Recompute total stock from variants so Dashboard/Reports always stay consistent
       const newTotal = variants.reduce((s, v) => s + (v.stock || 0), 0);
-      await prisma.inventoryItem.update({
+      await client.inventoryItem.update({
         where: { id: inventoryItemId },
         data: { variants, stock: newTotal }
       });
@@ -313,7 +336,7 @@ const deductWarehouseStock = async (inventoryItemId, color, size, qty) => {
   } else {
     // Simple stock field — clamp so stock never goes negative
     deductedQty = Math.min(qty, inv.stock || 0);
-    await prisma.inventoryItem.update({
+    await client.inventoryItem.update({
       where: { id: inventoryItemId },
       data: { stock: { decrement: deductedQty } }
     });
