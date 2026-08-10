@@ -23,7 +23,7 @@ const getOutletDetailed = async (req, res) => {
     const [
       salesAgg, salesAll, returnsAgg, returnsAll, discountAgg,
       balancePayments, orders, orderStages, clients,
-      transfers, stockRequests, alterations,
+      transfers, demandRequests, alterations,
       journalEntries, inventory, bestSelling,
       faisalTakes
     ] = await Promise.allSettled([
@@ -37,11 +37,11 @@ const getOutletDetailed = async (req, res) => {
       prisma.orderStage.findMany({ where: { order: { source: 'OUTLET', outletName: outlet } }, select: { stageName: true, status: true, startedAt: true, completedAt: true } }),
       prisma.client.findMany({ where: { outletName: outlet, isActive: true }, select: { id: true, clientNumber: true, name: true, phone: true, gender: true, city: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
       prisma.outletTransfer.findMany({ where: { OR: [{ fromOutlet: outlet }, { toOutlet: outlet }], createdAt: dateWhere }, include: { items: true }, orderBy: { createdAt: 'desc' } }),
-      prisma.stockRequest.findMany({ where: { outletName: outlet, createdAt: dateWhere }, select: { id: true, itemName: true, itemCategory: true, quantity: true, approvedQty: true, status: true, notes: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.outletDemandRequest.findMany({ where: { outletName: outlet, createdAt: dateWhere }, select: { id: true, transferNumber: true, outletName: true, status: true, items: true, notes: true, storeNotes: true, createdAt: true, approvedAt: true, acceptedAt: true }, orderBy: { createdAt: 'desc' } }),
       prisma.alteration.findMany({ where: { sourceOutlet: outlet, createdAt: dateWhere }, select: { id: true, alterationNumber: true, sourceModule: true, customerName: true, status: true, currentStage: true, products: true, createdAt: true, acceptedAt: true, completedAt: true, doneAt: true }, orderBy: { createdAt: 'desc' } }),
       prisma.journalEntry.findMany({ where: { outletName: outlet, createdAt: dateWhere }, select: { id: true, employeeName: true, expenseTitle: true, amount: true, notes: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
       prisma.outletInventory.findMany({ where: { outletName: outlet }, select: { id: true, name: true, category: true, color: true, size: true, stock: true, price: true, barcode: true } }),
-      prisma.posSaleItem.findMany({ where: { sale: { outletName: outlet, createdAt: dateWhere, refundedAt: null } }, select: { productName: true, quantity: true, unitPrice: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.posSaleItem.findMany({ where: { sale: { outletName: outlet, createdAt: dateWhere, refundedAt: null } }, select: { productName: true, quantity: true, unitPrice: true } }),
       prisma.posSale.findMany({ where: { outletName: outlet, faisalTake: true, createdAt: dateWhere }, select: { id: true, receiptNumber: true, grandTotal: true, cashierName: true, createdAt: true, faisalTakenAt: true, items: { select: { productName: true, quantity: true, size: true, color: true, unitPrice: true } } }, orderBy: { createdAt: 'desc' } }),
     ]);
 
@@ -53,7 +53,7 @@ const getOutletDetailed = async (req, res) => {
     const safeBalancePayments = balancePayments.status === 'fulfilled' ? balancePayments.value : [];
     const safeJournal = journalEntries.status === 'fulfilled' ? journalEntries.value : [];
     const safeAlterations = alterations.status === 'fulfilled' ? alterations.value : [];
-    const safeStockRequests = stockRequests.status === 'fulfilled' ? stockRequests.value : [];
+    const safeDemandRequests = demandRequests.status === 'fulfilled' ? demandRequests.value : [];
     const safeInventory = inventory.status === 'fulfilled' ? inventory.value : [];
     const safeFaisalTakes = faisalTakes.status === 'fulfilled' ? faisalTakes.value : [];
     const safeBestSelling = bestSelling.status === 'fulfilled' ? bestSelling.value : [];
@@ -152,10 +152,10 @@ const getOutletDetailed = async (req, res) => {
       if (t.status === 'COMPLETED' || t.status === 'ACCEPTED') transferStats.completed++;
     });
 
-    const reqStats = { total: safeStockRequests.length, pending: 0, approved: 0, rejected: 0 };
-    safeStockRequests.forEach(r => {
+    const reqStats = { total: safeDemandRequests.length, pending: 0, approved: 0, rejected: 0 };
+    safeDemandRequests.forEach(r => {
       if (r.status === 'PENDING') reqStats.pending++;
-      else if (r.status === 'APPROVED' || r.status === 'COMPLETED') reqStats.approved++;
+      else if (r.status === 'APPROVED' || r.status === 'PARTIALLY_APPROVED' || r.status === 'ACCEPTED') reqStats.approved++;
       else if (r.status === 'REJECTED') reqStats.rejected++;
     });
 
@@ -225,7 +225,8 @@ const getOutletDetailed = async (req, res) => {
       customers: safeClients,
       transfers: safeTransfers,
       transferStats,
-      stockRequests: safeStockRequests,
+      stockRequests: safeDemandRequests,
+      demandRequests: safeDemandRequests,
       requestStats: reqStats,
       alterations: safeAlterations,
       alterationStats: altStats,

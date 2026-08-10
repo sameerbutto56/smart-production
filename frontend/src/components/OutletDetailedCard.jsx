@@ -129,7 +129,7 @@ const OutletDetailedCard = ({ outlet }) => {
   const faisalTakes = data?.faisalTakes || [];
   const balanceInvoices = data?.balanceInvoices || [];
   const transfers = data?.transfers || [];
-  const requests = data?.stockRequests || [];
+  const requests = data?.demandRequests || data?.stockRequests || [];
   const alterations = data?.alterations || [];
   const journalEntries = data?.journalEntries || [];
   const stageWiseTracking = data?.stageWiseTracking || [];
@@ -1067,7 +1067,7 @@ const OutletDetailedCard = ({ outlet }) => {
             {[
               { label: 'Total', value: requests.length, color: 'text-white' },
               { label: 'Pending', value: requests.filter(r => r.status === 'PENDING').length, color: 'text-yellow-400' },
-              { label: 'Approved', value: requests.filter(r => r.status === 'APPROVED' || r.status === 'COMPLETED').length, color: 'text-emerald-400' },
+              { label: 'Approved', value: requests.filter(r => r.status === 'APPROVED' || r.status === 'PARTIALLY_APPROVED' || r.status === 'ACCEPTED').length, color: 'text-emerald-400' },
               { label: 'Rejected', value: requests.filter(r => r.status === 'REJECTED').length, color: 'text-red-400' },
             ].map(card => (
               <div key={card.label} className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
@@ -1079,32 +1079,39 @@ const OutletDetailedCard = ({ outlet }) => {
 
           <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <ClipboardList size={16} className="text-indigo-400" /> Request History ({requests.length})
+              <ClipboardList size={16} className="text-indigo-400" /> Demand Request History ({requests.length})
             </h3>
             {requests.length > 0 ? (
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-900"><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-                    <th className="text-left py-2 pr-2">Item</th>
-                    <th className="text-left px-2">Category</th>
-                    <th className="text-right px-2">Qty</th>
+                    <th className="text-left py-2 pr-2">Request #</th>
+                    <th className="text-left px-2">Items</th>
+                    <th className="text-right px-2">Requested Qty</th>
                     <th className="text-right px-2">Approved Qty</th>
                     <th className="text-left px-2">Status</th>
+                    <th className="text-left px-2">Notes</th>
                     <th className="text-right pl-2">Date</th>
                   </tr></thead>
                   <tbody>
-                    {requests.map((r, i) => (
-                      <tr key={r.id || i} className="border-t border-gray-800 hover:bg-white/5">
-                        <td className="py-2 pr-2 font-bold text-white">{r.itemName || r.productName || '—'}</td>
-                        <td className="px-2 font-bold text-gray-400">{r.category || r.itemCategory || '—'}</td>
-                        <td className="px-2 text-right font-bold text-gray-300">{r.quantity || r.requestedQty || 0}</td>
-                        <td className="px-2 text-right font-bold text-emerald-400">{r.approvedQty || '—'}</td>
-                        <td className="px-2">
-                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' : r.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' : r.status === 'COMPLETED' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{r.status || 'PENDING'}</span>
-                        </td>
-                        <td className="pl-2 text-right text-[10px] text-gray-500">{fmtDate(r.createdAt)}</td>
-                      </tr>
-                    ))}
+                    {requests.map((r, i) => {
+                      const items = Array.isArray(r.items) ? r.items : [];
+                      const reqQty = items.reduce((s, it) => s + (parseInt(it.requestedQty) || 0), 0);
+                      const appQty = items.reduce((s, it) => s + (parseInt(it.approvedQty) || 0), 0);
+                      return (
+                        <tr key={r.id || i} className="border-t border-gray-800 hover:bg-white/5">
+                          <td className="py-2 pr-2 font-black text-indigo-400">{r.transferNumber || '—'}</td>
+                          <td className="px-2 font-bold text-white">{items.length}</td>
+                          <td className="px-2 text-right font-bold text-gray-300">{reqQty}</td>
+                          <td className="px-2 text-right font-bold text-emerald-400">{appQty || '—'}</td>
+                          <td className="px-2">
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' : r.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' : r.status === 'PARTIALLY_APPROVED' ? 'bg-blue-500/20 text-blue-400' : r.status === 'ACCEPTED' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{r.status || 'PENDING'}</span>
+                          </td>
+                          <td className="px-2 text-gray-500 max-w-[160px] truncate">{r.notes || r.storeNotes || '—'}</td>
+                          <td className="pl-2 text-right text-[10px] text-gray-500">{fmtDate(r.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
