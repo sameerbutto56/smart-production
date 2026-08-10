@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Package, RefreshCw, CheckCircle, Eye, Undo2, Printer, ArrowRight } from 'lucide-react';
+import { Package, RefreshCw, CheckCircle, Eye, Undo2, Printer, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 import { printJobSheet } from '../utils/printReport';
@@ -34,14 +34,63 @@ const StoreReplacements = ({ refreshKey }) => {
   const [expandedId, setExpandedId] = useState(null);
   const [processingId, setProcessingId] = useState(null);
   const [printingId, setPrintingId] = useState(null);
+  const [routingId, setRoutingId] = useState(null);
+  const [ticks, setTicks] = useState({});
+  const [verified, setVerified] = useState({});
+  const [routeDest, setRouteDest] = useState({});
+
+  // Replacement order items (productDetails) for per-product availability ticks
+  const itemsFor = (record) => {
+    const pd = record?.replacementOrderInfo?.productDetails;
+    const parsed = parseItems(pd);
+    if (parsed.length > 0) return parsed;
+    // Fall back to the case's replacementItems (pre-order shape) when no order exists
+    return parseItems(record?.replacementItems).map(it => ({ productDetails: it, quantity: it.quantity || 1 }));
+  };
+
+  const defaultTicks = (record) => {
+    const init = {};
+    itemsFor(record).forEach((it, idx) => {
+      const inner = it?.productDetails || it || {};
+      init[String(idx)] = inner?.availabilityStatus !== 'not_available' && inner?.availabilityStatus !== 'produced';
+    });
+    return init;
+  };
+
+  const caseTicks = (record) => ticks[record.id] || defaultTicks(record);
+  const caseVerified = (record) => verified[record.id] || {};
+
+  const toggleTick = (record, idx) => {
+    setTicks(prev => {
+      const cur = { ...defaultTicks(record), ...(prev[record.id] || {}) };
+      cur[String(idx)] = !cur[String(idx)];
+      return { ...prev, [record.id]: cur };
+    });
+  };
+
+  const toggleVerified = (record, idx) => {
+    setVerified(prev => {
+      const cur = { ...(prev[record.id] || {}) };
+      cur[String(idx)] = !cur[String(idx)];
+      return { ...prev, [record.id]: cur };
+    });
+  };
 
   const fetchCases = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', limit: 100 } });
-      const list = (res.data.cases || []).filter(c =>
-        c.routedTo === 'STORE' && ['FAISAL_APPROVED', 'IN_PRODUCTION', 'STORE_RECEIVE', 'DISPATCH_READY', 'REPLACEMENT_COMPLETED', 'COMPLETED'].includes(c.status)
-      );
+      // Active queue = cases still being processed by Store (replacement order at STORE).
+      // Completed/cancelled stay as history. Once the replacement order is routed out of
+      // STORE (or the case moves to IN_PRODUCTION / DISPATCH_READY), it leaves the queue.
+      const list = (res.data.cases || []).filter(c => {
+        if (c.routedTo !== 'STORE') return false;
+        if (['REPLACEMENT_COMPLETED', 'COMPLETED', 'CANCELLED'].includes(c.status)) return true;
+        if (c.status === 'FAISAL_APPROVED') {
+          return !c.replacementOrderInfo || c.replacementOrderInfo.currentStage === 'STORE';
+        }
+        return false;
+      });
       setCases(list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
     } catch { toast.error('Failed to load replacements'); }
     setLoading(false);
@@ -80,6 +129,23 @@ const StoreReplacements = ({ refreshKey }) => {
       printJobSheet({ ...order, productVerification: order.productVerification || undefined }, user?.role || 'STORE', 'ur', {});
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to load job sheet'); }
     setPrintingId(null);
+  };
+
+  const routeReplacement = async (record) => {
+    const dest = routeDest[record.id];
+    if (!dest) { toast.error('Select a destination first'); return; }
+    if (!window.confirm(`Route replacement for order ${record.orderNumber} to ${dest.replace(/_/g, ' ')}?\nIn-stock (ticked) items will be deducted from inventory.`)) return;
+    setRoutingId(record.id);
+    try {
+      const items = itemsFor(record);
+      const productAvailability = {};
+      const tickState = caseTicks(record);
+      items.forEach((_, idx) => { productAvailability[String(idx)] = !!tickState[String(idx)]; });
+      await api.post(`/api/return-exchange/${record.id}/route`, { nextStage: dest, productAvailability });
+      toast.success(`Replacement routed to ${dest.replace(/_/g, ' ')}`);
+      await fetchCases();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to route replacement'); }
+    setRoutingId(null);
   };
 
   const searchMatch = (c) => !search ||
@@ -228,21 +294,67 @@ const StoreReplacements = ({ refreshKey }) => {
                           <p className="text-sm font-black text-blue-300">{c.replacementOrderInfo.currentStage || 'N/A'} <span className="text-gray-500 text-[10px]">• {c.replacementOrderInfo.status || ''}</span></p>
                         </div>
                       </div>
-                      <p className="text-[10px] text-gray-500 mt-2">
-                        This order flows through the normal pipeline. In <span className="text-white font-bold">Store My Tasks</span>, tick each new product
-                        <span className="text-emerald-400 font-bold"> In Stock ✓</span> to deduct it from inventory (fulfilled), or leave it
-                        <span className="text-amber-400 font-bold"> Not Available</span> to route it to Production/Logo automatically.
-                      </p>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        <button onClick={() => window.open(`/tasks?search=${encodeURIComponent(c.replacementOrderInfo.orderNumber || '')}`, '_blank')}
-                          className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-3 rounded-xl text-[10px] flex items-center gap-1 border border-gray-700">
-                          <ArrowRight size={12} /> Open in Store Tasks
-                        </button>
                         <button onClick={() => printJobSheetForCase(c)} disabled={printingId === c.id}
                           className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2 px-3 rounded-xl text-[10px] flex items-center gap-1 disabled:opacity-50">
                           <Printer size={12} /> {printingId === c.id ? 'Loading...' : 'Print Job Sheet'}
                         </button>
                       </div>
+
+                      {/* In-line processing: per-product availability ticks + routing.
+                          Available here only while the replacement order is at the Store stage. */}
+                      {c.replacementOrderInfo.currentStage === 'STORE' && (
+                        <div className="mt-3 border-t border-gray-800 pt-3">
+                          <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                            <CheckCircle size={12} /> Process Replacement — Availability & Route
+                          </p>
+                          <div className="space-y-1.5 mb-3">
+                            {itemsFor(c).map((it, idx) => {
+                              const inner = it?.productDetails || it || {};
+                              const on = !!caseTicks(c)[String(idx)];
+                              const ver = !!caseVerified(c)[String(idx)];
+                              return (
+                                <div key={idx} className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-white text-xs truncate">{inner.name || inner.productType || 'Product'}</p>
+                                    <p className="text-gray-500 text-[10px]">{(inner.color || '')} {(inner.size || '')} × {it.quantity || inner.quantity || 1}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button onClick={() => toggleVerified(c, idx)}
+                                      title={ver ? 'Verified ✓' : 'Mark as verified (newly produced)'}
+                                      className={`rounded-lg flex items-center justify-center text-[10px] font-black tracking-wider transition-all px-2 h-7 ${ver ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}>
+                                      {ver ? '✓ VER' : 'VER'}
+                                    </button>
+                                    <button onClick={() => toggleTick(c, idx)}
+                                      title={on ? 'In Stock ✓ — will deduct from inventory' : 'Not Available — no deduction (goes to Production/Logo)'}
+                                      className={`rounded-lg flex items-center justify-center text-[10px] font-black tracking-wider transition-all px-2 h-7 ${on ? 'bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}>
+                                      {on ? '✓ IN STK' : '✗ NO STK'}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <select value={routeDest[c.id] || ''} onChange={e => setRouteDest(prev => ({ ...prev, [c.id]: e.target.value }))}
+                              className="flex-1 bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-blue-500 transition-all text-white text-xs font-bold appearance-none">
+                              <option value="">Select destination...</option>
+                              <option value="PRODUCTION">Send to Production</option>
+                              <option value="LOGO_DESIGN">Send to Logo Design</option>
+                              <option value="WORKERS">Send to Workers</option>
+                              <option value="DISPATCH">Send to Dispatch</option>
+                            </select>
+                            <button onClick={() => routeReplacement(c)} disabled={routingId === c.id}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 justify-center disabled:opacity-50 shadow-lg shadow-emerald-900/20">
+                              <Check size={14} /> {routingId === c.id ? 'Routing...' : 'Route & Deduct In-Stock'}
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-gray-500 mt-2">
+                            Ticked <span className="text-emerald-400 font-bold">In Stock ✓</span> items are deducted from inventory. Unticked
+                            <span className="text-amber-400 font-bold"> Not Available</span> items are NOT deducted — they flow to Production/Logo for the new phase.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="bg-gray-900 border border-amber-500/30 rounded-xl p-3">

@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth.middleware');
-const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder } = require('../controllers/returnExchange.controller');
+const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement } = require('../controllers/returnExchange.controller');
 
 const router = express.Router();
 
@@ -19,6 +19,7 @@ router.get('/:id/job-sheet-order', authenticate, getReplacementJobSheetOrder);
 router.post('/:id/send-to-store', authenticate, sendToStore);
 router.post('/:id/restock-original', authenticate, restockOriginal);
 router.post('/:id/update-status', authenticate, updateStatus);
+router.post('/:id/route', authenticate, routeReplacement);
 router.post('/check-stock', authenticate, checkStockAvailability);
 
 module.exports = router;

@@ -3926,5 +3926,6 @@ module.exports = {
   trackOrder,
   getOrderById,
   getRolesForStage,
-  getOrderPerformance
+  getOrderPerformance,
+  deductInventoryItems
 };

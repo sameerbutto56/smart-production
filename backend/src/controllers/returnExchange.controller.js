@@ -1,6 +1,12 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const { calculateDeadline } = require('../utils/deadline');
+const { classifyOrderItems } = require('./order-helpers');
+const { deductInventoryItems, getRolesForStage } = require('./order.controller');
+
+// Destinations a Store user can route a replacement order to once the new
+// replacement goods are processed (availability ticks + in-stock deduction).
+const REPLACEMENT_ROUTES = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'LOGO_DESIGN', 'WORKERS', 'DISPATCH'];
 
 const lookupOrder = async (req, res) => {
   try {
@@ -860,6 +866,155 @@ const updateStatus = async (req, res) => {
   }
 };
 
+// Route the replacement order out of the Store stage to its next phase.
+// Per-product availability ticks decide which new replacement items deduct from
+// inventory (In Stock) vs flow to Production/Logo (Not Available). The case
+// leaves the Store queue once the order leaves STORE.
+const routeReplacement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nextStage, productAvailability, notes } = req.body;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.type !== 'REPLACEMENT') return res.status(400).json({ message: 'Only replacement cases can be routed' });
+    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    if (!record.replacementOrderId) return res.status(400).json({ message: 'Replacement order has not been created yet' });
+    if (!nextStage || !REPLACEMENT_ROUTES.includes(nextStage)) {
+      return res.status(400).json({ message: `Invalid route. Valid destinations: ${REPLACEMENT_ROUTES.join(', ')}.` });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: record.replacementOrderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+    if (!order) return res.status(404).json({ message: 'Replacement order not found' });
+    if (order.currentStage !== 'STORE') {
+      return res.status(400).json({ message: `Replacement order is no longer at the Store stage (currently ${order.currentStage})` });
+    }
+    const storeStage = (order.stages || []).find(s => s.stageName === 'STORE' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
+    if (!storeStage) return res.status(400).json({ message: 'Replacement order has no active Store stage' });
+
+    // 1) Availability ticks → persist per-item availability + deduct in-stock items
+    const availabilityMap = (productAvailability && typeof productAvailability === 'object') ? productAvailability : {};
+    let deductedItems = 0;
+    if (Object.keys(availabilityMap).length > 0) {
+      const parsed = Array.isArray(order.productDetails) ? order.productDetails : [];
+      const updatedItems = parsed.map((item, idx) => {
+        if (availabilityMap[idx] === undefined) return item;
+        return { ...item, availabilityStatus: availabilityMap[idx] ? 'available' : 'not_available' };
+      });
+      await prisma.order.update({ where: { id: order.id }, data: { productDetails: updatedItems } });
+
+      const availableIndices = Object.entries(availabilityMap)
+        .filter(([, v]) => v === true)
+        .map(([k]) => Number(k));
+      if (availableIndices.length > 0) {
+        const availableItems = parsed
+          .filter((_, idx) => availableIndices.includes(idx))
+          .map(item => ({ productDetails: item.productDetails || item, quantity: item.quantity || 1 }));
+        const { inventoryItems } = await classifyOrderItems(order, availableItems);
+        if (inventoryItems.length > 0) {
+          await deductInventoryItems(order, req.user.id, inventoryItems);
+          deductedItems = availableItems.length;
+        }
+      }
+    }
+
+    // 2) Complete STORE stage, create destination stage, advance the order
+    await prisma.orderStage.update({
+      where: { id: storeStage.id },
+      data: { status: 'COMPLETED', completedAt: new Date() }
+    });
+    const deadline = calculateDeadline(new Date(), 24);
+    await prisma.orderStage.create({
+      data: { orderId: order.id, stageName: nextStage, status: 'PENDING', deadlineAt: deadline }
+    });
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { currentStage: nextStage, status: 'PENDING' }
+    });
+
+    const recipientUsers = await prisma.user.findMany({
+      where: { role: { in: getRolesForStage(nextStage) } },
+      select: { id: true }
+    });
+    await prisma.routingHistory.create({
+      data: {
+        orderId: order.id,
+        sentByUserId: req.user?.id || null,
+        sentToStage: nextStage,
+        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+        previousStage: 'STORE',
+        newStage: nextStage,
+        remarks: notes || `Replacement routed to ${nextStage} by ${req.user?.name || 'Store'}`
+      }
+    }).catch(e => console.error('Replacement routing history error:', e));
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: nextStage }
+    }).catch(() => {});
+
+    const detail = deductedItems > 0
+      ? ` — ${deductedItems} item(s) deducted from inventory (In Stock)`
+      : ' — no items deducted (all routed onward for production/logo)';
+    await prisma.auditLog.create({
+      data: {
+        orderId: order.id,
+        action: 'REPLACEMENT_ROUTED',
+        details: `Replacement order ${order.orderNumber} routed from STORE → ${nextStage} by ${req.user?.name || 'Store'}${detail}. Performed: ${new Date().toLocaleString()}.`,
+        performedBy: req.user?.id || 'SYSTEM'
+      }
+    });
+    await prisma.auditLog.create({
+      data: {
+        orderId: record.orderId,
+        action: 'REPLACEMENT_ROUTED',
+        details: `Replacement case routed to ${nextStage} — replacement order ${order.orderNumber}. Performed: ${new Date().toLocaleString()}.`,
+        performedBy: req.user?.id || 'SYSTEM'
+      }
+    });
+
+    // 3) Sync the case so it leaves the Store queue and reflects its next phase
+    const newCaseStatus = ['DISPATCH', 'OUT_FOR_DELIVERY'].includes(nextStage) ? 'DISPATCH_READY' : 'IN_PRODUCTION';
+    await prisma.returnExchange.update({
+      where: { id },
+      data: {
+        status: newCaseStatus,
+        storeProcessedBy: req.user?.name || 'Store',
+        storeProcessedAt: new Date(),
+        inventoryAdjusted: deductedItems > 0,
+        productionRoutedAt: newCaseStatus === 'IN_PRODUCTION' ? (record.productionRoutedAt || new Date()) : record.productionRoutedAt
+      }
+    });
+
+    await notify.create(req, {
+      type: 'stage_task',
+      moduleName: 'My Tasks',
+      path: '/tasks',
+      role: getRolesForStage(nextStage)[0] || 'STORE',
+      title: 'New Task',
+      message: `Replacement order ${order.orderNumber} moved to ${nextStage}`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      action: `→ ${nextStage}`,
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+    if (io) io.emit('order-updated', { orderId: order.id });
+
+    const updated = await prisma.returnExchange.findUnique({ where: { id } });
+    res.json({
+      ...updated,
+      replacementOrder: { id: order.id, orderNumber: order.orderNumber, currentStage: nextStage, status: 'PENDING' }
+    });
+  } catch (error) {
+    console.error('Error routing replacement:', error);
+    res.status(500).json({ message: 'Failed to route replacement', error: error.message });
+  }
+};
+
 const getAllCases = async (req, res) => {
   try {
     const { type, status, search, page = 1, limit = 50, dateFrom, dateTo } = req.query;
@@ -890,7 +1045,7 @@ const getAllCases = async (req, res) => {
     if (replacementOrderIds.length) {
       const repOrders = await prisma.order.findMany({
         where: { id: { in: replacementOrderIds } },
-        select: { id: true, orderNumber: true, currentStage: true, status: true, createdAt: true, deliveredAt: true }
+        select: { id: true, orderNumber: true, currentStage: true, status: true, createdAt: true, deliveredAt: true, productDetails: true, quantity: true }
       });
       repMap = Object.fromEntries(repOrders.map(o => [o.id, o]));
     }
@@ -1037,4 +1192,4 @@ const getReplacementJobSheetOrder = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder };
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement };
