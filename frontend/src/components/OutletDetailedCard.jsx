@@ -67,6 +67,220 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
+const InvoiceDetailModal = ({ sale, onClose }) => {
+  if (!sale) return null;
+  const items = sale.items || [];
+  const returns = sale.returns || [];
+  const balancePayments = sale.balancePayments || [];
+  const itemsTotal = items.reduce((a, it) => a + (it.lineTotal || 0), 0);
+  const balancePaid = balancePayments.reduce((a, p) => a + (p.amountPaidNow || 0), 0);
+  const received = sale.advanceAmount > 0
+    ? Math.min(sale.advanceAmount, sale.grandTotal) + balancePaid
+    : (sale.grandTotal || 0);
+  const remaining = Math.max(0, (sale.grandTotal || 0) - received);
+  const discount = sale.discountAmount || Math.max(0, itemsTotal - (sale.grandTotal || 0));
+  const method = sale.paymentMethod || 'CASH';
+  const methodBadge = method === 'CASH' ? 'bg-emerald-500/20 text-emerald-400'
+    : method === 'CARD' ? 'bg-purple-500/20 text-purple-400'
+    : method === 'ONLINE' ? 'bg-blue-500/20 text-blue-400'
+    : 'bg-amber-500/20 text-amber-400';
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass rounded-2xl border-2 border-gray-600/60 w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-gray-900/95 backdrop-blur border-b border-gray-700/60 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <FileText size={16} className="text-indigo-400" /> Invoice Detail
+            </h3>
+            <p className="text-[10px] font-bold text-gray-400 mt-0.5">{sale.receiptNumber || '—'}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg bg-gray-800/60 border border-gray-700/60 text-gray-400 hover:text-white transition-all">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 space-y-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Date & Time</p>
+              <p className="text-white font-bold">{fmtDate(sale.createdAt)} {fmtTime(sale.createdAt)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Cashier</p>
+              <p className="text-white font-bold">{sale.cashierName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Customer</p>
+              <p className="text-white font-bold">{sale.customerName || 'Walk-in'}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Phone</p>
+              <p className="text-white font-bold">{sale.customerPhone || '—'}</p>
+            </div>
+            {sale.orderNumber && (
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Order #</p>
+                <p className="text-amber-400 font-bold">{sale.orderNumber}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Outlet</p>
+              <p className="text-white font-bold">{sale.outletName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Payment</p>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded ${methodBadge}`}>{method}</span>
+              {sale.faisalTake && <span className="ml-1.5 text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">FAISAL</span>}
+              {sale.refundedAt && <span className="ml-1.5 text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">REFUNDED</span>}
+            </div>
+            {(method === 'CASH_ONLINE') && (
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Split</p>
+                <p className="text-white font-bold">Cash {fmt(sale.cashAmount)} + Online {fmt(sale.onlineAmount)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Items ({items.length})</h4>
+            {items.length > 0 ? (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 font-black uppercase tracking-wider text-[9px] border-b border-gray-700/50">
+                    <th className="text-left py-1.5 pr-2">#</th>
+                    <th className="text-left px-2">Product</th>
+                    <th className="text-left px-2">Color</th>
+                    <th className="text-left px-2">Size</th>
+                    <th className="text-right px-2">Qty</th>
+                    <th className="text-right px-2">Unit</th>
+                    <th className="text-right pl-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it, idx) => (
+                    <tr key={idx} className="border-b border-gray-800/60">
+                      <td className="py-2 pr-2 text-gray-500 font-bold">{idx + 1}</td>
+                      <td className="px-2 font-bold text-white">
+                        {it.productName}
+                        {(it.nameEngrave || it.logoDesign) && (
+                          <span className="ml-1.5 text-[8px] font-black text-pink-400">
+                            {[it.nameEngrave ? 'NAME' : null, it.logoDesign ? 'LOGO' : null].filter(Boolean).join('/')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 text-gray-400">{it.color || '—'}</td>
+                      <td className="px-2 text-gray-400">{it.size || '—'}</td>
+                      <td className="px-2 text-right text-gray-300 font-bold">{it.quantity}</td>
+                      <td className="px-2 text-right text-gray-400">{fmt(it.unitPrice)}</td>
+                      <td className="pl-2 text-right font-black text-emerald-400">{fmt(it.lineTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-xs text-gray-500 font-bold text-center py-4">No items</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-gray-700/50 p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Items Total</p>
+              <p className="text-white font-black">{fmt(itemsTotal)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/50 p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Discount</p>
+              <p className="text-rose-400 font-black">{fmt(discount)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/50 p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Grand Total</p>
+              <p className="text-emerald-400 font-black">{fmt(sale.grandTotal)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/50 p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Advance</p>
+              <p className="text-amber-400 font-black">{fmt(sale.advanceAmount)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/50 p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Balance Paid</p>
+              <p className="text-white font-black">{fmt(balancePaid)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/50 p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Total Received</p>
+              <p className="text-white font-black">{fmt(received)}</p>
+            </div>
+            <div className={`rounded-xl border p-3 ${remaining > 0.01 ? 'border-red-500/40' : 'border-gray-700/50'}`}>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Remaining</p>
+              <p className={`font-black ${remaining > 0.01 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(remaining)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/50 p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Status</p>
+              <p className={`font-black ${remaining > 0.01 ? 'text-red-400' : 'text-emerald-400'}`}>{remaining > 0.01 ? 'BALANCE' : 'PAID'}</p>
+            </div>
+          </div>
+
+          {balancePayments.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Balance Payments ({balancePayments.length})</h4>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 font-black uppercase tracking-wider text-[9px] border-b border-gray-700/50">
+                    <th className="text-left py-1.5 pr-2">Date</th>
+                    <th className="text-left px-2">Method</th>
+                    <th className="text-right pl-2">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {balancePayments.map((p, idx) => (
+                    <tr key={idx} className="border-b border-gray-800/60">
+                      <td className="py-2 pr-2 text-gray-400">{fmtDate(p.paidAt)} {fmtTime(p.paidAt)}</td>
+                      <td className="px-2"><span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-gray-700/40 text-gray-300">{p.paymentMethod || 'CASH'}</span></td>
+                      <td className="pl-2 text-right font-black text-emerald-400">{fmt(p.amountPaidNow)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {returns.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Returns ({returns.length})</h4>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 font-black uppercase tracking-wider text-[9px] border-b border-gray-700/50">
+                    <th className="text-left py-1.5 pr-2">Date</th>
+                    <th className="text-right px-2">Qty</th>
+                    <th className="text-left px-2">Method</th>
+                    <th className="text-left px-2">Reason</th>
+                    <th className="text-right pl-2">Refund</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {returns.map((r, idx) => (
+                    <tr key={r.id || idx} className="border-b border-gray-800/60">
+                      <td className="py-2 pr-2 text-gray-400">{fmtDate(r.createdAt)} {fmtTime(r.createdAt)}</td>
+                      <td className="px-2 text-right text-gray-300 font-bold">{r.quantity || '—'}</td>
+                      <td className="px-2"><span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">{r.refundPaymentMethod || 'CASH'}</span></td>
+                      <td className="px-2 text-gray-400 max-w-[180px] truncate">{r.reason || '—'}</td>
+                      <td className="pl-2 text-right font-black text-red-400">{fmt(r.refundAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="sticky bottom-0 bg-gray-900/95 backdrop-blur border-t border-gray-700/60 px-6 py-3 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition-all">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const OutletDetailedCard = ({ outlet }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +295,7 @@ const OutletDetailedCard = ({ outlet }) => {
   const [customerPage, setCustomerPage] = useState(1);
   const [journalPage, setJournalPage] = useState(1);
   const [returnDetailId, setReturnDetailId] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const refreshRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -728,8 +943,12 @@ const OutletDetailedCard = ({ outlet }) => {
                   </tr></thead>
                   <tbody>
                     {paginatedInvoices.map((s, i) => (
-                      <tr key={s.id || i} className="border-t border-gray-800 hover:bg-white/5">
-                        <td className="py-2 pr-2 font-bold text-white">{s.receiptNumber || '—'}</td>
+                      <tr key={s.id || i} onClick={() => setSelectedInvoice(selectedInvoice?.id === s.id ? null : s)}
+                        className={`border-t border-gray-800 hover:bg-white/5 cursor-pointer transition-all ${selectedInvoice?.id === s.id ? 'bg-indigo-500/10' : ''}`}>
+                        <td className="py-2 pr-2 font-bold text-white flex items-center gap-1.5">
+                          {s.receiptNumber || '—'}
+                          {s.refundedAt && <span className="text-[8px] font-black px-1 py-0.5 rounded bg-red-500/20 text-red-400">REFUNDED</span>}
+                        </td>
                         <td className="px-2 font-bold text-gray-300">{s.customerName || 'Walk-in'}</td>
                         <td className="px-2 text-right font-black text-emerald-400">{fmt(saleRevenue(s))}</td>
                         <td className="px-2">
@@ -1378,6 +1597,7 @@ const BankDepositsSection = ({ outlet }) => {
           </table>
         </div>
       )}
+      <InvoiceDetailModal sale={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
     </div>
   );
 };
