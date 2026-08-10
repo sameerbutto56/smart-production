@@ -9,6 +9,7 @@ async function main() {
   const sajawalPassword = await bcrypt.hash('Sajawal12', 10);
   const ibrarPassword = await bcrypt.hash('Ibrar562', 10);
   const mudassirPassword = await bcrypt.hash('75100', 10);
+  const amirPassword = await bcrypt.hash('A86150', 10);
 
   const employees = [
     // Johar Town (matches existing POS employee list)
@@ -18,7 +19,7 @@ async function main() {
     { name: 'Zain', outletName: 'Johar Town', password: defaultPassword },
     { name: 'Mudassir', outletName: 'Johar Town', password: mudassirPassword },
     // Jail Road
-    { name: 'Aamir', outletName: 'Jail Road', password: defaultPassword },
+    { name: 'Aamir', outletName: 'Jail Road', password: amirPassword },
     { name: 'Ibrar', outletName: 'Jail Road', password: ibrarPassword },
     { name: 'Junaid', outletName: 'Jail Road', password: junaidPassword },
   ];
