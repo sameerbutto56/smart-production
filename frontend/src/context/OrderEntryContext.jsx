@@ -618,14 +618,15 @@ export const OrderEntryProvider = ({ children }) => {
       if (basicErr) return basicErr;
     }
     if (activeTab === 'product') {
-      if (formData.type === 'FULL_CUSTOM') {
-        if (!String(formData.customProductName || '').trim()) return useUrdu ? 'براہ کرم ایک پروڈکٹ منتخب کریں' : 'Please select a Product.';
-      } else if (!formData.productType) {
+      // Custom Order (FULL_CUSTOM): product selection is optional — the manual
+      // form may be left empty and the order can still proceed. Other order
+      // types must continue requiring a product.
+      if (formData.type !== 'FULL_CUSTOM' && !formData.productType) {
         return 'Please select a Product.';
       }
     }
     return null;
-  }, [activeTab, formData, validateBasicInfo, useUrdu]);
+  }, [activeTab, formData, validateBasicInfo]);
 
   const preventEnterSubmit = useCallback((e) => { if (e.key === 'Enter') e.preventDefault(); }, []);
 
