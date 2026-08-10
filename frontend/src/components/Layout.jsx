@@ -97,7 +97,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO'] },
+    { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'] },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['SUPER_ADMIN', 'ADMIN', 'OUTLET', 'STORE'] },
     { name: 'Analytics', path: '/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
 
@@ -109,6 +109,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
     { name: 'Inventory Audit', path: '/audit', icon: ClipboardCheck, roles: ['STORE', 'STORE_EMPLOYEE'] },
     { name: 'Returns', path: '/returns', icon: RotateCcw, roles: ['STORE'] },
+    { name: 'Replacements', path: '/store-replacements', icon: ArrowRightLeft, roles: ['STORE'] },
     { name: 'Audit Review', path: '/audit-review', icon: ClipboardCheck, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },

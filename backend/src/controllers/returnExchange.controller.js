@@ -584,21 +584,54 @@ const sendToStore = async (req, res) => {
     const originalOrder = await prisma.order.findUnique({ where: { id: record.orderId } });
     if (!originalOrder) return res.status(404).json({ message: 'Original order not found' });
 
+    // Persist full per-product details so the replacement Job Sheet renders
+    // exactly like a normal order (products table, fabric/color, size/gender,
+    // sleeve/length, measurements, per-product engraving, special notes).
     const productDetails = items.map((it) => {
       const qty = parseInt(it.quantity) || 1;
       const unitPrice = parseFloat(it.unitPrice) || 0;
       const name = it.name || it.productName || '';
+      const engravingReq = it.engravingRequired === 'yes' || it.engravingRequired === true;
+      const eng = it.engraving && typeof it.engraving === 'object' ? it.engraving : {};
+      const articleNames = Array.isArray(eng.articleNames) ? eng.articleNames.filter(Boolean) : (eng.nameSpelling ? [eng.nameSpelling] : []);
+      const customization = engravingReq ? {
+        engravingType: eng.engravingType || it.engravingType || 'direct',
+        nameSpelling: eng.nameSpelling || '',
+        articleNames,
+        nameColor: eng.nameColor || '',
+        logoColor: eng.logoColor || '',
+        logoPlacement: eng.logoPlacement || '',
+        logos: Array.isArray(eng.logos) ? eng.logos : [],
+        designNotes: eng.designNotes || it.notes || ''
+      } : null;
+      const sizeData = it.sizeData && typeof it.sizeData === 'object' ? it.sizeData : null;
       return {
         name,
-        productType: name,
+        productType: it.productType || name,
         color: it.color || '',
         size: it.size || '',
         quantity: qty,
         unitPrice,
         totalPrice: Math.round((unitPrice * qty) * 100) / 100,
-        notes: it.notes || ''
+        fabricType: it.fabricType || '',
+        gender: it.gender || 'Male',
+        sleeveLength: it.sleeveLength || '',
+        shirtLength: it.shirtLength || '',
+        matchingCap: !!it.matchingCap,
+        matchingCapQty: parseInt(it.matchingCapQty) || 0,
+        notes: it.notes || '',
+        measurementSpecialNote: it.measurementSpecialNote || '',
+        sizeData,
+        customization: customization ? JSON.stringify(customization) : null
       };
     });
+
+    // Order-level sizeData map (per-product measurements) + engraving/customization
+    const sizeDataMap = {};
+    productDetails.forEach((pd) => { if (pd.sizeData) sizeDataMap[pd.productType] = pd.sizeData; });
+    const firstCust = productDetails.find(pd => pd.customization);
+    const orderCustomization = firstCust ? firstCust.customization : null;
+    const anyEngraving = productDetails.some(pd => pd.customization);
 
     // Generate a unique REP-xxxxxx order number
     let replacementOrderNumber = '';
@@ -624,6 +657,9 @@ const sendToStore = async (req, res) => {
           priority: 'NORMAL',
           quantity: items.length,
           productDetails,
+          sizeData: Object.keys(sizeDataMap).length ? JSON.stringify(sizeDataMap) : null,
+          customization: orderCustomization,
+          engravingRequired: anyEngraving,
           totalPrice: productDetails.reduce((s, p) => s + (p.totalPrice || 0), 0),
           paymentStatus: 'PENDING',
           paymentMethod: 'CASH',
@@ -654,7 +690,7 @@ const sendToStore = async (req, res) => {
         data: {
           orderId: originalOrder.id,
           action: 'REPLACEMENT_ORDER_CREATED',
-          details: `Replacement order ${replacementOrderNumber} created by ${req.user?.name || 'Faisal'} and routed to Store.`,
+          details: `Replacement order ${replacementOrderNumber} created by ${req.user?.name || 'Faisal'} and routed to Store. Case status: ${record.status} → FAISAL_APPROVED. Performed: ${new Date().toLocaleString()}.`,
           performedBy: req.user?.id || 'SYSTEM'
         }
       });
@@ -662,7 +698,7 @@ const sendToStore = async (req, res) => {
         data: {
           orderId: newOrder.id,
           action: 'REPLACEMENT_ORDER_CREATED',
-          details: `Replacement order created for original order ${record.orderNumber || ''}.`,
+          details: `Replacement order created for original order ${record.orderNumber || ''}. Created by ${req.user?.name || 'Faisal'}. Performed: ${new Date().toLocaleString()}.`,
           performedBy: req.user?.id || 'SYSTEM'
         }
       });
@@ -768,7 +804,7 @@ const restockOriginal = async (req, res) => {
         data: {
           orderId: record.orderId,
           action: 'RETURN_STORE_PROCESSED',
-          details: `Returned goods for ${record.orderNumber || ''} restocked into inventory by ${req.user?.name || 'Store'}.`,
+          details: `Returned goods for ${record.orderNumber || ''} restocked into inventory by ${req.user?.name || 'Store'}. originalRestocked: false → true. Performed: ${new Date().toLocaleString()}.`,
           performedBy: req.user?.id || 'SYSTEM'
         }
       });
@@ -807,7 +843,7 @@ const updateStatus = async (req, res) => {
         data: {
           orderId: record.orderId,
           action: 'REPLACEMENT_STATUS_UPDATED',
-          details: `Replacement case for ${record.orderNumber || ''} marked ${status} by ${req.user?.name || 'Store'}${notes ? `. Notes: ${notes}` : ''}.`,
+          details: `Replacement case for ${record.orderNumber || ''} status changed from ${record.status} → ${status} by ${req.user?.name || 'Store'}${notes ? `. Notes: ${notes}` : ''}. Performed: ${new Date().toLocaleString()}.`,
           performedBy: req.user?.id || 'SYSTEM'
         }
       });
@@ -905,4 +941,100 @@ const checkStockAvailability = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus };
+// Resolve a replacement case + its linked orders by either the original order
+// number (JT-123456 / JL-…) or the replacement order number (REP-123456), and
+// build a combined lifecycle timeline.
+const trackReplacement = async (req, res) => {
+  try {
+    const { query } = req.params;
+    if (!query) return res.status(400).json({ message: 'Query is required' });
+    const q = String(query).trim();
+
+    let caseRecord = null;
+    let replacementOrder = null;
+    let originalOrder = null;
+
+    if (/^REP-/i.test(q)) {
+      replacementOrder = await prisma.order.findFirst({
+        where: { source: 'REPLACEMENT', orderNumber: { equals: q, mode: 'insensitive' } },
+        include: { stages: { orderBy: { createdAt: 'asc' } } }
+      });
+      if (replacementOrder) {
+        caseRecord = await prisma.returnExchange.findUnique({ where: { id: replacementOrder.replacementCaseId } });
+        if (caseRecord) originalOrder = await prisma.order.findUnique({ where: { id: caseRecord.orderId } });
+      }
+    } else {
+      originalOrder = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { orderNumber: { equals: q, mode: 'insensitive' } },
+            { orderNumber: { endsWith: q, mode: 'insensitive' } },
+            { invoiceNumber: { equals: q, mode: 'insensitive' } },
+            { invoiceNumber: { endsWith: q, mode: 'insensitive' } }
+          ]
+        }
+      });
+      if (originalOrder) {
+        caseRecord = await prisma.returnExchange.findFirst({
+          where: { orderId: originalOrder.id, type: 'REPLACEMENT' },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (caseRecord && caseRecord.replacementOrderId) {
+          replacementOrder = await prisma.order.findUnique({
+            where: { id: caseRecord.replacementOrderId },
+            include: { stages: { orderBy: { createdAt: 'asc' } } }
+          });
+        }
+      }
+    }
+
+    if (!caseRecord || !originalOrder) return res.status(404).json({ message: 'No replacement found for this reference' });
+
+    // Combined lifecycle timeline
+    const timeline = [];
+    const push = (e) => timeline.push(e);
+    if (originalOrder.createdAt) push({ type: 'original', title: 'Original Order Entered', at: originalOrder.createdAt, orderNumber: originalOrder.orderNumber });
+    if (caseRecord.createdAt) push({ type: 'request', title: 'Replacement Requested', at: caseRecord.createdAt, orderNumber: caseRecord.orderNumber });
+    if (caseRecord.faisalApprovedAt) push({ type: 'faisal', title: 'Faisal Approved & Sent to Store', at: caseRecord.faisalApprovedAt, by: caseRecord.faisalApprovedBy });
+    if (caseRecord.originalRestockedAt) push({ type: 'restock', title: 'Original Goods Restocked', at: caseRecord.originalRestockedAt, by: caseRecord.originalRestockedBy });
+    if (replacementOrder) {
+      const stages = replacementOrder.stages || [];
+      for (const st of stages) {
+        const stAt = st.completedAt || st.createdAt;
+        if (!stAt) continue;
+        const label = st.status === 'COMPLETED' ? 'Completed' : (st.status === 'IN_PROGRESS' ? 'In Progress' : 'Pending');
+        push({ type: 'stage', title: `${st.stageName} — ${label}`, at: stAt, orderNumber: replacementOrder.orderNumber });
+      }
+    }
+    if (caseRecord.replacementCompletedAt) push({ type: 'complete', title: 'Replacement Completed', at: caseRecord.replacementCompletedAt, by: caseRecord.replacementCompletedBy });
+    timeline.sort((a, b) => new Date(a.at) - new Date(b.at));
+
+    res.json({ case: caseRecord, originalOrder, replacementOrder, timeline });
+  } catch (error) {
+    console.error('Error tracking replacement:', error);
+    res.status(500).json({ message: 'Failed to track replacement', error: error.message });
+  }
+};
+
+// Return the replacement order (with stages) for Job Sheet printing — the
+// replacement order is a normal Order carrying productDetails/customization/
+// sizeData, so printJobSheet renders it in the standard format.
+const getReplacementJobSheetOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (!record.replacementOrderId) return res.status(400).json({ message: 'Replacement order has not been created yet' });
+    const order = await prisma.order.findUnique({
+      where: { id: record.replacementOrderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+    if (!order) return res.status(404).json({ message: 'Replacement order not found' });
+    res.json({ ...order, replacementCaseId: id, originalOrderNumber: record.orderNumber || null, originalReplacementReason: record.returnReason || record.specialNote || null });
+  } catch (error) {
+    console.error('Error fetching replacement order:', error);
+    res.status(500).json({ message: 'Failed to fetch replacement order', error: error.message });
+  }
+};
+
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder };

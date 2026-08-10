@@ -56,6 +56,7 @@ const getDateRange = (key) => {
 
 const AllOrders = () => {
   const { user } = useAuth();
+  const isReadOnly = user?.role === 'FAISAL';
   const { data: orders = [], loading, refresh } = useCache('orders:all', {
     fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []),
     ttl: 60 * 1000,
@@ -134,7 +135,7 @@ const AllOrders = () => {
   }, [selectedOrder]);
 
   const handleProductAvailabilityToggle = async (idx, isAvailable) => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || isReadOnly) return;
     try {
       // Optimistically update local state
       setProductAvailability(prev => ({ ...prev, [idx]: isAvailable }));
@@ -274,6 +275,7 @@ const AllOrders = () => {
   }, [location.state]);
 
   const handleSendForDelivery = async (orderId) => {
+    if (isReadOnly) return;
     try {
       await api.put(`/api/orders/${orderId}/send-for-delivery`);
       refresh();
@@ -1039,7 +1041,7 @@ const AllOrders = () => {
                       })()}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {order.status === 'READY_FOR_DELIVERY' ? (
+                      {order.status === 'READY_FOR_DELIVERY' && !isReadOnly ? (
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
