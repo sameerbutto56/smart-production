@@ -21,21 +21,18 @@ const getOutletDetailed = async (req, res) => {
     const dateWhere = { gte: startLimit, lte: endLimit };
 
     const [
-      salesAgg, salesAll, returnsAgg, returnsAll, discountAgg,
+      salesAll, returnsAll,
       balancePayments, orders, orderStages, clients,
       transfers, demandRequests, alterations,
       journalEntries, inventory, bestSelling,
       faisalTakes
     ] = await Promise.allSettled([
-      prisma.posSale.aggregate({ where: { outletName: outlet, createdAt: dateWhere, faisalTake: { not: true } }, _sum: { discountAmount: true }, _count: true }),
       prisma.posSale.findMany({ where: { outletName: outlet, createdAt: dateWhere }, select: { id: true, receiptNumber: true, customerName: true, customerPhone: true, grandTotal: true, advanceAmount: true, discountAmount: true, paymentMethod: true, cashAmount: true, onlineAmount: true, faisalTake: true, createdAt: true, refundedAt: true, cashierName: true, orderNumber: true, orderId: true, outletName: true, items: { select: { productName: true, quantity: true, unitPrice: true, lineTotal: true, size: true, color: true, discountPct: true, discountFixed: true, nameEngrave: true, logoDesign: true } }, returns: { select: { id: true, refundAmount: true, createdAt: true, reason: true, quantity: true, refundPaymentMethod: true } }, balancePayments: { select: { amountPaidNow: true, paymentMethod: true, paidAt: true } } }, orderBy: { createdAt: 'desc' } }),
-      prisma.posReturn.aggregate({ where: { outletName: outlet, createdAt: dateWhere }, _sum: { refundAmount: true }, _count: true }),
       prisma.posReturn.findMany({ where: { outletName: outlet, createdAt: dateWhere }, include: { sale: { select: { id: true, receiptNumber: true, customerName: true, paymentMethod: true, grandTotal: true, cashAmount: true, onlineAmount: true, items: { select: { productName: true, quantity: true, unitPrice: true, size: true, color: true } } } } }, orderBy: { createdAt: 'desc' } }),
-      prisma.posSale.aggregate({ where: { outletName: outlet, createdAt: dateWhere, faisalTake: { not: true } }, _sum: { discountAmount: true } }),
       prisma.posBalancePayment.findMany({ where: { posSale: { outletName: outlet }, paidAt: dateWhere }, select: { id: true, receiptNumber: true, originalInvoiceNumber: true, originalInvoiceTotal: true, previouslyPaidAmount: true, remainingBalanceBeforePayment: true, amountPaidNow: true, outstandingBalanceAfterPayment: true, paymentMethod: true, cashierName: true, paidAt: true, posSale: { select: { customerName: true, receiptNumber: true, grandTotal: true } } }, orderBy: { paidAt: 'desc' } }),
       prisma.order.findMany({ where: { source: 'OUTLET', outletName: outlet, createdAt: dateWhere }, select: { id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true, priority: true, createdAt: true, deliveredAt: true, paymentStatus: true, productDetails: true, orderDestination: true, urgent: true, _count: { select: { stages: true } } }, orderBy: { createdAt: 'desc' } }),
-      prisma.orderStage.findMany({ where: { order: { source: 'OUTLET', outletName: outlet } }, select: { stageName: true, status: true, startedAt: true, completedAt: true } }),
-      prisma.client.findMany({ where: { outletName: outlet, isActive: true }, select: { id: true, clientNumber: true, name: true, phone: true, gender: true, city: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.orderStage.findMany({ where: { order: { source: 'OUTLET', outletName: outlet, createdAt: dateWhere } }, select: { stageName: true, status: true, startedAt: true, completedAt: true } }),
+      prisma.client.findMany({ where: { outletName: outlet, isActive: true, createdAt: dateWhere }, select: { id: true, clientNumber: true, name: true, phone: true, gender: true, city: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
       prisma.outletTransfer.findMany({ where: { OR: [{ fromOutlet: outlet }, { toOutlet: outlet }], createdAt: dateWhere }, include: { items: true }, orderBy: { createdAt: 'desc' } }),
       prisma.outletDemandRequest.findMany({ where: { outletName: outlet, createdAt: dateWhere }, select: { id: true, transferNumber: true, outletName: true, status: true, items: true, notes: true, storeNotes: true, createdAt: true, approvedAt: true, acceptedAt: true }, orderBy: { createdAt: 'desc' } }),
       prisma.alteration.findMany({ where: { sourceOutlet: outlet, createdAt: dateWhere }, select: { id: true, alterationNumber: true, sourceModule: true, customerName: true, status: true, currentStage: true, products: true, createdAt: true, acceptedAt: true, completedAt: true, doneAt: true }, orderBy: { createdAt: 'desc' } }),
@@ -180,6 +177,10 @@ const getOutletDetailed = async (req, res) => {
 
     const totalInvoices = generatedInvoices;
 
+    // Faisal Take value comes from its items (grandTotal is stored as 0 for Faisal Takes).
+    const ftItemValue = (ft) => (ft.items || []).reduce((sum, it) => sum + (it.unitPrice || 0) * (it.quantity || 0), 0);
+    const totalFaisalTakeValue = safeFaisalTakes.reduce((sum, ft) => sum + ftItemValue(ft), 0);
+
     const topInventoryProducts = {};
     safeInventory.forEach(v => {
       if (!topInventoryProducts[v.name]) topInventoryProducts[v.name] = { name: v.name, stock: 0, value: 0 };
@@ -206,8 +207,10 @@ const getOutletDetailed = async (req, res) => {
         totalJournalExpenses,
         totalOrderCount: safeOrders.length,
         orderStatusCounts,
+        totalFaisalTakeValue,
       },
       paymentBreakdown,
+      balancePayments: safeBalancePayments,
       totalRefunds,
       salesAnalytics: {
         highestSale,

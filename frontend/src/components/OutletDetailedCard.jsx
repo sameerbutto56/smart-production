@@ -342,6 +342,7 @@ const OutletDetailedCard = ({ outlet }) => {
   const inventoryItems = data?.revenueAndInventory?.items || [];
   const returns = data?.returns || [];
   const faisalTakes = data?.faisalTakes || [];
+  const balancePayments = data?.balancePayments || [];
   const balanceInvoices = data?.balanceInvoices || [];
   const transfers = data?.transfers || [];
   const requests = data?.demandRequests || data?.stockRequests || [];
@@ -351,6 +352,10 @@ const OutletDetailedCard = ({ outlet }) => {
   const paymentSummary = data?.paymentBreakdown || {};
   const salesAnalytics = data?.salesAnalytics || {};
   const orderStatusCounts = summary.orderStatusCounts || {};
+
+  // Faisal Take value derives from its items — grandTotal is stored as 0 for Faisal Takes.
+  const ftValue = (ft) => (ft.items || []).reduce((s, it) => s + (it.unitPrice || 0) * (it.quantity || 0), 0);
+  const totalFaisalTakeValue = summary.totalFaisalTakeValue ?? faisalTakes.reduce((s, ft) => s + ftValue(ft), 0);
 
   const stageTracking = useMemo(() => {
     const map = {};
@@ -769,6 +774,42 @@ const OutletDetailedCard = ({ outlet }) => {
               <p className="text-xs text-gray-500 font-bold text-center py-8">No outstanding balances</p>
             )}
           </div>
+
+          <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
+            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Wallet size={16} className="text-amber-400" /> Balance Payments Collected ({balancePayments.length})
+            </h3>
+            {balancePayments.length > 0 ? (
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-gray-900"><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
+                    <th className="text-left py-2 pr-2">Receipt</th>
+                    <th className="text-left px-2">Original Invoice</th>
+                    <th className="text-left px-2">Customer</th>
+                    <th className="text-right px-2">Amount</th>
+                    <th className="text-right px-2">Method</th>
+                    <th className="text-right px-2">Cashier</th>
+                    <th className="text-right pl-2">Date</th>
+                  </tr></thead>
+                  <tbody>
+                    {balancePayments.map((bp, i) => (
+                      <tr key={bp.id || i} className="border-t border-gray-800 hover:bg-white/5">
+                        <td className="py-2 pr-2 font-bold text-white">{bp.receiptNumber || '—'}</td>
+                        <td className="px-2 font-bold text-gray-300">{bp.originalInvoiceNumber || bp.posSale?.receiptNumber || '—'}</td>
+                        <td className="px-2 text-gray-300">{bp.posSale?.customerName || '—'}</td>
+                        <td className="px-2 text-right font-black text-emerald-400">{fmt(bp.amountPaidNow)}</td>
+                        <td className="px-2 text-right text-gray-300">{bp.paymentMethod || '—'}</td>
+                        <td className="px-2 text-right text-gray-300">{bp.cashierName || '—'}</td>
+                        <td className="pl-2 text-right text-gray-400">{fmtDate(bp.paidAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 font-bold text-center py-8">No balance payments collected in this period</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -782,7 +823,7 @@ const OutletDetailedCard = ({ outlet }) => {
             </div>
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
               <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Value</p>
-              <p className="text-indigo-400 font-black text-xl">{fmt(faisalTakes.reduce((s, ft) => s + (ft.grandTotal || 0), 0))}</p>
+              <p className="text-indigo-400 font-black text-xl">{fmt(totalFaisalTakeValue)}</p>
             </div>
           </div>
 
@@ -805,7 +846,7 @@ const OutletDetailedCard = ({ outlet }) => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-black text-indigo-400">{fmt(ft.grandTotal || 0)}</p>
+                        <p className="text-xs font-black text-indigo-400">{fmt(ftValue(ft))}</p>
                         <p className="text-[10px] font-bold text-gray-500">{fmtDate(ft.createdAt)} {fmtTime(ft.createdAt)}</p>
                       </div>
                     </div>
