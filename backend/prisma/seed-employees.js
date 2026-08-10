@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const defaultPassword = await bcrypt.hash('1234', 10);
+  const zainPassword = await bcrypt.hash('123456', 10);
   const gulPassword = await bcrypt.hash('G1122', 10);
   const junaidPassword = await bcrypt.hash('J125', 10);
   const sajawalPassword = await bcrypt.hash('Sajawal12', 10);
@@ -16,7 +17,7 @@ async function main() {
     { name: 'Sajawal', outletName: 'Johar Town', password: sajawalPassword },
     { name: 'Junaid', outletName: 'Johar Town', password: junaidPassword },
     { name: 'Gul', outletName: 'Johar Town', password: gulPassword },
-    { name: 'Zain', outletName: 'Johar Town', password: defaultPassword },
+    { name: 'Zain', outletName: 'Johar Town', password: zainPassword },
     { name: 'Mudassir', outletName: 'Johar Town', password: mudassirPassword },
     // Jail Road
     { name: 'Aamir', outletName: 'Jail Road', password: amirPassword },
