@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer, MapPin, ArrowRight, Palette, Factory } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer, MapPin, ArrowRight, Palette, Factory, PackageX } from 'lucide-react';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +10,7 @@ import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
-import { getFilledArticleNames, hasEngravingData } from '../utils/engravingUtils';
+import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import toast from 'react-hot-toast';
 
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
@@ -662,6 +662,21 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {order.deliveryMethod && (
                     <span className="bg-emerald-600 text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
                        <Truck size={7} /> {order.deliveryMethod.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                  {['FAISAL', 'INVENTORY_VIEW', 'ORDER_ENTRY', 'OUTLET', 'ADMIN', 'SUPER_ADMIN'].includes(userRole) &&
+                    order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'DELIVERED' && currentStage?.stageName !== 'DELIVERED' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowCancelDialog(true); }}
+                      className="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1 border border-red-500/40 transition-colors"
+                      title="Request cancellation (Admin approval required)"
+                    >
+                      <PackageX size={8} /> Cancel
+                    </button>
+                  )}
+                  {order.cancelledAt && (
+                    <span className="bg-red-700/40 text-red-300 text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
+                      CANCELLED
                     </span>
                   )}
                 </div>
@@ -2398,7 +2413,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
                               const hasArticleNames = getFilledArticleNames(itemCust).length > 0;
                               const hasLogos = itemCust?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
-                              const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling;
+                              const filledLines = getFilledEngravingLines(itemCust);
+                              const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || filledLines.length > 0;
                               const isProdStage = currentStage?.stageName === 'PRODUCTION';
                               const isStoreRecv = currentStage?.stageName === 'STORE_RECEIVE';
                               return <React.Fragment key={idx}>
@@ -2454,15 +2470,35 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <tr className="bg-purple-900/5 border-b border-gray-800/50">
                                     <td colSpan={7} className="py-3 px-6">
                                       <div className="flex flex-wrap gap-3">
-                                        {hasArticleNames && getFilledArticleNames(itemCust).map((an, ai) => (
-                                          <span key={ai} className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
-                                            Name: {an}
-                                          </span>
-                                        ))}
-                                        {!hasArticleNames && itemCust?.nameSpelling && (
-                                          <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
-                                            {t('Name:')} {itemCust.nameSpelling}
-                                          </span>
+                                        {filledLines.length > 0 ? (
+                                          filledLines.map((l, li) => (
+                                            <div key={li} className="w-full md:w-auto flex flex-col gap-1 bg-purple-500/10 border border-purple-500/20 px-2 py-1.5 rounded-lg">
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-[9px] font-black text-white bg-purple-600 px-1.5 py-0.5 rounded">L{li + 1}</span>
+                                                <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest">{l.type === 'direct' ? 'Direct Engraving' : l.type === 'patch' ? 'Patch Engraving' : String(l.type || '').toUpperCase()}</span>
+                                                {l.name && <span className="text-[10px] font-bold text-purple-300">{l.name}</span>}
+                                              </div>
+                                              {l.designNotes && <span className="text-[10px] font-bold text-yellow-400 italic">{isUrdu ? romanToUrdu(l.designNotes) : l.designNotes}</span>}
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <>
+                                            {hasArticleNames && getFilledArticleNames(itemCust).map((an, ai) => (
+                                              <span key={ai} className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
+                                                Name: {an}
+                                              </span>
+                                            ))}
+                                            {!hasArticleNames && itemCust?.nameSpelling && (
+                                              <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
+                                                {t('Name:')} {itemCust.nameSpelling}
+                                              </span>
+                                            )}
+                                            {itemCust?.designNotes && (
+                                              <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md italic truncate max-w-[200px]">
+                                                📝 {isUrdu ? romanToUrdu(itemCust.designNotes) : itemCust.designNotes}
+                                              </span>
+                                            )}
+                                          </>
                                         )}
                                         {hasLogos && itemCust.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((logo, li) => (
                                           <span key={li} className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md">
@@ -2477,11 +2513,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                             {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Size:')} {p.sizeSourceProduct}</span>}
                                             {p.additionalProductRef && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Extra:')} {p.additionalProductRef}</span>}
                                           </>
-                                        )}
-                                        {itemCust?.designNotes && (
-                                          <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md italic truncate max-w-[200px]">
-                                            📝 {isUrdu ? romanToUrdu(itemCust.designNotes) : itemCust.designNotes}
-                                          </span>
                                         )}
                                       </div>
                                     </td>
@@ -2988,8 +3019,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <ShieldAlert size={32} />
               </div>
             </div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Cancel Order?</h3>
-            <p className="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-widest text-center mb-8">This will permanently stop production and notify the customer.</p>
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Request Cancellation?</h3>
+            <p className="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-widest text-center mb-8">This will send a cancellation request to the Admin for approval. The order stays active until approved.</p>
             
             <textarea 
               value={cancelReason}
@@ -3006,14 +3037,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     await api.put(`/api/orders/${order.id}/cancel`, { reason: cancelReason });
                     setShowCancelDialog(false);
                     setCancelReason('');
+                    toast.success('Cancellation request sent to Admin for approval');
                   } catch (error) {
                     console.error('Cancellation failed:', error);
-                    alert('Cancellation failed');
+                    toast.error(error.response?.data?.message || 'Cancellation request failed');
                   }
                 }}
                 className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-red-900/20"
               >
-                Permanently Cancel Order
+                Request Cancellation
               </button>
               <button 
                 onClick={() => setShowCancelDialog(false)}

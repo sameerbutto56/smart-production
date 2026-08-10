@@ -47,7 +47,8 @@ const newItemRow = () => ({
   name: '', productType: '', color: '', size: '', quantity: 1, unitPrice: '',
   fabricType: '', gender: 'Male', sleeveLength: 'full', shirtLength: 'long',
   matchingCap: false, matchingCapQty: 0, notes: '', measurements: '',
-  engravingRequired: 'skip', engravingType: 'direct', nameSpelling: '', engravingText: ''
+  engravingRequired: 'skip',
+  engravingLines: [{ type: 'direct', name: '', designNotes: '' }]
 });
 
 const FaisalReplacements = ({ refreshKey }) => {
@@ -129,11 +130,37 @@ const FaisalReplacements = ({ refreshKey }) => {
     setNewItems(prev => prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
   };
 
+  const updateEngravingLine = (idx, lineIdx, field, value) => {
+    setNewItems(prev => prev.map((it, i) => {
+      if (i !== idx) return it;
+      const lines = (it.engravingLines || []).map((l, li) => (li === lineIdx ? { ...l, [field]: value } : l));
+      return { ...it, engravingLines: lines };
+    }));
+  };
+
+  const addEngravingLine = (idx) => {
+    setNewItems(prev => prev.map((it, i) => (
+      i === idx ? { ...it, engravingLines: [...(it.engravingLines || []), { type: 'direct', name: '', designNotes: '' }] } : it
+    )));
+  };
+
+  const removeEngravingLine = (idx, lineIdx) => {
+    setNewItems(prev => prev.map((it, i) => {
+      if (i !== idx) return it;
+      const lines = (it.engravingLines || []).filter((_, li) => li !== lineIdx);
+      return { ...it, engravingLines: lines.length ? lines : [{ type: 'direct', name: '', designNotes: '' }] };
+    }));
+  };
+
   const addItem = () => setNewItems(prev => [...prev, newItemRow()]);
   const removeItem = (idx) => setNewItems(prev => prev.filter((_, i) => i !== idx));
 
   const buildItems = () => newItems.filter(it => (it.name || '').trim()).map(it => {
     const engravingReq = it.engravingRequired === 'yes';
+    const engravingLines = (it.engravingLines || [])
+      .filter(l => (l.name || '').trim() || (l.designNotes || '').trim())
+      .map(l => ({ type: l.type || 'direct', name: (l.name || '').trim(), designNotes: (l.designNotes || '').trim() }));
+    const articleNames = engravingLines.map(l => l.name).filter(Boolean);
     return {
       name: it.name.trim(),
       productType: (it.productType || '').trim() || it.name.trim(),
@@ -152,10 +179,11 @@ const FaisalReplacements = ({ refreshKey }) => {
       sizeData: parseMeasurements(it.measurements),
       engravingRequired: engravingReq ? 'yes' : 'skip',
       engraving: engravingReq ? {
-        engravingType: it.engravingType || 'direct',
-        nameSpelling: it.nameSpelling || '',
-        articleNames: it.nameSpelling ? [it.nameSpelling] : [],
-        designNotes: it.engravingText || '',
+        engravingType: engravingLines[0]?.type || 'direct',
+        nameSpelling: articleNames[0] || '',
+        articleNames,
+        engravingLines,
+        designNotes: engravingLines.length > 0 ? engravingLines.map(l => l.designNotes).filter(Boolean).join('\n') : '',
         nameColor: '',
         logoColor: '',
         logoPlacement: '',
@@ -351,31 +379,50 @@ const FaisalReplacements = ({ refreshKey }) => {
     </div>
   );
 
-  const EngravingFields = ({ it, idx }) => (
-    <div className="mt-2 bg-gray-800/60 border border-purple-500/30 rounded-xl p-3">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        <div>
-          <label className="text-[9px] font-bold theme-text-muted uppercase block mb-1">Engraving Type</label>
-          <select value={it.engravingType} onChange={e => updateItem(idx, 'engravingType', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-purple-500">
-            <option value="direct">Direct</option>
-            <option value="patch">Patch</option>
-            <option value="embroidery">Embroidery</option>
-          </select>
+  const EngravingFields = ({ it, idx }) => {
+    const lines = it.engravingLines && it.engravingLines.length ? it.engravingLines : [{ type: 'direct', name: '', designNotes: '' }];
+    return (
+      <div className="mt-2 bg-gray-800/60 border border-purple-500/30 rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-black text-purple-400 uppercase">Engraving Lines — one per line</p>
+          <button onClick={() => addEngravingLine(idx)} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-1 px-2.5 rounded-lg text-[10px] flex items-center gap-1">
+            <Plus size={11} /> Add Line
+          </button>
         </div>
-        <div className="col-span-1 md:col-span-2">
-          <label className="text-[9px] font-bold theme-text-muted uppercase block mb-1">Engraving Name (article)</label>
-          <input value={it.nameSpelling} onChange={e => updateItem(idx, 'nameSpelling', e.target.value)} placeholder="e.g. DR FAROOQUE ALI"
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-purple-500" />
-        </div>
-        <div className="col-span-2 md:col-span-3">
-          <label className="text-[9px] font-bold theme-text-muted uppercase block mb-1">Engraving Text / Design Notes</label>
-          <input value={it.engravingText} onChange={e => updateItem(idx, 'engravingText', e.target.value)} placeholder="Engraving instructions for this product"
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-purple-500" />
-        </div>
+        {lines.map((line, li) => (
+          <div key={li} className="mb-2 bg-gray-900 border border-purple-500/20 rounded-xl p-2.5">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div>
+                <label className="text-[9px] font-bold theme-text-muted uppercase block mb-1">Line {li + 1} Type</label>
+                <select value={line.type} onChange={e => updateEngravingLine(idx, li, 'type', e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-purple-500">
+                  <option value="direct">Direct</option>
+                  <option value="patch">Patch</option>
+                  <option value="embroidery">Embroidery</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[9px] font-bold theme-text-muted uppercase block mb-1">Name / Article</label>
+                <input value={line.name} onChange={e => updateEngravingLine(idx, li, 'name', e.target.value)} placeholder="e.g. DR FAROOQUE ALI"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-purple-500" />
+              </div>
+              <div className="col-span-2 md:col-span-1 flex items-end justify-end">
+                <button onClick={() => removeEngravingLine(idx, li)} disabled={lines.length === 1}
+                  className="flex items-center justify-center bg-red-600/20 hover:bg-red-600/40 text-red-400 font-black rounded-lg px-2.5 py-2 text-xs disabled:opacity-30">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              <div className="col-span-2 md:col-span-3">
+                <label className="text-[9px] font-bold theme-text-muted uppercase block mb-1">Text / Design Notes</label>
+                <input value={line.designNotes} onChange={e => updateEngravingLine(idx, li, 'designNotes', e.target.value)} placeholder="Engraving instructions for this line"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-purple-500" />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4 md:space-y-8 pb-20 px-4">
@@ -734,7 +781,7 @@ const FaisalReplacements = ({ refreshKey }) => {
             <div className="bg-gray-900 border border-amber-500/30 rounded-xl p-3">
               <p className="text-[10px] font-black text-amber-400 uppercase mb-1.5">Generated Summary</p>
               <p className="text-[11px] theme-text-secondary"><span className="font-bold text-white">Original:</span> {parseItems(orderFound.productDetails).map((item, i) => { const pd = item.productDetails || item; return `${pd.name || pd.productType || ''} ${pd.color || ''} ${pd.size || ''} ×${item.quantity || 1}`; }).join(', ') || 'N/A'}</p>
-              <p className="text-[11px] theme-text-secondary mt-0.5"><span className="font-bold text-white">New:</span> {buildItems().map(it => `${it.name} ${it.color} ${it.size} ×${it.quantity}${it.engravingRequired === 'yes' ? ' [Engraving]' : ''}`).join(', ') || 'N/A'}</p>
+              <p className="text-[11px] theme-text-secondary mt-0.5"><span className="font-bold text-white">New:</span> {buildItems().map(it => `${it.name} ${it.color} ${it.size} ×${it.quantity}${it.engravingRequired === 'yes' ? (it.engraving?.engravingLines?.length ? ` [Engraving ×${it.engraving.engravingLines.length} lines]` : ' [Engraving]') : ''}`).join(', ') || 'N/A'}</p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">

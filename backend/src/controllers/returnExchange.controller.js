@@ -11,26 +11,60 @@ const REPLACEMENT_ROUTES = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'LOGO_DESIGN'
 const lookupOrder = async (req, res) => {
   try {
     const { query } = req.params;
-    const orConditions = [
-      { orderNumber: { equals: query, mode: 'insensitive' } },
-      { orderNumber: { endsWith: query, mode: 'insensitive' } },
-      { invoiceNumber: { equals: query, mode: 'insensitive' } },
-      { invoiceNumber: { endsWith: query, mode: 'insensitive' } },
-      { customerPhone: { contains: query } }
-    ];
-    const order = await prisma.order.findFirst({
-      where: {
-        OR: orConditions
-      },
-      include: {
-        stages: { orderBy: { createdAt: 'asc' } },
-        deliveryAttempts: { orderBy: { attemptNumber: 'desc' } },
-        noResponseLogs: { orderBy: { createdAt: 'desc' } },
-        deliveryPayments: { orderBy: { createdAt: 'desc' } },
-        returnExchangeCases: { orderBy: { createdAt: 'desc' } }
-      }
-    });
+    const q = String(query || '').trim();
+    if (!q) return res.status(400).json({ message: 'Search query is required' });
+
+    const include = {
+      stages: { orderBy: { createdAt: 'asc' } },
+      deliveryAttempts: { orderBy: { attemptNumber: 'desc' } },
+      noResponseLogs: { orderBy: { createdAt: 'desc' } },
+      deliveryPayments: { orderBy: { createdAt: 'desc' } },
+      returnExchangeCases: { orderBy: { createdAt: 'desc' } }
+    };
+
+    let order = null;
+    if (/^REP-/i.test(q)) {
+      // Searching a replacement number → find the replacement order directly
+      order = await prisma.order.findFirst({
+        where: { source: 'REPLACEMENT', orderNumber: { equals: q, mode: 'insensitive' } },
+        include
+      });
+    } else {
+      // Original number / invoice / phone → prefer the original row (created
+      // earliest) over any REP-<original> variant sharing the same tail.
+      order = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { orderNumber: { equals: q, mode: 'insensitive' } },
+            { orderNumber: { endsWith: q, mode: 'insensitive' } },
+            { invoiceNumber: { equals: q, mode: 'insensitive' } },
+            { invoiceNumber: { endsWith: q, mode: 'insensitive' } },
+            { customerPhone: { contains: q } }
+          ]
+        },
+        orderBy: { createdAt: 'asc' },
+        include
+      });
+    }
     if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // A replacement order is a lifecycle/version of the original — searching
+    // `49502` OR `REP-49502` must open the SAME underlying order (original
+    // details/payment + its replacement cases), never a detached duplicate.
+    if (order.replacementCaseId) {
+      const repCase = await prisma.returnExchange.findUnique({ where: { id: order.replacementCaseId } });
+      if (repCase) {
+        const original = await prisma.order.findUnique({ where: { id: repCase.orderId }, include });
+        if (original) {
+          res.json({
+            ...original,
+            isReplacementMatch: true,
+            matchedReplacement: { id: repCase.id, orderNumber: order.orderNumber, status: repCase.status, replacementOrderId: order.id }
+          });
+          return;
+        }
+      }
+    }
     res.json(order);
   } catch (error) {
     console.error('Error looking up order:', error);
@@ -590,25 +624,63 @@ const sendToStore = async (req, res) => {
     const originalOrder = await prisma.order.findUnique({ where: { id: record.orderId } });
     if (!originalOrder) return res.status(404).json({ message: 'Original order not found' });
 
+    // Replacement order number is DERIVED from the ORIGINAL order number
+    // (e.g. 49502 → REP-49502) so the replacement stays a visible lifecycle of
+    // the same order — never an unrelated generated number. If a prior
+    // replacement already exists on the same original, append a -2/-3 suffix.
+    const baseOriginalNumber = String(record.orderNumber || originalOrder.orderNumber || '').replace(/^#/, '').trim();
+    let replacementOrderNumber = '';
+    if (baseOriginalNumber) {
+      replacementOrderNumber = `REP-${baseOriginalNumber}`;
+      let suffix = 2;
+      while (await prisma.order.findUnique({ where: { orderNumber: replacementOrderNumber }, select: { id: true } })) {
+        replacementOrderNumber = `REP-${baseOriginalNumber}-${suffix}`;
+        suffix += 1;
+      }
+    } else {
+      let unique = false;
+      while (!unique) {
+        const randomNum = Math.floor(100000 + Math.random() * 900000);
+        replacementOrderNumber = `REP-${randomNum}`;
+        const existing = await prisma.order.findUnique({ where: { orderNumber: replacementOrderNumber }, select: { id: true } });
+        if (!existing) unique = true;
+      }
+    }
+
     // Persist full per-product details so the replacement Job Sheet renders
     // exactly like a normal order (products table, fabric/color, size/gender,
     // sleeve/length, measurements, per-product engraving, special notes).
-    const productDetails = items.map((it) => {
+    const productDetails = items.map((it, idx) => {
       const qty = parseInt(it.quantity) || 1;
       const unitPrice = parseFloat(it.unitPrice) || 0;
       const name = it.name || it.productName || '';
       const engravingReq = it.engravingRequired === 'yes' || it.engravingRequired === true;
       const eng = it.engraving && typeof it.engraving === 'object' ? it.engraving : {};
-      const articleNames = Array.isArray(eng.articleNames) ? eng.articleNames.filter(Boolean) : (eng.nameSpelling ? [eng.nameSpelling] : []);
+      // Per-product MULTI-LINE engravings — each line carries its own
+      // Type + Name/Article + Text/Design Notes and persists through Store →
+      // Production → Dispatch so the final Job Sheet renders every line.
+      const engravingLines = Array.isArray(eng.engravingLines)
+        ? eng.engravingLines
+            .filter(l => l && (String(l.name || '').trim() || String(l.designNotes || l.text || l.notes || '').trim()))
+            .map(l => ({ type: l.type || 'direct', name: String(l.name || '').trim(), designNotes: String(l.designNotes || l.text || l.notes || '').trim() }))
+        : [];
+      let articleNames = Array.isArray(eng.articleNames) ? eng.articleNames.filter(Boolean) : [];
+      if (articleNames.length === 0 && engravingLines.length > 0) {
+        articleNames = engravingLines.map(l => l.name).filter(Boolean);
+      }
+      if (articleNames.length === 0 && eng.nameSpelling) articleNames = [eng.nameSpelling];
       const customization = engravingReq ? {
-        engravingType: eng.engravingType || it.engravingType || 'direct',
-        nameSpelling: eng.nameSpelling || '',
+        engravingType: engravingLines[0]?.type || eng.engravingType || it.engravingType || 'direct',
+        nameSpelling: eng.nameSpelling || articleNames[0] || '',
         articleNames,
+        engravingLines,
         nameColor: eng.nameColor || '',
         logoColor: eng.logoColor || '',
         logoPlacement: eng.logoPlacement || '',
         logos: Array.isArray(eng.logos) ? eng.logos : [],
-        designNotes: eng.designNotes || it.notes || ''
+        designNotes: eng.designNotes
+          || (engravingLines.length > 0 ? engravingLines.map(l => l.designNotes).filter(Boolean).join('\n') : '')
+          || it.notes || ''
       } : null;
       const sizeData = it.sizeData && typeof it.sizeData === 'object' ? it.sizeData : null;
       return {
@@ -628,7 +700,14 @@ const sendToStore = async (req, res) => {
         notes: it.notes || '',
         measurementSpecialNote: it.measurementSpecialNote || '',
         sizeData,
-        customization: customization ? JSON.stringify(customization) : null
+        customization: customization ? JSON.stringify(customization) : null,
+        // Carry the original identity + per-item sequence through Store →
+        // Production → Dispatch so job sheets / route numbers keep rendering
+        // the original order number and sequence.
+        orderNumber: replacementOrderNumber,
+        originalNumber: record.orderNumber || originalOrder.orderNumber || '',
+        replacementOf: originalOrder.id,
+        replaceNo: idx + 1
       };
     });
 
@@ -638,16 +717,6 @@ const sendToStore = async (req, res) => {
     const firstCust = productDetails.find(pd => pd.customization);
     const orderCustomization = firstCust ? firstCust.customization : null;
     const anyEngraving = productDetails.some(pd => pd.customization);
-
-    // Generate a unique REP-xxxxxx order number
-    let replacementOrderNumber = '';
-    let isUnique = false;
-    while (!isUnique) {
-      const randomNum = Math.floor(100000 + Math.random() * 900000);
-      replacementOrderNumber = `REP-${randomNum}`;
-      const existing = await prisma.order.findUnique({ where: { orderNumber: replacementOrderNumber }, select: { id: true } });
-      if (!existing) isUnique = true;
-    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({

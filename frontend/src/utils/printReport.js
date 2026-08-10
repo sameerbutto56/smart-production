@@ -1,7 +1,7 @@
 import { toUrduName } from './urduDictionary';
 import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from './dateTime';
-import { hasEngravingData, getFilledArticleNames } from './engravingUtils';
+import { hasEngravingData, getFilledArticleNames, getFilledEngravingLines } from './engravingUtils';
 
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
@@ -1403,12 +1403,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           const p = getItemProduct(item);
           const c = item.customization ? parseJSON(item.customization) : custom;
           const filteredNames = getFilledArticleNames(c);
+          const filledLines = getFilledEngravingLines(c);
+          const hasLines = filledLines.length > 0;
           const hasNames = filteredNames.length > 0 || c?.nameSpelling?.trim();
           const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
           const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;
-          const hasNotes = c?.designNotes;
+          const hasNotes = c?.designNotes && !hasLines;
 
-          if (!hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
+          if (!hasLines && !hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
 
           win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
@@ -1417,24 +1419,43 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 
-          if (c?.engravingType) {
-            win.document.write(`<div style="margin-bottom:6px">`);
-            const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
-            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
-            win.document.write(`</div>`);
-          }
-
-          if (hasNames) {
-            win.document.write(`<div style="margin-bottom:6px">`);
-            win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
-            if (filteredNames.length > 0) {
-              filteredNames.forEach((an, ai) => {
-                win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
-              });
-            } else {
-              win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
+          // Per-product MULTI-LINE engravings — each line renders its own
+          // Type + Name/Article + Text/Design Notes (replacement workflow).
+          if (hasLines) {
+            filledLines.forEach((l, li) => {
+              const lineTypeLabel = l.type === 'direct' ? sec.directEngraving : l.type === 'patch' ? sec.patchEngraving : String(l.type || '').toUpperCase();
+              win.document.write(`<div style="margin-bottom:5px;padding:6px 8px;background:#faf5ff;border:2px solid #7c3aed30;border-radius:5px;page-break-inside:avoid">`);
+              win.document.write(`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">`);
+              win.document.write(`<span style="background:#7c3aed;color:#fff;font-size:18px;font-weight:800;padding:2px 7px;border-radius:3px">L${li + 1}</span>`);
+              win.document.write(`<span style="font-size:18px;font-weight:800;text-transform:uppercase;color:#7c3aed">${sec.engravingType}: ${lineTypeLabel}</span>`);
+              if (l.name) win.document.write(`<span style="font-size:24px;font-weight:700;color:#000">${l.name}</span>`);
+              win.document.write(`</div>`);
+              if (l.designNotes) {
+                const lineNotes = isUrdu ? romanToUrdu(l.designNotes) : l.designNotes;
+                win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;white-space:pre-wrap;margin:2px 0 0"${isUrdu ? ' class="urdu"' : ''}>${lineNotes}</p>`);
+              }
+              win.document.write(`</div>`);
+            });
+          } else {
+            if (c?.engravingType) {
+              win.document.write(`<div style="margin-bottom:6px">`);
+              const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
+              win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
+              win.document.write(`</div>`);
             }
-            win.document.write(`</div>`);
+
+            if (hasNames) {
+              win.document.write(`<div style="margin-bottom:6px">`);
+              win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
+              if (filteredNames.length > 0) {
+                filteredNames.forEach((an, ai) => {
+                  win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
+                });
+              } else {
+                win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
+              }
+              win.document.write(`</div>`);
+            }
           }
 
           if (hasSpecs) {

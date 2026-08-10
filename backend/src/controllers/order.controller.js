@@ -277,8 +277,11 @@ const createOrder = async (req, res) => {
       }
     } else {
       // Check if manual order number is already taken
-      const existing = await prisma.order.findUnique({ where: { orderNumber }, select: { id: true } });
+      const existing = await prisma.order.findUnique({ where: { orderNumber }, select: { id: true, status: true } });
       if (existing) {
+        if (existing.status === 'CANCELLED') {
+          return res.status(400).json({ message: `This order number has already been cancelled and cannot be reused.` });
+        }
         const io = req.app.get('io');
         if (io) {
           io.emit('global-alert', {
@@ -1333,32 +1336,230 @@ const cancelOrder = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.status === 'CANCELLED' || order.currentStage === 'CANCELLED') {
+      return res.status(400).json({ message: 'This order is already cancelled.' });
+    }
 
-    // Restore all deducted inventory before cancelling
-    await restoreInventoryForDeletion(order, req.user.id);
+    // Cancellation now requires Admin approval — submitting a request keeps the
+    // order fully active (workflow, inventory, scanning) until an Admin decides.
+    const pending = await prisma.orderCancellationRequest.findFirst({
+      where: { orderId, status: 'PENDING' }
+    });
+    if (pending) {
+      return res.status(400).json({ message: 'A cancellation request for this order is already pending Admin approval.' });
+    }
 
-    await prisma.order.update({
-      where: { id: orderId },
+    const request = await prisma.orderCancellationRequest.create({
       data: {
-        status: 'REJECTED',
-        currentStage: 'CANCELLED'
+        orderId,
+        orderNumber: order.orderNumber,
+        reason: reason || 'No reason provided',
+        requestedById: req.user?.id,
+        requestedByName: req.user?.name
       }
     });
 
-    // Also mark current active stage as REJECTED
-    await prisma.orderStage.updateMany({
-      where: { orderId, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL', 'ON_HOLD'] } },
-      data: { status: 'REJECTED', rejectionReason: `ORDER CANCELLED: ${reason}` }
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId });
+
+    await createAuditLog(orderId, 'CANCELLATION_REQUESTED', `Cancellation requested by ${req.user?.name || 'Unknown'}. Reason: ${reason || 'No reason provided'}`, req.user?.id);
+
+    await notify.create(req, {
+      type: 'cancellation_requested',
+      moduleName: 'Order Cancellation',
+      path: '/order-cancellations',
+      role: 'ADMIN',
+      title: 'Cancellation Request',
+      message: `Order #${order.orderNumber} cancellation requested by ${req.user?.name || 'Unknown'}`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      action: 'Approval Required',
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    res.json({ message: 'Cancellation request submitted. Waiting for Admin approval.', request });
+  } catch (error) {
+    res.status(500).json({ message: 'Error submitting cancellation request', error: error.message });
+  }
+};
+
+// Submit a cancellation request by order number (lookup convenience)
+const createCancellationRequest = async (req, res) => {
+  const { orderNumber, reason } = req.body;
+  try {
+    if (!orderNumber) return res.status(400).json({ message: 'Order number is required' });
+    const order = await prisma.order.findUnique({ where: { orderNumber: String(orderNumber).trim() } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    req.params = { ...req.params, orderId: order.id };
+    return cancelOrder(req, res);
+  } catch (error) {
+    res.status(500).json({ message: 'Error submitting cancellation request', error: error.message });
+  }
+};
+
+// Admin: list cancellation requests (pending + history) with order info
+const getCancellationRequests = async (req, res) => {
+  const { status, search, limit } = req.query;
+  try {
+    const where = {};
+    if (status) where.status = String(status).toUpperCase();
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search, mode: 'insensitive' } },
+        { order: { customerName: { contains: search, mode: 'insensitive' } } },
+        { order: { customerPhone: { contains: search } } }
+      ];
+    }
+    const requests = await prisma.orderCancellationRequest.findMany({
+      where,
+      include: {
+        order: {
+          select: {
+            id: true, orderNumber: true, customerName: true, customerPhone: true,
+            totalPrice: true, currentStage: true, status: true, createdAt: true,
+            cancellationReason: true, cancelledAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit === 'all' ? undefined : (parseInt(limit) || 200)
+    });
+    const pendingCount = await prisma.orderCancellationRequest.count({ where: { status: 'PENDING' } });
+    res.json({ requests, pendingCount });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching cancellation requests', error: error.message });
+  }
+};
+
+// Admin: approve a cancellation request — permanently cancels the order,
+// restores inventory, rejects open stages, records decision.
+const approveCancellationRequest = async (req, res) => {
+  const { requestId } = req.params;
+  try {
+    const request = await prisma.orderCancellationRequest.findUnique({
+      where: { id: requestId },
+      include: { order: true }
+    });
+    if (!request) return res.status(404).json({ message: 'Cancellation request not found' });
+    if (request.status !== 'PENDING') return res.status(400).json({ message: 'This cancellation request was already decided.' });
+
+    const order = request.order;
+    if (order.status === 'CANCELLED' || order.currentStage === 'CANCELLED') {
+      return res.status(400).json({ message: 'This order is already cancelled.' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.orderCancellationRequest.update({
+        where: { id: requestId },
+        data: {
+          status: 'APPROVED',
+          decidedById: req.user?.id,
+          decidedByName: req.user?.name,
+          decidedAt: new Date()
+        }
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'CANCELLED',
+          currentStage: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelledById: req.user?.id,
+          cancelledByName: req.user?.name,
+          cancellationReason: request.reason
+        }
+      });
+      await tx.orderStage.updateMany({
+        where: { orderId: order.id, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL', 'ON_HOLD'] } },
+        data: { status: 'REJECTED', rejectionReason: `ORDER CANCELLED (approved by Admin): ${request.reason}` }
+      });
+    });
+
+    // Restore inventory outside the transaction (same helper deleteOrder uses)
+    await restoreInventoryForDeletion(order, req.user?.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId: order.id, cancelled: true, orderNumber: order.orderNumber });
+
+    await createAuditLog(order.id, 'CANCELLATION_APPROVED', `Cancellation approved by ${req.user?.name || 'Admin'}. Reason: ${request.reason}. Order permanently cancelled, inventory restored.`, req.user?.id);
+    await createAuditLog(order.id, 'ORDER_CANCELLED', `Order permanently cancelled after Admin approval. Reason: ${request.reason}`, req.user?.id);
+
+    if (request.requestedById) {
+      const requester = await prisma.user.findUnique({ where: { id: request.requestedById }, select: { role: true } });
+      if (requester?.role) {
+        await notify.create(req, {
+          type: 'cancellation_approved',
+          moduleName: 'Order Cancellation',
+          path: '/order-track',
+          role: requester.role,
+          title: 'Cancellation Approved',
+          message: `Your cancellation request for order #${order.orderNumber} has been approved by ${req.user?.name || 'Admin'}.`,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerName: order.customerName,
+          action: 'Cancelled',
+          employeeName: req.user?.name
+        }).catch(() => {});
+      }
+    }
+
+    res.json({ message: 'Cancellation approved. Order permanently cancelled, inventory restored.', order: { id: order.id, orderNumber: order.orderNumber, status: 'CANCELLED' } });
+  } catch (error) {
+    res.status(500).json({ message: 'Error approving cancellation', error: error.message });
+  }
+};
+
+// Admin: reject a cancellation request — order stays active, history recorded
+const rejectCancellationRequest = async (req, res) => {
+  const { requestId } = req.params;
+  const { decisionNote } = req.body;
+  try {
+    const request = await prisma.orderCancellationRequest.findUnique({
+      where: { id: requestId },
+      include: { order: true }
+    });
+    if (!request) return res.status(404).json({ message: 'Cancellation request not found' });
+    if (request.status !== 'PENDING') return res.status(400).json({ message: 'This cancellation request was already decided.' });
+
+    await prisma.orderCancellationRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'REJECTED',
+        decidedById: req.user?.id,
+        decidedByName: req.user?.name,
+        decisionNote: decisionNote || null,
+        decidedAt: new Date()
+      }
     });
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId, createdById: order?.createdById });
+    io.emit('order-updated', { orderId: request.orderId });
 
-    await createAuditLog(orderId, 'ORDER_CANCELLED', `Order permanently cancelled by Faisal. Reason: ${reason}`, req.user.id);
+    await createAuditLog(request.orderId, 'CANCELLATION_REJECTED', `Cancellation request rejected by ${req.user?.name || 'Admin'}. Note: ${decisionNote || 'No note provided'}`, req.user?.id);
 
-    res.json({ message: 'Order cancelled successfully', order });
+    if (request.requestedById) {
+      const requester = await prisma.user.findUnique({ where: { id: request.requestedById }, select: { role: true } });
+      if (requester?.role) {
+        await notify.create(req, {
+          type: 'cancellation_rejected',
+          moduleName: 'Order Cancellation',
+          path: '/order-track',
+          role: requester.role,
+          title: 'Cancellation Rejected',
+          message: `Your cancellation request for order #${request.orderNumber} was not approved. Note: ${decisionNote || 'No note provided'}`,
+          orderId: request.orderId,
+          orderNumber: request.orderNumber,
+          customerName: request.order?.customerName,
+          action: 'Rejected',
+          employeeName: req.user?.name
+        }).catch(() => {});
+      }
+    }
+
+    res.json({ message: 'Cancellation request rejected. Order remains active.', request });
   } catch (error) {
-    res.status(500).json({ message: 'Error cancelling order', error: error.message });
+    res.status(500).json({ message: 'Error rejecting cancellation', error: error.message });
   }
 };
 
@@ -2769,7 +2970,9 @@ const acceptTask = async (req, res) => {
 // Orders sent for verification keep currentStage = ORDER_ENTRY until verified,
 // but tracking must show them at their real workflow location.
 const getTrackingStatus = (order) => {
-  if (!order || !order.goForVerification) return order?.currentStage || 'ORDER_ENTRY';
+  if (!order) return 'ORDER_ENTRY';
+  if (order.currentStage === 'CANCELLED' || order.status === 'CANCELLED') return 'CANCELLED';
+  if (!order.goForVerification) return order.currentStage || 'ORDER_ENTRY';
   if (order.verifiedAt) return order.currentStage;
   if (order.verificationReturnedAt) return 'RETURNED_FROM_VERIFICATION';
   return 'VERIFICATION';
@@ -2866,7 +3069,10 @@ const getOrderTimeline = async (req, res) => {
       RETURN_ROUTED_TO_PRODUCTION: 'Return Routed to Production',
       REPLACEMENT_ROUTED_TO_PRODUCTION: 'Replacement Routed to Production',
       REPLACEMENT_FAISAL_APPROVED: 'Replacement Approved by Faisal',
-      REPLACEMENT_FAISAL_REJECTED: 'Replacement Rejected by Faisal'
+      REPLACEMENT_FAISAL_REJECTED: 'Replacement Rejected by Faisal',
+      CANCELLATION_REQUESTED: 'Cancellation Requested',
+      CANCELLATION_APPROVED: 'Cancellation Approved',
+      CANCELLATION_REJECTED: 'Cancellation Rejected'
     };
 
     // --- Build CONSOLIDATED stage entries (one per OrderStage) ---
@@ -3927,5 +4133,9 @@ module.exports = {
   getOrderById,
   getRolesForStage,
   getOrderPerformance,
-  deductInventoryItems
+  deductInventoryItems,
+  createCancellationRequest,
+  getCancellationRequests,
+  approveCancellationRequest,
+  rejectCancellationRequest
 };

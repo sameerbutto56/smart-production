@@ -57,6 +57,7 @@ const AuditReview = lazy(() => import('./pages/AuditReview'));
 const StoreReturns = lazy(() => import('./pages/StoreReturns'));
 const FaisalReplacements = lazy(() => import('./pages/FaisalReplacements'));
 const StoreReplacements = lazy(() => import('./pages/StoreReplacements'));
+const OrderCancellations = lazy(() => import('./pages/OrderCancellations'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -171,6 +172,7 @@ function App() {
                   <Route path="returns" element={<StoreReturns />} />
                   <Route path="replacements" element={<FaisalReplacements />} />
                   <Route path="store-replacements" element={<StoreReplacements />} />
+                  <Route path="order-cancellations" element={<OrderCancellations />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

@@ -35,6 +35,8 @@ model User {
   engravingsCompleted   EngravingRequest[] @relation("EngravingCompletedBy")
   engravingsDone        EngravingRequest[] @relation("EngravingDoneBy")
   engravingStages       EngravingStage[]
+  cancellationsRequested OrderCancellationRequest[] @relation("CancellationRequestedBy")
+  cancellationsDecided  OrderCancellationRequest[] @relation("CancellationDecidedBy")
 }
 
 model Order {
@@ -158,6 +160,12 @@ model Order {
   orderAcceptances  OrderAcceptance[]
   returnExchangeCases ReturnExchange[]
   replacementCaseId String?   // link back to the ReturnExchange case when this order is a replacement
+  // Cancellation metadata (set only when Admin approves a cancellation request)
+  cancelledAt     DateTime?
+  cancelledById   String?
+  cancelledByName String?
+  cancellationReason String?
+  cancellationRequests OrderCancellationRequest[] @relation("OrderCancellationRequests")
 }
 
 model DispatchLog {
@@ -400,6 +408,28 @@ model DeletedOrder {
   @@index([orderNumber])
   @@index([source])
   @@index([deletedAt])
+}
+
+model OrderCancellationRequest {
+  id              String    @id @default(uuid())
+  orderId         String
+  order           Order     @relation("OrderCancellationRequests", fields: [orderId], references: [id])
+  orderNumber     String?
+  reason          String
+  status          String    @default("PENDING") // PENDING / APPROVED / REJECTED
+  requestedById   String?
+  requestedBy     User?     @relation("CancellationRequestedBy", fields: [requestedById], references: [id])
+  requestedByName String?
+  decidedById     String?
+  decidedBy       User?     @relation("CancellationDecidedBy", fields: [decidedById], references: [id])
+  decidedByName   String?
+  decisionNote    String?
+  createdAt       DateTime  @default(now())
+  decidedAt       DateTime?
+
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model SystemSetting {

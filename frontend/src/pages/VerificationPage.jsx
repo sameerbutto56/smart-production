@@ -21,6 +21,9 @@ const VerificationPage = () => {
   const [returnModal, setReturnModal] = useState(null);
   const [returnNote, setReturnNote] = useState('');
   const [returnAdvanceReceived, setReturnAdvanceReceived] = useState('');
+  const [cancelModal, setCancelModal] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -384,6 +387,10 @@ const VerificationPage = () => {
                             className="bg-gray-700 hover:bg-gray-600 text-gray-300 font-black py-3 px-5 rounded-xl text-sm transition-all">
                             <Clock size={16} className="inline mr-1" /> Mark Pending
                           </button>
+                          <button onClick={() => { setCancelModal(order); setCancelReason(''); }}
+                            className="bg-red-600 hover:bg-red-500 text-white font-black py-3 px-5 rounded-xl text-sm transition-all flex items-center gap-2">
+                            <AlertCircle size={16} /> Request Cancellation
+                          </button>
                         </div>
                       )}
                     </div>
@@ -467,6 +474,47 @@ const VerificationPage = () => {
               <button onClick={handleReturnToFaisal} disabled={submitting || !returnNote.trim()}
                 className="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2">
                 {submitting ? 'Returning...' : <><ArrowLeft size={16} /> Return to Faisal</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Request Modal */}
+      {cancelModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setCancelModal(null)}>
+          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <AlertCircle size={20} className="text-red-400" />
+              <h3 className="text-lg font-black text-white">Request Cancellation</h3>
+            </div>
+            <p className="text-sm text-gray-400">Order: <span className="text-white font-black">{cancelModal.orderNumber}</span></p>
+            <p className="text-xs text-gray-500">This will submit a cancellation request to the Admin for approval. The order stays active until approved.</p>
+            <div>
+              <label className="text-xs font-bold text-gray-400 block mb-1">Reason for Cancellation *</label>
+              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={4} placeholder="e.g. Customer no longer wants this order..."
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-red-500 resize-none" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setCancelModal(null)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 font-black py-3 rounded-xl text-sm transition-all">Keep Order</button>
+              <button
+                disabled={cancelSubmitting || !cancelReason.trim()}
+                onClick={async () => {
+                  setCancelSubmitting(true);
+                  try {
+                    await api.put(`/api/orders/${cancelModal.id}/cancel`, { reason: cancelReason });
+                    toast.success('Cancellation request sent to Admin for approval');
+                    setCancelModal(null);
+                    setCancelReason('');
+                    fetchPending();
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Cancellation request failed');
+                  } finally {
+                    setCancelSubmitting(false);
+                  }
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                {cancelSubmitting ? 'Sending...' : <><AlertCircle size={16} /> Request Cancellation</>}
               </button>
             </div>
           </div>

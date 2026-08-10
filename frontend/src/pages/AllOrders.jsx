@@ -27,7 +27,7 @@ import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { getDelayInfo, getStageDelays, fmtDuration, stageLabel } from '../utils/delayUtils';
-import { getFilledArticleNames, hasEngravingData } from '../utils/engravingUtils';
+import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -1516,6 +1516,8 @@ const AllOrders = () => {
                         const c = item.customization || {};
                         const p = item.productDetails || {};
                         const filledArticles = getFilledArticleNames(c);
+                        const filledLines = getFilledEngravingLines(c);
+                        const hasLines = filledLines.length > 0;
                         return (
                           <div key={idx} className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70">
                             <div className="flex items-center gap-3 mb-4">
@@ -1524,8 +1526,23 @@ const AllOrders = () => {
                               {p.color && <span className="text-xs font-black text-gray-400">({isUrdu ? toUrduName(p.color) : p.color})</span>}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Multi-line engravings (replacement workflow) — each line = own Type + Name + Text */}
+                              {hasLines && (
+                                <div className="md:col-span-2 space-y-2">
+                                  {filledLines.map((l, li) => (
+                                    <div key={li} className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/10">
+                                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        <span className="text-[9px] font-black text-purple-100 bg-purple-600 px-2 py-0.5 rounded">L{li + 1}</span>
+                                        <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest">{l.type === 'direct' ? 'Direct Engraving' : l.type === 'patch' ? 'Patch Engraving' : String(l.type || '').toUpperCase()}</span>
+                                        {l.name && <span className="text-sm font-black text-purple-300">{l.name}</span>}
+                                      </div>
+                                      {l.designNotes && <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{isUrdu ? romanToUrdu(l.designNotes) : l.designNotes}</p>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                               {/* Names / Lines */}
-                              {(filledArticles.length > 0 || c.nameSpelling) && (
+                              {!hasLines && (filledArticles.length > 0 || c.nameSpelling) && (
                                 <div className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/10">
                                   <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
                                   <div className="space-y-1.5">
@@ -1585,7 +1602,7 @@ const AllOrders = () => {
                               </div>
                             </div>
                             {/* Special Notes for this product */}
-                            {c.designNotes && (
+                            {!hasLines && c.designNotes && (
                               <div className="mt-3 bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
                                 <p className="text-[10px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">Special Note</p>
                                 <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</p>

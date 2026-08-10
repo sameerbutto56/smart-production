@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import api from '../services/api';
-import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck, AlertCircle, PackageX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
+import toast from 'react-hot-toast';
 
 const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry', STORE: 'Store', WORKERS: 'Workers',
@@ -107,6 +108,9 @@ const OrderTrack = () => {
   const [loading, setLoading] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cancelModal, setCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const navigate = useNavigate();
 
   const handleTrack = async () => {
@@ -181,6 +185,15 @@ const OrderTrack = () => {
                   <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${order.verifiedAt ? 'bg-cyan-500/20 text-cyan-400' : order.verificationReturnedAt ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                     {order.verifiedAt ? `VERIFIED by ${order.verifiedByName || 'Admin'}` : order.verificationReturnedAt ? 'RETURNED FROM VERIFICATION' : 'PENDING VERIFICATION'}
                   </span>
+                )}
+                {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+                  <button onClick={() => { setCancelModal(true); setCancelReason(''); }}
+                    className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 transition-colors">
+                    <PackageX size={10} /> Request Cancellation
+                  </button>
+                )}
+                {order.cancelledAt && (
+                  <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-red-700/40 text-red-300">CANCELLED — {order.cancelledByName || 'Admin'} {order.cancelledAt ? `(${formatDate(order.cancelledAt)})` : ''}</span>
                 )}
               </div>
             </div>
@@ -333,6 +346,46 @@ const OrderTrack = () => {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Request Modal */}
+      {cancelModal && order && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setCancelModal(false)}>
+          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <AlertCircle size={20} className="text-red-400" />
+              <h3 className="text-lg font-black text-white">Request Cancellation</h3>
+            </div>
+            <p className="text-sm text-gray-400">Order: <span className="text-white font-black">#{order.orderNumber}</span></p>
+            <p className="text-xs text-gray-500">This will submit a cancellation request to the Admin for approval. The order stays active until approved.</p>
+            <div>
+              <label className="text-xs font-bold text-gray-400 block mb-1">Reason for Cancellation *</label>
+              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={4} placeholder="e.g. Customer no longer wants this order..."
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-red-500 resize-none" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setCancelModal(false)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 font-black py-3 rounded-xl text-sm transition-all">Keep Order</button>
+              <button
+                disabled={cancelSubmitting || !cancelReason.trim()}
+                onClick={async () => {
+                  setCancelSubmitting(true);
+                  try {
+                    await api.put(`/api/orders/${order.id}/cancel`, { reason: cancelReason });
+                    toast.success('Cancellation request sent to Admin for approval');
+                    setCancelModal(false);
+                    setCancelReason('');
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Cancellation request failed');
+                  } finally {
+                    setCancelSubmitting(false);
+                  }
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                {cancelSubmitting ? 'Sending...' : <><AlertCircle size={16} /> Request Cancellation</>}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -42,6 +42,7 @@ import {
   Landmark,
   Route as RouteIcon,
   ClipboardCheck,
+  PackageX,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDateOnly } from '../utils/dateTime';
@@ -111,6 +112,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Returns', path: '/returns', icon: RotateCcw, roles: ['STORE'] },
     { name: 'Replacements', path: '/store-replacements', icon: ArrowRightLeft, roles: ['STORE'] },
     { name: 'Audit Review', path: '/audit-review', icon: ClipboardCheck, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Cancellation Requests', path: '/order-cancellations', icon: PackageX, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
     { name: 'Outlet Order Entry', path: '/outlet-order-entry', icon: ShoppingBag, roles: ['OUTLET'] },
