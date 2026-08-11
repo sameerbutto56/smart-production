@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../services/api';
-import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck, AlertCircle, PackageX } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, ArrowRightLeft, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck, AlertCircle, PackageX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
@@ -105,6 +105,8 @@ const OrderTrack = () => {
   const [orderNumber, setOrderNumber] = useState('');
   const [order, setOrder] = useState(null);
   const [timeline, setTimeline] = useState([]);
+  const [linkedOriginal, setLinkedOriginal] = useState(null);
+  const [linkedReplacement, setLinkedReplacement] = useState(null);
   const [loading, setLoading] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [error, setError] = useState('');
@@ -113,12 +115,17 @@ const OrderTrack = () => {
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleTrack = async () => {
-    if (!orderNumber.trim()) { setError('Please enter an order number'); return; }
-    setLoading(true); setError(''); setOrder(null); setTimeline([]);
+  const loadOrder = async (query, resetLinked = true) => {
+    if (!query || !String(query).trim()) { setError('Please enter an order number'); return; }
+    const clean = String(query).trim().replace(/^#/, '');
+    setLoading(true); setError('');
+    setOrderNumber(clean);
+    if (resetLinked) { setOrder(null); setTimeline([]); setLinkedOriginal(null); setLinkedReplacement(null); }
     try {
-      const res = await api.get(`/api/orders/track/${orderNumber.trim().replace(/^#/, '')}`);
+      const res = await api.get(`/api/orders/track/${clean}`);
       setOrder(res.data);
+      setLinkedOriginal(res.data._originalOrder || null);
+      setLinkedReplacement(res.data._replacementOrder || null);
       setTimelineLoading(true);
       try {
         const tlRes = await api.get(`/api/orders/${res.data.id}/timeline`);
@@ -127,6 +134,11 @@ const OrderTrack = () => {
     } catch (e) {
       setError(e.response?.status === 404 ? 'Order not found' : 'Error fetching order');
     } finally { setLoading(false); }
+  };
+
+  const handleTrack = () => {
+    if (!orderNumber.trim()) { setError('Please enter an order number'); return; }
+    loadOrder(orderNumber);
   };
 
   const completedStages = new Set(order?.stages?.filter(s => s.status === 'COMPLETED').map(s => s.stageName) || []);
@@ -150,7 +162,7 @@ const OrderTrack = () => {
       <div className="flex gap-2">
         <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleTrack()}
-          placeholder="Enter order number (e.g., JT-836194)..."
+          placeholder="Enter order number (e.g., JT-836194 or REP-49502)..."
           className="flex-1 bg-gray-900 border-2 border-gray-800 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-purple-500 transition-colors" />
         <button onClick={handleTrack} disabled={loading}
           className="px-5 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2">
@@ -230,6 +242,39 @@ const OrderTrack = () => {
               )}
             </div>
           </div>
+
+          {/* Connected original / replacement order */}
+          {(linkedOriginal || linkedReplacement) && (
+            <div className="bg-gradient-to-r from-purple-950/40 to-indigo-950/40 rounded-2xl border border-purple-500/30 p-4">
+              <p className="text-xs font-black text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                <ArrowRightLeft size={12} /> Connected {order?.source === 'REPLACEMENT' ? 'Original Order' : 'Replacement Order'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {linkedReplacement && (
+                  <button onClick={() => loadOrder(linkedReplacement.orderNumber, false)}
+                    className="flex-1 min-w-[200px] text-left bg-gray-900/70 border border-purple-500/40 rounded-xl p-3 hover:border-purple-400 transition-colors">
+                    <p className="text-[10px] text-gray-400 font-black uppercase">Replacement Order</p>
+                    <p className="text-sm font-black text-white mt-0.5">{linkedReplacement.orderNumber}</p>
+                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">
+                      {linkedReplacement.customerName} • {STAGE_LABELS[linkedReplacement.trackingStatus] || linkedReplacement.currentStage}
+                      {' '}<span className="text-purple-400">— View Timeline →</span>
+                    </p>
+                  </button>
+                )}
+                {linkedOriginal && (
+                  <button onClick={() => loadOrder(linkedOriginal.orderNumber, false)}
+                    className="flex-1 min-w-[200px] text-left bg-gray-900/70 border border-indigo-500/40 rounded-xl p-3 hover:border-indigo-400 transition-colors">
+                    <p className="text-[10px] text-gray-400 font-black uppercase">Original Order</p>
+                    <p className="text-sm font-black text-white mt-0.5">#{linkedOriginal.orderNumber}</p>
+                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">
+                      {linkedOriginal.customerName} • {STAGE_LABELS[linkedOriginal.trackingStatus] || linkedOriginal.currentStage}
+                      {' '}<span className="text-indigo-400">— View Timeline →</span>
+                    </p>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Returned from Verification banner */}
           {isReturnedFromVerification && (

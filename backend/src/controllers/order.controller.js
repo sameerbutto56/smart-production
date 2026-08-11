@@ -3026,7 +3026,8 @@ const getOrderTimeline = async (req, res) => {
           id: true, orderNumber: true, customerName: true, status: true,
           currentStage: true, goForVerification: true, verifiedAt: true,
           verificationReturnedAt: true, verificationReturnNote: true,
-          verifiedByName: true, source: true, createdAt: true, createdById: true
+          verifiedByName: true, source: true, createdAt: true, createdById: true,
+          replacementCaseId: true
         }
       })
     ]);
@@ -3086,6 +3087,7 @@ const getOrderTimeline = async (req, res) => {
       VERIFICATION_PENDING: 'Verification Pending',
       RETURNED_FOR_CORRECTION: 'Returned from Verification',
       RESUBMITTED_AFTER_VERIFICATION: 'Resubmitted after Verification',
+      RESUBMITTED_TO_STORE: 'Resubmitted to Store',
       RETURN_INITIATED: 'Return Initiated', REPLACEMENT_INITIATED: 'Replacement Initiated',
       RETURN_STORE_PROCESSED: 'Return Processed by Store',
       REPLACEMENT_STORE_PROCESSED: 'Replacement Processed by Store',
@@ -3144,12 +3146,13 @@ const getOrderTimeline = async (req, res) => {
     const titleCase = (s) => String(s || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
     const isOutlet = order?.source === 'OUTLET';
+    const isReplacement = order?.source === 'REPLACEMENT';
     const orderCreated = order?.createdAt ? new Date(order.createdAt).getTime() : 0;
     const isFirstStage = (s) => s.stageName === 'ORDER_ENTRY' && Math.abs(new Date(s.createdAt).getTime() - orderCreated) < 120000;
 
     const transitionLabel = (s) => {
       const n = s.stageName;
-      if (isFirstStage(s)) return isOutlet ? 'Outlet Order Created' : 'Order Entered';
+      if (isFirstStage(s)) return isReplacement ? 'Replacement Order Entered' : isOutlet ? 'Outlet Order Created' : 'Order Entered';
       switch (n) {
         case 'STORE': return 'Sent to Store';
         case 'LOGO_DESIGN': return 'Sent to Logo Design';
@@ -3328,7 +3331,7 @@ const getOrderTimeline = async (req, res) => {
     flatEntries.forEach((e, i) => { e.isLatest = i === flatEntries.length - 1; });
 
     // Return both formats — consolidated for AdminDashboard, flat for OrderTrack
-    res.json({ stageEntries, routeEntries, flatEntries, trackingStatus: getTrackingStatus(order) });
+    res.json({ stageEntries, routeEntries, flatEntries, trackingStatus: getTrackingStatus(order), source: order?.source || null, replacementCaseId: order?.replacementCaseId || null });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching timeline', error: error.message });
   }
@@ -3990,6 +3993,40 @@ const trackOrder = async (req, res) => {
     }
     if (!order) return res.status(404).json({ message: 'Order not found' });
     order.trackingStatus = getTrackingStatus(order);
+
+    // Link the replacement lifecycle to its ORIGINAL order (and vice versa) so
+    // tracking shows the full original + replacement timelines as one connected story.
+    try {
+      if (order.source === 'REPLACEMENT' && order.replacementCaseId) {
+        const repCase = await prisma.returnExchange.findUnique({
+          where: { id: order.replacementCaseId },
+          select: { orderId: true, orderNumber: true, status: true }
+        });
+        if (repCase) {
+          const original = await prisma.order.findUnique({
+            where: { id: repCase.orderId },
+            select: { id: true, orderNumber: true, customerName: true, currentStage: true, status: true, source: true, totalPrice: true }
+          });
+          if (original) order._originalOrder = { ...original, trackingStatus: getTrackingStatus(original) };
+        }
+      } else {
+        const repCase = await prisma.returnExchange.findFirst({
+          where: { orderId: order.id, replacementOrderId: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, replacementOrderId: true }
+        });
+        if (repCase?.replacementOrderId) {
+          const replacement = await prisma.order.findUnique({
+            where: { id: repCase.replacementOrderId },
+            select: { id: true, orderNumber: true, customerName: true, currentStage: true, status: true, source: true, totalPrice: true }
+          });
+          if (replacement) order._replacementOrder = { ...replacement, trackingStatus: getTrackingStatus(replacement) };
+        }
+      }
+    } catch (linkErr) {
+      console.error('[trackOrder] link resolution failed (non-critical):', linkErr.message);
+    }
+
     res.json(order);
   } catch (error) {
     console.error('[trackOrder] error:', error.message);
