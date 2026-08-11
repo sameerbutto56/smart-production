@@ -276,8 +276,15 @@ const createOrder = async (req, res) => {
         if (!existing) isUnique = true;
       }
     } else {
-      // Check if manual order number is already taken
-      const existing = await prisma.order.findUnique({ where: { orderNumber }, select: { id: true, status: true } });
+      // Check if manual order number is already taken.
+      // Match BOTH the raw submitted form and the legacy `#`-prefixed storage form
+      // (live DB stores numbers like `#50037`), so a cancelled number can never be
+      // reused by submitting it with or without the `#`.
+      const bareNumber = String(orderNumber || '').trim().replace(/^#/, '');
+      const existing = await prisma.order.findFirst({
+        where: { OR: [{ orderNumber }, { orderNumber: `#${bareNumber}` }] },
+        select: { id: true, status: true }
+      });
       if (existing) {
         if (existing.status === 'CANCELLED') {
           return res.status(400).json({ message: `This order number has already been cancelled and cannot be reused.` });
