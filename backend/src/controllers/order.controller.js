@@ -2382,8 +2382,9 @@ const checkOrderInventory = async (req, res) => {
     if (Array.isArray(parsedDetails)) {
       parsedDetails.forEach(item => {
         const pd = item.productDetails || item;
-        if (pd?.productType) {
+        if (pd?.productType || pd?.name) {
           productsToCheck.push({
+            name: pd.name || pd.productType,
             productType: pd.productType,
             quantity: item.quantity || 1,
             color: pd.color,
@@ -2392,8 +2393,9 @@ const checkOrderInventory = async (req, res) => {
           });
         }
       });
-    } else if (parsedDetails?.productType) {
+    } else if (parsedDetails?.productType || parsedDetails?.name) {
       productsToCheck.push({
+        name: parsedDetails.name || parsedDetails.productType,
         productType: parsedDetails.productType,
         quantity: order.quantity || 1,
         color: parsedDetails.color,
@@ -2405,7 +2407,7 @@ const checkOrderInventory = async (req, res) => {
     const report = [];
 
     // Batch-fetch all inventory items in a single query
-    const productTypes = productsToCheck.map(p => p.productType).filter(Boolean);
+    const productTypes = productsToCheck.map(p => p.name || p.productType).filter(Boolean);
     const uniqueTypes = [...new Set(productTypes)];
     let allInvItems = [];
     if (uniqueTypes.length > 0) {
@@ -2422,13 +2424,14 @@ const checkOrderInventory = async (req, res) => {
       }
     }
 
+    const normStr = (s) => String(s == null ? '' : s).trim().toLowerCase();
+
     for (const prod of productsToCheck) {
       try {
-        const inventoryItem = allInvItems.find(inv => inv.name.toLowerCase().includes(prod.productType.toLowerCase()));
-
-        if (!inventoryItem) {
+        const key = String(prod.name || prod.productType || '').trim();
+        if (!key) {
           report.push({
-            itemName: prod.productType,
+            itemName: prod.productType || 'Unknown',
             requiredQty: prod.quantity,
             availableQty: 0,
             status: 'not_found',
@@ -2438,46 +2441,66 @@ const checkOrderInventory = async (req, res) => {
           continue;
         }
 
-        const positiveVariants = inventoryItem.variants && Array.isArray(inventoryItem.variants)
-          ? inventoryItem.variants.filter(v => (v.stock || 0) > 0)
-          : [];
+        // Candidates = every inventory item whose name contains the product key.
+        const normKey = normStr(key);
+        const candidates = allInvItems.filter(inv => normStr(inv.name).includes(normKey));
 
-        let availableQty = 0;
-        let variantDetails = [];
-        if (positiveVariants.length > 0) {
-          const hasColorSpec = !!prod.color;
-          const hasSizeSpec = !!prod.size;
-          const matchedVariants = positiveVariants.filter(v => {
-            if (hasColorSpec && v.color && v.color.toLowerCase() !== prod.color.toLowerCase()) return false;
-            if (hasSizeSpec && v.size && v.size.toLowerCase() !== prod.size.toLowerCase()) return false;
-            return true;
+        // Prefer EXACT name matches. Duplicate-name items (e.g. "Sprinter Men"
+        // vs "Sprinter Men Grey Nova") otherwise make `.find()` pick the wrong row
+        // and report 0 for variants that only exist on the exact product.
+        const exactMatches = candidates.filter(inv => normStr(inv.name) === normKey);
+        const selectedItems = exactMatches.length > 0 ? exactMatches : candidates;
+
+        if (selectedItems.length === 0) {
+          report.push({
+            itemName: prod.productType || key,
+            requiredQty: prod.quantity,
+            availableQty: 0,
+            status: 'not_found',
+            classification: 'production',
+            variants: []
           });
-          variantDetails = matchedVariants.map(v => ({
-            color: v.color,
-            size: v.size,
-            stock: v.stock || 0
-          }));
-          availableQty = matchedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
-        } else if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
-          variantDetails = inventoryItem.variants.map(v => ({
-            color: v.color,
-            size: v.size,
-            stock: v.stock || 0
-          }));
-          availableQty = 0;
-        } else {
-          availableQty = (inventoryItem.stock || 0) > 0 ? (inventoryItem.stock || 0) : 0;
+          continue;
+        }
+
+        const requestedColor = normStr(prod.color);
+        const requestedSize = normStr(prod.size);
+        let availableQty = 0;
+        const variantDetails = [];
+        let matchedItem = selectedItems[0];
+
+        for (const inv of selectedItems) {
+          const hasVariants = Array.isArray(inv.variants) && inv.variants.length > 0;
+          if (hasVariants) {
+            for (const v of inv.variants) {
+              const vColor = normStr(v.color);
+              const vSize = normStr(v.size);
+              if (requestedColor && vColor && vColor !== requestedColor) continue;
+              if (requestedSize && vSize && vSize !== requestedSize) continue;
+              availableQty += (v.stock || 0);
+              variantDetails.push({ color: v.color || '', size: v.size || '', stock: v.stock || 0 });
+            }
+          } else {
+            // Flat-stock item (no variants array): report its top-level stock.
+            const invColor = normStr(inv.color);
+            const invSize = normStr(inv.size);
+            if (requestedColor && invColor && invColor !== requestedColor) continue;
+            if (requestedSize && invSize && invSize !== requestedSize) continue;
+            availableQty += (inv.stock || 0);
+            variantDetails.push({ color: inv.color || '', size: inv.size || '', stock: inv.stock || 0 });
+            if (!matchedItem) matchedItem = inv;
+          }
         }
 
         let status = 'available';
         if (availableQty === 0) status = 'out_of_stock';
         else if (availableQty < prod.quantity) status = 'insufficient';
 
-        const classification = 'production';
+        const classification = availableQty >= prod.quantity ? 'inventory' : 'production';
         report.push({
-          itemId: inventoryItem.id,
-          itemName: inventoryItem.name,
-          category: inventoryItem.category,
+          itemId: matchedItem.id,
+          itemName: matchedItem.name,
+          category: matchedItem.category,
           requiredQty: prod.quantity,
           availableQty,
           status,
@@ -2489,7 +2512,7 @@ const checkOrderInventory = async (req, res) => {
         });
       } catch {
         report.push({
-          itemName: prod.productType,
+          itemName: prod.productType || 'Unknown',
           requiredQty: prod.quantity,
           availableQty: 0,
           status: 'not_found',
