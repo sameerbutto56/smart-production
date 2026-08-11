@@ -77,7 +77,7 @@ router.put('/:orderId/stages/:stageId/request', authenticate, requestStageComple
 // Control Center Actions: Approve, Reject, Cancel, Hold
 router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), approveStageCompletion);
 router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), rejectStageCompletion);
-router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), cancelOrder);
+router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'INVENTORY_VIEW', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), cancelOrder);
 router.put('/:orderId/hold', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), holdOrder);
 router.delete('/:orderId', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), deleteOrder);
 
