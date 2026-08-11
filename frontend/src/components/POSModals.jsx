@@ -28,7 +28,7 @@ const POSModals = () => {
     showPaymentDetail, setShowPaymentDetail,
     showEmployeeDetail, setShowEmployeeDetail,
     lastBalancePayment, setLastBalancePayment,
-    user, selectedOutlet, employeeName, employees,
+    user, selectedOutlet, employeeName, employees, loginEmployee,
     currentBook, verifiedCloser, setVerifiedCloser,
     setCloseBookSummary,
     createOrderNumber, setCreateOrderNumber,
@@ -50,10 +50,11 @@ const POSModals = () => {
     setLastBalancePayment(null);
   };
 
-  const handleAuth = () => {
+  const handleAuth = async () => {
     if (!authEmployee) { setAuthError('Select an employee'); return; }
     if (!authPassword) { setAuthError('Enter password'); return; }
-    if (employees[authEmployee] !== authPassword) { setAuthError('Wrong password'); return; }
+    const r = await loginEmployee(authEmployee, authPassword);
+    if (!r.ok) { setAuthError(r.message); return; }
     setAuthError('');
     setShowAuthModal(false);
     if (authMode === 'open') {

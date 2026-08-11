@@ -58,6 +58,7 @@ const StoreReturns = lazy(() => import('./pages/StoreReturns'));
 const FaisalReplacements = lazy(() => import('./pages/FaisalReplacements'));
 const StoreReplacements = lazy(() => import('./pages/StoreReplacements'));
 const OrderCancellations = lazy(() => import('./pages/OrderCancellations'));
+const SoftwareSettings = lazy(() => import('./pages/SoftwareSettings'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -82,6 +83,7 @@ const AuthRedirectHandler = () => {
   if (role === 'STORE') return <Navigate to="/warehouse" replace={true} />;
   if (role === 'INVENTORY_VIEW') return <Navigate to="/order-track" replace={true} />;
   if (role === 'CEO') return <Navigate to="/ceo-dashboard" replace={true} />;
+  if (role === 'SOFTWARE_SETTINGS') return <Navigate to="/software-settings" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;
 };
@@ -173,6 +175,7 @@ function App() {
                   <Route path="replacements" element={<FaisalReplacements />} />
                   <Route path="store-replacements" element={<StoreReplacements />} />
                   <Route path="order-cancellations" element={<OrderCancellations />} />
+                  <Route path="software-settings" element={<SoftwareSettings />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

@@ -22,7 +22,7 @@ const POSCart = () => {
     advanceAmount, setAdvanceAmount,
     employeeName, setEmployeeName, employeePassword, setEmployeePassword,
     employeeLoggedIn, setEmployeeLoggedIn,
-    employees, orderNumber, setOrderNumber,
+    employees, loginEmployee, orderNumber, setOrderNumber,
     lookedUpOrder, setLookedUpOrder,
     checkoutLoading, handleCheckout,
     createOrderNumber, setCreateOrderNumber,
@@ -246,10 +246,10 @@ const POSCart = () => {
                 onChange={e => setEmployeePassword(e.target.value)} placeholder="Password"
                 className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               {!employeeLoggedIn ? (
-                <button onClick={() => {
+                <button onClick={async () => {
                   if (!employeeName) return toast.error('Select an employee');
-                  if (employees[employeeName] !== employeePassword) return toast.error('Wrong password');
-                  setEmployeeLoggedIn(true); setEmployeePassword(''); toast.success(`${employeeName} logged in`);
+                  const r = await loginEmployee(employeeName, employeePassword);
+                  if (r.ok) toast.success(r.message); else toast.error(r.message);
                 }} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">Login</button>
               ) : (
                 <button onClick={() => { setEmployeeLoggedIn(false); setEmployeeName(''); setEmployeePassword(''); }}

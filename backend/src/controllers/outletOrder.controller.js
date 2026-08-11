@@ -1213,9 +1213,14 @@ const getComeFromProduction = async (req, res) => {
 const getOutletEmployees = async (req, res) => {
   try {
     const outlet = req.query.outlet || getOutletName(req) || 'Johar Town';
+    const profile = req.query.profile;
     const emps = await prisma.outletEmployee.findMany({
-      where: { outletName: outlet, isActive: true },
-      select: { id: true, name: true },
+      where: {
+        outletName: outlet,
+        isActive: true,
+        ...(profile ? { profiles: { array_contains: profile } } : {}),
+      },
+      select: { id: true, name: true, profiles: true },
       orderBy: { name: 'asc' }
     });
     res.json({ employees: emps.map(e => ({ id: e.id, name: e.name })) });

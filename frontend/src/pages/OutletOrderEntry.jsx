@@ -85,7 +85,7 @@ const OutletOrderEntry = () => {
   useEffect(() => {
     let mounted = true;
     setEmployeesLoading(true);
-    api.get(`/api/outlet-orders/employees?outlet=${encodeURIComponent(employeeOutlet)}`)
+    api.get(`/api/outlet-orders/employees?outlet=${encodeURIComponent(employeeOutlet)}&profile=OUTLET_ORDER_ENTRY`)
       .then(res => { if (mounted) setEmployeeList(res.data?.employees || []); })
       .catch(() => { if (mounted) setEmployeeList([]); })
       .finally(() => { if (mounted) setEmployeesLoading(false); });

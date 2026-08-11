@@ -43,6 +43,7 @@ import {
   Route as RouteIcon,
   ClipboardCheck,
   PackageX,
+  Settings,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDateOnly } from '../utils/dateTime';
@@ -93,6 +94,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
   const navItems = [
     { name: 'Executive Dashboard', path: '/ceo-dashboard', icon: LayoutDashboard, roles: ['CEO'] },
+    { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS'] },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
@@ -324,11 +326,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
   );
 });
 
-const FAISAL_EMPLOYEES = {
-  Faisal: { password: 'F170', label: 'Faisal' },
-  Khawar: { password: 'K170', label: 'Khawar' }
-};
-
 const Layout = () => {
   const navigate = useNavigate();
   const { t, LanguageToggle, isUrdu } = useLanguage();
@@ -344,19 +341,35 @@ const Layout = () => {
   const [faisalShowPwd, setFaisalShowPwd] = useState(false);
   const [faisalLoggedIn, setFaisalLoggedIn] = useState(() => !!localStorage.getItem('faisalEmployee'));
   const [faisalLoginLoading, setFaisalLoginLoading] = useState(false);
+  const [faisalEmployees, setFaisalEmployees] = useState([]);
 
-  const handleFaisalLogin = () => {
-    const emp = FAISAL_EMPLOYEES[faisalEmployee];
-    if (!emp) { toast.error('Please select an employee'); return; }
-    if (faisalPwd !== emp.password) { toast.error('Invalid password'); return; }
+  useEffect(() => {
+    let mounted = true;
+    api.get('/api/outlet-orders/employees?outlet=Dispatch&profile=FAISAL_PROFILE')
+      .then(res => { if (mounted) setFaisalEmployees(res.data?.employees || []); })
+      .catch(() => { if (mounted) setFaisalEmployees([]); });
+    return () => { mounted = false; };
+  }, []);
+
+  const handleFaisalLogin = async () => {
+    if (!faisalEmployee) { toast.error('Please select an employee'); return; }
+    if (!faisalPwd) { toast.error('Enter your password'); return; }
     setFaisalLoginLoading(true);
-    setTimeout(() => {
-      setFaisalLoggedIn(true);
-      setFaisalPwd('');
-      localStorage.setItem('faisalEmployee', faisalEmployee);
-      toast.success(`Logged in as ${emp.label}`);
+    try {
+      const res = await api.post('/api/software-settings/verify-employee', { name: faisalEmployee, password: faisalPwd, profile: 'FAISAL_PROFILE' });
+      if (res.data?.ok) {
+        setFaisalLoggedIn(true);
+        setFaisalPwd('');
+        localStorage.setItem('faisalEmployee', faisalEmployee);
+        toast.success(`Logged in as ${faisalEmployee}`);
+      } else {
+        toast.error(res.data?.message || 'Login failed');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Login failed');
+    } finally {
       setFaisalLoginLoading(false);
-    }, 400);
+    }
   };
 
   const handleFaisalLogout = () => {
@@ -527,8 +540,8 @@ const Layout = () => {
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl py-3 px-4 text-white focus:border-blue-500 outline-none font-black appearance-none"
                 >
                   <option value="">— Select Employee —</option>
-                  {Object.entries(FAISAL_EMPLOYEES).map(([key, emp]) => (
-                    <option key={key} value={key}>{emp.label}</option>
+                  {faisalEmployees.map(emp => (
+                    <option key={emp.id} value={emp.name}>{emp.name}</option>
                   ))}
                 </select>
               </div>

@@ -297,9 +297,42 @@ export function POSProvider({ children }) {
 
   const barcodeRef = useRef(null);
 
-  const employees = selectedOutlet === 'Jail Road'
-    ? { Junaid: 'J125', Ibrar: 'Ibrar562', Aamir: 'A86150' }
-    : { Junaid: 'J125', Sajawal: 'Sajawal12', Zain: '123456', Gul: 'G1122', Mudassir: '75100' };
+  // Employee list + login now backed by the centralized DB (Software Settings)
+  const [employeeList, setEmployeeList] = useState([]);
+  const [employeeListLoading, setEmployeeListLoading] = useState(true);
+
+  const loadEmployees = useCallback(async () => {
+    setEmployeeListLoading(true);
+    try {
+      const res = await api.get(`/api/outlet-orders/employees?outlet=${encodeURIComponent(selectedOutlet)}&profile=POS`);
+      setEmployeeList(res.data?.employees || []);
+    } catch {
+      setEmployeeList([]);
+    } finally {
+      setEmployeeListLoading(false);
+    }
+  }, [selectedOutlet]);
+
+  useEffect(() => { loadEmployees(); }, [loadEmployees]);
+
+  const employees = useMemo(() => Object.fromEntries(employeeList.map(e => [e.name, { label: e.name }])), [employeeList]);
+
+  const loginEmployee = useCallback(async (name, password) => {
+    if (!name) return { ok: false, message: 'Select an employee' };
+    if (!password) return { ok: false, message: 'Enter password' };
+    try {
+      const res = await api.post('/api/software-settings/verify-employee', { name, password, outlet: selectedOutlet, profile: 'POS' });
+      if (res.data?.ok) {
+        setEmployeeName(name);
+        setEmployeeLoggedIn(true);
+        setEmployeePassword('');
+        return { ok: true, message: `${name} logged in` };
+      }
+      return { ok: false, message: 'Login failed' };
+    } catch (err) {
+      return { ok: false, message: err.response?.data?.message || 'Login failed' };
+    }
+  }, [selectedOutlet, setEmployeeName, setEmployeePassword, setEmployeeLoggedIn]);
 
   const categories = useMemo(() => [...new Set(products.map(p => p.category).filter(Boolean))], [products]);
   const barcodeMap = useMemo(() => {
@@ -1082,7 +1115,7 @@ export function POSProvider({ children }) {
     showAuthModal, setShowAuthModal, authMode, setAuthMode,
     authEmployee, setAuthEmployee, authPassword, setAuthPassword, authError, setAuthError,
     verifiedCloser, setVerifiedCloser,
-    employees, categories, barcodeMap,
+    employees, categories, barcodeMap, employeeListLoading, loginEmployee,
     balanceInvoices, setBalanceInvoices, balanceInvoicesLoading, setBalanceInvoicesLoading,
     selectedBalanceInvoice, setSelectedBalanceInvoice,
     showPayBalanceModal, setShowPayBalanceModal, payAmount, setPayAmount,

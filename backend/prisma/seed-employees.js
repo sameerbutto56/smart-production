@@ -14,21 +14,24 @@ async function main() {
 
   const employees = [
     // Johar Town (matches existing POS employee list)
-    { name: 'Sajawal', outletName: 'Johar Town', password: sajawalPassword },
-    { name: 'Junaid', outletName: 'Johar Town', password: junaidPassword },
-    { name: 'Gul', outletName: 'Johar Town', password: gulPassword },
-    { name: 'Zain', outletName: 'Johar Town', password: zainPassword },
-    { name: 'Mudassir', outletName: 'Johar Town', password: mudassirPassword },
+    { name: 'Sajawal', outletName: 'Johar Town', password: sajawalPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
+    { name: 'Junaid', outletName: 'Johar Town', password: junaidPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
+    { name: 'Gul', outletName: 'Johar Town', password: gulPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
+    { name: 'Zain', outletName: 'Johar Town', password: zainPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
+    { name: 'Mudassir', outletName: 'Johar Town', password: mudassirPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
     // Jail Road
-    { name: 'Aamir', outletName: 'Jail Road', password: amirPassword },
-    { name: 'Ibrar', outletName: 'Jail Road', password: ibrarPassword },
-    { name: 'Junaid', outletName: 'Jail Road', password: junaidPassword },
+    { name: 'Aamir', outletName: 'Jail Road', password: amirPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
+    { name: 'Ibrar', outletName: 'Jail Road', password: ibrarPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
+    { name: 'Junaid', outletName: 'Jail Road', password: junaidPassword, profiles: ['POS', 'OUTLET_ORDER_ENTRY'] },
+    // Dispatch / Faisal profile employees (name-only login, no outlet)
+    { name: 'Khawar', outletName: 'Dispatch', password: await bcrypt.hash('K170', 10), profiles: ['DISPATCH', 'FAISAL_PROFILE'] },
+    { name: 'Faisal', outletName: 'Dispatch', password: await bcrypt.hash('F170', 10), profiles: ['DISPATCH', 'FAISAL_PROFILE'] },
   ];
 
   for (const emp of employees) {
     await prisma.outletEmployee.upsert({
       where: { name_outletName: { name: emp.name, outletName: emp.outletName } },
-      update: { password: emp.password, isActive: true },
+      update: { password: emp.password, isActive: true, profiles: emp.profiles },
       create: emp,
     });
   }

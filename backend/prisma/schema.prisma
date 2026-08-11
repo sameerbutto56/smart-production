@@ -799,6 +799,7 @@ model OutletEmployee {
   outletName String
   password   String
   isActive   Boolean  @default(true)
+  profiles   Json?    // array of module profiles e.g. ["POS","OUTLET_ORDER_ENTRY","DISPATCH","INVENTORY_VIEW","FAISAL_PROFILE"]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

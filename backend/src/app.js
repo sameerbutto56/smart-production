@@ -115,6 +115,7 @@ const feedbackRoutes = require('./routes/feedback.routes');
 const engravingRoutes = require('./routes/engraving.routes');
 const ceoRoutes = require('./routes/ceo.routes');
 const auditRoutes = require('./routes/audit.routes');
+const softwareSettingsRoutes = require('./routes/softwareSettings.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -153,6 +154,7 @@ app.use('/api/in-dispatch', require('./routes/inDispatch.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/ceo', ceoRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/software-settings', softwareSettingsRoutes);
 
 // Global error handler (must be last)
 app.use(errorHandler);

@@ -10,11 +10,6 @@ import socket from '../socket';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
-const EMPLOYEES = {
-  Khawar: { password: 'K170', label: 'Khawar', desc: 'Lahore Orders' },
-  Faisal: { password: 'F170', label: 'Faisal', desc: 'All Cities + Forwarded' }
-};
-
 const DispatchDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -25,6 +20,16 @@ const DispatchDashboard = () => {
   const [showPwd, setShowPwd] = useState(false);
   const [loggedIn, setLoggedIn] = useState(() => !!sessionStorage.getItem('dispatchDashboardEmployee'));
   const [loginLoading, setLoginLoading] = useState(false);
+  const [dispatchEmployees, setDispatchEmployees] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    api.get('/api/outlet-orders/employees?outlet=Dispatch&profile=DISPATCH')
+      .then(res => { if (mounted) setDispatchEmployees(res.data?.employees || []); })
+      .catch(() => { if (mounted) setDispatchEmployees([]); });
+    return () => { mounted = false; };
+  }, []);
+
   const isKhawar = employeeName === 'Khawar';
   const isFaisal = employeeName === 'Faisal';
 
@@ -105,18 +110,25 @@ const DispatchDashboard = () => {
     }
   }, [loggedIn, fetchDashboard, fetchEnamelsData]);
 
-  const handleLogin = () => {
-    const emp = EMPLOYEES[employeeName];
-    if (!emp) { toast.error('Please select an employee'); return; }
-    if (password !== emp.password) { toast.error('Invalid password'); return; }
+  const handleLogin = async () => {
+    if (!employeeName) { toast.error('Please select an employee'); return; }
+    if (!password) { toast.error('Enter your password'); return; }
     setLoginLoading(true);
-    setTimeout(() => {
-      setLoggedIn(true);
-      setPassword('');
-      sessionStorage.setItem('dispatchDashboardEmployee', employeeName);
-      toast.success(`Logged in as ${employeeName}`);
+    try {
+      const res = await api.post('/api/software-settings/verify-employee', { name: employeeName, password, profile: 'DISPATCH' });
+      if (res.data?.ok) {
+        setLoggedIn(true);
+        setPassword('');
+        sessionStorage.setItem('dispatchDashboardEmployee', employeeName);
+        toast.success(`Logged in as ${employeeName}`);
+      } else {
+        toast.error(res.data?.message || 'Login failed');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Login failed');
+    } finally {
       setLoginLoading(false);
-    }, 400);
+    }
   };
 
   const handleLogout = () => {
@@ -146,8 +158,8 @@ const DispatchDashboard = () => {
               <select value={employeeName} onChange={(e) => { setEmployeeName(e.target.value); setPassword(''); }}
                 className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black appearance-none">
                 <option value="">— Select Employee —</option>
-                {Object.entries(EMPLOYEES).map(([key, emp]) => (
-                  <option key={key} value={key}>{emp.label} — {emp.desc}</option>
+                {dispatchEmployees.map(emp => (
+                  <option key={emp.id} value={emp.name}>{emp.name}</option>
                 ))}
               </select>
             </div>

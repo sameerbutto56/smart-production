@@ -28,6 +28,7 @@ async function main() {
     { name: 'Abbottabad', email: 'abbottabad@enamels.com', role: 'OUTLET' },
     { name: 'Big Screen', email: 'bigscreen@enamels.com', role: 'MAIN_EMPLOYEE' },
     { name: 'CEO', email: 'ceo@enamels.com', password: 'Enamels91.', role: 'CEO' },
+    { name: 'Enamels', email: 'sameer@enamels.com', password: 'Enamels 9165', role: 'SOFTWARE_SETTINGS' },
   ];
 
   for (const u of users) {
