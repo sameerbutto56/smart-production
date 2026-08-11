@@ -1393,7 +1393,10 @@ const createCancellationRequest = async (req, res) => {
   const { orderNumber, reason } = req.body;
   try {
     if (!orderNumber) return res.status(400).json({ message: 'Order number is required' });
-    const order = await prisma.order.findUnique({ where: { orderNumber: String(orderNumber).trim() } });
+    const raw = String(orderNumber).trim();
+    let order = await prisma.order.findUnique({ where: { orderNumber: raw } });
+    if (!order) order = await prisma.order.findUnique({ where: { orderNumber: `#${raw.replace(/^#/, '')}` } });
+    if (!order) order = await prisma.order.findUnique({ where: { invoiceNumber: raw } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     req.params = { ...req.params, orderId: order.id };
     return cancelOrder(req, res);
@@ -1402,13 +1405,26 @@ const createCancellationRequest = async (req, res) => {
   }
 };
 
-// Any authenticated role: lookup an order by number (exact) and return it together
+// Any authenticated role: lookup an order by number and return it together
 // with its latest cancellation request, so the requester sees the current status.
+// Tolerant of the stored "#" prefix, invoice numbers, and partial input (mirrors trackOrder).
 const getCancellationRequestByOrder = async (req, res) => {
-  const orderNumber = String(req.query.orderNumber || '').trim().replace(/^#/, '');
+  const query = String(req.query.orderNumber || '').trim();
   try {
-    if (!orderNumber) return res.status(400).json({ message: 'Order number is required' });
-    const order = await prisma.order.findUnique({ where: { orderNumber } });
+    if (!query) return res.status(400).json({ message: 'Order number is required' });
+    const orderNumber = query.replace(/^#/, '');
+    let order = await prisma.order.findUnique({ where: { orderNumber: `#${orderNumber}` } });
+    if (!order) order = await prisma.order.findUnique({ where: { orderNumber } });
+    if (!order) order = await prisma.order.findUnique({ where: { invoiceNumber: query } });
+    if (!order) {
+      const matches = await prisma.order.findMany({
+        where: { OR: [{ orderNumber: { contains: query } }, { invoiceNumber: { contains: query } }] },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { id: true }
+      });
+      if (matches[0]) order = await prisma.order.findUnique({ where: { id: matches[0].id } });
+    }
     if (!order) return res.status(404).json({ message: 'Order not found' });
     const request = await prisma.orderCancellationRequest.findFirst({
       where: { orderId: order.id },
