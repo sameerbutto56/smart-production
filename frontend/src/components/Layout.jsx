@@ -106,6 +106,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
     // Operational roles links (hidden from Admin to keep it simplified)
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL'] },
+    { name: 'Order Cancellation', path: '/order-cancellation', icon: PackageX, roles: ['FAISAL'] },
     { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY', 'OUTLET'] },
     { name: 'Dashboard', path: '/store-dashboard', icon: LayoutDashboard, roles: ['STORE'] },

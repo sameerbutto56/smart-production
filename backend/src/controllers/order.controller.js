@@ -1333,6 +1333,10 @@ const cancelOrder = async (req, res) => {
   const { orderId } = req.params;
   const { reason } = req.body;
 
+  if (!reason || !String(reason).trim()) {
+    return res.status(400).json({ message: 'Cancellation reason is required.' });
+  }
+
   try {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
@@ -1395,6 +1399,38 @@ const createCancellationRequest = async (req, res) => {
     return cancelOrder(req, res);
   } catch (error) {
     res.status(500).json({ message: 'Error submitting cancellation request', error: error.message });
+  }
+};
+
+// Any authenticated role: lookup an order by number (exact) and return it together
+// with its latest cancellation request, so the requester sees the current status.
+const getCancellationRequestByOrder = async (req, res) => {
+  const orderNumber = String(req.query.orderNumber || '').trim().replace(/^#/, '');
+  try {
+    if (!orderNumber) return res.status(400).json({ message: 'Order number is required' });
+    const order = await prisma.order.findUnique({ where: { orderNumber } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    const request = await prisma.orderCancellationRequest.findFirst({
+      where: { orderId: order.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, status: true, reason: true, decisionNote: true,
+        requestedById: true, requestedByName: true, createdAt: true,
+        decidedById: true, decidedByName: true, decidedAt: true
+      }
+    });
+    res.json({
+      order: {
+        id: order.id, orderNumber: order.orderNumber, customerName: order.customerName,
+        customerPhone: order.customerPhone, totalPrice: order.totalPrice, status: order.status,
+        currentStage: order.currentStage, source: order.source, outletName: order.outletName,
+        type: order.type, priority: order.priority, createdAt: order.createdAt,
+        trackingStatus: getTrackingStatus(order)
+      },
+      request
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching cancellation status', error: error.message });
   }
 };
 
@@ -3994,6 +4030,23 @@ const trackOrder = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
     order.trackingStatus = getTrackingStatus(order);
 
+    // Surface the cancellation request state (PENDING/APPROVED/REJECTED) so tracking
+    // and the Faisal cancellation page can show "Cancellation Requested" until Admin decides.
+    try {
+      const cancelReq = await prisma.orderCancellationRequest.findFirst({
+        where: { orderId: order.id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, status: true, reason: true, decisionNote: true,
+          requestedByName: true, createdAt: true,
+          decidedByName: true, decidedAt: true
+        }
+      });
+      if (cancelReq) order.cancellationRequest = cancelReq;
+    } catch (cancelErr) {
+      console.error('[trackOrder] cancellation request fetch failed (non-critical):', cancelErr.message);
+    }
+
     // Link the replacement lifecycle to its ORIGINAL order (and vice versa) so
     // tracking shows the full original + replacement timelines as one connected story.
     try {
@@ -4196,6 +4249,7 @@ module.exports = {
   deductInventoryItems,
   createCancellationRequest,
   getCancellationRequests,
+  getCancellationRequestByOrder,
   approveCancellationRequest,
   rejectCancellationRequest
 };

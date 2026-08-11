@@ -43,6 +43,7 @@ const {
   trackOrder,
   createCancellationRequest,
   getCancellationRequests,
+  getCancellationRequestByOrder,
   approveCancellationRequest,
   rejectCancellationRequest
 } = require('../controllers/order.controller');
@@ -175,6 +176,8 @@ router.put('/:orderId/dispatch-status', authenticate, authorize(['DISPATCH', 'MA
 // ===== Order Cancellation System =====
 // Submit a cancellation request (lookup by order number in body)
 router.post('/cancellation-request', authenticate, createCancellationRequest);
+// Any authenticated role: fetch order + latest cancellation request status by order number
+router.get('/cancellation-request', authenticate, getCancellationRequestByOrder);
 // Submit a cancellation request for a specific order
 router.post('/:orderId/cancellation-request', authenticate, cancelOrder);
 // Admin: list cancellation requests (pending + history)

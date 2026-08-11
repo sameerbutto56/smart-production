@@ -58,6 +58,7 @@ const StoreReturns = lazy(() => import('./pages/StoreReturns'));
 const FaisalReplacements = lazy(() => import('./pages/FaisalReplacements'));
 const StoreReplacements = lazy(() => import('./pages/StoreReplacements'));
 const OrderCancellations = lazy(() => import('./pages/OrderCancellations'));
+const FaisalOrderCancellation = lazy(() => import('./pages/FaisalOrderCancellation'));
 const SoftwareSettings = lazy(() => import('./pages/SoftwareSettings'));
 
 const ProtectedRoute = ({ children }) => {
@@ -175,6 +176,7 @@ function App() {
                   <Route path="replacements" element={<FaisalReplacements />} />
                   <Route path="store-replacements" element={<StoreReplacements />} />
                   <Route path="order-cancellations" element={<OrderCancellations />} />
+                  <Route path="order-cancellation" element={<FaisalOrderCancellation />} />
                   <Route path="software-settings" element={<SoftwareSettings />} />
                 </Route>
               </Routes>
