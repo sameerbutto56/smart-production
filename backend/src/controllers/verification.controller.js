@@ -5,7 +5,9 @@ const { getRolesForStage } = require('./order.controller');
 const getPendingVerifications = async (req, res) => {
   try {
     const { search, page = 1, limit = 50 } = req.query;
-    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: null };
+    // Exclude terminal states so cancelled/completed orders leave the active verification
+    // queue immediately (Admin-approved cancellations keep goForVerification true).
+    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: null, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED', 'REJECTED'] } };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
@@ -249,7 +251,7 @@ const returnToFaisal = async (req, res) => {
 const getReturnedToFaisal = async (req, res) => {
   try {
     const { search, page = 1, limit = 50 } = req.query;
-    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: { not: null } };
+    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: { not: null }, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED', 'REJECTED'] } };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },

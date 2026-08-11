@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Search, CheckCircle, Clock, User, Phone, Package, FileText, ChevronDown, ChevronUp, AlertCircle, DollarSign, ArrowRight, History, Scissors, Star, Ruler, MessageSquare, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -46,6 +47,17 @@ const VerificationPage = () => {
   }, [search]);
 
   useEffect(() => { activeTab === 'pending' ? fetchPending() : fetchHistory(); }, [activeTab, fetchPending, fetchHistory]);
+
+  // Remove cancelled orders from the pending queue in real-time when Admin approves a cancellation.
+  useEffect(() => {
+    const handleOrderUpdated = (payload) => {
+      if (payload && (payload.cancelled || payload.order?.status === 'CANCELLED' || payload.order?.currentStage === 'CANCELLED')) {
+        if (activeTab === 'pending') fetchPending();
+      }
+    };
+    socket.on('order-updated', handleOrderUpdated);
+    return () => socket.off('order-updated', handleOrderUpdated);
+  }, [activeTab, fetchPending]);
 
   const handleVerify = async () => {
     if (!verifyModal) return;
