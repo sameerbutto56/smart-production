@@ -6,6 +6,10 @@ const {
   updateEmployee,
   resetPassword,
   verifyEmployee,
+  getPaymentChangeOutlets,
+  getPaymentChangeInvoices,
+  getPaymentChangeHistory,
+  changePaymentMethod,
 } = require('../controllers/softwareSettings.controller');
 
 const router = express.Router();
@@ -18,5 +22,11 @@ router.get('/employees', authenticate, authorize('SOFTWARE_SETTINGS'), getAllEmp
 router.post('/employees', authenticate, authorize('SOFTWARE_SETTINGS'), createEmployee);
 router.patch('/employees/:id', authenticate, authorize('SOFTWARE_SETTINGS'), updateEmployee);
 router.post('/employees/:id/reset-password', authenticate, authorize('SOFTWARE_SETTINGS'), resetPassword);
+
+// Payment method change — SOFTWARE_SETTINGS only
+router.get('/payment-change/outlets', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeOutlets);
+router.get('/payment-change/invoices', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeInvoices);
+router.get('/payment-change/history', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeHistory);
+router.post('/payment-change', authenticate, authorize('SOFTWARE_SETTINGS'), changePaymentMethod);
 
 module.exports = router;

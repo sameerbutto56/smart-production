@@ -683,6 +683,27 @@ model PosBalancePayment {
   @@index([paymentMethod])
 }
 
+model PaymentMethodChangeLog {
+  id             String    @id @default(uuid())
+  outletName     String
+  saleId         String    // PosSale id (plain string, no FK constraint)
+  receiptNumber  String
+  orderNumber    String?
+  invoiceNumber  String?
+  customerName   String?
+  grandTotal     Float     @default(0)
+  amountMoved    Float     @default(0)
+  previousMethod String
+  newMethod      String
+  changedBy      String
+  changedByName  String?
+  changedAt      DateTime  @default(now())
+
+  @@index([outletName, changedAt])
+  @@index([receiptNumber])
+  @@index([changedAt])
+}
+
 model PosSaleItem {
   id                String   @id @default(uuid())
   saleId            String
