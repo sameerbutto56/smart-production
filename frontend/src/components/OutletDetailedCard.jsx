@@ -1528,6 +1528,7 @@ const OutletDetailedCard = ({ outlet }) => {
       {activeSection === 'bank-deposits' && (
         <BankDepositsSection outlet={outlet} />
       )}
+      <InvoiceDetailModal sale={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
     </div>
   );
 };
@@ -1638,7 +1639,6 @@ const BankDepositsSection = ({ outlet }) => {
           </table>
         </div>
       )}
-      <InvoiceDetailModal sale={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
     </div>
   );
 };
