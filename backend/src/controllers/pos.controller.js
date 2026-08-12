@@ -691,11 +691,15 @@ const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _
     else CASH += amt;
   }
 
+  const discountTotal = allSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
+  const returnedAmount = returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+
   return {
     outlet,
     start,
     end: dayEnd,
     invoiceCount: allSales.length,
+    grossSales: (CASH + CARD + ONLINE + CASH_ONLINE) + discountTotal,
     grandTotal: CASH + CARD + ONLINE + CASH_ONLINE,
     cash: CASH,
     online: ONLINE,
@@ -703,11 +707,11 @@ const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _
     cashOnline: CASH_ONLINE,
     cashOnlineCash: CASH_ONLINE_CASH,
     cashOnlineOnline: CASH_ONLINE_ONLINE,
-    discountTotal: allSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0),
-    returnedAmount: returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0),
+    discountTotal,
+    returnedAmount,
     totalFaisalTake: allSales.filter(s => s.faisalTake).reduce((sum, s) => sum + (s.grandTotal || 0), 0),
     journalExpenses: journals.reduce((sum, j) => sum + (j.amount || 0), 0),
-    netSales: (CASH + CARD + ONLINE + CASH_ONLINE) - returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0),
+    netSales: (CASH + CARD + ONLINE + CASH_ONLINE) - returnedAmount,
     balancePaymentTotal: balancePayments.reduce((sum, b) => sum + (b.amountPaidNow || 0), 0),
   };
 };
@@ -909,6 +913,7 @@ const getSalesDashboard = async (req, res) => {
     });
 
     const {
+      grossSales,
       totalSales,
       totalOrders,
       refundAmount,
@@ -1038,6 +1043,7 @@ const getSalesDashboard = async (req, res) => {
     });
 
     const result = {
+      grossSales,
       totalSales,
       totalOrders,
       completedOrders: totalOrders + completedOrders,

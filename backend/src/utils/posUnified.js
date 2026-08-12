@@ -23,10 +23,11 @@ const saleRevenue = (s) => (s && s.advanceAmount > 0 ? Math.min(s.advanceAmount,
  * @param outlet        outlet name (optional → all branches when omitted)
  * @param start/end     ISO/Date window (sale createdAt / bp paidAt / return createdAt)
  * @param cashier       optional cashier filter on sales
- * Returns { totalSales, totalOrders, refundAmount, netRevenue, totalDiscount,
+ * Returns { grossSales, totalSales, totalOrders, refundAmount, netRevenue, totalDiscount,
  *           totalBalanceCollections, totalJournalExpenses, totalBankDeposits,
  *           paymentBreakdown, salesByDay, ordersByDay, bestSellingProducts,
  *           sales, balancePayments, returns }
+ * grossSales = totalSales + totalDiscount (received revenue before discounts are applied).
  */
 const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier }) => {
   const dayFilter = {};
@@ -81,6 +82,7 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
   const refundAmount = returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
   const netRevenue = Math.max(0, totalSales - refundAmount);
   const totalDiscount = discountAgg._sum.discountAmount || 0;
+  const grossSales = totalSales + totalDiscount;
   const totalJournalExpenses = journalAgg._sum.amount || 0;
   const totalBankDeposits = bankDepAgg._sum.amount || 0;
 
@@ -133,6 +135,7 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
     .slice(0, 5);
 
   return {
+    grossSales,
     totalSales,
     totalOrders: sales.length,
     refundAmount,

@@ -336,6 +336,8 @@ const OutletDashboard = () => {
     rows.push(['Total Orders', (orderStats.totalOrders || 0)].join(','));
     rows.push(['Outlet Revenue', (orderStats.totalRevenue || 0)].join(','));
     rows.push(['POS Sales', (posSummary.totalSales || 0)].join(','));
+    rows.push(['POS Gross Sales', (posSummary.grossSales || 0)].join(','));
+    rows.push(['POS Discount', (posSummary.totalDiscount || 0)].join(','));
     rows.push(['POS Transactions', (posSummary.orderCount || 0)].join(','));
     rows.push(['Paid Orders', (paymentBD.paidOrders || 0)].join(','));
     rows.push(['Pending Payment', (paymentBD.pendingPaymentOrders || 0)].join(','));
@@ -383,6 +385,7 @@ const OutletDashboard = () => {
         <div class="kpi-card"><div class="kpi-label">Total Orders</div><div class="kpi-value">${orderStats.totalOrders || 0}</div></div>
         <div class="kpi-card"><div class="kpi-label">Outlet Revenue</div><div class="kpi-value">₨${(orderStats.totalRevenue || 0).toLocaleString()}</div></div>
         <div class="kpi-card"><div class="kpi-label">POS Sales</div><div class="kpi-value">₨${(posSummary.totalSales || 0).toLocaleString()}</div></div>
+        <div class="kpi-card"><div class="kpi-label">POS Gross</div><div class="kpi-value">₨${(posSummary.grossSales || 0).toLocaleString()}</div></div>
         <div class="kpi-card"><div class="kpi-label">Paid / Pending</div><div class="kpi-value">${paymentBD.paidOrders || 0} / ${paymentBD.pendingPaymentOrders || 0}</div></div>
       </div>
       <h2>Revenue Trend</h2>

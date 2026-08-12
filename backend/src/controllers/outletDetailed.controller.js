@@ -192,6 +192,7 @@ const getOutletDetailed = async (req, res) => {
     res.json({
       outlet,
       overview: {
+        grossSales: totalSales + totalDiscount,
         totalSales,
         netRevenue,
         totalDiscount,

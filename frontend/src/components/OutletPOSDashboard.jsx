@@ -8,7 +8,7 @@ import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 import {
-  DollarSign, ShoppingCart, RefreshCw, TrendingDown, RotateCcw,
+  DollarSign, ShoppingCart, RefreshCw, TrendingUp, TrendingDown, RotateCcw,
   CheckCircle, Clock, XCircle, CreditCard, Globe, Award, Package,
   AlertTriangle, BarChart3, Download, Printer, FileText, User
 } from 'lucide-react';
@@ -106,6 +106,7 @@ const OutletPOSDashboard = ({ outlet }) => {
   }, [debouncedFetchJournal]);
 
   const kpis = dashboard ? [
+    { icon: TrendingUp, label: 'Gross Sales', value: formatCurrency(dashboard.grossSales), sub: 'Before discounts', color: 'from-indigo-600 to-blue-600' },
     { icon: DollarSign, label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders || 0} orders`, color: 'from-blue-600 to-cyan-600' },
     { icon: TrendingDown, label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: `Refunds: ${formatCurrency(dashboard.totalSales - dashboard.netRevenue || 0)}`, color: 'from-emerald-600 to-green-600' },
     { icon: BarChart3, label: 'Total Discount', value: formatCurrency(dashboard.totalDiscount || 0), sub: 'Discounts given', color: 'from-amber-600 to-yellow-600' },
@@ -144,6 +145,7 @@ const OutletPOSDashboard = ({ outlet }) => {
           rows.push(['POS Dashboard Export', new Date().toISOString().split('T')[0]].join(','));
           rows.push('');
           rows.push(['KPI', 'Value'].join(','));
+          rows.push(['Gross Sales', dashboard.grossSales || 0].join(','));
           rows.push(['Total Sales', dashboard.totalSales || 0].join(','));
           rows.push(['Net Revenue', dashboard.netRevenue || 0].join(','));
           rows.push(['Total Discount', dashboard.totalDiscount || 0].join(','));
@@ -186,10 +188,10 @@ const OutletPOSDashboard = ({ outlet }) => {
             <h1>${outlet} — POS Dashboard</h1>
             <p class="sub">${formatDateTime(new Date())} | ${range} range</p>
             <div class="grid">
+              <div class="card"><div class="label">Gross Sales</div><div class="val">₨${(dashboard.grossSales || 0).toLocaleString()}</div></div>
               <div class="card"><div class="label">Total Sales</div><div class="val">₨${(dashboard.totalSales || 0).toLocaleString()}</div></div>
               <div class="card"><div class="label">Net Revenue</div><div class="val">₨${(dashboard.netRevenue || 0).toLocaleString()}</div></div>
               <div class="card"><div class="label">Orders</div><div class="val">${dashboard.totalOrders || 0}</div></div>
-              <div class="card"><div class="label">Returned</div><div class="val">${dashboard.returnedOrders || 0}</div></div>
             </div>
             <h2>Payment Methods</h2>
             <table><tr><th>Method</th><th>Gross</th><th>Net</th></tr>${pmRows}</table>

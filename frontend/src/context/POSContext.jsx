@@ -863,10 +863,13 @@ export function POSProvider({ children }) {
           } else CASH += received;
         });
         const returnedAmount = rows.flatMap(s => (s.returns || [])).reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+        const discountTotal = rows.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
+        const receivedTotal = CASH + ONLINE + CARD + CASH_ONLINE;
         return {
           cash: CASH, online: ONLINE, card: CARD, cashOnline: CASH_ONLINE,
           returnedAmount,
-          discountTotal: rows.reduce((sum, s) => sum + (s.discountAmount || 0), 0),
+          grossSales: receivedTotal + discountTotal,
+          discountTotal,
           invoiceCount: rows.length,
         };
       };
@@ -922,6 +925,7 @@ export function POSProvider({ children }) {
         {}, {},
         { 'Receipt #': 'S U M M A R Y', 'Grand Total': '' },
         { 'Receipt #': 'Invoice Count', 'Grand Total': invoiceCount },
+        { 'Receipt #': 'Gross Sales', 'Grand Total': Math.round(summary.grossSales || 0) },
         { 'Receipt #': 'Grand Total Sales (Received)', 'Grand Total': grandTotalSales },
         { 'Receipt #': 'Cash Payments', 'Grand Total': cashPayments },
         { 'Receipt #': 'Online Payments', 'Grand Total': onlinePayments },

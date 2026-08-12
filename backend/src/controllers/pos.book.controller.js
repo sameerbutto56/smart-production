@@ -330,6 +330,7 @@ const computeBookSummary = async (session) => {
       totalBankDeposits,
       bankDeposits,
       sales, // all sales (incl. Faisal Takes + refunded) for drill-down
+      grossSales: shared.grandTotal + (shared.discountTotal || 0),
       discountTotal: shared.discountTotal,
       netSales: shared.netSales,
     };

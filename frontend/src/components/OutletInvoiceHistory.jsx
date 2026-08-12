@@ -383,10 +383,12 @@ const OutletInvoiceHistory = ({ outlet }) => {
           } else CASH += received;
         });
         const returnedAmount = rows.flatMap(s => (s.returns || [])).reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+        const discountTotal = rows.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
         return {
           cash: CASH, online: ONLINE, card: CARD, cashOnline: CASH_ONLINE,
           returnedAmount,
-          discountTotal: rows.reduce((sum, s) => sum + (s.discountAmount || 0), 0),
+          grossSales: (CASH + ONLINE + CARD + CASH_ONLINE) + discountTotal,
+          discountTotal,
           invoiceCount: rows.length,
         };
       };
@@ -439,6 +441,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
         {}, {},
         { 'Receipt #': 'S U M M A R Y', 'Grand Total': '' },
         { 'Receipt #': 'Invoice Count', 'Grand Total': invoiceCount },
+        { 'Receipt #': 'Gross Sales', 'Grand Total': Math.round(summary.grossSales || 0) },
         { 'Receipt #': 'Grand Total Sales (Received)', 'Grand Total': grandTotalSales },
         { 'Receipt #': 'Cash Payments', 'Grand Total': cashPayments },
         { 'Receipt #': 'Online Payments', 'Grand Total': onlinePayments },
@@ -580,18 +583,33 @@ const OutletInvoiceHistory = ({ outlet }) => {
 
       {/* Payment Method Summary */}
       {!loading && !error && filteredSales.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {paymentMethods.map(pm => {
-            const total = paymentSummary[pm.key] || 0;
-            return (
-              <div key={pm.key} className={`bg-gradient-to-br ${pm.color} p-[1px] rounded-xl`}>
-                <div className="bg-gray-950 rounded-xl p-3">
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{pm.label}</p>
-                  <p className="text-sm font-black text-white mt-1">{formatCurrency(total)}</p>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {paymentMethods.map(pm => {
+              const total = paymentSummary[pm.key] || 0;
+              return (
+                <div key={pm.key} className={`bg-gradient-to-br ${pm.color} p-[1px] rounded-xl`}>
+                  <div className="bg-gray-950 rounded-xl p-3">
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{pm.label}</p>
+                    <p className="text-sm font-black text-white mt-1">{formatCurrency(total)}</p>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+          {(() => {
+            const received = (paymentSummary.CASH || 0) + (paymentSummary.ONLINE || 0) + (paymentSummary.CARD || 0) + (paymentSummary.CASH_ONLINE || 0);
+            const discount = filteredSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
+            return (
+              <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-400 px-1">
+                <span>Gross Sales: <b className="text-white">{formatCurrency(received + discount)}</b></span>
+                <span className="text-gray-700">|</span>
+                <span>Discount: <b className="text-amber-400">-{formatCurrency(discount)}</b></span>
+                <span className="text-gray-700">|</span>
+                <span>Received (Net): <b className="text-emerald-400">{formatCurrency(received)}</b></span>
               </div>
             );
-          })}
+          })()}
         </div>
       )}
 
