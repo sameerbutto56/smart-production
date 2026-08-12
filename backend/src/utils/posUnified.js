@@ -13,9 +13,10 @@
  *  - Balance payments are separate financial transactions — added by their
  *    paidAt date via amountPaidNow, NEVER counted as a new sale.
  *  - Returns are deducted on their processing (createdAt) date via refundAmount.
- *  - Net Revenue = Gross Sales − Total Discount (discounts removed from the
- *    headline sales figure; refunds are tracked separately via refundAmount /
- *    returnedOrders, not folded into Net Revenue).
+ *  - Net Revenue = Total Sales − Discounts − Returns − General Entries/Expenses:
+ *    Gross/Total Sales → minus Total Discount → minus Refunds/Returned Amounts →
+ *    minus Journal Expenses → Net Revenue. Every component is computed within the
+ *    same date window, so a per-period filter always recalculates all four figures.
  */
 const KNOWN_METHODS = ['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'];
 
@@ -31,7 +32,7 @@ const saleRevenue = (s) => (s && s.advanceAmount > 0 ? Math.min(s.advanceAmount,
  *           paymentBreakdown, salesByDay, ordersByDay, bestSellingProducts,
  *           sales, balancePayments, returns }
  * grossSales = totalSales + totalDiscount (received revenue before discounts are applied).
- * netRevenue = grossSales − totalDiscount (= totalSales; refunds excluded).
+ * netRevenue = totalSales − totalDiscount − refundAmount − totalJournalExpenses.
  */
 const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier }) => {
   const dayFilter = {};
@@ -85,9 +86,9 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
 
   const refundAmount = returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
   const totalDiscount = discountAgg._sum.discountAmount || 0;
-  const grossSales = totalSales + totalDiscount;
-  const netRevenue = Math.max(0, grossSales - totalDiscount);
   const totalJournalExpenses = journalAgg._sum.amount || 0;
+  const grossSales = totalSales + totalDiscount;
+  const netRevenue = Math.max(0, totalSales - totalDiscount - refundAmount - totalJournalExpenses);
   const totalBankDeposits = bankDepAgg._sum.amount || 0;
 
   // Payment totals — non-overlapping (CASH_ONLINE is its own bucket; cash/online split carried separately)

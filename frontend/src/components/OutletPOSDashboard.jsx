@@ -108,7 +108,7 @@ const OutletPOSDashboard = ({ outlet }) => {
   const kpis = dashboard ? [
     { icon: TrendingUp, label: 'Gross Sales', value: formatCurrency(dashboard.grossSales), sub: 'Before discounts', color: 'from-indigo-600 to-blue-600' },
     { icon: DollarSign, label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders || 0} orders`, color: 'from-blue-600 to-cyan-600' },
-    { icon: TrendingDown, label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: 'Gross Sales − Discount', color: 'from-emerald-600 to-green-600' },
+    { icon: TrendingDown, label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: 'Sales − Discount − Returns − Expenses', color: 'from-emerald-600 to-green-600' },
     { icon: BarChart3, label: 'Total Discount', value: formatCurrency(dashboard.totalDiscount || 0), sub: 'Discounts given', color: 'from-amber-600 to-yellow-600' },
     { icon: RotateCcw, label: 'Returned Orders', value: dashboard.returnedOrders || 0, sub: 'Items returned', color: 'from-red-600 to-rose-600' },
     { icon: CheckCircle, label: 'Completed Orders', value: (dashboard.completedOrders || 0), sub: 'POS + Standard Completed', color: 'from-emerald-600 to-teal-600' },
