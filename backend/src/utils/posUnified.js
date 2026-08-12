@@ -96,8 +96,10 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
   sales.forEach((s) => {
     const received = saleRevenue(s);
     if (s.paymentMethod === 'CASH_ONLINE') {
-      paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + (s.cashAmount || 0);
-      paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + (s.onlineAmount || 0);
+      const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
+      const ratio = totalCO > 0 ? received / totalCO : 1;
+      paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + ((s.cashAmount || 0) * ratio);
+      paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + ((s.onlineAmount || 0) * ratio);
     } else {
       const method = KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
       paymentTotals[method] = (paymentTotals[method] || 0) + received;
@@ -105,8 +107,10 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
   });
   balancePayments.forEach((bp) => {
     if (bp.paymentMethod === 'CASH_ONLINE') {
-      paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + (bp.cashAmount || 0);
-      paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + (bp.onlineAmount || 0);
+      const cashPortion = bp.cashAmount !== null && bp.cashAmount !== undefined ? bp.cashAmount : ((bp.amountPaidNow || 0) / 2);
+      const onlinePortion = bp.onlineAmount !== null && bp.onlineAmount !== undefined ? bp.onlineAmount : ((bp.amountPaidNow || 0) / 2);
+      paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + cashPortion;
+      paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + onlinePortion;
     } else {
       const method = KNOWN_METHODS.includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
       paymentTotals[method] = (paymentTotals[method] || 0) + (bp.amountPaidNow || 0);

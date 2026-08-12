@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../prisma');
+const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
@@ -69,35 +70,19 @@ const getCashSummary = async (req, res) => {
     // Accept optional dateFrom/dateTo query params
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : today;
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date();
-    // Total cash from CASH sales in range (non-refunded, non-Faisal)
-    const cashSalesAgg = await prisma.posSale.aggregate({
-      where: { outletName: outlet, paymentMethod: 'CASH', refundedAt: null, faisalTake: { not: true }, createdAt: { gte: dateFrom, lte: dateTo } },
-      _sum: { grandTotal: true }
+
+    const summary = await computeUnifiedSalesSummary(prisma, {
+      outlet,
+      start: dateFrom,
+      end: dateTo
     });
-    // Total cash from CASH_ONLINE split payments in range
-    const cashOnlineAgg = await prisma.posSale.aggregate({
-      where: { outletName: outlet, paymentMethod: 'CASH_ONLINE', refundedAt: null, faisalTake: { not: true }, createdAt: { gte: dateFrom, lte: dateTo } },
-      _sum: { cashAmount: true }
-    });
-    // Total cash refunded in range
-    const cashRefundedAgg = await prisma.posReturn.aggregate({
-      where: { outletName: outlet, refundPaymentMethod: 'CASH', createdAt: { gte: dateFrom, lte: dateTo } },
-      _sum: { refundAmount: true }
-    });
-    // Total journal expenses in range
-    const journalAgg = await prisma.journalEntry.aggregate({
-      where: { outletName: outlet, createdAt: { gte: dateFrom, lte: dateTo } },
-      _sum: { amount: true }
-    });
-    // Total bank deposits in range (cash moved to bank — deducted from till)
-    const bankDepositAgg = await prisma.bankDeposit.aggregate({
-      where: { outletName: outlet, createdAt: { gte: dateFrom, lte: dateTo } },
-      _sum: { amount: true }
-    });
-    const totalCashCollected = (cashSalesAgg._sum.grandTotal || 0) + (cashOnlineAgg._sum.cashAmount || 0);
-    const totalCashRefunded = cashRefundedAgg._sum.refundAmount || 0;
-    const totalExpenses = journalAgg._sum.amount || 0;
-    const totalBankDeposits = bankDepositAgg._sum.amount || 0;
+
+    const cashBreakdown = (summary.paymentBreakdown || []).find(p => p.method === 'CASH') || { gross: 0, returns: 0, net: 0 };
+
+    const totalCashCollected = cashBreakdown.gross;
+    const totalCashRefunded = cashBreakdown.returns;
+    const totalExpenses = summary.totalJournalExpenses || 0;
+    const totalBankDeposits = summary.totalBankDeposits || 0;
     const netCash = totalCashCollected - totalCashRefunded;
     const availableCash = netCash - totalExpenses - totalBankDeposits;
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');

@@ -676,9 +676,13 @@ const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _
     if (s.paymentMethod === 'CASH_ONLINE') {
       const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
       const ratio = totalCO > 0 ? revenue / totalCO : 1;
+      const cashPart = (s.cashAmount || 0) * ratio;
+      const onlinePart = (s.onlineAmount || 0) * ratio;
+      CASH += cashPart;
+      ONLINE += onlinePart;
       CASH_ONLINE += revenue;
-      CASH_ONLINE_CASH += (s.cashAmount || 0) * ratio;
-      CASH_ONLINE_ONLINE += (s.onlineAmount || 0) * ratio;
+      CASH_ONLINE_CASH += cashPart;
+      CASH_ONLINE_ONLINE += onlinePart;
     } else if (s.paymentMethod === 'CARD') CARD += revenue;
     else if (s.paymentMethod === 'ONLINE') ONLINE += revenue;
     else CASH += revenue;
@@ -687,7 +691,15 @@ const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _
     const amt = bp.amountPaidNow || 0;
     if (bp.paymentMethod === 'CARD') CARD += amt;
     else if (bp.paymentMethod === 'ONLINE') ONLINE += amt;
-    else if (bp.paymentMethod === 'CASH_ONLINE') { CASH_ONLINE += amt; CASH_ONLINE_CASH += amt / 2; CASH_ONLINE_ONLINE += amt / 2; }
+    else if (bp.paymentMethod === 'CASH_ONLINE') {
+      const cashPart = bp.cashAmount !== null && bp.cashAmount !== undefined ? bp.cashAmount : (amt / 2);
+      const onlinePart = bp.onlineAmount !== null && bp.onlineAmount !== undefined ? bp.onlineAmount : (amt / 2);
+      CASH += cashPart;
+      ONLINE += onlinePart;
+      CASH_ONLINE += amt;
+      CASH_ONLINE_CASH += cashPart;
+      CASH_ONLINE_ONLINE += onlinePart;
+    }
     else CASH += amt;
   }
 
@@ -699,8 +711,8 @@ const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _
     start,
     end: dayEnd,
     invoiceCount: allSales.length,
-    grossSales: (CASH + CARD + ONLINE + CASH_ONLINE) + discountTotal,
-    grandTotal: CASH + CARD + ONLINE + CASH_ONLINE,
+    grossSales: (CASH + CARD + ONLINE) + discountTotal,
+    grandTotal: CASH + CARD + ONLINE,
     cash: CASH,
     online: ONLINE,
     card: CARD,
@@ -711,7 +723,7 @@ const computeSalesSummary = async (prismaClient, { outlet, start, end, _sales, _
     returnedAmount,
     totalFaisalTake: allSales.filter(s => s.faisalTake).reduce((sum, s) => sum + (s.grandTotal || 0), 0),
     journalExpenses: journals.reduce((sum, j) => sum + (j.amount || 0), 0),
-    netSales: (CASH + CARD + ONLINE + CASH_ONLINE) - returnedAmount,
+    netSales: (CASH + CARD + ONLINE) - returnedAmount,
     balancePaymentTotal: balancePayments.reduce((sum, b) => sum + (b.amountPaidNow || 0), 0),
   };
 };

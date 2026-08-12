@@ -142,9 +142,13 @@ const computeBookSummary = async (session) => {
         const ratio = totalCashOnline > 0 ? revenue / totalCashOnline : 1;
         const cashPortion = (s.cashAmount || 0) * ratio;
         const onlinePortion = (s.onlineAmount || 0) * ratio;
+        paymentSummary.CASH += cashPortion;
+        paymentSummary.ONLINE += onlinePortion;
         paymentSummary.CASH_ONLINE_CASH += cashPortion;
         paymentSummary.CASH_ONLINE_ONLINE += onlinePortion;
         paymentSummary.CASH_ONLINE_TOTAL += revenue;
+        employeeMap[cashier].CASH += cashPortion;
+        employeeMap[cashier].ONLINE += onlinePortion;
         employeeMap[cashier].CASH_ONLINE_CASH += cashPortion;
         employeeMap[cashier].CASH_ONLINE_ONLINE += onlinePortion;
         employeeMap[cashier].CASH_ONLINE_TOTAL += revenue;
@@ -181,15 +185,19 @@ const computeBookSummary = async (session) => {
         employeeMap[cashier] = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE_CASH: 0, CASH_ONLINE_ONLINE: 0, CASH_ONLINE_TOTAL: 0, total: 0, revenue: 0, salesCount: 0, sales: [] };
       }
       const method = bp.paymentMethod;
-      // CASH_ONLINE balance payments go to the CASH_ONLINE bucket (non-overlapping), split 50/50
-      // into the cash/online portions for display — mirrors computeSalesSummary.
       if (method === 'CASH_ONLINE') {
+        const cashPortion = bp.cashAmount !== null && bp.cashAmount !== undefined ? bp.cashAmount : (bp.amountPaidNow / 2);
+        const onlinePortion = bp.onlineAmount !== null && bp.onlineAmount !== undefined ? bp.onlineAmount : (bp.amountPaidNow / 2);
+        paymentSummary.CASH += cashPortion;
+        paymentSummary.ONLINE += onlinePortion;
         paymentSummary.CASH_ONLINE_TOTAL += bp.amountPaidNow;
-        paymentSummary.CASH_ONLINE_CASH += bp.amountPaidNow / 2;
-        paymentSummary.CASH_ONLINE_ONLINE += bp.amountPaidNow / 2;
+        paymentSummary.CASH_ONLINE_CASH += cashPortion;
+        paymentSummary.CASH_ONLINE_ONLINE += onlinePortion;
+        employeeMap[cashier].CASH += cashPortion;
+        employeeMap[cashier].ONLINE += onlinePortion;
         employeeMap[cashier].CASH_ONLINE_TOTAL += bp.amountPaidNow;
-        employeeMap[cashier].CASH_ONLINE_CASH += bp.amountPaidNow / 2;
-        employeeMap[cashier].CASH_ONLINE_ONLINE += bp.amountPaidNow / 2;
+        employeeMap[cashier].CASH_ONLINE_CASH += cashPortion;
+        employeeMap[cashier].CASH_ONLINE_ONLINE += onlinePortion;
       } else if (paymentSummary[method] !== undefined) {
         paymentSummary[method] += bp.amountPaidNow;
         if (employeeMap[cashier][method] !== undefined) employeeMap[cashier][method] += bp.amountPaidNow;
@@ -223,9 +231,6 @@ const computeBookSummary = async (session) => {
     }
 
     // Returns summary
-    // CASH_ONLINE returns are split: cash portion → returnSummary.CASH (needed for availableCash / till deduction),
-    // full amount → returnSummary.CASH_ONLINE. ONLINE returns stay pure (no CASH_ONLINE online portion) to avoid
-    // double-counting in the non-overlapping Payment Summary display.
     const returnSummary = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE: 0, total: 0 };
     for (const r of returns) {
       if (r.sale?.paymentMethod === 'CASH_ONLINE' && (r.sale?.cashAmount || r.sale?.onlineAmount)) {
@@ -246,17 +251,12 @@ const computeBookSummary = async (session) => {
     // Bank deposits total — cash moved to bank, deducted from till
     const totalBankDeposits = bankDeposits.reduce((s, d) => s + d.amount, 0);
 
-    // Totals — Payment Summary is NON-OVERLAPPING (accounting view): Cash / Online / Card
-    // are PURE method amounts and the CASH_ONLINE split is reported separately via
-    // cashOnlineCash / cashOnlineOnline / cashOnlineTotal, so Cash + Card + Online + CashOnline
-    // == Grand Total exactly (identical to POS History / Dashboard / Excel). The raw till figure
-    // remains available as cashCollected (operational, includes the CASH_ONLINE cash portion).
     const totalCashSales = paymentSummary.CASH;
     const totalCardSales = paymentSummary.CARD;
     const totalOnlineSales = paymentSummary.ONLINE;
     const totalRevenueSales = shared.grandTotal;
 
-    // Cash actually collected — only count what was received, not invoice total
+    // Cash actually collected — count sales cash + balance payments cash
     const rawCashCollected = sales
       .filter(s => s.paymentMethod === 'CASH')
       .reduce((sum, s) => sum + saleRevenue(s), 0)
@@ -267,6 +267,15 @@ const computeBookSummary = async (session) => {
           const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
           const ratio = totalCO > 0 ? (s.cashAmount || 0) / totalCO : 1;
           return sum + revenue * ratio;
+        }, 0)
+      + balancePayments
+        .reduce((sum, bp) => {
+          if (bp.paymentMethod === 'CASH') return sum + (bp.amountPaidNow || 0);
+          if (bp.paymentMethod === 'CASH_ONLINE') {
+            const cAmt = bp.cashAmount !== null && bp.cashAmount !== undefined ? bp.cashAmount : ((bp.amountPaidNow || 0) / 2);
+            return sum + cAmt;
+          }
+          return sum;
         }, 0);
 
     // Available cash — Faisal Take cash leaves the till, so it is deducted here.
