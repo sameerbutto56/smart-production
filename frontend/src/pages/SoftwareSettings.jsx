@@ -276,6 +276,7 @@ const SoftwareSettings = () => {
   const tabs = [
     { key: 'employees', label: 'Employee Management', icon: <Users size={16} /> },
     { key: 'payment', label: 'Payment Method Change', icon: <ArrowLeftRight size={16} /> },
+    { key: 'delay', label: 'Set Delay', icon: <Clock size={16} /> },
   ];
 
   return (
