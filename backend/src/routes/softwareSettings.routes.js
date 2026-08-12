@@ -10,6 +10,8 @@ const {
   getPaymentChangeInvoices,
   getPaymentChangeHistory,
   changePaymentMethod,
+  getDelayConfig,
+  updateDelayConfig,
 } = require('../controllers/softwareSettings.controller');
 
 const router = express.Router();
@@ -28,5 +30,9 @@ router.get('/payment-change/outlets', authenticate, authorize('SOFTWARE_SETTINGS
 router.get('/payment-change/invoices', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeInvoices);
 router.get('/payment-change/history', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeHistory);
 router.post('/payment-change', authenticate, authorize('SOFTWARE_SETTINGS'), changePaymentMethod);
+
+// Delay threshold configuration — SOFTWARE_SETTINGS & ADMIN
+router.get('/delay-config', authenticate, getDelayConfig);
+router.post('/delay-config', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), updateDelayConfig);
 
 module.exports = router;

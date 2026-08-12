@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard } from 'lucide-react';
+import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save } from 'lucide-react';
 
 const PROFILE_LABELS = {
   POS: 'POS',
@@ -33,6 +33,14 @@ const fmtDate = (d) => {
     x.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
+const DEFAULT_DELAY_CONFIG = {
+  VERIFICATION: { acceptanceMinutes: 30, totalHours: 2 },
+  STORE: { acceptanceMinutes: 30, totalHours: 4 },
+  LOGO: { acceptanceMinutes: 30, totalHours: 3 },
+  PRODUCTION: { acceptanceMinutes: 30, totalHours: 24 },
+  DISPATCH: { acceptanceMinutes: 30, totalHours: 4 }
+};
+
 const SoftwareSettings = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('employees');
@@ -59,6 +67,11 @@ const SoftwareSettings = () => {
   const [newMethod, setNewMethod] = useState('ONLINE');
   const [changing, setChanging] = useState(false);
 
+  // ── Delay Configuration state ──
+  const [delayConfig, setDelayConfig] = useState(DEFAULT_DELAY_CONFIG);
+  const [delayLoading, setDelayLoading] = useState(false);
+  const [delaySaving, setDelaySaving] = useState(false);
+
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     try {
@@ -73,6 +86,32 @@ const SoftwareSettings = () => {
   }, []);
 
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+
+  const fetchDelayConfig = useCallback(async () => {
+    setDelayLoading(true);
+    try {
+      const res = await api.get('/api/software-settings/delay-config');
+      if (res.data) setDelayConfig(prev => ({ ...prev, ...res.data }));
+    } catch (err) {
+      toast.error('Failed to load delay config: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDelayLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchDelayConfig(); }, [fetchDelayConfig]);
+
+  const handleSaveDelayConfig = async () => {
+    setDelaySaving(true);
+    try {
+      await api.post('/api/software-settings/delay-config', delayConfig);
+      toast.success('Delay thresholds saved successfully!');
+    } catch (err) {
+      toast.error('Failed to save delay thresholds: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDelaySaving(false);
+    }
+  };
 
   const fetchPaymentOutlets = useCallback(async () => {
     try {
@@ -453,6 +492,103 @@ const SoftwareSettings = () => {
             )}
           </div>
         </>
+      )}
+
+      {/* ═══════════════ SET DELAY TAB ═══════════════ */}
+      {activeTab === 'delay' && (
+        <div className="glass rounded-2xl p-6 border-2 border-gray-700/50 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-black text-white flex items-center gap-2">
+                <Clock className="text-amber-400" /> Operational Phase Delay Configuration
+              </h2>
+              <p className="text-xs text-gray-400 mt-1">
+                Configure allowed Acceptance Delay (minutes) and Total Phase Delay (hours) for each operational department.
+              </p>
+            </div>
+            <button onClick={handleSaveDelayConfig} disabled={delaySaving || delayLoading}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 shadow-lg shadow-emerald-950/40">
+              {delaySaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+              Save Thresholds
+            </button>
+          </div>
+
+          {delayLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="animate-spin text-amber-500" size={32} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { key: 'VERIFICATION', title: 'Verification', color: 'from-purple-900/40 to-indigo-900/40', border: 'border-purple-700/50' },
+                { key: 'STORE', title: 'Store', color: 'from-blue-900/40 to-cyan-900/40', border: 'border-blue-700/50' },
+                { key: 'LOGO', title: 'Logo Department', color: 'from-amber-900/40 to-yellow-900/40', border: 'border-amber-700/50' },
+                { key: 'PRODUCTION', title: 'Production', color: 'from-orange-900/40 to-red-900/40', border: 'border-orange-700/50' },
+                { key: 'DISPATCH', title: 'Dispatch', color: 'from-emerald-900/40 to-teal-900/40', border: 'border-emerald-700/50' },
+              ].map(phase => {
+                const current = delayConfig[phase.key] || { acceptanceMinutes: 30, totalHours: 24 };
+                return (
+                  <div key={phase.key} className={`bg-gradient-to-br ${phase.color} p-5 rounded-2xl border-2 ${phase.border} space-y-4 shadow-xl`}>
+                    <div className="flex items-center justify-between border-b border-gray-700/50 pb-2">
+                      <h3 className="font-black text-white text-base">{phase.title}</h3>
+                      <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400 bg-gray-900/80 px-2 py-0.5 rounded-full border border-gray-700">
+                        {phase.key}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-300 mb-1">
+                          Acceptance Delay (Minutes)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="1440"
+                          value={current.acceptanceMinutes ?? 30}
+                          onChange={e => {
+                            const val = parseInt(e.target.value) || 0;
+                            setDelayConfig(prev => ({
+                              ...prev,
+                              [phase.key]: { ...prev[phase.key], acceptanceMinutes: val }
+                            }));
+                          }}
+                          className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-amber-500 outline-none"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Max time order can remain waiting to be accepted.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-300 mb-1">
+                          Total Phase Delay (Hours)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="720"
+                          value={current.totalHours ?? 24}
+                          onChange={e => {
+                            const val = parseInt(e.target.value) || 0;
+                            setDelayConfig(prev => ({
+                              ...prev,
+                              [phase.key]: { ...prev[phase.key], totalHours: val }
+                            }));
+                          }}
+                          className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-amber-500 outline-none"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Max time allowed for complete phase execution.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Change method modal ── */}

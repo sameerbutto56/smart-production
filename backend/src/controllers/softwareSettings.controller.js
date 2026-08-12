@@ -360,4 +360,43 @@ const changePaymentMethod = async (req, res) => {
   }
 };
 
-module.exports = { getAllEmployees, createEmployee, updateEmployee, resetPassword, verifyEmployee, getPaymentChangeOutlets, getPaymentChangeInvoices, getPaymentChangeHistory, changePaymentMethod, PROFILE_OPTIONS };
+const DEFAULT_DELAY_CONFIG = {
+  VERIFICATION: { acceptanceMinutes: 30, totalHours: 2 },
+  STORE: { acceptanceMinutes: 30, totalHours: 4 },
+  LOGO: { acceptanceMinutes: 30, totalHours: 3 },
+  PRODUCTION: { acceptanceMinutes: 30, totalHours: 24 },
+  DISPATCH: { acceptanceMinutes: 30, totalHours: 4 }
+};
+
+const getDelayConfig = async (req, res) => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+    let config = { ...DEFAULT_DELAY_CONFIG };
+    if (setting && setting.value) {
+      try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) {}
+    }
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch delay configuration', error: error.message });
+  }
+};
+
+const updateDelayConfig = async (req, res) => {
+  try {
+    const newConfig = req.body;
+    if (!newConfig || typeof newConfig !== 'object') {
+      return res.status(400).json({ message: 'Invalid configuration payload' });
+    }
+    const updated = await prisma.systemSetting.upsert({
+      where: { key: 'DEADLINE_CONFIG' },
+      update: { value: JSON.stringify(newConfig) },
+      create: { key: 'DEADLINE_CONFIG', value: JSON.stringify(newConfig) }
+    });
+    cache.delPattern('orders');
+    res.json({ ok: true, message: 'Delay configuration saved successfully', config: JSON.parse(updated.value) });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to save delay configuration', error: error.message });
+  }
+};
+
+module.exports = { getAllEmployees, createEmployee, updateEmployee, resetPassword, verifyEmployee, getPaymentChangeOutlets, getPaymentChangeInvoices, getPaymentChangeHistory, changePaymentMethod, getDelayConfig, updateDelayConfig, DEFAULT_DELAY_CONFIG, PROFILE_OPTIONS };

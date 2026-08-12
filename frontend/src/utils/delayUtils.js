@@ -80,23 +80,54 @@ export const getEffectiveStage = (order) => {
   return order?.currentStage;
 };
 
-// Auto delay detection from the order's active stage deadline (same machinery as the
-// backend escalation scan: stage.deadlineAt < now → delayed). Returns null when on time.
-export const getDelayInfo = (order) => {
-  if (!order || !Array.isArray(order.stages) || order.stages.length === 0) return null;
+export const DEFAULT_DELAY_CONFIG = {
+  VERIFICATION: { acceptanceMinutes: 30, totalHours: 2 },
+  STORE: { acceptanceMinutes: 30, totalHours: 4 },
+  LOGO: { acceptanceMinutes: 30, totalHours: 3 },
+  PRODUCTION: { acceptanceMinutes: 30, totalHours: 24 },
+  DISPATCH: { acceptanceMinutes: 30, totalHours: 4 }
+};
+
+export const STAGE_CONFIG_MAP = {
+  ORDER_ENTRY: 'VERIFICATION',
+  VERIFICATION: 'VERIFICATION',
+  STORE: 'STORE',
+  STORE_RECEIVE: 'STORE',
+  STORE_PRODUCTION: 'STORE',
+  LOGO_DESIGN: 'LOGO',
+  LOGO: 'LOGO',
+  PRODUCTION_ACCEPTANCE: 'PRODUCTION',
+  PRODUCTION: 'PRODUCTION',
+  WORKERS: 'PRODUCTION',
+  DISPATCH: 'DISPATCH',
+  IN_DISPATCH: 'DISPATCH',
+  OUTLET_RECEIVE: 'DISPATCH',
+  ENAMELS_DELIVERY: 'DISPATCH',
+  OUT_FOR_DELIVERY: 'DISPATCH'
+};
+
+// Auto delay detection from the order's active stage (supports custom delay config).
+// Returns null when on time.
+export const getDelayInfo = (order, delayConfig = null) => {
+  if (!order) return null;
+  const status = (order.status || '').toUpperCase();
+  if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].includes(status)) return null;
+
   const effectiveStage = getEffectiveStage(order);
-  const active = order.stages.find(
+  if (!effectiveStage || effectiveStage === 'DELIVERED') return null;
+
+  const stages = Array.isArray(order.stages) ? order.stages : [];
+  const active = stages.find(
     (s) => s.stageName === effectiveStage && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
   );
 
   let phaseStart;
   if (!active && effectiveStage === 'VERIFICATION') {
-    // No dedicated VERIFICATION stage record exists — orders stay at ORDER_ENTRY.
-    // Use the ORDER_ENTRY stage completion time as when verification began.
-    const entryStage = order.stages.find((s) => s.stageName === 'ORDER_ENTRY');
+    const entryStage = stages.find((s) => s.stageName === 'ORDER_ENTRY');
     phaseStart = (entryStage && (entryStage.completedAt || entryStage.updatedAt || entryStage.createdAt)) || order.createdAt;
   } else if (!active) {
-    return null;
+    // If no active stage record is found, fall back to order.createdAt or updatedAt
+    phaseStart = order.updatedAt || order.createdAt;
   } else {
     phaseStart = active.startedAt || active.createdAt || order.createdAt;
   }
@@ -104,20 +135,42 @@ export const getDelayInfo = (order) => {
 
   const now = Date.now();
   const startMs = new Date(phaseStart).getTime();
-  let expectedDeadline = active?.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
-  if (!expectedDeadline) {
-    expectedDeadline = startMs + ((FALLBACK_STAGE_HOURS[effectiveStage] || 24) * 3600000);
-  }
-  if (expectedDeadline >= now) return null;
+
+  const configKey = STAGE_CONFIG_MAP[effectiveStage] || 'STORE';
+  const cfg = (delayConfig && delayConfig[configKey]) || DEFAULT_DELAY_CONFIG[configKey] || { acceptanceMinutes: 30, totalHours: 24 };
+
+  const isPendingAcceptance = active ? active.status === 'PENDING' : false;
+  let allowedMs;
+  let reasonLabel;
 
   const department = STAGE_DEPARTMENTS[effectiveStage] || 'Store';
+
+  if (isPendingAcceptance) {
+    allowedMs = (cfg.acceptanceMinutes || 30) * 60 * 1000;
+    reasonLabel = `${department} Acceptance Delayed`;
+  } else {
+    allowedMs = (cfg.totalHours || 24) * 3600 * 1000;
+    reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
+  }
+
+  let expectedDeadline = active?.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
+  if (!expectedDeadline) {
+    expectedDeadline = startMs + allowedMs;
+  } else {
+    // If deadlineAt exists, take the earlier threshold to strictly enforce config
+    expectedDeadline = Math.min(expectedDeadline, startMs + allowedMs);
+  }
+
+  if (expectedDeadline >= now) return null;
+
   const totalStart = order.createdAt ? new Date(order.createdAt).getTime() : startMs;
   return {
     orderId: order.id,
     stage: effectiveStage,
     stageLabel: stageLabel(effectiveStage),
     department,
-    reason: DELAY_REASONS[department] || `Delayed in ${department}`,
+    reason: reasonLabel,
+    isAcceptanceDelay: isPendingAcceptance,
     phaseStart: startMs,
     phaseElapsed: Math.max(0, now - startMs),
     totalElapsed: Math.max(0, now - totalStart),
@@ -125,12 +178,10 @@ export const getDelayInfo = (order) => {
   };
 };
 
-// Group delayed orders by the workflow stage they are stuck in. Returns an array of
-// { stage, label, department, count } ordered by the canonical workflow then count desc.
-export const getStageDelays = (orders) => {
+export const getStageDelays = (orders, delayConfig = null) => {
   const map = {};
   (orders || []).forEach((o) => {
-    const d = getDelayInfo(o);
+    const d = getDelayInfo(o, delayConfig);
     if (!d) return;
     if (!map[d.stage]) map[d.stage] = { stage: d.stage, label: d.stageLabel, department: d.department, count: 0 };
     map[d.stage].count++;

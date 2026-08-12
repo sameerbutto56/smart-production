@@ -26,7 +26,7 @@ import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
-import { getDelayInfo, getStageDelays, fmtDuration, stageLabel } from '../utils/delayUtils';
+import { getDelayInfo, getStageDelays, getEffectiveStage, fmtDuration, stageLabel } from '../utils/delayUtils';
 import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
@@ -345,14 +345,22 @@ const AllOrders = () => {
     document.body.removeChild(a);
   };
 
+  const [delayConfig, setDelayConfig] = useState(null);
+
+  useEffect(() => {
+    api.get('/api/software-settings/delay-config')
+      .then(res => { if (res.data) setDelayConfig(res.data); })
+      .catch(() => {});
+  }, []);
+
   const delayMap = useMemo(() => {
     const map = {};
     (baseOrders || []).forEach(o => {
-      const d = getDelayInfo(o);
+      const d = getDelayInfo(o, delayConfig);
       if (d) map[o.id] = d;
     });
     return map;
-  }, [baseOrders]);
+  }, [baseOrders, delayConfig]);
 
   const departmentDelays = useMemo(() => {
     const counts = {};
@@ -362,24 +370,55 @@ const AllOrders = () => {
     return counts;
   }, [delayMap]);
 
-  const stageDelays = useMemo(() => getStageDelays(baseOrders), [baseOrders]);
+  const stageDelays = useMemo(() => getStageDelays(baseOrders, delayConfig), [baseOrders, delayConfig]);
 
   const dateRange = useMemo(() => getDateRange(dateFilter), [dateFilter]);
 
+  const matchesCategory = useCallback((order, category) => {
+    if (!order || !category || category === 'all') return true;
+    const effectiveStage = getEffectiveStage(order);
+    switch (category) {
+      case 'store':
+        return ['STORE', 'STORE_RECEIVE', 'STORE_PRODUCTION'].includes(effectiveStage);
+      case 'verification':
+        return effectiveStage === 'VERIFICATION';
+      case 'logo':
+        return ['LOGO_DESIGN', 'LOGO'].includes(effectiveStage);
+      case 'production':
+        return ['PRODUCTION', 'PRODUCTION_ACCEPTANCE', 'WORKERS'].includes(effectiveStage);
+      case 'dispatch':
+        return ['DISPATCH', 'IN_DISPATCH', 'OUTLET_RECEIVE', 'ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY'].includes(effectiveStage);
+      case 'delayed':
+        return !!delayMap[order.id];
+      case 'urgent':
+        return order.priority === 'URGENT' || order.priority === 'SUPER_URGENT' || order.urgent === true;
+      case 'standard':
+        return order.type === 'STANDARD';
+      case 'custom':
+        return order.type === 'READY_LOGO' || order.type === 'FULL_CUSTOM';
+      default:
+        return true;
+    }
+  }, [delayMap]);
+
   const summaryCounts = useMemo(() => {
-    const counts = { total: 0, standard: 0, custom: 0, urgent: 0, superUrgent: 0, delayed: 0 };
+    const counts = { all: 0, store: 0, verification: 0, logo: 0, production: 0, dispatch: 0, delayed: 0, urgent: 0, standard: 0, custom: 0 };
     (baseOrders || []).forEach(o => {
       const created = o.createdAt ? new Date(o.createdAt).getTime() : 0;
       if (dateRange && (created < dateRange.start || created >= dateRange.end)) return;
-      counts.total++;
-      if (o.type === 'STANDARD') counts.standard++;
-      if (o.type === 'READY_LOGO' || o.type === 'FULL_CUSTOM') counts.custom++;
-      if (o.priority === 'URGENT') counts.urgent++;
-      if (o.priority === 'SUPER_URGENT') counts.superUrgent++;
-      if (delayMap[o.id]) counts.delayed++;
+      counts.all++;
+      if (matchesCategory(o, 'store')) counts.store++;
+      if (matchesCategory(o, 'verification')) counts.verification++;
+      if (matchesCategory(o, 'logo')) counts.logo++;
+      if (matchesCategory(o, 'production')) counts.production++;
+      if (matchesCategory(o, 'dispatch')) counts.dispatch++;
+      if (matchesCategory(o, 'delayed')) counts.delayed++;
+      if (matchesCategory(o, 'urgent')) counts.urgent++;
+      if (matchesCategory(o, 'standard')) counts.standard++;
+      if (matchesCategory(o, 'custom')) counts.custom++;
     });
     return counts;
-  }, [baseOrders, dateRange, delayMap]);
+  }, [baseOrders, dateRange, matchesCategory]);
 
   const filteredOrders = useMemo(() => (baseOrders || []).filter(order => {
     if (!order) return false;
@@ -391,8 +430,6 @@ const AllOrders = () => {
     const cityField = (order.city || '').toLowerCase();
     const matchesSearch = name.includes(search) || id.includes(search) || orderNum.includes(search) || cityField.includes(search);
 
-    // Server search already returned the tracked order(s) — bypass all the
-    // role/status/date/category gates so a tracked order can never be hidden.
     if (isServerSearchActive) return true;
 
     const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
@@ -400,13 +437,7 @@ const AllOrders = () => {
     const matchesUrgent = !filterUrgent || order.urgent;
     const matchesCity = !filterCity || cityField.includes(filterCity.toLowerCase());
     
-    const matchesCategory = filterCategory === 'all' ? true
-      : filterCategory === 'standard' ? order.type === 'STANDARD'
-      : filterCategory === 'custom' ? (order.type === 'READY_LOGO' || order.type === 'FULL_CUSTOM')
-      : filterCategory === 'urgent' ? order.priority === 'URGENT'
-      : filterCategory === 'super_urgent' ? order.priority === 'SUPER_URGENT'
-      : filterCategory === 'delayed' ? !!delayMap[order.id]
-      : true;
+    const matchesCat = matchesCategory(order, filterCategory);
     const matchesDepartment = !filterDepartment || delayMap[order.id]?.department === filterDepartment;
     const matchesDelayStage = !filterDelayStage || delayMap[order.id]?.stage === filterDelayStage;
     const orderCreated = order.createdAt ? new Date(order.createdAt).getTime() : 0;
@@ -422,12 +453,12 @@ const AllOrders = () => {
     const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
     const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
     
-    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesCategory && matchesDepartment && matchesDelayStage && matchesDate;
+    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesCat && matchesDepartment && matchesDelayStage && matchesDate;
   }).sort((a, b) => {
     const numA = parseInt(a.orderNumber) || 0;
     const numB = parseInt(b.orderNumber) || 0;
     return sortOrder === 'asc' ? numA - numB : numB - numA;
-  }), [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, filterDelayStage, dateRange, delayMap, isServerSearchActive]);
+  }), [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, filterDelayStage, dateRange, matchesCategory, delayMap, isServerSearchActive]);
 
   const groupedOrders = useMemo(() => {
     const groups = {};
@@ -514,15 +545,19 @@ const AllOrders = () => {
         </div>
       </div>
 
-      {/* Priority & Delay summary cards (respect date filter) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
+      {/* Operational phase summary cards (respect date filter) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-3">
         {[
-          { key: 'total', label: 'Total', value: summaryCounts.total, cls: 'bg-blue-600/10 border-blue-500/20 text-blue-400' },
+          { key: 'all', label: 'Total', value: summaryCounts.all, cls: 'bg-blue-600/10 border-blue-500/20 text-blue-400' },
+          { key: 'store', label: '🏬 Store', value: summaryCounts.store, cls: 'bg-cyan-600/10 border-cyan-500/20 text-cyan-400' },
+          { key: 'verification', label: '🔍 Verification', value: summaryCounts.verification, cls: 'bg-indigo-600/10 border-indigo-500/20 text-indigo-400' },
+          { key: 'logo', label: '🎨 Logo', value: summaryCounts.logo, cls: 'bg-amber-600/10 border-amber-500/20 text-amber-400' },
+          { key: 'production', label: '⚙️ Production', value: summaryCounts.production, cls: 'bg-orange-600/10 border-orange-500/20 text-orange-400' },
+          { key: 'dispatch', label: '🚚 Dispatch', value: summaryCounts.dispatch, cls: 'bg-teal-600/10 border-teal-500/20 text-teal-400' },
+          { key: 'delayed', label: '🔴 Delayed', value: summaryCounts.delayed, cls: 'bg-red-600/10 border-red-500/20 text-red-400' },
+          { key: 'urgent', label: '🟡 Urgent', value: summaryCounts.urgent, cls: 'bg-yellow-600/10 border-yellow-500/20 text-yellow-400' },
           { key: 'standard', label: '🟢 Standard', value: summaryCounts.standard, cls: 'bg-emerald-600/10 border-emerald-500/20 text-emerald-400' },
           { key: 'custom', label: '🧵 Custom', value: summaryCounts.custom, cls: 'bg-purple-600/10 border-purple-500/20 text-purple-400' },
-          { key: 'urgent', label: '🟡 Urgent', value: summaryCounts.urgent, cls: 'bg-yellow-600/10 border-yellow-500/20 text-yellow-400' },
-          { key: 'super_urgent', label: '🟠 Super Urgent', value: summaryCounts.superUrgent, cls: 'bg-orange-600/10 border-orange-500/20 text-orange-400' },
-          { key: 'delayed', label: '🔴 Delayed', value: summaryCounts.delayed, cls: 'bg-red-600/10 border-red-500/20 text-red-400' },
         ].map((c) => (
           <button
             key={c.key}
@@ -536,15 +571,19 @@ const AllOrders = () => {
         ))}
       </div>
 
-      {/* Category filter chips */}
+      {/* Operational phase & category filter chips */}
       <div className="flex flex-wrap items-center gap-2">
         {[
-          { key: 'all', label: 'All' },
-          { key: 'standard', label: '🟢 Standard' },
-          { key: 'custom', label: '🧵 Custom' },
-          { key: 'urgent', label: '🟡 Urgent' },
-          { key: 'super_urgent', label: '🟠 Super Urgent' },
-          { key: 'delayed', label: `🔴 Delayed${summaryCounts.delayed > 0 ? ` (${summaryCounts.delayed})` : ''}` },
+          { key: 'all', label: 'All', count: summaryCounts.all },
+          { key: 'store', label: '🏬 Store', count: summaryCounts.store },
+          { key: 'verification', label: '🔍 Verification', count: summaryCounts.verification },
+          { key: 'logo', label: '🎨 Logo', count: summaryCounts.logo },
+          { key: 'production', label: '⚙️ Production', count: summaryCounts.production },
+          { key: 'dispatch', label: '🚚 Dispatch', count: summaryCounts.dispatch },
+          { key: 'delayed', label: '🔴 Delayed', count: summaryCounts.delayed },
+          { key: 'urgent', label: '🟡 Urgent', count: summaryCounts.urgent },
+          { key: 'standard', label: '🟢 Standard', count: summaryCounts.standard },
+          { key: 'custom', label: '🧵 Custom', count: summaryCounts.custom },
         ].map((chip) => {
           const active = filterCategory === chip.key;
           return (
@@ -554,13 +593,16 @@ const AllOrders = () => {
                 setFilterCategory(active ? 'all' : chip.key);
                 if (chip.key !== 'delayed') setFilterDepartment(null);
               }}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${active
+              className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest border transition-all flex items-center gap-1.5 ${active
                 ? chip.key === 'delayed'
                   ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 animate-delayed-badge'
                   : 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/40'
                 : 'theme-bg-subtle theme-border theme-text-secondary hover:bg-gray-800 hover:text-white'}`}
             >
-              {chip.label}
+              <span>{chip.label}</span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${active ? 'bg-black/30 text-white' : 'bg-gray-800 text-gray-300'}`}>
+                {chip.count}
+              </span>
             </button>
           );
         })}
