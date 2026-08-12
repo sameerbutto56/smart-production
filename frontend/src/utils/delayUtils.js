@@ -81,11 +81,11 @@ export const getEffectiveStage = (order) => {
 };
 
 export const DEFAULT_DELAY_CONFIG = {
-  VERIFICATION: { acceptanceMinutes: 30, totalHours: 2 },
-  STORE: { acceptanceMinutes: 30, totalHours: 4 },
-  LOGO: { acceptanceMinutes: 30, totalHours: 3 },
-  PRODUCTION: { acceptanceMinutes: 30, totalHours: 24 },
-  DISPATCH: { acceptanceMinutes: 30, totalHours: 4 }
+  VERIFICATION: 2, // 2 hours
+  STORE: 2,        // 2 hours
+  LOGO: 4,         // 4 hours
+  PRODUCTION: 10,  // 10 hours
+  DISPATCH: 4      // 4 hours
 };
 
 export const STAGE_CONFIG_MAP = {
@@ -137,29 +137,23 @@ export const getDelayInfo = (order, delayConfig = null) => {
   const startMs = new Date(phaseStart).getTime();
 
   const configKey = STAGE_CONFIG_MAP[effectiveStage] || 'STORE';
-  const cfg = (delayConfig && delayConfig[configKey]) || DEFAULT_DELAY_CONFIG[configKey] || { acceptanceMinutes: 30, totalHours: 24 };
+  let deadlineHours = 24;
+  if (delayConfig) {
+    const rawVal = delayConfig[configKey];
+    if (typeof rawVal === 'number') {
+      deadlineHours = rawVal;
+    } else if (rawVal && typeof rawVal.totalHours === 'number') {
+      deadlineHours = rawVal.totalHours;
+    }
+  } else {
+    deadlineHours = DEFAULT_DELAY_CONFIG[configKey] || 24;
+  }
 
-  const isPendingAcceptance = active ? active.status === 'PENDING' : false;
-  let allowedMs;
-  let reasonLabel;
-
+  const allowedMs = deadlineHours * 3600 * 1000;
   const department = STAGE_DEPARTMENTS[effectiveStage] || 'Store';
+  const reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
 
-  if (isPendingAcceptance) {
-    allowedMs = (cfg.acceptanceMinutes || 30) * 60 * 1000;
-    reasonLabel = `${department} Acceptance Delayed`;
-  } else {
-    allowedMs = (cfg.totalHours || 24) * 3600 * 1000;
-    reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
-  }
-
-  let expectedDeadline = active?.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
-  if (!expectedDeadline) {
-    expectedDeadline = startMs + allowedMs;
-  } else {
-    // If deadlineAt exists, take the earlier threshold to strictly enforce config
-    expectedDeadline = Math.min(expectedDeadline, startMs + allowedMs);
-  }
+  const expectedDeadline = startMs + allowedMs;
 
   if (expectedDeadline >= now) return null;
 
@@ -170,7 +164,7 @@ export const getDelayInfo = (order, delayConfig = null) => {
     stageLabel: stageLabel(effectiveStage),
     department,
     reason: reasonLabel,
-    isAcceptanceDelay: isPendingAcceptance,
+    isAcceptanceDelay: false,
     phaseStart: startMs,
     phaseElapsed: Math.max(0, now - startMs),
     totalElapsed: Math.max(0, now - totalStart),

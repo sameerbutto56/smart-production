@@ -34,11 +34,11 @@ const fmtDate = (d) => {
 };
 
 const DEFAULT_DELAY_CONFIG = {
-  VERIFICATION: { acceptanceMinutes: 30, totalHours: 2 },
-  STORE: { acceptanceMinutes: 30, totalHours: 4 },
-  LOGO: { acceptanceMinutes: 30, totalHours: 3 },
-  PRODUCTION: { acceptanceMinutes: 30, totalHours: 24 },
-  DISPATCH: { acceptanceMinutes: 30, totalHours: 4 }
+  VERIFICATION: 2, // 2 hours
+  STORE: 2,        // 2 hours
+  LOGO: 4,         // 4 hours
+  PRODUCTION: 10,  // 10 hours
+  DISPATCH: 4      // 4 hours
 };
 
 const SoftwareSettings = () => {
@@ -91,7 +91,21 @@ const SoftwareSettings = () => {
     setDelayLoading(true);
     try {
       const res = await api.get('/api/software-settings/delay-config');
-      if (res.data) setDelayConfig(prev => ({ ...prev, ...res.data }));
+      if (res.data) {
+        // Convert any legacy nested config format to new flat number format
+        const normalized = {};
+        Object.keys(DEFAULT_DELAY_CONFIG).forEach(k => {
+          const val = res.data[k];
+          if (typeof val === 'number') {
+            normalized[k] = val;
+          } else if (val && typeof val.totalHours === 'number') {
+            normalized[k] = val.totalHours;
+          } else {
+            normalized[k] = DEFAULT_DELAY_CONFIG[k];
+          }
+        });
+        setDelayConfig(normalized);
+      }
     } catch (err) {
       toast.error('Failed to load delay config: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -166,12 +180,12 @@ const SoftwareSettings = () => {
   }, [invoiceQuery, selectedOutlet, runInvoiceSearch]);
 
   const userRole = String(user?.role || '').toUpperCase().trim();
-  if (!['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN'].includes(userRole)) {
+  if (userRole !== 'SOFTWARE_SETTINGS') {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4">
         <ShieldCheck className="text-red-500" size={48} />
         <h2 className="text-xl font-black text-white">Access Restricted</h2>
-        <p className="text-sm text-gray-400">Only authorized administration profiles can manage employee logins and configuration settings.</p>
+        <p className="text-sm text-gray-400">Only the Software Settings profile can manage employee logins and configuration settings.</p>
       </div>
     );
   }
@@ -504,7 +518,7 @@ const SoftwareSettings = () => {
                 <Clock className="text-amber-400" /> Operational Phase Delay Configuration
               </h2>
               <p className="text-xs text-gray-400 mt-1">
-                Configure allowed Acceptance Delay (minutes) and Total Phase Delay (hours) for each operational department.
+                Configure maximum allowed deadline hours for each operational department.
               </p>
             </div>
             <button onClick={handleSaveDelayConfig} disabled={delaySaving || delayLoading}
@@ -527,7 +541,7 @@ const SoftwareSettings = () => {
                 { key: 'PRODUCTION', title: 'Production', color: 'from-orange-900/40 to-red-900/40', border: 'border-orange-700/50' },
                 { key: 'DISPATCH', title: 'Dispatch', color: 'from-emerald-900/40 to-teal-900/40', border: 'border-emerald-700/50' },
               ].map(phase => {
-                const current = delayConfig[phase.key] || { acceptanceMinutes: 30, totalHours: 24 };
+                const current = delayConfig[phase.key] ?? DEFAULT_DELAY_CONFIG[phase.key];
                 return (
                   <div key={phase.key} className={`bg-gradient-to-br ${phase.color} p-5 rounded-2xl border-2 ${phase.border} space-y-4 shadow-xl`}>
                     <div className="flex items-center justify-between border-b border-gray-700/50 pb-2">
@@ -540,47 +554,24 @@ const SoftwareSettings = () => {
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs font-bold text-gray-300 mb-1">
-                          Acceptance Delay (Minutes)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="1440"
-                          value={current.acceptanceMinutes ?? 30}
-                          onChange={e => {
-                            const val = parseInt(e.target.value) || 0;
-                            setDelayConfig(prev => ({
-                              ...prev,
-                              [phase.key]: { ...prev[phase.key], acceptanceMinutes: val }
-                            }));
-                          }}
-                          className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-amber-500 outline-none"
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          Max time order can remain waiting to be accepted.
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-300 mb-1">
-                          Total Phase Delay (Hours)
+                          Deadline (Hours)
                         </label>
                         <input
                           type="number"
                           min="1"
                           max="720"
-                          value={current.totalHours ?? 24}
+                          value={current}
                           onChange={e => {
                             const val = parseInt(e.target.value) || 0;
                             setDelayConfig(prev => ({
                               ...prev,
-                              [phase.key]: { ...prev[phase.key], totalHours: val }
+                              [phase.key]: val
                             }));
                           }}
                           className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-amber-500 outline-none"
                         />
                         <p className="text-[10px] text-gray-400 mt-1">
-                          Max time allowed for complete phase execution.
+                          Maximum allowed hours for the {phase.title} phase.
                         </p>
                       </div>
                     </div>
