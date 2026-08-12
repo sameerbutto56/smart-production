@@ -10,7 +10,7 @@ const ReturnExchangePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeAction, setActiveAction] = useState(null); // 'return' | 'replace' | 'noresponse' | null
+  const [activeAction, setActiveAction] = useState(null); // 'return' | 'replace' | 'noresponse' | 'redispatch' | null
   const [activeView, setActiveView] = useState('lookup'); // 'lookup' | 'cases'
   const [cases, setCases] = useState([]);
   const [casesLoading, setCasesLoading] = useState(false);
@@ -174,7 +174,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
 
       {/* Action Buttons */}
       {!hasActiveCase && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button onClick={() => setActiveAction('return')}
             className={`p-4 rounded-xl border-2 transition-all text-center ${activeAction === 'return' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
             <RotateCcw size={24} className="mx-auto mb-2" />
@@ -193,6 +193,12 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
             <p className="text-sm font-black">No Response</p>
             <p className="text-[10px] text-gray-500 mt-0.5">Reschedule delivery</p>
           </button>
+          <button onClick={() => setActiveAction('redispatch')}
+            className={`p-4 rounded-xl border-2 transition-all text-center ${activeAction === 'redispatch' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
+            <Send size={24} className="mx-auto mb-2" />
+            <p className="text-sm font-black">Re-Dispatch</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Route to Dispatch</p>
+          </button>
         </div>
       )}
 
@@ -205,6 +211,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
       {activeAction === 'return' && <ReturnForm order={order} user={user} onRefresh={onRefresh} parseProducts={parseProducts} />}
       {activeAction === 'replace' && <ReplaceForm order={order} user={user} onRefresh={onRefresh} parseProducts={parseProducts} />}
       {activeAction === 'noresponse' && <NoResponseForm order={order} user={user} onRefresh={onRefresh} />}
+      {activeAction === 'redispatch' && <ReDispatchForm order={order} user={user} onRefresh={onRefresh} />}
 
       {/* Existing Cases */}
       {order.returnExchangeCases?.length > 0 && !hasActiveCase && (
@@ -287,13 +294,12 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
 
   const handleSubmit = async () => {
     if (!reason.trim()) return toast.error('Enter replacement reason');
-    if (!specialNote.trim()) return toast.error('A Special Note is required — Faisal reviews it before approval');
     if (!replacementItems.some(r => r.name.trim())) return toast.error('Enter at least one replacement item');
     setSubmitting(true);
     try {
       await api.post('/api/return-exchange/initiate', {
         orderId: order.id, type: 'REPLACEMENT', returnReason: reason,
-        specialNote,
+        specialNote: specialNote.trim(),
         replacementItems: replacementItems.filter(r => r.name.trim()),
         notes: `Replacement initiated by ${user?.name || 'Inventory View'}`
       });
@@ -352,18 +358,64 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
         </div>
       </div>
       <div>
-        <label className="text-xs font-bold text-gray-400 block mb-1">Replacement Reason</label>
-        <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="Why is this order being replaced?"
+        <label className="text-xs font-bold text-gray-400 block mb-1">Replacement Reason <span className="text-red-400">*</span></label>
+        <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="Why is this order being replaced? (required)"
           className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 resize-none" />
       </div>
       <div>
-        <label className="text-xs font-bold text-amber-400 block mb-1">Special Note (mandatory — reviewed by Faisal)</label>
+        <label className="text-xs font-bold text-amber-400 block mb-1">Special Note (optional)</label>
         <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2} placeholder="Special instructions for Faisal (e.g. exact size/color/fabric to deliver)"
-          className="w-full bg-gray-900 border border-amber-500/40 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-amber-500 resize-none" />
+          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 resize-none" />
       </div>
-      <button onClick={handleSubmit} disabled={submitting || !specialNote.trim()}
+      <button onClick={handleSubmit} disabled={submitting || !reason.trim()}
         className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all">
         {submitting ? 'Submitting...' : 'Send Replacement to Faisal'}
+      </button>
+    </div>
+  );
+};
+
+const ReDispatchForm = ({ order, user, onRefresh }) => {
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await api.post(`/api/return-exchange/${order.id}/redispatch`, { notes });
+      toast.success('Order routed to Dispatch queue successfully!');
+      setNotes('');
+      onRefresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to initiate re-dispatch');
+    }
+    setSubmitting(false);
+  };
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-purple-500/30 space-y-4">
+      <h3 className="text-sm font-black text-purple-400 flex items-center gap-2">
+        <Send size={16} /> Re-Dispatch Order
+      </h3>
+      <p className="text-xs text-gray-400">
+        This will mark the order as Re-Dispatch and route it directly back to the Dispatch queue's Unseen Tasks.
+      </p>
+      <div>
+        <label className="text-xs font-bold text-gray-400 block mb-1">Re-Dispatch Notes (optional)</label>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Enter any specific instructions or reason for re-dispatch..."
+          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-purple-500 resize-none"
+        />
+      </div>
+      <button
+        onClick={handleSubmit}
+        disabled={submitting}
+        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all"
+      >
+        {submitting ? 'Routing...' : 'Confirm Re-Dispatch'}
       </button>
     </div>
   );

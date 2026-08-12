@@ -157,7 +157,7 @@ const OutletPOSDashboard = ({ outlet }) => {
           rows.push('');
           rows.push('');
           rows.push(['Payment Method', 'Gross', 'Net'].join(','));
-          (dashboard.paymentBreakdown || []).forEach(p => rows.push([p.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : p.method, p.gross, p.net].join(',')));
+          (dashboard.paymentBreakdown || []).forEach(p => rows.push([p.method, p.gross, p.net].join(',')));
           rows.push('');
           rows.push(['Date', 'Sales'].join(','));
           (dashboard.reportData || []).forEach(d => rows.push([d.date, d.sales].join(',')));
@@ -179,7 +179,7 @@ const OutletPOSDashboard = ({ outlet }) => {
           if (!dashboard) return;
           const printW = window.open('', '_blank');
           if (!printW) return;
-          const pmRows = (dashboard.paymentBreakdown || []).map(p => `<tr><td>${p.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : p.method}</td><td>₨${(p.gross || 0).toLocaleString()}</td><td>₨${(p.net || 0).toLocaleString()}</td></tr>`).join('');
+          const pmRows = (dashboard.paymentBreakdown || []).map(p => `<tr><td>${p.method}</td><td>₨${(p.gross || 0).toLocaleString()}</td><td>₨${(p.net || 0).toLocaleString()}</td></tr>`).join('');
           const trendRows = (dashboard.reportData || []).map(d => `<tr><td>${d.date}</td><td>₨${(d.sales || 0).toLocaleString()}</td></tr>`).join('');
           const topRows = (dashboard.bestSellingProducts || []).map(p => `<tr><td>${p.name}</td><td>${p.qty}</td></tr>`).join('');
           printW.document.write(`<!DOCTYPE html><html><head><title>POS Dashboard - ${outlet}</title>
@@ -256,17 +256,17 @@ const OutletPOSDashboard = ({ outlet }) => {
           </div>
 
           {/* Payment Method Breakdown */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'].map(method => {
+          <div className="grid grid-cols-3 gap-3">
+            {['CASH', 'CARD', 'ONLINE'].map(method => {
               const pm = dashboard.paymentBreakdown?.find(p => p.method === method) || { method, gross: 0, returns: 0, net: 0 };
-              const PaymentIcon = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard, CASH_ONLINE: DollarSign }[pm.method] || DollarSign;
-              const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600', CASH_ONLINE: 'from-cyan-600 to-teal-600' };
+              const PaymentIcon = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard }[pm.method] || DollarSign;
+              const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600' };
               return (
                 <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
                   <div className="bg-gray-950/90 rounded-2xl p-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <PaymentIcon size={14} /> {pm.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : pm.method}
+                        <PaymentIcon size={14} /> {pm.method}
                       </span>
                     </div>
                     <p className="text-lg font-black text-white">{formatCurrency(pm.net)}</p>

@@ -596,12 +596,11 @@ const OutletDetailedCard = ({ outlet }) => {
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
               <CreditCard size={16} className="text-indigo-400" /> Payment Method Breakdown
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {[
                 { key: 'CASH', label: 'Cash', dotClass: 'bg-emerald-500', netClass: 'text-emerald-400' },
                 { key: 'CARD', label: 'Card', dotClass: 'bg-purple-500', netClass: 'text-purple-400' },
                 { key: 'ONLINE', label: 'Online', dotClass: 'bg-blue-500', netClass: 'text-blue-400' },
-                { key: 'CASH_ONLINE', label: 'Cash+Online', dotClass: 'bg-amber-500', netClass: 'text-amber-400' },
               ].map(m => {
                 const ps = paymentSummary[m.key] || { gross: 0, returns: 0, net: 0 };
                 return (

@@ -38,7 +38,8 @@ const STATUS_BADGE = (status) => {
   if (status === 'DISPATCH_READY') return 'bg-amber-500/20 text-amber-400';
   if (status === 'IN_PRODUCTION') return 'bg-purple-500/20 text-purple-400';
   if (status === 'STORE_RECEIVE') return 'bg-cyan-500/20 text-cyan-400';
-  if (status === 'PENDING' || status === 'FAISAL_APPROVED') return 'bg-orange-500/20 text-orange-400';
+  if (status === 'FAISAL_APPROVED') return 'bg-blue-500/20 text-blue-400';
+  if (status === 'PENDING') return 'bg-orange-500/20 text-orange-400';
   if (status === 'CANCELLED' || status === 'WAREHOUSE_REJECTED') return 'bg-red-500/20 text-red-400';
   return 'bg-gray-700 text-gray-400';
 };
@@ -202,10 +203,21 @@ const FaisalReplacements = ({ refreshKey }) => {
   };
 
   const createAndSend = async () => {
-    if (!specialNote.trim()) { toast.error('A Special Note is required for replacements'); return; }
+    if (!returnReason.trim()) { toast.error('A replacement reason is required'); return; }
     const validItems = buildItems();
     if (validItems.length === 0) { toast.error('Add at least one replacement product with a name'); return; }
     if (!orderFound) { toast.error('Load the original order first'); return; }
+
+    // Refuse to start a duplicate replacement while one is already active
+    const activeCase = (orderFound.returnExchangeCases || []).find(c =>
+      c.type === 'REPLACEMENT' && ['PENDING', 'FAISAL_APPROVED', 'IN_PRODUCTION', 'STORE_RECEIVE', 'DISPATCH_READY', 'WAREHOUSE_APPROVED'].includes(c.status)
+    );
+    if (activeCase) {
+      toast.error(activeCase.routedTo === 'FAISAL'
+        ? 'This order already has a replacement awaiting your review.'
+        : 'A replacement for this order is already being processed.');
+      return;
+    }
 
     setCreating(true);
     try {
@@ -271,8 +283,11 @@ const FaisalReplacements = ({ refreshKey }) => {
   };
 
   const filtered = cases.filter(c => {
-    const statusMatch = !filter || c.status === filter;
-    return statusMatch;
+    // "Awaiting Review" means the case is actually sitting WITH Faisal —
+    // a PENDING case routed to STORE belongs to the Store queue, not here.
+    if (filter === 'PENDING') return c.status === 'PENDING' && c.routedTo === 'FAISAL';
+    if (!filter) return true;
+    return c.status === filter;
   });
 
   const stats = {
@@ -663,16 +678,16 @@ const FaisalReplacements = ({ refreshKey }) => {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Special Note <span className="text-red-400">*</span></label>
-              <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2}
-                placeholder="Reason for replacement — reviewed by Faisal, sent to Store..."
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500 resize-none" />
+              <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Replacement Reason <span className="text-red-400">*</span></label>
+              <input value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="Why is this order being replaced? (required)"
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Return Reason</label>
-              <input value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="e.g. wrong size / defective / color mismatch"
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+              <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Special Note (optional)</label>
+              <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2}
+                placeholder="Additional instructions/information (optional)"
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500 resize-none" />
             </div>
 
             {/* Original Order Details */}

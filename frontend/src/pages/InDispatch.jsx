@@ -761,8 +761,12 @@ const InDispatch = () => {
                           className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
                           {actionLoading === order.id + 'sendToOutlet' ? <RefreshCcw className="animate-spin" size={13} /> : <MapPin size={13} />} Send to Johar Town
                         </button>
+                        <button onClick={() => handleRouteOrder(order.id, 'sendToDispatch')} disabled={actionLoading === order.id + 'sendToDispatch'}
+                          className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
+                          {actionLoading === order.id + 'sendToDispatch' ? <RefreshCcw className="animate-spin" size={13} /> : <Layers size={13} />} Send to Dispatch
+                        </button>
                         <button onClick={() => handleRouteOrder(order.id, 'customerTakeDeliver')} disabled={actionLoading === order.id + 'customerTakeDeliver'}
-                          className="flex flex-col items-center justify-center gap-1 px-2 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
+                          className="col-span-2 flex flex-col items-center justify-center gap-1 px-2 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[9px] font-bold rounded-xl transition-all">
                           {actionLoading === order.id + 'customerTakeDeliver' ? <RefreshCcw className="animate-spin" size={13} /> : <UserCheck size={13} />} Customer Take
                         </button>
                       </div>

@@ -3,6 +3,7 @@ const notify = require('../utils/notify');
 const { calculateDeadline } = require('../utils/deadline');
 const { classifyOrderItems } = require('./order-helpers');
 const { deductInventoryItems, getRolesForStage } = require('./order.controller');
+const { getPendingAudit } = require('../utils/auditLock');
 
 // Destinations a Store user can route a replacement order to once the new
 // replacement goods are processed (availability ticks + in-stock deduction).
@@ -78,9 +79,31 @@ const createReturnExchange = async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // REPLACEMENT requires a mandatory Special Note that routes through Faisal
-    if (type === 'REPLACEMENT' && !(specialNote || '').trim()) {
-      return res.status(400).json({ message: 'A Special Note is required for replacements. It will be reviewed by Faisal.' });
+    // REPLACEMENT requires a mandatory Reason
+    if (type === 'REPLACEMENT' && !(returnReason || '').trim()) {
+      return res.status(400).json({ message: 'A replacement reason is required.' });
+    }
+
+    // Prevent duplicate ACTIVE replacement cases for the same order — a
+    // replacement already in flight must not spawn orphaned PENDING duplicates
+    // that sit in Faisal's "Awaiting Review" list forever.
+    if (type === 'REPLACEMENT') {
+      const activeReplacement = await prisma.returnExchange.findFirst({
+        where: {
+          orderId,
+          type: 'REPLACEMENT',
+          status: { in: ['PENDING', 'FAISAL_APPROVED', 'IN_PRODUCTION', 'STORE_RECEIVE', 'DISPATCH_READY', 'WAREHOUSE_APPROVED'] }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (activeReplacement) {
+        return res.status(409).json({
+          message: activeReplacement.routedTo === 'FAISAL'
+            ? 'This order already has a replacement awaiting your review. Open that case instead of creating a new one.'
+            : 'A replacement for this order is already being processed. It will not be duplicated.',
+          existingCase: activeReplacement
+        });
+      }
     }
 
     // RETURN → Store takes over; REPLACEMENT → Faisal reviews first, then Store
@@ -613,6 +636,25 @@ const sendToStore = async (req, res) => {
     if (record.routedTo !== 'FAISAL') return res.status(400).json({ message: 'This case is not awaiting Faisal' });
     if (record.replacementOrderId) return res.status(400).json({ message: 'Replacement order already created for this case' });
 
+    // Never allow TWO in-flight replacement orders for the same original — a
+    // different case of this order must not create REP-<orig>-2 while the
+    // original replacement lifecycle is still active.
+    const inFlightCase = await prisma.returnExchange.findFirst({
+      where: {
+        orderId: record.orderId,
+        type: 'REPLACEMENT',
+        replacementOrderId: { not: null },
+        id: { not: id },
+        status: { notIn: ['CANCELLED', 'COMPLETED', 'REPLACEMENT_COMPLETED', 'WAREHOUSE_REJECTED'] }
+      }
+    });
+    if (inFlightCase) {
+      const inFlightOrder = inFlightCase.replacementOrderId
+        ? await prisma.order.findUnique({ where: { id: inFlightCase.replacementOrderId }, select: { orderNumber: true } })
+        : null;
+      return res.status(409).json({ message: `A replacement order (${inFlightOrder?.orderNumber || 'REP-'}) is already in progress for this order. It will not be duplicated.` });
+    }
+
     let items = replacementItems;
     if (!items || !Array.isArray(items) || items.length === 0) {
       try { items = JSON.parse(record.replacementItems || '[]'); } catch { items = []; }
@@ -816,6 +858,42 @@ const sendToStore = async (req, res) => {
   }
 };
 
+const syncCaseStatus = async (caseRecord, linkedOrder) => {
+  if (!caseRecord || !linkedOrder) return caseRecord;
+
+  let newStatus = caseRecord.status;
+
+  if (linkedOrder.status === 'CANCELLED') {
+    newStatus = 'CANCELLED';
+  } else if (linkedOrder.status === 'COMPLETED' || ['DELIVERED', 'COMPLETED'].includes(linkedOrder.currentStage)) {
+    newStatus = 'REPLACEMENT_COMPLETED';
+  } else if (linkedOrder.currentStage === 'STORE_RECEIVE') {
+    newStatus = 'STORE_RECEIVE';
+  } else if (['DISPATCH', 'OUT_FOR_DELIVERY'].includes(linkedOrder.currentStage)) {
+    newStatus = 'DISPATCH_READY';
+  } else if (['PRODUCTION', 'PRODUCTION_ACCEPTANCE', 'LOGO_DESIGN', 'LOGO_DESIGNER', 'WORKERS', 'VERIFICATION'].includes(linkedOrder.currentStage)) {
+    newStatus = 'IN_PRODUCTION';
+  } else if (linkedOrder.currentStage === 'STORE') {
+    newStatus = 'FAISAL_APPROVED';
+  }
+
+  if (newStatus !== caseRecord.status) {
+    const data = { status: newStatus };
+    if (newStatus === 'REPLACEMENT_COMPLETED') {
+      data.replacementCompleted = true;
+      data.replacementCompletedAt = caseRecord.replacementCompletedAt || new Date();
+      data.replacementCompletedBy = caseRecord.replacementCompletedBy || 'SYSTEM';
+    }
+    const updated = await prisma.returnExchange.update({
+      where: { id: caseRecord.id },
+      data
+    });
+    return { ...updated, replacementOrderInfo: linkedOrder };
+  }
+
+  return { ...caseRecord, replacementOrderInfo: linkedOrder };
+};
+
 const getCase = async (req, res) => {
   try {
     const { id } = req.params;
@@ -828,7 +906,8 @@ const getCase = async (req, res) => {
         include: { stages: { orderBy: { createdAt: 'asc' } } }
       });
     }
-    res.json({ ...record, replacementOrder });
+    const synced = await syncCaseStatus(record, replacementOrder);
+    res.json(synced);
   } catch (error) {
     console.error('Error fetching case:', error);
     res.status(500).json({ message: 'Failed to fetch case', error: error.message });
@@ -1087,6 +1166,29 @@ const routeReplacement = async (req, res) => {
 const getAllCases = async (req, res) => {
   try {
     const { type, status, search, page = 1, limit = 50, dateFrom, dateTo } = req.query;
+
+    // Self-healing: sync active returnExchange cases that have a replacement order
+    const inFlightCases = await prisma.returnExchange.findMany({
+      where: {
+        replacementOrderId: { not: null },
+        status: { notIn: ['REPLACEMENT_COMPLETED', 'CANCELLED'] }
+      }
+    });
+    if (inFlightCases.length > 0) {
+      const activeRepOrderIds = inFlightCases.map(c => c.replacementOrderId);
+      const activeRepOrders = await prisma.order.findMany({
+        where: { id: { in: activeRepOrderIds } },
+        select: { id: true, orderNumber: true, currentStage: true, status: true, createdAt: true, deliveredAt: true, productDetails: true, quantity: true }
+      });
+      const activeRepMap = Object.fromEntries(activeRepOrders.map(o => [o.id, o]));
+      for (const c of inFlightCases) {
+        const o = activeRepMap[c.replacementOrderId];
+        if (o) {
+          await syncCaseStatus(c, o);
+        }
+      }
+    }
+
     const where = {};
     if (type) where.type = type;
     if (status) where.status = status;
@@ -1185,7 +1287,10 @@ const trackReplacement = async (req, res) => {
       });
       if (replacementOrder) {
         caseRecord = await prisma.returnExchange.findUnique({ where: { id: replacementOrder.replacementCaseId } });
-        if (caseRecord) originalOrder = await prisma.order.findUnique({ where: { id: caseRecord.orderId } });
+        if (caseRecord) {
+          caseRecord = await syncCaseStatus(caseRecord, replacementOrder);
+          originalOrder = await prisma.order.findUnique({ where: { id: caseRecord.orderId } });
+        }
       }
     } else {
       originalOrder = await prisma.order.findFirst({
@@ -1208,6 +1313,7 @@ const trackReplacement = async (req, res) => {
             where: { id: caseRecord.replacementOrderId },
             include: { stages: { orderBy: { createdAt: 'asc' } } }
           });
+          caseRecord = await syncCaseStatus(caseRecord, replacementOrder);
         }
       }
     }
@@ -1261,4 +1367,131 @@ const getReplacementJobSheetOrder = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement };
+const getStageDurations = async (priority = 'NORMAL') => {
+  const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+  let config = {
+    stageDurations: { STORE: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
+  };
+  if (setting) {
+    try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) {}
+  }
+  const slaMultiplier = config.slaMultipliers?.[priority] ?? 1;
+  const durations = config.stageDurations || {};
+  const adjusted = {};
+  for (const [stage, hours] of Object.entries(durations)) {
+    adjusted[stage] = Math.round((hours * slaMultiplier) * 100) / 100;
+  }
+  return adjusted;
+};
+
+const redispatchOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { notes } = req.body;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // POS/Inventory lock check
+    const pendingAudit = await getPendingAudit(prisma, { type: 'OUTLET', outletName: order.outletName });
+    if (pendingAudit) {
+      return res.status(423).json({
+        message: `Inventory audit ${pendingAudit.auditNumber} approval is pending. The POS is temporarily locked until the audit is approved or rejected by the Admin.`,
+        auditNumber: pendingAudit.auditNumber
+      });
+    }
+
+    // 1) Mark any active stages as COMPLETED
+    const activeStages = order.stages.filter(s => ['PENDING', 'IN_PROGRESS'].includes(s.status));
+    for (const stage of activeStages) {
+      await prisma.orderStage.update({
+        where: { id: stage.id },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+    }
+
+    // 2) Create new DISPATCH stage in PENDING status
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations['DISPATCH'] || 12);
+
+    await prisma.orderStage.create({
+      data: {
+        orderId,
+        stageName: 'DISPATCH',
+        status: 'PENDING',
+        deadlineAt: deadline
+      }
+    });
+
+    // 3) Update Order: currentStage = DISPATCH, status = PENDING, dispatchOfficer = null, dispatchStatus = PENDING
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        currentStage: 'DISPATCH',
+        status: 'PENDING',
+        dispatchOfficer: null,
+        dispatchStatus: 'PENDING'
+      }
+    });
+
+    // 4) Add to Routing History
+    await prisma.routingHistory.create({
+      data: {
+        orderId,
+        sentByUserId: req.user?.id || null,
+        previousStage: order.currentStage,
+        newStage: 'DISPATCH',
+        sentToStage: 'DISPATCH',
+        remarks: notes || `Re-dispatch requested by ${req.user?.name || 'Inventory View'}`
+      }
+    });
+
+    // 5) Add Audit Log for timeline tracking
+    await prisma.auditLog.create({
+      data: {
+        orderId,
+        action: 'REDISPATCH_REQUESTED',
+        details: `Order re-dispatch requested by ${req.user?.name || 'Inventory View'}${notes ? `. Notes: ${notes}` : ''}. Performed: ${new Date().toLocaleString()}.`,
+        performedBy: req.user?.id || 'SYSTEM'
+      }
+    });
+
+    // Delete seen tasks so it appears in unseen for all dispatchers
+    const recipientUsers = await prisma.user.findMany({
+      where: { role: { in: ['DISPATCH', 'STORE_EMPLOYEE'] } },
+      select: { id: true }
+    });
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: 'DISPATCH' }
+    }).catch(() => {});
+
+    // Create notifications for dispatchers
+    await notify.create(req, {
+      type: 'stage_task',
+      moduleName: 'My Tasks',
+      path: '/tasks',
+      role: 'DISPATCH',
+      title: 'New Re-Dispatch Task',
+      message: `Re-dispatch task for order ${order.orderNumber} is ready`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      action: '→ DISPATCH (Re-Dispatch)',
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    const io = req.app?.get('io');
+    if (io) io.emit('order-updated', { orderId });
+
+    res.json({ message: 'Order marked for Re-Dispatch and routed to Dispatch Unseen Tasks' });
+  } catch (error) {
+    console.error('Error in redispatchOrder:', error);
+    res.status(500).json({ message: 'Failed to request re-dispatch', error: error.message });
+  }
+};
+
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder };

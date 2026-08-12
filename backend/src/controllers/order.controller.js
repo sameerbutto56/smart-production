@@ -3156,7 +3156,8 @@ const getOrderTimeline = async (req, res) => {
       REPLACEMENT_FAISAL_REJECTED: 'Replacement Rejected by Faisal',
       CANCELLATION_REQUESTED: 'Cancellation Requested',
       CANCELLATION_APPROVED: 'Cancellation Approved',
-      CANCELLATION_REJECTED: 'Cancellation Rejected'
+      CANCELLATION_REJECTED: 'Cancellation Rejected',
+      REDISPATCH_REQUESTED: 'Re-Dispatch Requested'
     };
 
     // --- Build CONSOLIDATED stage entries (one per OrderStage) ---

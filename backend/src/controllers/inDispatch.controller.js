@@ -299,12 +299,12 @@ const cancelRoute = async (req, res) => {
 };
 
 // POST /api/in-dispatch/orders/:id/route — route an order out of In Dispatch
-// actions: sendToEnamelsDelivery | sendToOutlet | customerTakeDeliver
+// actions: sendToEnamelsDelivery | sendToOutlet | customerTakeDeliver | sendToDispatch
 const routeOrder = async (req, res) => {
   if (!requireJoharTown(req, res)) return;
   const { action, targetOutlet, remarks } = req.body || {};
 
-  const validActions = ['sendToEnamelsDelivery', 'sendToOutlet', 'customerTakeDeliver'];
+  const validActions = ['sendToEnamelsDelivery', 'sendToOutlet', 'customerTakeDeliver', 'sendToDispatch'];
   if (!validActions.includes(action)) {
     return res.status(400).json({ message: `Invalid action. Valid: ${validActions.join(', ')}` });
   }
@@ -326,6 +326,7 @@ const routeOrder = async (req, res) => {
     const actionStageMap = {
       sendToEnamelsDelivery: 'ENAMELS_DELIVERY',
       sendToOutlet: 'OUTLET_RECEIVE',
+      sendToDispatch: 'DISPATCH',
       customerTakeDeliver: null
     };
     const destinationStage = actionStageMap[action];
@@ -397,6 +398,9 @@ const routeOrder = async (req, res) => {
     if (destinationStage === 'ENAMELS_DELIVERY') {
       orderUpdateData.deliveryType = 'ENAMELS';
       orderUpdateData.deliveryMethod = 'Enamels Delivery';
+    } else if (destinationStage === 'DISPATCH') {
+      orderUpdateData.dispatchOfficer = null;
+      orderUpdateData.dispatchStatus = 'PENDING';
     }
     await prisma.order.update({
       where: { id: order.id },
@@ -404,7 +408,7 @@ const routeOrder = async (req, res) => {
     });
 
     // Recipient users
-    const roles = destinationStage === 'ENAMELS_DELIVERY' ? ['DELIVERY_BOY'] : ['OUTLET'];
+    const roles = destinationStage === 'ENAMELS_DELIVERY' ? ['DELIVERY_BOY'] : (destinationStage === 'DISPATCH' ? ['DISPATCH', 'STORE_EMPLOYEE'] : ['OUTLET']);
     const whereUsers = { role: { in: roles } };
     if (destinationStage === 'OUTLET_RECEIVE' && targetOutletName) {
       const searchName = String(targetOutletName).replace(/\s*Outlet\s*$/i, '').trim();

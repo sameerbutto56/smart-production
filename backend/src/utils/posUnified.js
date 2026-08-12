@@ -18,7 +18,7 @@
  *    minus Journal Expenses → Net Revenue. Every component is computed within the
  *    same date window, so a per-period filter always recalculates all four figures.
  */
-const KNOWN_METHODS = ['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'];
+const KNOWN_METHODS = ['CASH', 'CARD', 'ONLINE'];
 
 const saleRevenue = (s) => (s && s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : (s?.grandTotal || 0));
 
@@ -91,22 +91,42 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
   const netRevenue = Math.max(0, totalSales - totalDiscount - refundAmount - totalJournalExpenses);
   const totalBankDeposits = bankDepAgg._sum.amount || 0;
 
-  // Payment totals — non-overlapping (CASH_ONLINE is its own bucket; cash/online split carried separately)
-  const paymentTotals = {};
+  // Payment totals — split CASH_ONLINE into CASH and ONLINE buckets
+  const paymentTotals = { CASH: 0, CARD: 0, ONLINE: 0 };
   sales.forEach((s) => {
     const received = saleRevenue(s);
-    const method = s.paymentMethod === 'CASH_ONLINE' ? 'CASH_ONLINE' : (KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH');
-    paymentTotals[method] = (paymentTotals[method] || 0) + received;
+    if (s.paymentMethod === 'CASH_ONLINE') {
+      paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + (s.cashAmount || 0);
+      paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + (s.onlineAmount || 0);
+    } else {
+      const method = KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
+      paymentTotals[method] = (paymentTotals[method] || 0) + received;
+    }
   });
   balancePayments.forEach((bp) => {
-    const method = bp.paymentMethod === 'CASH_ONLINE' ? 'CASH_ONLINE' : (KNOWN_METHODS.includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH');
-    paymentTotals[method] = (paymentTotals[method] || 0) + (bp.amountPaidNow || 0);
+    if (bp.paymentMethod === 'CASH_ONLINE') {
+      paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + (bp.cashAmount || 0);
+      paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + (bp.onlineAmount || 0);
+    } else {
+      const method = KNOWN_METHODS.includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
+      paymentTotals[method] = (paymentTotals[method] || 0) + (bp.amountPaidNow || 0);
+    }
   });
 
-  const returnsByMethod = {};
+  const returnsByMethod = { CASH: 0, CARD: 0, ONLINE: 0 };
   returns.forEach((r) => {
-    const method = r.sale?.paymentMethod === 'CASH_ONLINE' ? 'CASH_ONLINE' : (KNOWN_METHODS.includes(r.sale?.paymentMethod) ? r.sale?.paymentMethod : 'CASH');
-    returnsByMethod[method] = (returnsByMethod[method] || 0) + (r.refundAmount || 0);
+    const refundMethod = r.refundPaymentMethod || r.sale?.paymentMethod || 'CASH';
+    if (refundMethod === 'CASH_ONLINE') {
+      const cashAmt = r.sale?.cashAmount || 0;
+      const onlineAmt = r.sale?.onlineAmount || 0;
+      const total = cashAmt + onlineAmt || 1;
+      const cashRatio = cashAmt / total;
+      returnsByMethod['CASH'] = (returnsByMethod['CASH'] || 0) + (r.refundAmount * cashRatio);
+      returnsByMethod['ONLINE'] = (returnsByMethod['ONLINE'] || 0) + (r.refundAmount * (1 - cashRatio));
+    } else {
+      const method = KNOWN_METHODS.includes(refundMethod) ? refundMethod : 'CASH';
+      returnsByMethod[method] = (returnsByMethod[method] || 0) + (r.refundAmount || 0);
+    }
   });
 
   const paymentBreakdown = KNOWN_METHODS.map((method) => {
