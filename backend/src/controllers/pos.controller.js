@@ -1051,6 +1051,7 @@ const getSalesDashboard = async (req, res) => {
       cancelledOrders,
       returnedOrders: totalReturns,
       netRevenue,
+      refundAmount,
       totalDiscount,
       totalJournalExpenses,
       totalBankDeposits,

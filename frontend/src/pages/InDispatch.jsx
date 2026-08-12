@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Route as RouteIcon, Truck, Send, UserCheck, RefreshCcw,
   Calendar, Phone, Package, CheckCircle2, XCircle, Plus,
-  MapPin, User, FileText, CheckSquare, Layers, Printer, Wallet
+  MapPin, User, FileText, CheckSquare, Layers, Printer, Wallet, Search, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,6 +37,9 @@ const InDispatch = () => {
   const [selectedForRoute, setSelectedForRoute] = useState(new Set());
   const [routeForm, setRouteForm] = useState({ routeName: '', area: '', deliveryPerson: '', notes: '' });
   const [creating, setCreating] = useState(false);
+
+  // Search — filter the In Dispatch queue by order number, customer name, or phone.
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Clear Balance — collect the remaining balance when printing the Dispatch Slip.
   const [clearBalanceOrder, setClearBalanceOrder] = useState(null);
@@ -86,6 +89,15 @@ const InDispatch = () => {
   const assignedIds = new Set(
     activeRoutes.flatMap(r => { try { return JSON.parse(r.orderIds || '[]'); } catch (_) { return []; } })
   );
+
+  // Client-side search over the loaded dispatch orders (order #, customer name, phone).
+  const q = searchQuery.trim().toLowerCase();
+  const filteredOrders = q
+    ? orders.filter(o => {
+        const hay = `${o.orderNumber || ''} ${o.invoiceNumber || ''} ${o.customerName || ''} ${o.customerPhone || ''}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : orders;
 
   const toggleSelect = (orderId) => {
     setSelectedForRoute(prev => {
@@ -634,7 +646,7 @@ const InDispatch = () => {
 
       {/* In Dispatch Queue */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Truck size={16} className="text-violet-400" />
             <p className="text-sm font-black text-white uppercase tracking-widest">In Dispatch Queue</p>
@@ -650,19 +662,34 @@ const InDispatch = () => {
           )}
         </div>
 
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by order number, customer name, or phone..."
+            className="w-full bg-gray-800/70 border border-gray-700/60 rounded-xl pl-9 pr-9 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 transition-colors"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-32" />)}
           </div>
-        ) : orders.length === 0 ? (
+        ) : filteredOrders.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900/60 border border-gray-800 rounded-2xl p-12 text-center">
             <Truck className="mx-auto text-gray-600 mb-3" size={44} />
-            <p className="text-gray-500 font-bold">No orders in dispatch</p>
-            <p className="text-xs text-gray-600 mt-1">Orders will appear here after they are sent via "Send to In Dispatch" from My Tasks</p>
+            <p className="text-gray-500 font-bold">{q ? 'No orders match your search' : 'No orders in dispatch'}</p>
+            <p className="text-xs text-gray-600 mt-1">{q ? 'Try a different order number, customer name, or phone' : 'Orders will appear here after they are sent via "Send to In Dispatch" from My Tasks'}</p>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {orders.map(order => {
+            {filteredOrders.map(order => {
               const inRoute = assignedIds.has(order.id);
               const isSelected = selectedForRoute.has(order.id);
               return (

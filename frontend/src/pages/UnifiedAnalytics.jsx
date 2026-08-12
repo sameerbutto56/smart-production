@@ -1009,7 +1009,7 @@ const UnifiedAnalytics = () => {
             <div className="glass rounded-2xl p-5 border border-gray-800">
               <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Returns</p>
               <p className="text-3xl font-black text-red-400">
-                {isOnlineSource || isAllSources ? fmt(fin.totalRefunded || 0) : fmt(posData?.totalSales - posData?.netRevenue || 0)}
+                {isOnlineSource || isAllSources ? fmt(fin.totalRefunded || 0) : fmt((posData?.refundAmount ?? (posData?.totalSales - posData?.netRevenue)) || 0)}
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 {isOnlineSource || isAllSources ? `${fin.refundedCount || 0} orders refunded` : `${posData?.returnedOrders || 0} returns`}

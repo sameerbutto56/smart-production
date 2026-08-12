@@ -11,7 +11,7 @@ const POSHistory = () => {
   const { isUrdu } = useLanguage();
   const {
     salesRange, setSalesRange, salesDateFrom, setSalesDateFrom, salesDateTo, setSalesDateTo,
-    receiptSearch, setReceiptSearch, sales, filteredSales, historySearchLoading,
+    receiptSearch, setReceiptSearch, sales, filteredSales, salesLoading, historySearchLoading,
     handleRefundInvoiceFromHistory, downloadExcel,
     setPendingPrintSale, setPrintOpts, setShowPrintOptions, setTab, selectedOutlet,
   } = usePOS();
@@ -112,7 +112,10 @@ const POSHistory = () => {
       )}
 
       <div className="space-y-2">
-        {filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No invoices match your search' : 'No sales yet'}</p>}
+        {salesLoading && filteredSales.length === 0 && (
+          <div className="py-10 flex justify-center"><BarChart3 className="animate-spin text-blue-500" size={24} /></div>
+        )}
+        {!salesLoading && filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No invoices match your search' : 'No sales yet'}</p>}
         {filteredSales.map(s => (
           <div key={s.id} className="bg-gray-800/60 rounded-2xl border border-gray-700/50 p-4">
             <div className="flex items-start justify-between mb-2">
