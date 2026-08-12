@@ -165,12 +165,13 @@ const SoftwareSettings = () => {
     return () => { cancelled = true; clearTimeout(t); };
   }, [invoiceQuery, selectedOutlet, runInvoiceSearch]);
 
-  if (String(user?.role || '').toUpperCase() !== 'SOFTWARE_SETTINGS') {
+  const userRole = String(user?.role || '').toUpperCase().trim();
+  if (!['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN'].includes(userRole)) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4">
         <ShieldCheck className="text-red-500" size={48} />
         <h2 className="text-xl font-black text-white">Access Restricted</h2>
-        <p className="text-sm text-gray-400">Only the Software Settings profile can manage employee logins and payment methods.</p>
+        <p className="text-sm text-gray-400">Only authorized administration profiles can manage employee logins and configuration settings.</p>
       </div>
     );
   }

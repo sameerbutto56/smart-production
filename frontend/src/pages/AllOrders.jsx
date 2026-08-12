@@ -375,7 +375,8 @@ const AllOrders = () => {
   const dateRange = useMemo(() => getDateRange(dateFilter), [dateFilter]);
 
   const matchesCategory = useCallback((order, category) => {
-    if (!order || !category || category === 'all') return true;
+    if (!order) return false;
+    if (!category || category === 'all') return true;
     const effectiveStage = getEffectiveStage(order);
     switch (category) {
       case 'store':
@@ -391,7 +392,9 @@ const AllOrders = () => {
       case 'delayed':
         return !!delayMap[order.id];
       case 'urgent':
-        return order.priority === 'URGENT' || order.priority === 'SUPER_URGENT' || order.urgent === true;
+        return order.priority === 'URGENT' || order.urgent === true;
+      case 'super_urgent':
+        return order.priority === 'SUPER_URGENT';
       case 'standard':
         return order.type === 'STANDARD';
       case 'custom':
@@ -401,11 +404,44 @@ const AllOrders = () => {
     }
   }, [delayMap]);
 
+  const baseFilteredOrders = useMemo(() => {
+    return (baseOrders || []).filter(order => {
+      if (!order) return false;
+      const name = (order.customerName || '').toLowerCase();
+      const id = (order.id || '').toLowerCase();
+      const orderNum = (order.orderNumber || '').toLowerCase();
+      const search = (searchTerm || '').toLowerCase();
+
+      const cityField = (order.city || '').toLowerCase();
+      const matchesSearch = name.includes(search) || id.includes(search) || orderNum.includes(search) || cityField.includes(search);
+
+      if (isServerSearchActive) return true;
+
+      const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
+      const matchesType = filterType === 'ALL' || order.type === filterType;
+      const matchesUrgent = !filterUrgent || order.urgent;
+      const matchesCity = !filterCity || cityField.includes(filterCity.toLowerCase());
+      
+      const orderCreated = order.createdAt ? new Date(order.createdAt).getTime() : 0;
+      const matchesDate = !dateRange || (orderCreated >= dateRange.start && orderCreated < dateRange.end);
+      
+      // Strict Role Filtering
+      const userRole = String(user?.role || '').toUpperCase().trim();
+      const isOwner = order.createdById === user?.id;
+      const isControlCenter = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+      const matchesRole = isControlCenter || isOwner;
+      
+      // STORE_RECEIVE is Store-only — never show in Online/Outlet/AllOrders views
+      const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
+      const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
+      
+      return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesDate;
+    });
+  }, [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, user?.role, user?.id, dateRange, isServerSearchActive]);
+
   const summaryCounts = useMemo(() => {
-    const counts = { all: 0, store: 0, verification: 0, logo: 0, production: 0, dispatch: 0, delayed: 0, urgent: 0, standard: 0, custom: 0 };
-    (baseOrders || []).forEach(o => {
-      const created = o.createdAt ? new Date(o.createdAt).getTime() : 0;
-      if (dateRange && (created < dateRange.start || created >= dateRange.end)) return;
+    const counts = { all: 0, store: 0, verification: 0, logo: 0, production: 0, dispatch: 0, delayed: 0, urgent: 0, super_urgent: 0, standard: 0, custom: 0 };
+    baseFilteredOrders.forEach(o => {
       counts.all++;
       if (matchesCategory(o, 'store')) counts.store++;
       if (matchesCategory(o, 'verification')) counts.verification++;
@@ -414,51 +450,25 @@ const AllOrders = () => {
       if (matchesCategory(o, 'dispatch')) counts.dispatch++;
       if (matchesCategory(o, 'delayed')) counts.delayed++;
       if (matchesCategory(o, 'urgent')) counts.urgent++;
+      if (matchesCategory(o, 'super_urgent')) counts.super_urgent++;
       if (matchesCategory(o, 'standard')) counts.standard++;
       if (matchesCategory(o, 'custom')) counts.custom++;
     });
     return counts;
-  }, [baseOrders, dateRange, matchesCategory]);
+  }, [baseFilteredOrders, matchesCategory]);
 
-  const filteredOrders = useMemo(() => (baseOrders || []).filter(order => {
-    if (!order) return false;
-    const name = (order.customerName || '').toLowerCase();
-    const id = (order.id || '').toLowerCase();
-    const orderNum = (order.orderNumber || '').toLowerCase();
-    const search = (searchTerm || '').toLowerCase();
-
-    const cityField = (order.city || '').toLowerCase();
-    const matchesSearch = name.includes(search) || id.includes(search) || orderNum.includes(search) || cityField.includes(search);
-
-    if (isServerSearchActive) return true;
-
-    const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
-    const matchesType = filterType === 'ALL' || order.type === filterType;
-    const matchesUrgent = !filterUrgent || order.urgent;
-    const matchesCity = !filterCity || cityField.includes(filterCity.toLowerCase());
-    
-    const matchesCat = matchesCategory(order, filterCategory);
-    const matchesDepartment = !filterDepartment || delayMap[order.id]?.department === filterDepartment;
-    const matchesDelayStage = !filterDelayStage || delayMap[order.id]?.stage === filterDelayStage;
-    const orderCreated = order.createdAt ? new Date(order.createdAt).getTime() : 0;
-    const matchesDate = !dateRange || (orderCreated >= dateRange.start && orderCreated < dateRange.end);
-    
-    // Strict Role Filtering
-    const userRole = String(user?.role || '').toUpperCase().trim();
-    const isOwner = order.createdById === user?.id;
-    const isControlCenter = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
-    const matchesRole = isControlCenter || isOwner;
-    
-    // STORE_RECEIVE is Store-only — never show in Online/Outlet/AllOrders views
-    const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
-    const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
-    
-    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesCat && matchesDepartment && matchesDelayStage && matchesDate;
-  }).sort((a, b) => {
-    const numA = parseInt(a.orderNumber) || 0;
-    const numB = parseInt(b.orderNumber) || 0;
-    return sortOrder === 'asc' ? numA - numB : numB - numA;
-  }), [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id, filterCategory, filterDepartment, filterDelayStage, dateRange, matchesCategory, delayMap, isServerSearchActive]);
+  const filteredOrders = useMemo(() => {
+    return baseFilteredOrders.filter(order => {
+      const matchesCat = matchesCategory(order, filterCategory);
+      const matchesDepartment = !filterDepartment || delayMap[order.id]?.department === filterDepartment;
+      const matchesDelayStage = !filterDelayStage || delayMap[order.id]?.stage === filterDelayStage;
+      return matchesCat && matchesDepartment && matchesDelayStage;
+    }).sort((a, b) => {
+      const numA = parseInt(a.orderNumber) || 0;
+      const numB = parseInt(b.orderNumber) || 0;
+      return sortOrder === 'asc' ? numA - numB : numB - numA;
+    });
+  }, [baseFilteredOrders, filterCategory, filterDepartment, filterDelayStage, matchesCategory, delayMap, sortOrder]);
 
   const groupedOrders = useMemo(() => {
     const groups = {};
@@ -582,6 +592,7 @@ const AllOrders = () => {
           { key: 'dispatch', label: '🚚 Dispatch', count: summaryCounts.dispatch },
           { key: 'delayed', label: '🔴 Delayed', count: summaryCounts.delayed },
           { key: 'urgent', label: '🟡 Urgent', count: summaryCounts.urgent },
+          { key: 'super_urgent', label: '🟠 Super Urgent', count: summaryCounts.super_urgent },
           { key: 'standard', label: '🟢 Standard', count: summaryCounts.standard },
           { key: 'custom', label: '🧵 Custom', count: summaryCounts.custom },
         ].map((chip) => {

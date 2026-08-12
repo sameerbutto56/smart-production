@@ -94,7 +94,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
   const navItems = [
     { name: 'Executive Dashboard', path: '/ceo-dashboard', icon: LayoutDashboard, roles: ['CEO'] },
-    { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS'] },
+    { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
