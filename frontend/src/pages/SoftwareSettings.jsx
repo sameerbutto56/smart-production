@@ -44,10 +44,34 @@ const DEFAULT_DELAY_CONFIG = {
 
 const SoftwareSettings = () => {
   const { user } = useAuth();
-  const { paused: systemPaused, info: pauseInfo, history: pauseHistory, refresh: refreshPauseState, fetchHistory: fetchPauseHistory, pause: pauseSystem, resume: resumeSystem } = useSystemPause();
+  const { paused: systemPaused, info: pauseInfo, profiles: pauseProfiles, profileDefs: pauseProfileDefs, history: pauseHistory, refresh: refreshPauseState, fetchHistory: fetchPauseHistory, pause: pauseSystem, resume: resumeSystem, saveProfiles: savePauseProfiles } = useSystemPause();
   const [activeTab, setActiveTab] = useState('employees');
   const [pausePassword, setPausePassword] = useState('');
   const [pauseBusy, setPauseBusy] = useState(false);
+  const [pauseProfilesSel, setPauseProfilesSel] = useState([]);
+  const [pauseProfilesBusy, setPauseProfilesBusy] = useState(false);
+
+  // Load the saved pause-profile selection whenever the backend state changes.
+  useEffect(() => {
+    if (Array.isArray(pauseProfiles) && pauseProfiles.length) setPauseProfilesSel(pauseProfiles);
+  }, [pauseProfiles]);
+
+  const togglePauseProfile = (key) => setPauseProfilesSel((prev) =>
+    prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+  );
+
+  const handleSavePauseProfiles = async () => {
+    if (pauseProfilesBusy) return;
+    setPauseProfilesBusy(true);
+    try {
+      const res = await savePauseProfiles(pauseProfilesSel);
+      toast.success(res?.saved ? 'Pause profile configuration saved.' : 'Failed to save pause profile configuration.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save pause profile configuration.');
+    } finally {
+      setPauseProfilesBusy(false);
+    }
+  };
 
   // ── Employee management state ──
   const [employees, setEmployees] = useState([]);
@@ -646,7 +670,7 @@ const SoftwareSettings = () => {
                   Global System Pause / Resume
                 </h2>
                 <p className="text-xs text-gray-400 mt-1">
-                  While paused, all operational functions are stopped — order entry, POS sales, production, store, verification, dispatch, delivery, returns and cancellations. No existing data is changed.
+                  While paused, the selected profiles are stopped — order entry, POS sales, production, store, verification, dispatch, delivery, returns and cancellations. Unselected profiles keep working. No existing data is changed.
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -668,7 +692,7 @@ const SoftwareSettings = () => {
 
             {systemPaused && pauseInfo ? (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-5 py-4">
-                <p className="font-black text-red-300 text-sm">🔴 SYSTEM PAUSED — All functions are temporarily stopped by Admin.</p>
+                <p className="font-black text-red-300 text-sm">🔴 SYSTEM PAUSED — Functions are temporarily stopped for the selected profiles by Admin.</p>
                 <p className="text-xs text-red-400/90 mt-1 font-bold">
                   Paused by {pauseInfo.pausedBy} · {pauseInfo.source} · {fmtDate(pauseInfo.pausedAt)}
                 </p>
@@ -705,6 +729,62 @@ const SoftwareSettings = () => {
                 {systemPaused ? 'Confirm Resume' : 'Confirm Pause'}
               </button>
             </form>
+          </div>
+
+          {/* ═══════ SYSTEM PAUSE SETTINGS — profile selection ═══════ */}
+          <div className="glass rounded-2xl border-2 border-indigo-500/30 overflow-hidden">
+            <div className="px-5 py-3 bg-indigo-900/40 flex items-center gap-2 border-b border-indigo-500/30">
+              <ShieldCheck className="text-indigo-400" size={18} />
+              <h3 className="font-black text-white">System Pause Settings</h3>
+              <span className="ml-auto text-xs font-bold text-gray-400">Which profiles the pause applies to</span>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-gray-400 font-bold">
+                Checked profiles are <span className="text-red-400">paused</span> when you press Pause System; unchecked profiles
+                keep working normally. No profiles saved yet means the pause applies to <span className="text-red-400">every</span> profile (global pause).
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {(pauseProfileDefs.length ? pauseProfileDefs : [
+                  { key: 'order_entry', label: 'Order Entry' },
+                  { key: 'verification', label: 'Verification / Inventory View' },
+                  { key: 'faisal', label: 'Faisal' },
+                  { key: 'store', label: 'Store' },
+                  { key: 'logo_design', label: 'Logo Design' },
+                  { key: 'production', label: 'Production' },
+                  { key: 'dispatch', label: 'Dispatch' },
+                  { key: 'delivery', label: 'Delivery Boy' },
+                  { key: 'outlet_johar', label: 'Johar Town Outlet' },
+                  { key: 'outlet_abbottabad', label: 'Abbottabad Outlet' },
+                  { key: 'outlet_jail', label: 'Jail Road Outlet' },
+                  { key: 'outlet_other', label: 'Other Outlet Profiles' },
+                ]).map((p) => {
+                  const on = pauseProfilesSel.includes(p.key);
+                  return (
+                    <button key={p.key} onClick={() => togglePauseProfile(p.key)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold border transition-all ${on
+                        ? 'bg-red-600/20 border-red-500/50 text-red-300'
+                        : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                      <span className={`w-4 h-4 rounded flex items-center justify-center border-2 text-[10px] ${on ? 'bg-red-500 border-red-400 text-white' : 'border-gray-600'}`}>
+                        {on ? '✓' : ''}
+                      </span>
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={handleSavePauseProfiles} disabled={pauseProfilesBusy}
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
+                  {pauseProfilesBusy ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
+                  Save Pause Profile Configuration
+                </button>
+                <button onClick={() => setPauseProfilesSel([])}
+                  className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all">
+                  All Profiles (Global Pause)
+                </button>
+                <span className="text-xs font-bold text-gray-500">{pauseProfilesSel.length || 'All'} profile{pauseProfilesSel.length === 1 ? '' : 's'} selected</span>
+              </div>
+            </div>
           </div>
 
           {/* Pause history */}

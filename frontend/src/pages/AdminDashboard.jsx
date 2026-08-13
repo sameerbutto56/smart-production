@@ -145,7 +145,7 @@ const AdminDashboard = () => {
   const editRequestsRefreshRef = useRef();
   const queueRefreshRef = useRef();
 
-  const { paused: systemPaused, info: pauseInfo, periods: pausePeriods, pause: pauseSystem, resume: resumeSystem } = useSystemPause();
+  const { paused: systemPaused, info: pauseInfo, periods: pausePeriods, myProfile: pauseProfile, pause: pauseSystem, resume: resumeSystem } = useSystemPause();
 
   const needsData = activeTab !== null;
   const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache(needsData ? 'admin:dashboard:orders' : null, { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
@@ -156,7 +156,7 @@ const AdminDashboard = () => {
 
   const allOrders = allOrdersData || EMPTY_ARRAY;
   const editRequests = useMemo(() => Array.isArray(editRequestsData) ? editRequestsData : EMPTY_ARRAY, [editRequestsData]);
-  const delayBreakdown = useMemo(() => getStageDelays(allOrders, null, pausePeriods), [allOrders, pausePeriods]);
+  const delayBreakdown = useMemo(() => getStageDelays(allOrders, null, pausePeriods, pauseProfile), [allOrders, pausePeriods, pauseProfile]);
   const stats = useMemo(() => ({
     totalOrders: allOrders.length,
     urgentOrders: allOrders.filter(o => o?.urgent).length,
@@ -666,7 +666,7 @@ const AdminDashboard = () => {
               {systemPaused && (
                 <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
                   <PauseCircle className="text-red-400" size={18} />
-                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">🔴 SYSTEM PAUSED — All functions are temporarily stopped by Admin.</span>
+                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">🔴 SYSTEM PAUSED — All functions are temporarily stopped for the selected profiles by Admin.</span>
                 </div>
               )}
               {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (

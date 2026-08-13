@@ -10,11 +10,12 @@ export const useSystemPause = () => {
   return ctx;
 };
 
-// Global system pause state shared across every profile. Polls /api/system/state
-// (30s + window focus) and listens for socket broadcast events. `periods` is the
-// pause interval history used by the delay helpers to freeze timers.
+// Profile-level system pause state shared across every profile. Polls /api/system/state
+// (30s + window focus) and listens for socket broadcast events. `periods` is the pause
+// interval history used by the delay helpers to freeze timers; `affected` tells whether
+// THIS profile is paused (banner / timer freeze) and `profiles` is the selected set.
 export const SystemPauseProvider = ({ children }) => {
-  const [state, setState] = useState({ paused: false, info: null, periods: [] });
+  const [state, setState] = useState({ paused: false, info: null, periods: [], affected: false, profiles: [], profileDefs: [], myProfile: null });
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const busyRef = useRef(false);
@@ -22,7 +23,15 @@ export const SystemPauseProvider = ({ children }) => {
   const refresh = useCallback(async () => {
     try {
       const res = await api.get('/api/system/state');
-      setState({ paused: !!res.data?.paused, info: res.data?.info || null, periods: res.data?.periods || [] });
+      setState({
+        paused: !!res.data?.paused,
+        info: res.data?.info || null,
+        periods: res.data?.periods || [],
+        affected: !!res.data?.affected,
+        profiles: res.data?.profiles || [],
+        profileDefs: res.data?.profileDefs || [],
+        myProfile: res.data?.myProfile || null,
+      });
     } catch { /* keep last known state */ }
     setLoading(false);
   }, []);
@@ -57,9 +66,12 @@ export const SystemPauseProvider = ({ children }) => {
     try {
       const res = await api.post(`/api/system/${action}`, { password });
       setState((prev) => ({
+        ...prev,
         paused: action === 'pause',
         info: res.data?.info || (action === 'pause' ? prev.info : null),
         periods: res.data?.periods || prev.periods || [],
+        profiles: res.data?.profiles || prev.profiles || [],
+        affected: action === 'pause' ? true : false,
       }));
       fetchHistory();
       return res.data;
@@ -71,8 +83,21 @@ export const SystemPauseProvider = ({ children }) => {
   const pause = useCallback((password) => setPaused('pause', password), [setPaused]);
   const resume = useCallback((password) => setPaused('resume', password), [setPaused]);
 
+  // Save which profiles the pause applies to (Software Settings / Admin).
+  const saveProfiles = useCallback(async (profiles) => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
+    try {
+      const res = await api.put('/api/system/pause-profiles', { profiles });
+      if (res.data?.saved) setState((prev) => ({ ...prev, profiles: res.data?.profiles || prev.profiles }));
+      return res.data;
+    } finally {
+      busyRef.current = false;
+    }
+  }, []);
+
   return (
-    <SystemPauseContext.Provider value={{ ...state, history, loading, refresh, fetchHistory, pause, resume }}>
+    <SystemPauseContext.Provider value={{ ...state, history, loading, refresh, fetchHistory, pause, resume, saveProfiles }}>
       {children}
     </SystemPauseContext.Provider>
   );

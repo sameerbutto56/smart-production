@@ -81,16 +81,21 @@ export const getEffectiveStage = (order) => {
 };
 
 // Active (non-paused) milliseconds within [startMs, endMs], given the pause-period
-// history from /api/system/state (periods: [{pausedAt, endedAt|null, ...}]). Mirrors
-// the backend systemPause util — every paused window overlapping the range is
+// history from /api/system/state (periods: [{startedAt, endedAt|null, profiles?}]).
+// Mirrors the backend systemPause util — every paused window overlapping the range is
 // subtracted so delay timers freeze during a pause and resume where they stopped.
-export const activeElapsedMs = (startMs, endMs, periods) => {
+// `profileKey`: the caller's pause profile key. When provided, only windows that
+// include that profile (or legacy windows with no profiles field) are subtracted, so
+// profiles excluded from the pause keep their timers running. Pass null/undefined to
+// treat every window as a pause (global / admin management view).
+export const activeElapsedMs = (startMs, endMs, periods, profileKey = null) => {
   const s = Number(startMs) || 0;
   const e = Number(endMs) || Date.now();
   if (!Array.isArray(periods) || periods.length === 0) return Math.max(0, e - s);
   const now = e;
   let pausedMs = 0;
   for (const p of periods) {
+    if (profileKey && Array.isArray(p.profiles) && p.profiles.length && !p.profiles.includes(profileKey)) continue;
     const ps = new Date(p.startedAt || p.pausedAt).getTime();
     if (Number.isNaN(ps)) continue;
     const pe = p.endedAt ? new Date(p.endedAt).getTime() : now;
@@ -129,7 +134,8 @@ export const STAGE_CONFIG_MAP = {
 // Auto delay detection from the order's active stage (supports custom delay config).
 // Returns null when on time. `pausePeriods` (from /api/system/state) freezes the
 // elapsed timer for any paused window, so delays are computed only on active time.
-export const getDelayInfo = (order, delayConfig = null, pausePeriods = null) => {
+// `profileKey` scopes which pause windows apply (see activeElapsedMs).
+export const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey = null) => {
   if (!order) return null;
   const status = (order.status || '').toUpperCase();
   if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].includes(status)) return null;
@@ -174,7 +180,7 @@ export const getDelayInfo = (order, delayConfig = null, pausePeriods = null) => 
   const department = STAGE_DEPARTMENTS[effectiveStage] || 'Store';
   const reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
 
-  const phaseActive = activeElapsedMs(startMs, now, pausePeriods);
+  const phaseActive = activeElapsedMs(startMs, now, pausePeriods, profileKey);
   if (phaseActive < allowedMs) return null;
 
   const totalStart = order.createdAt ? new Date(order.createdAt).getTime() : startMs;
@@ -187,15 +193,15 @@ export const getDelayInfo = (order, delayConfig = null, pausePeriods = null) => 
     isAcceptanceDelay: false,
     phaseStart: startMs,
     phaseElapsed: phaseActive,
-    totalElapsed: activeElapsedMs(totalStart, now, pausePeriods),
+    totalElapsed: activeElapsedMs(totalStart, now, pausePeriods, profileKey),
     delayDuration: Math.max(0, phaseActive - allowedMs),
   };
 };
 
-export const getStageDelays = (orders, delayConfig = null, pausePeriods = null) => {
+export const getStageDelays = (orders, delayConfig = null, pausePeriods = null, profileKey = null) => {
   const map = {};
   (orders || []).forEach((o) => {
-    const d = getDelayInfo(o, delayConfig, pausePeriods);
+    const d = getDelayInfo(o, delayConfig, pausePeriods, profileKey);
     if (!d) return;
     if (!map[d.stage]) map[d.stage] = { stage: d.stage, label: d.stageLabel, department: d.department, count: 0 };
     map[d.stage].count++;

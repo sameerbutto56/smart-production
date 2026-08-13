@@ -57,7 +57,7 @@ const getDateRange = (key) => {
 
 const AllOrders = () => {
   const { user } = useAuth();
-  const { periods: pausePeriods } = useSystemPause();
+  const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
   const isReadOnly = user?.role === 'FAISAL';
   const { data: orders = [], loading, refresh } = useCache('orders:all', {
     fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []),
@@ -358,11 +358,11 @@ const AllOrders = () => {
   const delayMap = useMemo(() => {
     const map = {};
     (baseOrders || []).forEach(o => {
-      const d = getDelayInfo(o, delayConfig, pausePeriods);
+      const d = getDelayInfo(o, delayConfig, pausePeriods, pauseProfile);
       if (d) map[o.id] = d;
     });
     return map;
-  }, [baseOrders, delayConfig, pausePeriods]);
+  }, [baseOrders, delayConfig, pausePeriods, pauseProfile]);
 
   const departmentDelays = useMemo(() => {
     const counts = {};
@@ -372,7 +372,7 @@ const AllOrders = () => {
     return counts;
   }, [delayMap]);
 
-  const stageDelays = useMemo(() => getStageDelays(baseOrders, delayConfig, pausePeriods), [baseOrders, delayConfig, pausePeriods]);
+  const stageDelays = useMemo(() => getStageDelays(baseOrders, delayConfig, pausePeriods, pauseProfile), [baseOrders, delayConfig, pausePeriods, pauseProfile]);
 
   const dateRange = useMemo(() => getDateRange(dateFilter), [dateFilter]);
 

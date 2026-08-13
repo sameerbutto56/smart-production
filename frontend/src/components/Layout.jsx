@@ -335,7 +335,7 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
-  const { paused: systemPaused, info: pauseInfo } = useSystemPause();
+  const { paused: systemPaused, affected: pauseAffected, info: pauseInfo } = useSystemPause();
 
   // Faisal employee login
   const [faisalEmployee, setFaisalEmployee] = useState(() => localStorage.getItem('faisalEmployee') || '');
@@ -722,15 +722,20 @@ const Layout = () => {
           </div>
         </header>
 
-        {systemPaused ? (
+        {pauseAffected ? (
           <div className="bg-red-600/20 border-b-2 border-red-500/40 px-6 py-3 flex items-center justify-center gap-3 flex-shrink-0">
             <PauseCircle className="text-red-400 animate-pulse" size={16} />
-            <span className="text-red-300 font-black text-xs uppercase tracking-widest">🔴 SYSTEM PAUSED — All functions are temporarily stopped by Admin.</span>
+            <span className="text-red-300 font-black text-xs uppercase tracking-widest">🔴 SYSTEM PAUSED — All functions are temporarily stopped for your profile by Admin.</span>
             {pauseInfo?.pausedBy && (
               <span className="text-red-400/80 text-[10px] font-bold uppercase tracking-wider">
                 · {pauseInfo.pausedBy} · {new Date(pauseInfo.pausedAt).toLocaleString()}
               </span>
             )}
+          </div>
+        ) : systemPaused ? (
+          <div className="bg-indigo-600/10 border-b border-indigo-500/20 px-6 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
+            <span className="w-2 h-2 rounded-full bg-indigo-400" />
+            <span className="text-indigo-300/90 font-black text-[10px] uppercase tracking-widest">⚙️ SYSTEM PAUSED FOR OTHER PROFILES — your profile continues running normally.</span>
           </div>
         ) : (
           <div className="bg-emerald-600/10 border-b border-emerald-500/20 px-6 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
