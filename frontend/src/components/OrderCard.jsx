@@ -1154,7 +1154,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           )}
 
           <div className="flex flex-col gap-2 w-full">
-            {isUnseen && !isAdmin && currentStage?.status === 'PENDING' ? (
+            {isUnseen && !isAdmin && currentStage?.status === 'PENDING' && !['PRODUCTION_IN', 'PRODUCTION_OUT'].includes(userRole) ? (
               <button
                 onClick={() => withActionLoading('accept', async () => {
                   try {

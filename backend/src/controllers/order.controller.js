@@ -2748,6 +2748,20 @@ const manualRouteOrder = async (req, res) => {
       }).catch(() => {});
     }
 
+    // In/Out production handoff: when Production In accepts a PRODUCTION_ACCEPTANCE
+    // order into PRODUCTION, auto-assign it to every PRODUCTION_OUT user (seenTask at
+    // PRODUCTION) so it lands in their Assigned/Accepted list immediately. Production
+    // In's stage mapping excludes PRODUCTION, so the order never reappears for them.
+    if (req.user.role === 'PRODUCTION_IN' && destinationStage === 'PRODUCTION') {
+      const outUsers = await prisma.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } });
+      if (outUsers.length > 0) {
+        await prisma.seenTask.createMany({
+          data: outUsers.map(u => ({ userId: u.id, orderId, stageName: 'PRODUCTION', seenAt: new Date() })),
+          skipDuplicates: true
+        }).catch(() => {});
+      }
+    }
+
     await createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id);
 
     const io = req.app.get('io');
@@ -2756,6 +2770,9 @@ const manualRouteOrder = async (req, res) => {
     const manRole = manDestRoleMap[destinationStage] || 'STORE';
     if (order?.customerName && order?.orderNumber) {
       await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
+    }
+    if (req.user.role === 'PRODUCTION_IN' && destinationStage === 'PRODUCTION' && order?.customerName && order?.orderNumber) {
+      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} accepted by Production In — now assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
     }
 
     res.json({ message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
@@ -2769,8 +2786,11 @@ const getRolesForStageBasedOnRole = (role) => {
     'STORE': ['STORE'],
     'STORE_EMPLOYEE': ['STORE'],
     'PRODUCTION': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'WORKERS'],
-    'PRODUCTION_IN': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'WORKERS'],
-    'PRODUCTION_OUT': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'WORKERS'],
+    // In/Out production split: PRODUCTION_IN only sees the acceptance stage and
+    // PRODUCTION_OUT only sees the actual working stage — an accepted order moves
+    // forward once and never loops back to Production In.
+    'PRODUCTION_IN': ['PRODUCTION_ACCEPTANCE'],
+    'PRODUCTION_OUT': ['PRODUCTION', 'WORKERS'],
     'WORKER': ['WORKERS'],
     'LOGO_DESIGN': ['LOGO_DESIGN'],
     'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],
