@@ -2690,18 +2690,28 @@ const manualRouteOrder = async (req, res) => {
       }
     }
     if (currentStage) {
-      await prisma.orderStage.update({
-        where: { id: currentStage.id },
+      // Complete ALL active rows of the current stage (not just the first match) so
+      // stale PENDING/IN_PROGRESS copies of the same stage never linger on one order.
+      await prisma.orderStage.updateMany({
+        where: { orderId, stageName: currentStage.stageName, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
         data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
       });
     }
 
-    // Create destination stage
+    // Create destination stage — idempotent: if an active stage for the destination
+    // already exists (retried route / double-click / repeated route to same stage),
+    // reuse it instead of creating a duplicate PENDING row. Prevents the multiple
+    // active stage rows per order that inflated production task counts.
     const durations = await getStageDurations(order.priority);
-    const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
-    await prisma.orderStage.create({
-      data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+    const existingDestStage = await prisma.orderStage.findFirst({
+      where: { orderId, stageName: destinationStage, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } }
     });
+    if (!existingDestStage) {
+      const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+      await prisma.orderStage.create({
+        data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+      });
+    }
 
     const isStoreRoutingBack = ['STORE', 'STORE_EMPLOYEE'].includes(req.user.role) && destinationStage !== 'DISPATCH';
     await prisma.order.update({
@@ -2858,6 +2868,21 @@ const getStoreProductionOrders = async (req, res) => {
   }
 };
 
+// Dedupe an order's stage rows to ONE row per stageName, preferring the active
+// (PENDING/IN_PROGRESS/WAITING_APPROVAL) row. Defensive against legacy duplicate
+// stage rows so OrderCard renders the live state (correct buttons) and counts never
+// inflate from duplicated stage records.
+const dedupeOrderStages = (stages = []) => {
+  const byName = new Map();
+  const isActive = (s) => ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status);
+  for (const s of stages) {
+    const existing = byName.get(s.stageName);
+    if (!existing) { byName.set(s.stageName, s); continue; }
+    if (!isActive(existing) && isActive(s)) byName.set(s.stageName, s);
+  }
+  return Array.from(byName.values());
+};
+
 const getUnseenOrders = async (req, res) => {
   const userId = req.user.id;
   const userRole = req.user.role;
@@ -2939,7 +2964,10 @@ const getUnseenOrders = async (req, res) => {
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
 
-    res.json({ unseen: sortOrders(unseen), seen: sortOrders(seen) });
+    res.json({
+      unseen: sortOrders(unseen).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) })),
+      seen: sortOrders(seen).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) }))
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching unseen orders', error: error.message });
   }

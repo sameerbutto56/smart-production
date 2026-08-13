@@ -4,7 +4,7 @@ import api from '../services/api';
 
 const DEFAULT_TTL = 5 * 60 * 1000;
 
-export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRevalidate = true, freshMs } = {}) {
+export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRevalidate = true, freshMs, sameData } = {}) {
   const [data, setData] = useState(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,6 +13,8 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
   const fetcherRef = useRef(fetcher);
   const reqRef = useRef(0);
   const lastFetchRef = useRef({});
+  const dataRef = useRef(data);
+  dataRef.current = data;
   fetcherRef.current = fetcher;
 
   const load = useCallback(async (skipCache = false) => {
@@ -75,6 +77,16 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     try {
       const freshData = await fn();
       if (!mountRef.current || reqRef.current !== reqId) return;
+      // Skip replacing state when the refetched payload is semantically unchanged —
+      // prevents the whole list from re-rendering/flickering on every background poll
+      // (e.g. the 30s MyTasks refresh) when nothing actually changed.
+      if (sameData && sameData(dataRef.current, freshData)) {
+        lastFetchRef.current[currentKey] = Date.now();
+        setHot(currentKey, freshData, ttl);
+        await setItem(currentKey, freshData, ttl);
+        setLoading(false);
+        return;
+      }
       setData(freshData);
       setError(null);
       lastFetchRef.current[currentKey] = Date.now();
@@ -86,7 +98,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     } finally {
       if (mountRef.current && reqRef.current === reqId) setLoading(false);
     }
-  }, [ttl, staleWhileRevalidate, freshMs]);
+  }, [ttl, staleWhileRevalidate, freshMs, sameData]);
 
   useEffect(() => {
     mountRef.current = true;

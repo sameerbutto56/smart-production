@@ -19,6 +19,7 @@ const MyTasks = () => {
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'OUTLET'].includes(user?.role);
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
+  const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';
   const isOutlet = user?.role === 'OUTLET';
   const [taskFilter, setTaskFilter] = useState(isOutlet ? 'orders' : (isProductionOut ? 'assigned' : 'unseen'));
@@ -107,9 +108,17 @@ const MyTasks = () => {
   // Cache-first: unseen tasks (hasTaskFilters users). Employee filter (OUTLET) changes the key
   // so the default (All Employees) keeps the exact existing cache key / behavior.
   const empKey = employeeId ? `:${employeeId}` : '';
+  // Semantic equality: ignore object identity so identical background polls (30s refresh /
+  // debounced socket bursts) do NOT replace state and re-render the whole list. State only
+  // updates when an order's stage/status actually changed. Prevents 8→89→0 flicker.
+  const taskSignature = (list) => (list || []).map((o) => `${o.id}|${o.currentStage}|${o.status}`).join(',');
+  const tasksSame = (a, b) => {
+    if (!a || !b) return false;
+    return taskSignature(a.unseen) === taskSignature(b.unseen) && taskSignature(a.seen) === taskSignature(b.seen);
+  };
   const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen, mutate: mutateUnseen } = useCache(
     hasTaskFilters ? `v2:my-tasks:unseen:${user?.role}${empKey}` : null,
-    { fetcher: () => api.get('/api/orders/unseen-tasks', empParams ? { params: empParams } : {}).then(r => r.data), ttl: 60 * 1000 }
+    { fetcher: () => api.get('/api/orders/unseen-tasks', empParams ? { params: empParams } : {}).then(r => r.data), ttl: 60 * 1000, sameData: tasksSame }
   );
   // Cache-first: production returned (STORE only)
   const { data: productionData = null, refresh: refreshProduction } = useCache(
@@ -247,13 +256,6 @@ const MyTasks = () => {
 
   // Refresh once on mount
   useEffect(() => { refreshTasks(); }, []);
-
-  // Lightweight background poll (every 30s) as socket fallback — never shows loading spinner
-  useEffect(() => {
-    if (!user?.role) return;
-    const id = setInterval(() => scheduleRefresh(), 30000);
-    return () => clearInterval(id);
-  }, [user?.role, scheduleRefresh]);
 
   // Fetch alteration/engraving tasks when those tabs are selected
   useEffect(() => {
@@ -458,6 +460,7 @@ const MyTasks = () => {
                 Unseen Tasks {unseenData?.unseen?.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{unseenData.unseen.length}</span>}
               </button>
             )}
+            {(!isProductionIn) && (
             <button onClick={() => setTaskFilter('assigned')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
                   taskFilter === 'assigned' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
@@ -466,6 +469,7 @@ const MyTasks = () => {
                 <CheckCircle size={14} />
                 Assigned/Accepted ({unseenData?.seen?.length || 0})
               </button>
+            )}
             {showProductionTab && (
               <button onClick={() => setTaskFilter('production')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
