@@ -1169,14 +1169,14 @@ const getComeFromProduction = async (req, res) => {
     const outletFilter = isJT ? undefined : { contains: normalizedName, mode: 'insensitive' };
 
     // Optional global employee filter (Outlet My Tasks) — filters by the employee who
-    // created/placed the order (placedByEmployeeId exact, or placedBy name).
+    // created/placed the order (placedByEmployeeId exact, or placedBy exact name).
     const empId = (req.query.employeeId || '').toString().trim();
     const empName = (req.query.employeeName || '').toString().trim();
     let creatorFilter = {};
     if (empId || empName) {
       creatorFilter.OR = [
         ...(empId ? [{ placedByEmployeeId: empId }] : []),
-        ...(empName ? [{ placedBy: { contains: empName, mode: 'insensitive' } }] : [])
+        ...(empName ? [{ placedBy: { equals: empName, mode: 'insensitive' } }] : [])
       ];
     }
 

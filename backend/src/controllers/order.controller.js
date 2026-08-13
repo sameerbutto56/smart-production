@@ -2900,10 +2900,12 @@ const getUnseenOrders = async (req, res) => {
       }
     }
     // Employee filter — combines with the above via implicit AND (no filter = unchanged behavior)
+    // Matches by placedByEmployeeId (exact) OR placedBy (exact employee name, case-insensitive)
+    // so orders that only carry the creator's name are still returned.
     if (empId || empName) {
       whereClause.OR = [
         ...(empId ? [{ placedByEmployeeId: empId }] : []),
-        ...(empName ? [{ placedBy: { contains: empName, mode: 'insensitive' } }] : [])
+        ...(empName ? [{ placedBy: { equals: empName, mode: 'insensitive' } }] : [])
       ];
     }
     const orders = await prisma.order.findMany({

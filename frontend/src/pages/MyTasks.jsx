@@ -59,18 +59,27 @@ const MyTasks = () => {
 
   useEffect(() => { if (isOutlet) loadEmployees(); }, [isOutlet, loadEmployees]);
 
+  // Employee filter params — send both the id and the name so the backend can match
+  // orders by placedByEmployeeId (exact) OR placedBy name (orders that carry only the
+  // employee name, e.g. older records), never silently returning too few results.
+  const empParams = useMemo(() => {
+    if (!employeeId) return undefined;
+    const emp = employees.find(e => e.id === employeeId);
+    return emp ? { employeeId: emp.id, employeeName: emp.name } : { employeeId };
+  }, [employeeId, employees]);
+
   const fetchComeFromProduction = useCallback(async () => {
     if (!isOutlet) return;
     setCfpLoading(true);
     try {
       const res = await api.get('/api/outlet-orders/come-from-production',
-        employeeId ? { params: { employeeId } } : {});
+        empParams ? { params: empParams } : {});
       setComeFromProduction(res.data || { unseen: [], seen: [] });
     } catch (e) {
       console.error('Error fetching production-returned orders:', e);
     }
     setCfpLoading(false);
-  }, [isOutlet, employeeId]);
+  }, [isOutlet, empParams]);
 
   const fetchAltTasks = useCallback(async () => {
     setAltTasksLoading(true);
@@ -101,17 +110,17 @@ const MyTasks = () => {
   const empKey = employeeId ? `:${employeeId}` : '';
   const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen, mutate: mutateUnseen } = useCache(
     hasTaskFilters ? `v2:my-tasks:unseen:${user?.role}${empKey}` : null,
-    { fetcher: () => api.get('/api/orders/unseen-tasks', employeeId ? { params: { employeeId } } : {}).then(r => r.data), ttl: 60 * 1000 }
+    { fetcher: () => api.get('/api/orders/unseen-tasks', empParams ? { params: empParams } : {}).then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: production returned (STORE only)
   const { data: productionData = null, refresh: refreshProduction } = useCache(
     showProductionTab ? `v2:my-tasks:production-returned${empKey}` : null,
-    { fetcher: () => api.get('/api/orders/production-returned', employeeId ? { params: { employeeId } } : {}).then(r => r.data), ttl: 60 * 1000 }
+    { fetcher: () => api.get('/api/orders/production-returned', empParams ? { params: empParams } : {}).then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: active orders (non-task-filter users)
   const { data: fetchedOrders = [], loading: ordersLoading, refresh: refreshOrders } = useCache(
     !hasTaskFilters ? `v2:my-tasks:active${empKey}` : null,
-    { fetcher: () => api.get('/api/orders?status=active', employeeId ? { params: { employeeId } } : {}).then(r => Array.isArray(r.data) ? r.data : (r.data?.orders || [])), ttl: 60 * 1000 }
+    { fetcher: () => api.get('/api/orders?status=active', empParams ? { params: empParams } : {}).then(r => Array.isArray(r.data) ? r.data : (r.data?.orders || [])), ttl: 60 * 1000 }
   );
 
   const orders = hasTaskFilters ? [] : fetchedOrders;
