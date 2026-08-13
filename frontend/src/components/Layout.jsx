@@ -51,6 +51,7 @@ import { formatDateOnly } from '../utils/dateTime';
 import socket from '../socket';
 import useDemandNotification from '../hooks/useDemandNotification';
 import toast from 'react-hot-toast';
+import SystemPauseControl from './SystemPauseControl';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -624,6 +625,7 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <SystemPauseControl />
             {user?.role === 'FAISAL' && (
               <button
                 onClick={handleFaisalLogout}

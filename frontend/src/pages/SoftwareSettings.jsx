@@ -44,10 +44,8 @@ const DEFAULT_DELAY_CONFIG = {
 
 const SoftwareSettings = () => {
   const { user } = useAuth();
-  const { paused: systemPaused, info: pauseInfo, profiles: pauseProfiles, profileDefs: pauseProfileDefs, history: pauseHistory, refresh: refreshPauseState, fetchHistory: fetchPauseHistory, pause: pauseSystem, resume: resumeSystem, saveProfiles: savePauseProfiles } = useSystemPause();
+  const { paused: systemPaused, info: pauseInfo, profiles: pauseProfiles, profileDefs: pauseProfileDefs, history: pauseHistory, refresh: refreshPauseState, fetchHistory: fetchPauseHistory, saveProfiles: savePauseProfiles } = useSystemPause();
   const [activeTab, setActiveTab] = useState('employees');
-  const [pausePassword, setPausePassword] = useState('');
-  const [pauseBusy, setPauseBusy] = useState(false);
   const [pauseProfilesSel, setPauseProfilesSel] = useState([]);
   const [pauseProfilesBusy, setPauseProfilesBusy] = useState(false);
 
@@ -667,9 +665,10 @@ const SoftwareSettings = () => {
                   {systemPaused
                     ? <PauseCircle className="text-red-400" /> 
                     : <PlayCircle className="text-emerald-400" />}
-                  Global System Pause / Resume
+                  System Pause Status
                 </h2>
                 <p className="text-xs text-gray-400 mt-1">
+                  Use the <span className="text-white font-bold">Pause System / Resume System</span> button in the top navigation bar.
                   While paused, the selected profiles are stopped — order entry, POS sales, production, store, verification, dispatch, delivery, returns and cancellations. Unselected profiles keep working. No existing data is changed.
                 </p>
               </div>
@@ -678,15 +677,6 @@ const SoftwareSettings = () => {
                   className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all">
                   <RefreshCw size={15} /> Refresh
                 </button>
-                {systemPaused
-                  ? <button onClick={() => document.getElementById('pause-password-input')?.focus()}
-                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
-                      <PlayCircle size={16} /> Resume System
-                    </button>
-                  : <button onClick={() => document.getElementById('pause-password-input')?.focus()}
-                      className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
-                      <PauseCircle size={16} /> Pause System
-                    </button>}
               </div>
             </div>
 
@@ -702,33 +692,6 @@ const SoftwareSettings = () => {
                 <p className="font-black text-emerald-300 text-sm">🟢 SYSTEM ACTIVE — All functions have been resumed.</p>
               </div>
             )}
-
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!pausePassword) return;
-              setPauseBusy(true);
-              const action = systemPaused ? 'resume' : 'pause';
-              (systemPaused ? resumeSystem(pausePassword) : pauseSystem(pausePassword))
-                .then((res) => {
-                  if (!res) return;
-                  toast.success(res.data?.message || (systemPaused ? 'System resumed.' : 'System paused.'));
-                  setPausePassword('');
-                })
-                .catch((err) => toast.error(err.response?.data?.message || 'Failed to update system state'))
-                .finally(() => setPauseBusy(false));
-            }} className="flex flex-wrap items-end gap-3">
-              <div className="flex-1 min-w-[220px]">
-                <label className="text-xs font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
-                <input id="pause-password-input" type="password" value={pausePassword} onChange={(e) => setPausePassword(e.target.value)}
-                  placeholder="Enter your password to confirm" required
-                  className="w-full bg-gray-950/50 border-2 border-gray-700 rounded-xl py-2.5 px-3 mt-1 focus:border-blue-500 outline-none font-bold text-white text-sm" />
-              </div>
-              <button type="submit" disabled={pauseBusy || !pausePassword}
-                className={`flex items-center gap-2 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 ${systemPaused ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
-                {pauseBusy ? <Loader2 className="animate-spin" size={16} /> : systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
-                {systemPaused ? 'Confirm Resume' : 'Confirm Pause'}
-              </button>
-            </form>
           </div>
 
           {/* ═══════ SYSTEM PAUSE SETTINGS — profile selection ═══════ */}
@@ -740,7 +703,7 @@ const SoftwareSettings = () => {
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs text-gray-400 font-bold">
-                Checked profiles are <span className="text-red-400">paused</span> when you press Pause System; unchecked profiles
+                Checked profiles are <span className="text-red-400">paused</span> when Pause System is used from the top bar; unchecked profiles
                 keep working normally. No profiles saved yet means the pause applies to <span className="text-red-400">every</span> profile (global pause).
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">

@@ -67,7 +67,6 @@ import { useLanguage } from '../context/LanguageContext';
 import { useSystemPause } from '../context/SystemPauseContext';
 import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
-import { PauseCircle, PlayCircle } from 'lucide-react';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import { getStageDelays } from '../utils/delayUtils';
 
@@ -119,9 +118,6 @@ const AdminDashboard = () => {
   const [trackingError, setTrackingError] = useState('');
   const [trackingTimeline, setTrackingTimeline] = useState([]);
   const [trackingTimelineLoading, setTrackingTimelineLoading] = useState(false);
-  const [showPauseModal, setShowPauseModal] = useState(false);
-  const [pausePassword, setPausePassword] = useState('');
-  const [pausing, setPausing] = useState(false);
 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRequestData, setReviewRequestData] = useState(null);
@@ -145,7 +141,7 @@ const AdminDashboard = () => {
   const editRequestsRefreshRef = useRef();
   const queueRefreshRef = useRef();
 
-  const { paused: systemPaused, info: pauseInfo, periods: pausePeriods, myProfile: pauseProfile, pause: pauseSystem, resume: resumeSystem } = useSystemPause();
+  const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
 
   const needsData = activeTab !== null;
   const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache(needsData ? 'admin:dashboard:orders' : null, { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
@@ -337,25 +333,6 @@ const AdminDashboard = () => {
       toast.error(err.response?.data?.message || 'Failed to reject edit request');
     }
     setReviewSubmitting(false);
-  };
-
-  const handleTogglePause = async (e) => {
-    e.preventDefault();
-    setPausing(true);
-    try {
-      const res = systemPaused
-        ? await resumeSystem(pausePassword)
-        : await pauseSystem(pausePassword);
-      if (!res) return;
-      setShowPauseModal(false);
-      setPausePassword('');
-      toast.success(res.data?.message || (systemPaused ? 'System resumed.' : 'System paused.'));
-      queueRefreshRef.current?.();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update system state');
-    } finally {
-      setPausing(false);
-    }
   };
 
   const handleDashboardSearch = (val) => {
@@ -663,27 +640,12 @@ const AdminDashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {systemPaused && (
-                <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
-                  <PauseCircle className="text-red-400" size={18} />
-                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">🔴 SYSTEM PAUSED — All functions are temporarily stopped for the selected profiles by Admin.</span>
-                </div>
-              )}
               {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
-                <>
-                  <button onClick={() => setShowPauseModal(true)}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
-                      systemPaused ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
-                    }`}>
-                    {systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
-                    <span>{systemPaused ? 'Resume System' : 'Pause System'}</span>
-                  </button>
-                  <button onClick={() => alert('Notification Alert Broadcasted!')}
-                    className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95">
-                    <BellRing size={16} />
-                    <span>Send Alert</span>
-                  </button>
-                </>
+                <button onClick={() => alert('Notification Alert Broadcasted!')}
+                  className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95">
+                  <BellRing size={16} />
+                  <span>Send Alert</span>
+                </button>
               )}
             </div>
           </div>
@@ -1383,46 +1345,6 @@ const AdminDashboard = () => {
       {activeTab === 'outlet_johar' && <OutletDetailedCard outlet="Johar Town" />}
       {activeTab === 'outlet_jail' && <OutletDetailedCard outlet="Jail Road" />}
       {activeTab === 'outlet_abbottabad' && <OutletDetailedCard outlet="Abbottabad" />}
-
-      {/* Pause Modal */}
-      <AnimatePresence>
-        {showPauseModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
-              <div className="flex items-center gap-4 mb-6">
-                <div className={`p-3 rounded-xl ${systemPaused ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
-                  {systemPaused ? <PlayCircle className="text-emerald-400" size={28} /> : <PauseCircle className="text-red-400" size={28} />}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black text-white">{systemPaused ? 'Resume System' : 'Pause System'}</h2>
-                  <p className="text-gray-400 text-sm font-bold">{systemPaused ? 'Reactivate all functions.' : 'Stop all functions temporarily. No operations can run while paused.'}</p>
-                </div>
-              </div>
-              <form onSubmit={handleTogglePause} className="space-y-4">
-                <div>
-                  <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
-                  <input type="password" value={pausePassword} onChange={(e) => setPausePassword(e.target.value)}
-                    className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-red-500 outline-none font-black text-lg text-white mt-2"
-                    placeholder="Enter your password" required />
-                </div>
-                <p className="text-xs text-gray-500 font-bold">Enter your admin password to {systemPaused ? 'resume' : 'pause'} the system.</p>
-                <div className="flex space-x-3">
-                  <button type="button" onClick={() => { setShowPauseModal(false); setPausePassword(''); }}
-                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">Cancel</button>
-                  <button type="submit" disabled={pausing || !pausePassword}
-                    className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 ${
-                      systemPaused ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-red-600 text-white hover:bg-red-500'
-                    } disabled:opacity-50`}>
-                    {pausing ? <Loader2 className="animate-spin" size={16} /> : systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
-                    <span>{pausing ? 'Processing...' : systemPaused ? 'Resume System' : 'Pause System'}</span>
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Review Edit Request Modal */}
       <AnimatePresence>
