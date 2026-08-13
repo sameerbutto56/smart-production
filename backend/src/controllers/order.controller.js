@@ -837,6 +837,15 @@ const requestStageCompletion = async (req, res) => {
       }
     }
 
+    // Production In split guard: a Logo stage completing its design must route to
+    // PRODUCTION_ACCEPTANCE (Production In's stage), never straight to PRODUCTION
+    // (Production Out's stage) — otherwise the order bypasses Production In entirely.
+    // Legacy/cached clients may still send 'PRODUCTION' — normalize it here.
+    if (actualNextStage === 'PRODUCTION' &&
+        ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
+      actualNextStage = 'PRODUCTION_ACCEPTANCE';
+    }
+
     // Validate that the destination stage exists in the system
     if (actualNextStage && !validAllStages.includes(actualNextStage)) {
       return res.status(400).json({
@@ -2682,6 +2691,14 @@ const manualRouteOrder = async (req, res) => {
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
 
+    // Production In split guard: routing a Logo stage to PRODUCTION must land in
+    // PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted before
+    // Production Out works on it — never straight to PRODUCTION (Production Out).
+    if (destinationStage === 'PRODUCTION' &&
+        currentStage && ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
+      destinationStage = 'PRODUCTION_ACCEPTANCE';
+    }
+
     // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
     if (currentStage && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
       const validation = validateStageTransition(currentStage.stageName, destinationStage, order.type);
@@ -2963,6 +2980,18 @@ const getUnseenOrders = async (req, res) => {
       if (pa !== pb) return pa - pb;
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
+
+    // Production In is a pure accept role whose ONLY visible tab is "Unseen Tasks".
+    // Show every order at the acceptance stage regardless of seen status — otherwise
+    // orders previously marked seen (but not yet accepted) vanish from their only
+    // tab and become stuck. Once accepted, the order routes to PRODUCTION and leaves
+    // this list entirely (Production In's stage mapping excludes PRODUCTION).
+    if (userRole === 'PRODUCTION_IN') {
+      return res.json({
+        unseen: sortOrders(orders).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) })),
+        seen: []
+      });
+    }
 
     res.json({
       unseen: sortOrders(unseen).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) })),

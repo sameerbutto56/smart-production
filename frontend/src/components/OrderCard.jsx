@@ -1602,14 +1602,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <button
                       onClick={() => {
                         if (window.confirm('Design complete! Send to Production?')) {
-                          onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'PRODUCTION' });
+                          onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'PRODUCTION_ACCEPTANCE' });
                         }
                       }}
                       className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                     >
                       <CheckCircle size={14} />
                       <span>Send to Production</span>
-                      <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ PRODUCTION</span>
+                      <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ PRODUCTION ACCEPTANCE</span>
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
