@@ -19,7 +19,6 @@ const MyTasks = () => {
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'OUTLET'].includes(user?.role);
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
-  const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';
   const isOutlet = user?.role === 'OUTLET';
   const [taskFilter, setTaskFilter] = useState(isOutlet ? 'orders' : (isProductionOut ? 'assigned' : 'unseen'));
@@ -459,8 +458,7 @@ const MyTasks = () => {
                 Unseen Tasks {unseenData?.unseen?.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{unseenData.unseen.length}</span>}
               </button>
             )}
-            {(!isProductionIn) && (
-              <button onClick={() => setTaskFilter('assigned')}
+            <button onClick={() => setTaskFilter('assigned')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
                   taskFilter === 'assigned' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
                 }`}
@@ -468,7 +466,6 @@ const MyTasks = () => {
                 <CheckCircle size={14} />
                 Assigned/Accepted ({unseenData?.seen?.length || 0})
               </button>
-            )}
             {showProductionTab && (
               <button onClick={() => setTaskFilter('production')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
