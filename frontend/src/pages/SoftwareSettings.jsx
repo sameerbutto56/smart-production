@@ -145,6 +145,24 @@ const SoftwareSettings = () => {
   const [profileResetTarget, setProfileResetTarget] = useState(null);
   const [profilePassword, setProfilePassword] = useState('');
 
+  // ── Profile login history state ──
+  const [sessions, setSessions] = useState([]);
+  const [sessionsActive, setSessionsActive] = useState(0);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  const fetchSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const res = await api.get('/api/auth/sessions', { params: { limit: 500, days: 90 } });
+      setSessions(Array.isArray(res.data?.sessions) ? res.data.sessions : []);
+      setSessionsActive(res.data?.activeCount || 0);
+    } catch (err) {
+      toast.error('Failed to load login history: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     try {
@@ -469,6 +487,7 @@ const SoftwareSettings = () => {
     { key: 'delay', label: 'Set Delay', icon: <Clock size={16} /> },
     { key: 'devices', label: 'Device Management', icon: <Laptop size={16} /> },
     { key: 'profiles', label: 'Profile Management', icon: <UserCog size={16} /> },
+    { key: 'sessions', label: 'Profile Login History', icon: <History size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
 
@@ -1162,6 +1181,90 @@ const SoftwareSettings = () => {
                               {p.isActive ? <><Ban size={12} /> Disable</> : <><Power size={12} /> Enable</>}
                             </button>
                           </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'sessions' && (
+        <div className="space-y-6">
+          <div className="glass rounded-2xl border-2 border-gray-700 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2"><History className="text-emerald-400" /> Profile Login History</h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  Real login / logout session records for system profiles. Each row is created automatically on a successful login
+                  (after the device authorization gate) and closed when that profile logs out.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1.5 rounded-xl text-xs font-black border ${sessionsActive > 0 ? 'bg-emerald-600/20 border-emerald-600/50 text-emerald-400' : 'bg-gray-800 border-gray-600 text-gray-400'}`}>
+                  {sessionsActive} currently logged in
+                </span>
+                <button onClick={fetchSessions}
+                  className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold px-3 py-2 rounded-xl text-sm">
+                  <RefreshCw size={15} /> Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {sessionsLoading ? (
+            <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+          ) : sessions.length === 0 ? (
+            <div className="glass rounded-2xl border-2 border-gray-700 py-16 text-center text-sm text-gray-500 font-bold">
+              No login records found in the last 90 days.
+            </div>
+          ) : (
+            <div className="glass rounded-2xl border-2 border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-900/60 text-[11px] uppercase tracking-wide text-gray-400 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2.5">Profile</th>
+                      <th className="px-4 py-2.5">Role</th>
+                      <th className="px-4 py-2.5">Login Time</th>
+                      <th className="px-4 py-2.5">Logout Time</th>
+                      <th className="px-4 py-2.5">Device</th>
+                      <th className="px-4 py-2.5">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {sessions.map(s => (
+                      <tr key={s.id} className="hover:bg-gray-800/40">
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center font-black text-emerald-300 text-xs">
+                              {(s.userName || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <span className="font-bold text-white block">{s.userName}</span>
+                              <span className="text-[10px] text-gray-500">{s.userEmail}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold border bg-blue-600/20 border-blue-600/50 text-blue-300">
+                            {ROLE_LABELS[s.role] || s.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-gray-300">{fmtDate(s.loginAt)}</td>
+                        <td className="px-4 py-2.5 text-gray-300">{s.logoutAt ? fmtDate(s.logoutAt) : '—'}</td>
+                        <td className="px-4 py-2.5 text-gray-400">{s.deviceName || '—'}</td>
+                        <td className="px-4 py-2.5">
+                          {s.status === 'ACTIVE'
+                            ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold border bg-emerald-600/20 border-emerald-600/50 text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active
+                              </span>
+                            : <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-bold border bg-gray-700/40 border-gray-600 text-gray-400">
+                                Logged Out
+                              </span>}
                         </td>
                       </tr>
                     ))}

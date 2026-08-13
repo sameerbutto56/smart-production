@@ -39,6 +39,7 @@ model User {
   engravingStages       EngravingStage[]
   cancellationsRequested OrderCancellationRequest[] @relation("CancellationRequestedBy")
   cancellationsDecided  OrderCancellationRequest[] @relation("CancellationDecidedBy")
+  loginSessions          LoginSession[]
 }
 
 model Order {
@@ -471,6 +472,30 @@ model DeviceAuthorization {
   @@index([status])
   @@index([assignedRole])
   @@index([deviceCodeHash])
+}
+
+// Profile login / logout tracking. One row is written on every successful login
+// (after the device gate passes) and closed when that user logs out. Used by the
+// Admin Dashboard "Profile Login Time" card and Software Settings login history.
+model LoginSession {
+  id         String    @id @default(uuid())
+  userId     String
+  userEmail  String
+  userName   String
+  role       String
+  deviceId   String?
+  deviceName String?
+  ip         String?
+  userAgent  String?
+  loginAt    DateTime  @default(now())
+  logoutAt   DateTime?
+  status     String    @default("ACTIVE") // ACTIVE / LOGGED_OUT
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loginAt])
+  @@index([role, loginAt])
+  @@index([loginAt])
+  @@index([status])
 }
 
 model ProductionRecord {

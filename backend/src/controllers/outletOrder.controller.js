@@ -1168,6 +1168,18 @@ const getComeFromProduction = async (req, res) => {
     const isJT = normalizedName === 'Johar Town';
     const outletFilter = isJT ? undefined : { contains: normalizedName, mode: 'insensitive' };
 
+    // Optional global employee filter (Outlet My Tasks) — filters by the employee who
+    // created/placed the order (placedByEmployeeId exact, or placedBy name).
+    const empId = (req.query.employeeId || '').toString().trim();
+    const empName = (req.query.employeeName || '').toString().trim();
+    let creatorFilter = {};
+    if (empId || empName) {
+      creatorFilter.OR = [
+        ...(empId ? [{ placedByEmployeeId: empId }] : []),
+        ...(empName ? [{ placedBy: { contains: empName, mode: 'insensitive' } }] : [])
+      ];
+    }
+
     const orders = await prisma.order.findMany({
       where: {
         source: 'OUTLET',
@@ -1185,7 +1197,8 @@ const getComeFromProduction = async (req, res) => {
               ]
             })
           }
-        }
+        },
+        ...creatorFilter
       },
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },

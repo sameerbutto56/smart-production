@@ -2842,6 +2842,10 @@ const getUnseenOrders = async (req, res) => {
   const userId = req.user.id;
   const userRole = req.user.role;
   const limit = parseInt(req.query.limit) || 250;
+  // Optional global employee filter (Outlet My Tasks) — filters by the employee who
+  // created/placed the order (placedByEmployeeId exact, or placedBy name).
+  const empId = (req.query.employeeId || '').toString().trim();
+  const empName = (req.query.employeeName || '').toString().trim();
 
   try {
     // Find orders that are in stages relevant to this user's role
@@ -2873,6 +2877,13 @@ const getUnseenOrders = async (req, res) => {
       } else {
         whereClause.outletName = { contains: normalizedName, mode: 'insensitive' };
       }
+    }
+    // Employee filter — combines with the above via implicit AND (no filter = unchanged behavior)
+    if (empId || empName) {
+      whereClause.OR = [
+        ...(empId ? [{ placedByEmployeeId: empId }] : []),
+        ...(empName ? [{ placedBy: { contains: empName, mode: 'insensitive' } }] : [])
+      ];
     }
     const orders = await prisma.order.findMany({
       where: whereClause,

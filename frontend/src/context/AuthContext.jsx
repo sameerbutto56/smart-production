@@ -47,6 +47,16 @@ export const AuthProvider = ({ children }) => {
   }, [joinRoleRoom]);
 
   const logout = useCallback(() => {
+    // Fire-and-forget: tell the backend to close the active login session so
+    // Admin Dashboard / Software Settings login-time records show LOGGED_OUT.
+    // Never blocks sign-out if the call fails.
+    try {
+      const token = sessionStorage.getItem('token');
+      if (token) {
+        const device = getDeviceInfo();
+        api.post('/api/auth/logout', { deviceId: device.deviceId }).catch(() => {});
+      }
+    } catch (e) { /* ignore */ }
     resetSocket();
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');

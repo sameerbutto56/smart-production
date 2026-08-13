@@ -44,7 +44,8 @@ import {
   Globe,
   Building,
   MessageSquare,
-  ClipboardCheck
+  ClipboardCheck,
+  LogIn
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -127,6 +128,26 @@ const AdminDashboard = () => {
   const [expandedEditRequest, setExpandedEditRequest] = useState(null);
   const [inventorySearchResults, setInventorySearchResults] = useState({});
   const [inventorySearchLoading, setInventorySearchLoading] = useState(false);
+
+  // Profile login time tracking (Admin Dashboard card)
+  const [loginSessions, setLoginSessions] = useState([]);
+  const [loginSessionsActive, setLoginSessionsActive] = useState(0);
+  const [loginSessionsLoading, setLoginSessionsLoading] = useState(false);
+  const [showLoginSessions, setShowLoginSessions] = useState(false);
+
+  const fetchLoginSessions = useCallback(async () => {
+    setLoginSessionsLoading(true);
+    try {
+      const res = await api.get('/api/auth/sessions', { params: { limit: 200, days: 30 } });
+      setLoginSessions(Array.isArray(res.data?.sessions) ? res.data.sessions : []);
+      setLoginSessionsActive(res.data?.activeCount || 0);
+    } catch (e) {
+      console.error('Error fetching login sessions:', e);
+    }
+    setLoginSessionsLoading(false);
+  }, []);
+
+  useEffect(() => { fetchLoginSessions(); }, [fetchLoginSessions]);
 
   const [filterStage, setFilterStage] = useState('ALL');
   const [storeSubTab, setStoreSubTab] = useState('unseen');
@@ -573,6 +594,121 @@ const AdminDashboard = () => {
               </div>
             )}
           </div>
+
+          {/* Profile Login Time — real login/logout session records */}
+          <div className="glass p-5 md:p-6 rounded-3xl border-2 border-emerald-500/30 shadow-lg shadow-emerald-500/5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-emerald-500/10">
+                  <LogIn className="text-emerald-400" size={26} />
+                </div>
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Profile Login Time</h2>
+                  <p className="text-xs font-bold theme-text-muted uppercase tracking-widest">Real login / logout session records</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {loginSessionsLoading && <Loader2 size={16} className="animate-spin text-emerald-400" />}
+                <button
+                  onClick={fetchLoginSessions}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-black uppercase tracking-widest transition-all"
+                >
+                  <RefreshCcw size={14} /> Refresh
+                </button>
+                <button
+                  onClick={() => setShowLoginSessions(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-500 transition-all"
+                >
+                  View Login History ({loginSessions.length}) <ArrowUpRight size={14} />
+                </button>
+              </div>
+            </div>
+
+            {loginSessions.length > 0 ? (
+              <div className="mt-4 overflow-x-auto rounded-xl border theme-border">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-gray-800/40 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      <th className="px-3 py-2">Profile</th>
+                      <th className="px-3 py-2">Role</th>
+                      <th className="px-3 py-2">Login Time</th>
+                      <th className="px-3 py-2">Logout Time</th>
+                      <th className="px-3 py-2">Device</th>
+                      <th className="px-3 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loginSessions.slice(0, 8).map((s) => (
+                      <tr key={s.id} className="border-t theme-border hover:bg-gray-800/20">
+                        <td className="px-3 py-2 font-bold theme-text-primary">{s.userName}</td>
+                        <td className="px-3 py-2 theme-text-muted">{s.role}</td>
+                        <td className="px-3 py-2 theme-text-muted">{new Date(s.loginAt).toLocaleString()}</td>
+                        <td className="px-3 py-2 theme-text-muted">{s.logoutAt ? new Date(s.logoutAt).toLocaleString() : '—'}</td>
+                        <td className="px-3 py-2 theme-text-muted">{s.deviceName || '—'}</td>
+                        <td className="px-3 py-2">
+                          {s.status === 'ACTIVE'
+                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Active</span>
+                            : <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-700/40 text-gray-400 text-[10px] font-black uppercase tracking-widest">Logged Out</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="mt-4 flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
+                <CheckCircle size={16} /> {loginSessionsLoading ? 'Loading login records…' : 'No login records in the last 30 days'}
+              </div>
+            )}
+            <div className="mt-3 text-[10px] font-black uppercase tracking-widest theme-text-muted">
+              {loginSessionsActive} profile(s) currently logged in · latest {Math.min(loginSessions.length, 8)} of {loginSessions.length} records shown
+            </div>
+          </div>
+
+          {/* Login History modal */}
+          {showLoginSessions && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowLoginSessions(false)}>
+              <div className="glass max-w-4xl w-full max-h-[85vh] overflow-hidden rounded-2xl border-2 border-emerald-500/30 flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b theme-border">
+                  <div>
+                    <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">Profile Login History</h3>
+                    <p className="text-[10px] font-bold theme-text-muted uppercase tracking-widest">Last 30 days · {loginSessionsActive} currently logged in</p>
+                  </div>
+                  <button onClick={() => setShowLoginSessions(false)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400"><X size={18} /></button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-4">
+                  <table className="w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-gray-900">
+                      <tr className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        <th className="px-3 py-2">Profile</th>
+                        <th className="px-3 py-2">Role</th>
+                        <th className="px-3 py-2">Login Time</th>
+                        <th className="px-3 py-2">Logout Time</th>
+                        <th className="px-3 py-2">Device</th>
+                        <th className="px-3 py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loginSessions.map((s) => (
+                        <tr key={s.id} className="border-t theme-border hover:bg-gray-800/20">
+                          <td className="px-3 py-2 font-bold theme-text-primary">{s.userName}</td>
+                          <td className="px-3 py-2 theme-text-muted">{s.role}</td>
+                          <td className="px-3 py-2 theme-text-muted">{new Date(s.loginAt).toLocaleString()}</td>
+                          <td className="px-3 py-2 theme-text-muted">{s.logoutAt ? new Date(s.logoutAt).toLocaleString() : '—'}</td>
+                          <td className="px-3 py-2 theme-text-muted">{s.deviceName || '—'}</td>
+                          <td className="px-3 py-2">
+                            {s.status === 'ACTIVE'
+                              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Active</span>
+                              : <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-700/40 text-gray-400 text-[10px] font-black uppercase tracking-widest">Logged Out</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Module Cards Grid — Large Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 pt-4">

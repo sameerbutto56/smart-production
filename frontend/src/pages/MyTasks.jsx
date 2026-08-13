@@ -43,17 +43,34 @@ const MyTasks = () => {
   const [comeFromProduction, setComeFromProduction] = useState(null);
   const [cfpLoading, setCfpLoading] = useState(false);
 
+  // OUTLET-specific: global employee filter (order creator). Empty = All Employees.
+  const [employeeId, setEmployeeId] = useState('');
+  const [employees, setEmployees] = useState([]);
+
+  const loadEmployees = useCallback(async () => {
+    if (!isOutlet) return;
+    try {
+      const res = await api.get('/api/outlet-orders/employees');
+      setEmployees(Array.isArray(res.data?.employees) ? res.data.employees : []);
+    } catch (e) {
+      console.error('Error fetching outlet employees:', e);
+    }
+  }, [isOutlet]);
+
+  useEffect(() => { if (isOutlet) loadEmployees(); }, [isOutlet, loadEmployees]);
+
   const fetchComeFromProduction = useCallback(async () => {
     if (!isOutlet) return;
     setCfpLoading(true);
     try {
-      const res = await api.get('/api/outlet-orders/come-from-production');
+      const res = await api.get('/api/outlet-orders/come-from-production',
+        employeeId ? { params: { employeeId } } : {});
       setComeFromProduction(res.data || { unseen: [], seen: [] });
     } catch (e) {
       console.error('Error fetching production-returned orders:', e);
     }
     setCfpLoading(false);
-  }, [isOutlet]);
+  }, [isOutlet, employeeId]);
 
   const fetchAltTasks = useCallback(async () => {
     setAltTasksLoading(true);
@@ -79,20 +96,22 @@ const MyTasks = () => {
     setEngActionLoading(null);
   };
 
-  // Cache-first: unseen tasks (hasTaskFilters users)
+  // Cache-first: unseen tasks (hasTaskFilters users). Employee filter (OUTLET) changes the key
+  // so the default (All Employees) keeps the exact existing cache key / behavior.
+  const empKey = employeeId ? `:${employeeId}` : '';
   const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen, mutate: mutateUnseen } = useCache(
-    hasTaskFilters ? `v2:my-tasks:unseen:${user?.role}` : null,
-    { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 60 * 1000 }
+    hasTaskFilters ? `v2:my-tasks:unseen:${user?.role}${empKey}` : null,
+    { fetcher: () => api.get('/api/orders/unseen-tasks', employeeId ? { params: { employeeId } } : {}).then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: production returned (STORE only)
   const { data: productionData = null, refresh: refreshProduction } = useCache(
-    showProductionTab ? 'v2:my-tasks:production-returned' : null,
-    { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 60 * 1000 }
+    showProductionTab ? `v2:my-tasks:production-returned${empKey}` : null,
+    { fetcher: () => api.get('/api/orders/production-returned', employeeId ? { params: { employeeId } } : {}).then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: active orders (non-task-filter users)
   const { data: fetchedOrders = [], loading: ordersLoading, refresh: refreshOrders } = useCache(
-    !hasTaskFilters ? 'v2:my-tasks:active' : null,
-    { fetcher: () => api.get('/api/orders?status=active').then(r => Array.isArray(r.data) ? r.data : (r.data?.orders || [])), ttl: 60 * 1000 }
+    !hasTaskFilters ? `v2:my-tasks:active${empKey}` : null,
+    { fetcher: () => api.get('/api/orders?status=active', employeeId ? { params: { employeeId } } : {}).then(r => Array.isArray(r.data) ? r.data : (r.data?.orders || [])), ttl: 60 * 1000 }
   );
 
   const orders = hasTaskFilters ? [] : fetchedOrders;
@@ -233,7 +252,7 @@ const MyTasks = () => {
     if (isOutlet && taskFilter === 'alterations') fetchAltTasks();
     if (isOutlet && taskFilter === 'engravings') fetchEngTasks();
     if (isOutlet && taskFilter === 'come-from-production') fetchComeFromProduction();
-  }, [taskFilter, isOutlet]);
+  }, [taskFilter, isOutlet, fetchComeFromProduction]);
 
   const fetchUnseenTasks = () => refreshUnseen();
 
@@ -453,6 +472,22 @@ const MyTasks = () => {
             )}
           </div>
         ) : null}
+        {isOutlet && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Filter size={14} className="theme-text-muted" />
+            <select
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              className="bg-gray-800 border theme-border rounded-lg px-3 py-2 text-xs font-bold text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[180px]"
+              title="Filter by employee who created the order"
+            >
+              <option value="">All Employees</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <button
           onClick={refreshTasks}
           className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest text-gray-400 transition-all"

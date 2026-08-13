@@ -62,6 +62,25 @@ const login = async (req, res) => {
       { expiresIn: '1d' }
     );
 
+    // Record the login session (best-effort — a recording failure must never block login).
+    try {
+      await prisma.loginSession.create({
+        data: {
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.name,
+          role: user.role,
+          deviceId: deviceId || null,
+          deviceName: deviceName || null,
+          ip: getClientIp(req) || null,
+          userAgent: req.headers['user-agent'] || null,
+          status: 'ACTIVE'
+        }
+      });
+    } catch (sessionErr) {
+      console.error('LOGIN SESSION RECORD ERROR:', sessionErr.message);
+    }
+
     res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
   } catch (error) {
     console.error('LOGIN ERROR:', error.message, error.stack);
@@ -72,4 +91,58 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+// Closes the most recent ACTIVE login session for the logged-out user (best-effort,
+// called fire-and-forget from the frontend so a failed call never blocks sign-out).
+const logout = async (req, res) => {
+  try {
+    const deviceId = req.body?.deviceId || null;
+    const where = { userId: req.user.id, status: 'ACTIVE' };
+    if (deviceId) where.deviceId = deviceId;
+
+    const active = await prisma.loginSession.findFirst({
+      where,
+      orderBy: { loginAt: 'desc' },
+      select: { id: true }
+    });
+    if (active) {
+      await prisma.loginSession.update({
+        where: { id: active.id },
+        data: { logoutAt: new Date(), status: 'LOGGED_OUT' }
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('LOGOUT SESSION ERROR:', error.message);
+    res.status(500).json({ message: 'Error recording logout', error: error.message });
+  }
+};
+
+// Login history used by Admin Dashboard "Profile Login Time" and Software Settings.
+// SOFTWARE_SETTINGS / SUPER_ADMIN / ADMIN only.
+const getLoginSessions = async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+    const days = Math.min(parseInt(req.query.days) || 30, 365);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const sessions = await prisma.loginSession.findMany({
+      where: {
+        loginAt: { gte: since },
+        ...(req.query.role ? { role: String(req.query.role) } : {}),
+        ...(req.query.userId ? { userId: String(req.query.userId) } : {}),
+        ...(req.query.status ? { status: String(req.query.status) } : {})
+      },
+      orderBy: { loginAt: 'desc' },
+      take: limit
+    });
+
+    const activeCount = await prisma.loginSession.count({ where: { status: 'ACTIVE' } });
+
+    res.json({ sessions, activeCount });
+  } catch (error) {
+    console.error('LOGIN SESSIONS ERROR:', error.message);
+    res.status(500).json({ message: 'Error fetching login sessions', error: error.message });
+  }
+};
+
+module.exports = { register, login, logout, getLoginSessions };
