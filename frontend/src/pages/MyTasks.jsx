@@ -111,23 +111,25 @@ const MyTasks = () => {
   // Semantic equality: ignore object identity so identical background polls (30s refresh /
   // debounced socket bursts) do NOT replace state and re-render the whole list. State only
   // updates when an order's stage/status actually changed. Prevents 8→89→0 flicker.
+  // Memoized so the useCache `load` callback stays referentially stable and the mount
+  // effect runs exactly once — no competing reloads over the same React state.
   const taskSignature = (list) => (list || []).map((o) => `${o.id}|${o.currentStage}|${o.status}`).join(',');
-  const tasksSame = (a, b) => {
+  const tasksSame = useCallback((a, b) => {
     if (!a || !b) return false;
     return taskSignature(a.unseen) === taskSignature(b.unseen) && taskSignature(a.seen) === taskSignature(b.seen);
-  };
+  }, []);
   const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen, mutate: mutateUnseen } = useCache(
-    hasTaskFilters ? `v2:my-tasks:unseen:${user?.role}${empKey}` : null,
+    hasTaskFilters ? `v3:my-tasks:unseen:${user?.role}${empKey}` : null,
     { fetcher: () => api.get('/api/orders/unseen-tasks', empParams ? { params: empParams } : {}).then(r => r.data), ttl: 60 * 1000, sameData: tasksSame }
   );
   // Cache-first: production returned (STORE only)
   const { data: productionData = null, refresh: refreshProduction } = useCache(
-    showProductionTab ? `v2:my-tasks:production-returned${empKey}` : null,
+    showProductionTab ? `v3:my-tasks:production-returned${empKey}` : null,
     { fetcher: () => api.get('/api/orders/production-returned', empParams ? { params: empParams } : {}).then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: active orders (non-task-filter users)
   const { data: fetchedOrders = [], loading: ordersLoading, refresh: refreshOrders } = useCache(
-    !hasTaskFilters ? `v2:my-tasks:active${empKey}` : null,
+    !hasTaskFilters ? `v3:my-tasks:active${empKey}` : null,
     { fetcher: () => api.get('/api/orders?status=active', empParams ? { params: empParams } : {}).then(r => Array.isArray(r.data) ? r.data : (r.data?.orders || [])), ttl: 60 * 1000 }
   );
 

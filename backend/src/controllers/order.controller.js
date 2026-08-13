@@ -2952,6 +2952,7 @@ const getUnseenOrders = async (req, res) => {
     }
     const orders = await prisma.order.findMany({
       where: whereClause,
+      orderBy: { createdAt: 'asc' },
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
@@ -2970,8 +2971,25 @@ const getUnseenOrders = async (req, res) => {
     });
     const seenOrderIds = new Set(seenRecords.map(r => `${r.orderId}-${r.stageName}`));
 
-    const unseen = orders.filter(o => !seenOrderIds.has(`${o.id}-${o.currentStage}`));
-    const seen = orders.filter(o => seenOrderIds.has(`${o.id}-${o.currentStage}`));
+    // The Production In acceptance gate must ALWAYS show every unaccepted order destined
+    // for Production In (Outlet, Standard/Online, Logo-routed — all sources) in ONE combined
+    // list, regardless of any seenTask the staff user may have. This is true for BOTH the
+    // dedicated PRODUCTION_IN profile and the combined PRODUCTION profile: an order sitting
+    // at PRODUCTION_ACCEPTANCE that has not yet been accepted is never hidden from Unseen
+    // by a seen flag. Accepted orders route forward to PRODUCTION and leave this query by
+    // currentStage, so only the accepted order is removed.
+    const forceAllAcceptanceIntoUnseen = ['PRODUCTION', 'PRODUCTION_IN'].includes(userRole);
+
+    const unseen = orders.filter(o => {
+      const hasSeen = seenOrderIds.has(`${o.id}-${o.currentStage}`);
+      if (forceAllAcceptanceIntoUnseen && o.currentStage === 'PRODUCTION_ACCEPTANCE') return true;
+      return !hasSeen;
+    });
+    const seen = orders.filter(o => {
+      const hasSeen = seenOrderIds.has(`${o.id}-${o.currentStage}`);
+      if (forceAllAcceptanceIntoUnseen && o.currentStage === 'PRODUCTION_ACCEPTANCE') return false;
+      return hasSeen;
+    });
 
     // Sort by priority then creation date (FIFO: oldest first)
     const sortOrders = (list) => list.sort((a, b) => {
@@ -2982,17 +3000,11 @@ const getUnseenOrders = async (req, res) => {
     });
 
     // Production In is a pure accept role whose ONLY visible tab is "Unseen Tasks".
-    // Show every order at the acceptance stage regardless of seen status — otherwise
-    // orders previously marked seen (but not yet accepted) vanish from their only
-    // tab and become stuck. Once accepted, the order routes to PRODUCTION and leaves
-    // this list entirely (Production In's stage mapping excludes PRODUCTION).
-    if (userRole === 'PRODUCTION_IN') {
-      return res.json({
-        unseen: sortOrders(orders).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) })),
-        seen: []
-      });
-    }
-
+    // The generic unseen/seen split above already forces every PRODUCTION_ACCEPTANCE
+    // order into `unseen` for this role (forceAllAcceptanceIntoUnseen), so this single
+    // combined list always contains every unaccepted order across all sources. Once
+    // accepted, the order routes to PRODUCTION and leaves this list entirely (the
+    // stage mapping for PRODUCTION_IN excludes PRODUCTION).
     res.json({
       unseen: sortOrders(unseen).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) })),
       seen: sortOrders(seen).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) }))
