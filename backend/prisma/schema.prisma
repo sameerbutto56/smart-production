@@ -450,7 +450,7 @@ model SystemSetting {
 // re-verification until disabled/revoked/removed.
 model DeviceAuthorization {
   id               String    @id @default(uuid())
-  deviceCodeHash   String?   @unique
+  deviceCodeHash   String?
   registrationCode String?   @unique
   deviceName       String?
   assignedRole     String?

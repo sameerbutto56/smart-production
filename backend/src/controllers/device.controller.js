@@ -107,8 +107,11 @@ const deviceGate = async (user, { deviceId, deviceName, registrationCode, ip, us
     }
   }
 
+  // Role-scoped lookup: the same physical device keeps a separate row per
+  // profile (deviceCodeHash is intentionally not unique across rows), so an
+  // APPROVED row for one profile does not shadow another profile's row.
   const existing = await prisma.deviceAuthorization.findFirst({
-    where: { deviceCodeHash: hash },
+    where: { deviceCodeHash: hash, assignedRole: role },
     include: { assignedUser: true },
   });
 
@@ -121,39 +124,30 @@ const deviceGate = async (user, { deviceId, deviceName, registrationCode, ip, us
         });
         return { allowed: true, device: existing };
       }
-      // Approved for a different profile → block; create a request for this profile.
-      const sameRoleRequest = await prisma.deviceAuthorization.findFirst({
-        where: { deviceCodeHash: hash, assignedRole: role },
-      });
-      if (!sameRoleRequest) {
-        await prisma.deviceAuthorization.create({
-          data: {
-            deviceCodeHash: hash,
-            deviceName: deviceName || existing.deviceName || null,
-            assignedRole: role,
-            status: 'PENDING',
-            requestNote: `Device is approved for ${existing.assignedRole} but attempted ${role}`,
-            lastIp: ip || null,
-            lastUserAgent: userAgent || null,
-          },
-        });
-      }
-      return { allowed: false, message: DEVICE_BLOCK_MESSAGE, code: 'DEVICE_NOT_AUTHORIZED' };
     }
     if (existing.status === 'DISABLED') {
       return { allowed: false, message: DEVICE_DISABLED_MESSAGE, code: 'DEVICE_DISABLED' };
     }
-    // PENDING or REJECTED → still blocked; do not spam duplicate requests.
+    // PENDING / REJECTED for this profile → still blocked; no duplicate request.
     return { allowed: false, message: DEVICE_BLOCK_MESSAGE, code: 'DEVICE_NOT_AUTHORIZED' };
   }
 
-  // Brand new device → block and create the PENDING request.
+  // No row for this profile. If the device is approved under another profile,
+  // record it on the request so Software Settings sees the cross-profile intent.
+  const otherApproved = await prisma.deviceAuthorization.findFirst({
+    where: { deviceCodeHash: hash, status: 'APPROVED' },
+    select: { assignedRole: true },
+  });
+
   await prisma.deviceAuthorization.create({
     data: {
       deviceCodeHash: hash,
       deviceName: deviceName || null,
       assignedRole: role,
       status: 'PENDING',
+      requestNote: otherApproved
+        ? `Device is approved for ${otherApproved.assignedRole} but attempted ${role}`
+        : null,
       lastIp: ip || null,
       lastUserAgent: userAgent || null,
     },
