@@ -2853,6 +2853,7 @@ const getUnseenOrders = async (req, res) => {
     const whereClause = {
       currentStage: { in: relevantStages },
       status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+      source: { not: 'REPLACEMENT' },
       stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
     };
     // Filter by outlet name for OUTLET role so each outlet only sees its own orders
@@ -3159,6 +3160,8 @@ const getOrderTimeline = async (req, res) => {
       RESUBMITTED_AFTER_VERIFICATION: 'Resubmitted after Verification',
       RESUBMITTED_TO_STORE: 'Resubmitted to Store',
       RETURN_INITIATED: 'Return Initiated', REPLACEMENT_INITIATED: 'Replacement Initiated',
+      RETURN_STORE_ACCEPTED: 'Return Accepted by Store',
+      REPLACEMENT_STORE_ACCEPTED: 'Replacement Accepted by Store',
       RETURN_STORE_PROCESSED: 'Return Processed by Store',
       REPLACEMENT_STORE_PROCESSED: 'Replacement Processed by Store',
       RETURN_ROUTED_TO_PRODUCTION: 'Return Routed to Production',
@@ -3710,7 +3713,8 @@ const getStoreDashboardOrders = async (req, res) => {
   try {
     const whereStore = {
       currentStage: 'STORE',
-      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+      source: { not: 'REPLACEMENT' }
     };
     if (sourceFilter !== 'ALL') {
       if (sourceFilter === 'ONLINE') {

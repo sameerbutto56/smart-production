@@ -18,6 +18,7 @@ const parseItems = (items) => {
 
 const STATUS_BADGE = (status) => {
   if (status === 'COMPLETED' || status === 'REPLACEMENT_COMPLETED') return 'bg-emerald-500/20 text-emerald-400';
+  if (status === 'ACCEPTED') return 'bg-blue-500/20 text-blue-400';
   if (status === 'DISPATCH_READY') return 'bg-amber-500/20 text-amber-400';
   if (status === 'IN_PRODUCTION') return 'bg-purple-500/20 text-purple-400';
   if (status === 'STORE_RECEIVE') return 'bg-cyan-500/20 text-cyan-400';
@@ -79,16 +80,20 @@ const StoreReplacements = ({ refreshKey }) => {
   const fetchCases = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', limit: 100 } });
+      const [pendingRes, acceptedRes] = await Promise.all([
+        api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', status: 'FAISAL_APPROVED', limit: 100 } }),
+        api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', status: 'ACCEPTED', limit: 100 } })
+      ]);
       // Active queue = cases still being processed by Store (replacement order at STORE).
       // Completed/cancelled stay as history. Once the replacement order is routed out of
       // STORE (or the case moves to IN_PRODUCTION / DISPATCH_READY), it leaves the queue.
-      const list = (res.data.cases || []).filter(c => {
+      const list = [...(pendingRes.data.cases || []), ...(acceptedRes.data.cases || [])].filter(c => {
         if (c.routedTo !== 'STORE') return false;
         if (['REPLACEMENT_COMPLETED', 'COMPLETED', 'CANCELLED'].includes(c.status)) return true;
         if (c.status === 'FAISAL_APPROVED') {
           return !c.replacementOrderInfo || c.replacementOrderInfo.currentStage === 'STORE';
         }
+        if (c.status === 'ACCEPTED') return true;
         return false;
       });
       setCases(list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
@@ -97,6 +102,17 @@ const StoreReplacements = ({ refreshKey }) => {
   }, []);
 
   useEffect(() => { fetchCases(); }, [fetchCases, refreshKey]);
+
+  const acceptCase = async (record) => {
+    if (!window.confirm(`Accept replacement for order ${record.orderNumber}? The Store will now process it (restock original, route new item).`)) return;
+    setProcessingId(record.id);
+    try {
+      const res = await api.post(`/api/return-exchange/${record.id}/store-accept`);
+      toast.success(res.data?.message || 'Replacement accepted');
+      await fetchCases();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to accept'); }
+    setProcessingId(null);
+  };
 
   const restockOriginal = async (record) => {
     if (!window.confirm(`Restock the ORIGINAL returned goods of order ${record.orderNumber} back into inventory?`)) return;
@@ -234,6 +250,29 @@ const StoreReplacements = ({ refreshKey }) => {
 
               {expandedId === c.id && (
                 <div className="mt-4 space-y-3">
+                  {c.status === 'FAISAL_APPROVED' && (
+                    <div className="bg-blue-950 border-2 border-blue-500/30 rounded-xl p-4">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <p className="text-xs font-black text-blue-400 uppercase tracking-widest">Replacement Received — Awaiting Store Acceptance</p>
+                          <p className="text-[10px] text-gray-500 mt-1">Accept the replacement to begin processing (restock original, route new item).</p>
+                        </div>
+                        <button onClick={() => acceptCase(c)} disabled={processingId === c.id}
+                          className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 shrink-0">
+                          <CheckCircle size={14} /> {processingId === c.id ? 'Accepting...' : 'Accept Replacement'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {c.status === 'ACCEPTED' && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-black bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg">
+                        ✓ Accepted by {c.storeAcceptedBy || 'Store'} • {fmtDateTime(c.storeAcceptedAt)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Original returned goods → restock */}
                   <div>
                     <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -243,7 +282,7 @@ const StoreReplacements = ({ refreshKey }) => {
                           ✓ Restocked by {c.originalRestockedBy} on {fmtDateTime(c.originalRestockedAt)}
                         </span>
                       ) : (
-                        <button onClick={() => restockOriginal(c)} disabled={processingId === c.id} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 px-3 rounded-xl text-[10px] flex items-center gap-1 disabled:opacity-50">
+                        <button onClick={() => restockOriginal(c)} disabled={processingId === c.id || c.status !== 'ACCEPTED'} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 px-3 rounded-xl text-[10px] flex items-center gap-1 disabled:opacity-50">
                           <Undo2 size={12} /> Restock Original
                         </button>
                       )}
@@ -302,8 +341,9 @@ const StoreReplacements = ({ refreshKey }) => {
                       </div>
 
                       {/* In-line processing: per-product availability ticks + routing.
-                          Available here only while the replacement order is at the Store stage. */}
-                      {c.replacementOrderInfo.currentStage === 'STORE' && (
+                          Available here only after the case is accepted AND while the replacement
+                          order is at the Store stage. */}
+                      {c.status === 'ACCEPTED' && c.replacementOrderInfo.currentStage === 'STORE' && (
                         <div className="mt-3 border-t border-gray-800 pt-3">
                           <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                             <CheckCircle size={12} /> Process Replacement — Availability & Route
@@ -364,7 +404,7 @@ const StoreReplacements = ({ refreshKey }) => {
                   )}
 
                   {/* Completion */}
-                  {c.status !== 'REPLACEMENT_COMPLETED' && c.status !== 'COMPLETED' && (
+                  {c.status !== 'REPLACEMENT_COMPLETED' && c.status !== 'COMPLETED' && c.status !== 'FAISAL_APPROVED' && (
                     <div className="flex flex-wrap gap-2 pt-1">
                       <button onClick={() => markCompleted(c)} disabled={processingId === c.id}
                         className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">

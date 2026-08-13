@@ -234,6 +234,7 @@ const processByStore = async (req, res) => {
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
     if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    if (!record.storeAcceptedAt) return res.status(400).json({ message: 'This case must be accepted by the Store first' });
 
     // Validate per-type actions
     if (record.type === 'RETURN' && !['restock', 'route_to_production'].includes(action)) {
@@ -347,6 +348,51 @@ const processByStore = async (req, res) => {
   } catch (error) {
     console.error('Error processing by Store:', error);
     res.status(500).json({ message: 'Failed to process', error: error.message });
+  }
+};
+
+// POST /api/return-exchange/:id/store-accept
+// Accept-first step for Store Returns/Replacements: records the accepting Store
+// employee + date/time, moves the case from pending (PENDING / FAISAL_APPROVED)
+// to ACCEPTED. Processing (restock / deduct / route) stays blocked until accepted.
+const storeAccept = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    if (record.storeAcceptedAt) return res.status(400).json({ message: 'This case has already been accepted by the Store' });
+    if (!['RETURN', 'REPLACEMENT'].includes(record.type)) return res.status(400).json({ message: 'Only Return and Replacement cases can be accepted by the Store' });
+
+    const actionLabel = record.type === 'RETURN' ? 'RETURN_STORE_ACCEPTED' : 'REPLACEMENT_STORE_ACCEPTED';
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.returnExchange.update({
+        where: { id },
+        data: {
+          status: 'ACCEPTED',
+          storeAcceptedBy: req.user?.name || 'Store',
+          storeAcceptedById: req.user?.id || null,
+          storeAcceptedAt: new Date()
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: actionLabel,
+          details: `${record.type} for ${record.orderNumber || ''} accepted by ${req.user?.name || 'Store'} — current phase: Store (Accepted). Performed: ${new Date().toLocaleString()}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error accepting case at Store:', error);
+    res.status(500).json({ message: 'Failed to accept', error: error.message });
   }
 };
 
@@ -921,6 +967,7 @@ const restockOriginal = async (req, res) => {
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
     if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    if (!record.storeAcceptedAt) return res.status(400).json({ message: 'This case must be accepted by the Store first' });
     if (record.originalRestocked) return res.status(400).json({ message: 'Returned goods already restocked' });
 
     const originals = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
@@ -1026,6 +1073,7 @@ const routeReplacement = async (req, res) => {
     if (!record) return res.status(404).json({ message: 'Record not found' });
     if (record.type !== 'REPLACEMENT') return res.status(400).json({ message: 'Only replacement cases can be routed' });
     if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    if (!record.storeAcceptedAt) return res.status(400).json({ message: 'This replacement must be accepted by the Store first' });
     if (!record.replacementOrderId) return res.status(400).json({ message: 'Replacement order has not been created yet' });
     if (!nextStage || !REPLACEMENT_ROUTES.includes(nextStage)) {
       return res.status(400).json({ message: `Invalid route. Valid destinations: ${REPLACEMENT_ROUTES.join(', ')}.` });
@@ -1494,4 +1542,4 @@ const redispatchOrder = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder };
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder };
