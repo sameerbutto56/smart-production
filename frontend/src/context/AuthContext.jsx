@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import socket, { resetSocket, connectSocket } from '../socket';
+import { getDeviceInfo } from '../utils/deviceId';
 
 const AuthContext = createContext();
 
@@ -23,9 +24,16 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, [joinRoleRoom]);
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (email, password, extra = {}) => {
     try {
-      const response = await api.post('/api/auth/login', { email, password });
+      const device = getDeviceInfo();
+      const response = await api.post('/api/auth/login', {
+        email,
+        password,
+        deviceId: device.deviceId,
+        deviceName: device.deviceName,
+        registrationCode: extra.registrationCode || undefined,
+      });
       const { token, user } = response.data;
       sessionStorage.setItem('token', token);
       sessionStorage.setItem('user', JSON.stringify(user));

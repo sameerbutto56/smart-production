@@ -3,7 +3,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useSystemPause } from '../context/SystemPauseContext';
-import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History } from 'lucide-react';
+import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight } from 'lucide-react';
 
 const PROFILE_LABELS = {
   POS: 'POS',
@@ -25,6 +25,37 @@ const METHOD_STYLES = {
   CASH_ONLINE: 'bg-blue-600/20 border-blue-600/50 text-blue-400',
 };
 const CHANGE_TARGETS = ['CASH', 'ONLINE', 'CARD'];
+
+const ROLE_LABELS = {
+  SUPER_ADMIN: 'Super Admin',
+  ADMIN: 'Admin',
+  CEO: 'CEO',
+  SOFTWARE_SETTINGS: 'Software Settings',
+  FAISAL: 'Faisal',
+  STORE: 'Store',
+  STORE_EMPLOYEE: 'Store Employee',
+  PRODUCTION: 'Production',
+  PRODUCTION_IN: 'Production In',
+  PRODUCTION_OUT: 'Production Out',
+  LOGO_DESIGN: 'Logo Design',
+  LOGO_DESIGN_EMPLOYEE: 'Logo Design Employee',
+  LOGO_DESIGNER: 'Logo Designer',
+  DISPATCH: 'Dispatch',
+  MAIN_EMPLOYEE: 'Main Employee',
+  DELIVERY_BOY: 'Delivery Boy',
+  INVENTORY_VIEW: 'Inventory View',
+  ORDER_ENTRY: 'Order Entry',
+  OUTLET: 'Outlet',
+  OUTLET_ORDER_ENTRY: 'Outlet Order Entry',
+};
+
+const DEVICE_STATUS_LABELS = {
+  PENDING: { label: 'Pending', cls: 'bg-amber-600/20 border-amber-600/50 text-amber-400' },
+  APPROVED: { label: 'Approved', cls: 'bg-emerald-600/20 border-emerald-600/50 text-emerald-400' },
+  REJECTED: { label: 'Rejected', cls: 'bg-red-600/20 border-red-600/50 text-red-400' },
+  DISABLED: { label: 'Disabled', cls: 'bg-gray-600/20 border-gray-500/50 text-gray-400' },
+};
+const DEVICE_STATUS_KEYS = ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DISABLED'];
 
 const fmtMoney = (n) => 'PKR ' + Number(n || 0).toLocaleString();
 const fmtDate = (d) => {
@@ -98,6 +129,22 @@ const SoftwareSettings = () => {
   const [delayLoading, setDelayLoading] = useState(false);
   const [delaySaving, setDelaySaving] = useState(false);
 
+  // ── Device management state ──
+  const [devices, setDevices] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [deviceFilter, setDeviceFilter] = useState('ALL');
+  const [showRegisterDevice, setShowRegisterDevice] = useState(false);
+  const [newDevice, setNewDevice] = useState({ deviceName: '', assignedRole: 'STORE', assignedUserId: '' });
+  const [registerResult, setRegisterResult] = useState(null);
+  const [moveTarget, setMoveTarget] = useState(null);
+  const [deviceBusy, setDeviceBusy] = useState(false);
+
+  // ── Main profile management state ──
+  const [profiles, setProfiles] = useState([]);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profileResetTarget, setProfileResetTarget] = useState(null);
+  const [profilePassword, setProfilePassword] = useState('');
+
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     try {
@@ -140,6 +187,34 @@ const SoftwareSettings = () => {
   }, []);
 
   useEffect(() => { fetchDelayConfig(); }, [fetchDelayConfig]);
+
+  const fetchDevices = useCallback(async () => {
+    setDevicesLoading(true);
+    try {
+      const res = await api.get('/api/system/devices');
+      setDevices(res.data?.devices || []);
+    } catch (err) {
+      toast.error('Failed to load devices: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDevicesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchDevices(); }, [fetchDevices]);
+
+  const fetchProfiles = useCallback(async () => {
+    setProfilesLoading(true);
+    try {
+      const res = await api.get('/api/system/profiles');
+      setProfiles(res.data?.profiles || []);
+    } catch (err) {
+      toast.error('Failed to load profiles: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setProfilesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchProfiles(); }, [fetchProfiles]);
 
   const handleSaveDelayConfig = async () => {
     setDelaySaving(true);
@@ -299,10 +374,101 @@ const SoftwareSettings = () => {
     }
   };
 
+  // ── Device actions ──
+  const deviceAction = async (fn, successMsg) => {
+    setDeviceBusy(true);
+    try {
+      const res = await fn();
+      toast.success(res.data?.message || successMsg);
+      fetchDevices();
+    } catch (err) {
+      toast.error('Action failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDeviceBusy(false);
+    }
+  };
+
+  const handleApproveDevice = (id) => deviceAction(() => api.post(`/api/system/devices/${id}/approve`), 'Device approved');
+  const handleRejectDevice = (id) => deviceAction(() => api.post(`/api/system/devices/${id}/reject`), 'Device request rejected');
+  const handleSetDeviceStatus = (id, status) => deviceAction(() => api.post(`/api/system/devices/${id}/status`, { status }), `Device set to ${status}`);
+  const handleRemoveDevice = (id) => deviceAction(() => api.delete(`/api/system/devices/${id}`), 'Device removed');
+
+  const handleRegisterDevice = async () => {
+    if (!newDevice.deviceName.trim()) return toast.error('Enter a device name');
+    setDeviceBusy(true);
+    try {
+      const res = await api.post('/api/system/devices', newDevice);
+      setRegisterResult(res.data);
+      setNewDevice({ deviceName: '', assignedRole: 'STORE', assignedUserId: '' });
+      fetchDevices();
+    } catch (err) {
+      toast.error('Failed to register device: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDeviceBusy(false);
+    }
+  };
+
+  const handleMoveDevice = async () => {
+    if (!moveTarget) return;
+    setDeviceBusy(true);
+    try {
+      await api.patch(`/api/system/devices/${moveTarget.id}`, {
+        assignedRole: moveTarget.assignedRole,
+        assignedUserId: moveTarget.assignedUserId,
+      });
+      toast.success(`Device moved to ${moveTarget.assignedRole}`);
+      setMoveTarget(null);
+      fetchDevices();
+    } catch (err) {
+      toast.error('Move failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDeviceBusy(false);
+    }
+  };
+
+  // ── Main profile actions ──
+  const handleProfileToggleActive = async (profile) => {
+    try {
+      await api.patch(`/api/system/profiles/${profile.id}`, { isActive: !profile.isActive });
+      setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, isActive: !profile.isActive } : p));
+      toast.success(`${profile.name} ${profile.isActive ? 'disabled' : 'enabled'}`);
+    } catch (err) {
+      toast.error('Failed to update profile: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleProfileSave = async (profile, field, value) => {
+    try {
+      await api.patch(`/api/system/profiles/${profile.id}`, { [field]: value });
+      setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, [field]: value } : p));
+      toast.success('Profile updated');
+    } catch (err) {
+      toast.error('Failed to update profile: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleProfilePasswordReset = async () => {
+    if (!profileResetTarget) return;
+    if (profilePassword.length < 4) return toast.error('Password must be at least 4 characters');
+    setDeviceBusy(true);
+    try {
+      await api.post(`/api/system/profiles/${profileResetTarget.id}/password`, { password: profilePassword });
+      toast.success(`Password reset for ${profileResetTarget.name}`);
+      setProfileResetTarget(null);
+      setProfilePassword('');
+    } catch (err) {
+      toast.error('Failed to reset password: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDeviceBusy(false);
+    }
+  };
+
   const tabs = [
     { key: 'employees', label: 'Employee Management', icon: <Users size={16} /> },
     { key: 'payment', label: 'Payment Method Change', icon: <ArrowLeftRight size={16} /> },
     { key: 'delay', label: 'Set Delay', icon: <Clock size={16} /> },
+    { key: 'devices', label: 'Device Management', icon: <Laptop size={16} /> },
+    { key: 'profiles', label: 'Profile Management', icon: <UserCog size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
 
@@ -781,6 +947,232 @@ const SoftwareSettings = () => {
         </div>
       )}
 
+      {/* ═══════════════ DEVICE MANAGEMENT TAB ═══════════════ */}
+      {activeTab === 'devices' && (
+        <div className="space-y-6">
+          <div className="glass rounded-2xl border-2 border-gray-700 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2"><Laptop className="text-blue-400" /> Device Management</h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  Every computer that logs in is checked against the authorized list. A new computer is <span className="text-amber-400 font-bold">blocked</span> and a
+                  request is created here for approval. Approve / Reject / Disable / Re-enable / Remove / Move a device below.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select value={deviceFilter} onChange={e => setDeviceFilter(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none">
+                  {DEVICE_STATUS_KEYS.map(k => <option key={k} value={k}>{k === 'ALL' ? 'All Statuses' : k}</option>)}
+                </select>
+                <button onClick={() => { setShowRegisterDevice(true); setRegisterResult(null); }}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-xl text-sm">
+                  <Plus size={15} /> Add Device
+                </button>
+                <button onClick={fetchDevices}
+                  className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold px-3 py-2 rounded-xl text-sm">
+                  <RefreshCw size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {DEVICE_STATUS_KEYS.filter(k => k !== 'ALL').map(k => {
+                const count = devices.filter(d => d.status === k).length;
+                return (
+                  <span key={k} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${DEVICE_STATUS_LABELS[k].cls}`}>
+                    {DEVICE_STATUS_LABELS[k].label}: {count}
+                  </span>
+                );
+              })}
+              <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-gray-700/40 border-gray-600 text-gray-300">Total: {devices.length}</span>
+            </div>
+          </div>
+
+          {devicesLoading ? (
+            <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+          ) : devices.length === 0 ? (
+            <div className="glass rounded-2xl border-2 border-gray-700 py-16 text-center text-sm text-gray-500 font-bold">
+              No devices registered yet. Devices appear here when a login attempt is made from an unknown computer.
+            </div>
+          ) : (
+            <div className="glass rounded-2xl border-2 border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-900/60 text-[11px] uppercase tracking-wide text-gray-400">
+                    <tr>
+                      <th className="px-4 py-2.5">Device</th>
+                      <th className="px-4 py-2.5">Profile</th>
+                      <th className="px-4 py-2.5">Status</th>
+                      <th className="px-4 py-2.5">Last Activity</th>
+                      <th className="px-4 py-2.5">Added</th>
+                      <th className="px-4 py-2.5">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {devices.filter(d => deviceFilter === 'ALL' || d.status === deviceFilter).map(d => (
+                      <tr key={d.id} className={`hover:bg-gray-800/40 ${d.status === 'DISABLED' ? 'opacity-60' : ''}`}>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <Laptop size={15} className="text-gray-500 shrink-0" />
+                            <div>
+                              <p className="font-bold text-white">{d.deviceName || 'Unknown device'}</p>
+                              {d.lastUserAgent && <p className="text-[10px] text-gray-500 max-w-[220px] truncate">{d.lastUserAgent}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold border bg-blue-600/20 border-blue-600/50 text-blue-300">
+                            {ROLE_LABELS[d.assignedRole] || d.assignedRole}
+                          </span>
+                          {d.assignedUserName && <p className="text-[10px] text-gray-500 mt-0.5">{d.assignedUserName}</p>}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border ${DEVICE_STATUS_LABELS[d.status]?.cls || 'bg-gray-700 border-gray-600 text-gray-300'}`}>
+                            {DEVICE_STATUS_LABELS[d.status]?.label || d.status}
+                          </span>
+                          {d.status === 'PENDING' && (
+                            <p className="text-[10px] text-amber-500 mt-0.5">{d.requestNote || 'Awaiting approval'}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-gray-400 whitespace-nowrap">
+                          {fmtDate(d.lastLoginAt)}
+                          {d.lastIp && <p className="text-[10px] text-gray-500">IP {d.lastIp}</p>}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-gray-400 whitespace-nowrap">{fmtDate(d.createdAt)}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {d.status === 'PENDING' && (
+                              <>
+                                <button onClick={() => handleApproveDevice(d.id)} disabled={deviceBusy}
+                                  className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">
+                                  <Check size={12} /> Approve
+                                </button>
+                                <button onClick={() => handleRejectDevice(d.id)} disabled={deviceBusy}
+                                  className="flex items-center gap-1 bg-red-600 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">
+                                  <X size={12} /> Reject
+                                </button>
+                              </>
+                            )}
+                            {d.status === 'APPROVED' && (
+                              <>
+                                <button onClick={() => setMoveTarget({ ...d, assignedRole: d.assignedRole, assignedUserId: d.assignedUserId || '' })}
+                                  className="flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">
+                                  <MoveRight size={12} /> Move
+                                </button>
+                                <button onClick={() => handleSetDeviceStatus(d.id, 'DISABLED')} disabled={deviceBusy}
+                                  className="flex items-center gap-1 bg-gray-600 hover:bg-gray-500 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">
+                                  <Ban size={12} /> Disable
+                                </button>
+                              </>
+                            )}
+                            {d.status === 'DISABLED' && (
+                              <button onClick={() => handleSetDeviceStatus(d.id, 'APPROVED')} disabled={deviceBusy}
+                                className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">
+                                <Power size={12} /> Re-enable
+                              </button>
+                            )}
+                            <button onClick={() => { if (window.confirm(`Remove device "${d.deviceName || 'Unknown'}"? It will need re-approval to log in again.`)) handleRemoveDevice(d.id); }} disabled={deviceBusy}
+                              className="flex items-center gap-1 bg-red-600/20 hover:bg-red-600/40 border border-red-600/50 text-red-400 font-bold px-2.5 py-1 rounded-lg text-[11px]">
+                              <Trash2 size={12} /> Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════ PROFILE MANAGEMENT TAB ═══════════════ */}
+      {activeTab === 'profiles' && (
+        <div className="space-y-6">
+          <div className="glass rounded-2xl border-2 border-gray-700 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2"><UserCog className="text-indigo-400" /> Profile Management</h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  Manage the main system accounts (Admin, Faisal, Store, Production, etc.). Set or reset passwords, enable / disable profiles,
+                  and see how many authorized devices each profile has.
+                </p>
+              </div>
+              <button onClick={fetchProfiles}
+                className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold px-3 py-2 rounded-xl text-sm">
+                <RefreshCw size={15} />
+              </button>
+            </div>
+          </div>
+
+          {profilesLoading ? (
+            <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+          ) : profiles.length === 0 ? (
+            <div className="glass rounded-2xl border-2 border-gray-700 py-16 text-center text-sm text-gray-500 font-bold">
+              No profiles found.
+            </div>
+          ) : (
+            <div className="glass rounded-2xl border-2 border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-900/60 text-[11px] uppercase tracking-wide text-gray-400">
+                    <tr>
+                      <th className="px-4 py-2.5">Name</th>
+                      <th className="px-4 py-2.5">Email</th>
+                      <th className="px-4 py-2.5">Role</th>
+                      <th className="px-4 py-2.5">Devices</th>
+                      <th className="px-4 py-2.5">Status</th>
+                      <th className="px-4 py-2.5">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {profiles.map(p => (
+                      <tr key={p.id} className={`hover:bg-gray-800/40 ${!p.isActive ? 'opacity-60' : ''}`}>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center font-black text-indigo-300 text-xs">
+                              {(p.name || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-bold text-white">{p.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-gray-300">{p.email}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold border bg-blue-600/20 border-blue-600/50 text-blue-300">
+                            {ROLE_LABELS[p.role] || p.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="flex items-center gap-1.5 text-sm font-bold text-white"><Laptop size={13} className="text-gray-500" /> {p._count?.authorizedDevices || 0}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border ${p.isActive ? 'bg-emerald-600/20 border-emerald-600/50 text-emerald-400' : 'bg-red-600/20 border-red-600/50 text-red-400'}`}>
+                            {p.isActive ? 'Active' : 'Disabled'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button onClick={() => { setProfileResetTarget(p); setProfilePassword(''); }}
+                              className="flex items-center gap-1 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/50 text-amber-400 font-bold px-2.5 py-1 rounded-lg text-[11px]">
+                              <KeyRound size={12} /> Set Password
+                            </button>
+                            <button onClick={() => handleProfileToggleActive(p)}
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${p.isActive ? 'bg-red-600/20 border-red-600/50 text-red-400' : 'bg-emerald-600/20 border-emerald-600/50 text-emerald-400'}`}>
+                              {p.isActive ? <><Ban size={12} /> Disable</> : <><Power size={12} /> Enable</>}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-16 pb-10 overflow-y-auto" onClick={() => setShowCreate(false)}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -833,6 +1225,106 @@ const SoftwareSettings = () => {
                 {saving ? <Loader2 className="animate-spin inline" size={15} /> : 'Save Password'}
               </button>
               <button onClick={() => setResetTarget(null)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-xl text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Register device modal ── */}
+      {showRegisterDevice && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-16 pb-10 overflow-y-auto" onClick={() => setShowRegisterDevice(false)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-white mb-1 flex items-center gap-2"><Laptop className="text-blue-400" /> Add Device</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Register a new computer without waiting for a login attempt. After saving, the one-time registration code below is
+              entered on that computer's login screen.
+            </p>
+            {registerResult ? (
+              <div className="space-y-4">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
+                  <p className="text-xs text-gray-400 font-bold mb-2">ONE-TIME REGISTRATION CODE</p>
+                  <p className="text-2xl font-black tracking-[0.35em] text-emerald-300 select-all">{registerResult.registrationCode}</p>
+                  <button onClick={() => navigator.clipboard?.writeText(registerResult.registrationCode)}
+                    className="mt-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs">
+                    <Copy size={13} /> Copy Code
+                  </button>
+                  <p className="text-[10px] text-gray-500 mt-3">
+                    Enter this code on the new computer's login screen (I have a device registration code). The code works once.
+                  </p>
+                </div>
+                <button onClick={() => { setShowRegisterDevice(false); setRegisterResult(null); }}
+                  className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-xl text-sm">Done</button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <input value={newDevice.deviceName} onChange={e => setNewDevice({ ...newDevice, deviceName: e.target.value })}
+                    placeholder="Device / computer name (e.g. Store PC 2)" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none" />
+                  <select value={newDevice.assignedRole} onChange={e => setNewDevice({ ...newDevice, assignedRole: e.target.value, assignedUserId: '' })}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none">
+                    {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2 mt-5">
+                  <button onClick={handleRegisterDevice} disabled={deviceBusy}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-xl text-sm disabled:opacity-50">
+                    {deviceBusy ? <Loader2 className="animate-spin inline" size={15} /> : 'Register Device'}
+                  </button>
+                  <button onClick={() => setShowRegisterDevice(false)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-xl text-sm">Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Move device modal ── */}
+      {moveTarget && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-24 pb-10 overflow-y-auto" onClick={() => setMoveTarget(null)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-white mb-1 flex items-center gap-2"><MoveRight className="text-blue-400" /> Move Device to Another Profile</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Move <span className="font-bold text-white">{moveTarget.deviceName || 'Unknown'}</span> to a different profile. The computer
+              keeps its authorization but becomes valid only for the new profile.
+            </p>
+            <div className="space-y-3">
+              <select value={moveTarget.assignedRole} onChange={e => setMoveTarget({ ...moveTarget, assignedRole: e.target.value, assignedUserId: '' })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none">
+                {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <select value={moveTarget.assignedUserId || ''} onChange={e => setMoveTarget({ ...moveTarget, assignedUserId: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none">
+                <option value="">Any user of that profile</option>
+                {profiles.filter(p => p.role === moveTarget.assignedRole).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={handleMoveDevice} disabled={deviceBusy}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-xl text-sm disabled:opacity-50">
+                {deviceBusy ? <Loader2 className="animate-spin inline" size={15} /> : 'Move Device'}
+              </button>
+              <button onClick={() => setMoveTarget(null)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-xl text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Profile password reset modal ── */}
+      {profileResetTarget && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-24 pb-10 overflow-y-auto" onClick={() => setProfileResetTarget(null)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-white mb-1 flex items-center gap-2"><KeyRound className="text-amber-400" /> Set New Password</h3>
+            <p className="text-sm text-gray-400 mb-4">Set a new login password for <span className="font-bold text-white">{profileResetTarget.name}</span> ({ROLE_LABELS[profileResetTarget.role] || profileResetTarget.role})</p>
+            <input value={profilePassword} onChange={e => setProfilePassword(e.target.value)}
+              type="password" placeholder="New password" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none" />
+            <div className="flex gap-2 mt-5">
+              <button onClick={handleProfilePasswordReset} disabled={deviceBusy}
+                className="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-2 rounded-xl text-sm disabled:opacity-50">
+                {deviceBusy ? <Loader2 className="animate-spin inline" size={15} /> : 'Save Password'}
+              </button>
+              <button onClick={() => setProfileResetTarget(null)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-xl text-sm">Cancel</button>
             </div>
           </div>
         </div>

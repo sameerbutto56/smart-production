@@ -122,9 +122,11 @@ const ceoRoutes = require('./routes/ceo.routes');
 const auditRoutes = require('./routes/audit.routes');
 const softwareSettingsRoutes = require('./routes/softwareSettings.routes');
 const systemRoutes = require('./routes/system.routes');
+const deviceRoutes = require('./routes/device.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/system', deviceRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/admin', adminRoutes);

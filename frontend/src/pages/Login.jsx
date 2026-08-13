@@ -8,6 +8,8 @@ import { useLanguage } from '../context/LanguageContext';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [registrationCode, setRegistrationCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +21,7 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const result = await login(email, password);
+    const result = await login(email, password, { registrationCode });
     if (result.success) {
       navigate('/');
     } else {
@@ -151,6 +153,31 @@ const Login = () => {
               )}
             </button>
           </form>
+
+          <div className="mt-4 pt-4 border-t theme-border">
+            <button
+              type="button"
+              onClick={() => setShowCode(!showCode)}
+              className="w-full text-[10px] theme-text-muted font-black uppercase tracking-widest hover:text-blue-400 transition-colors text-center flex items-center justify-center space-x-2"
+            >
+              <ShieldCheck size={12} />
+              <span>{showCode ? 'Hide' : 'I have a device registration code'}</span>
+            </button>
+            {showCode && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="text"
+                  value={registrationCode}
+                  onChange={(e) => setRegistrationCode(e.target.value.toUpperCase())}
+                  placeholder="Registration Code (e.g. X7K2M9P4)"
+                  className="w-full theme-input rounded-xl py-2.5 pl-4 pr-4 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs text-center tracking-[0.3em]"
+                />
+                <p className="text-[9px] theme-text-muted font-bold text-center">
+                  Provided by the Software Provider for this computer.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 text-center space-y-2">

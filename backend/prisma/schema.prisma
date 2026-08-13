@@ -17,9 +17,11 @@ model User {
   role       String       @default("ORDER_ENTRY")
   employeeId String?      @unique
   theme      String?      @default("luxe")
+  isActive   Boolean      @default(true)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   auditLogs    AuditLog[]
+  authorizedDevices DeviceAuthorization[]
   stages       OrderStage[]
   createdOrders Order[]   @relation("OrderCreatedBy")
   stockRequests StockRequest[]
@@ -438,6 +440,37 @@ model SystemSetting {
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Device authorization gate for the main username/password login.
+// A computer presents a stable client-generated device ID on every login; the
+// backend stores a SHA-256 hash of it. Unknown devices are blocked (login does
+// not proceed) and a PENDING request is created for Software Settings to
+// approve/reject. APPROVED devices pass on every subsequent login with no
+// re-verification until disabled/revoked/removed.
+model DeviceAuthorization {
+  id               String    @id @default(uuid())
+  deviceCodeHash   String?   @unique
+  registrationCode String?   @unique
+  deviceName       String?
+  assignedRole     String?
+  assignedUserId   String?
+  status           String    @default("PENDING") // PENDING / APPROVED / REJECTED / DISABLED
+  requestNote      String?
+  lastLoginAt      DateTime?
+  lastIp           String?
+  lastUserAgent    String?
+  approvedBy       String?
+  approvedAt       DateTime?
+  rejectedBy       String?
+  rejectedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  assignedUser     User?     @relation(fields: [assignedUserId], references: [id])
+
+  @@index([status])
+  @@index([assignedRole])
+  @@index([deviceCodeHash])
 }
 
 model ProductionRecord {

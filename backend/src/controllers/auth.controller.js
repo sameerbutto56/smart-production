@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../prisma');
+const { deviceGate, getClientIp, DEVICE_PROFILE_DISABLED_MESSAGE } = require('./device.controller');
 
 const register = async (req, res) => {
   const { name, email, password, role, employeeId } = req.body;
@@ -26,7 +27,7 @@ const register = async (req, res) => {
 };
 
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, deviceId, deviceName, registrationCode } = req.body;
 
   try {
     const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -37,6 +38,22 @@ const login = async (req, res) => {
     }
     if (!(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: 'Wrong password — please try again' });
+    }
+    if (user.isActive === false) {
+      return res.status(403).json({ message: DEVICE_PROFILE_DISABLED_MESSAGE });
+    }
+
+    // Device authorization gate — unknown computers are blocked with a fixed
+    // message and a PENDING request is created for Software Settings.
+    const device = await deviceGate(user, {
+      deviceId,
+      deviceName,
+      registrationCode,
+      ip: getClientIp(req),
+      userAgent: req.headers['user-agent'] || null,
+    });
+    if (!device.allowed) {
+      return res.status(401).json({ message: device.message, code: device.code });
     }
 
     const token = jwt.sign(
