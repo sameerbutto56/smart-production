@@ -9,6 +9,12 @@ const crypto = require('crypto');
 
 const CONTROL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SOFTWARE_SETTINGS', 'CEO'];
 
+// Only these roles self-register on first login (bootstrap/management reach).
+// The Software Settings profile itself is strictly gated to pre-authorized
+// devices per the requirement - it must be approved by an authorized manager
+// (SUPER_ADMIN/ADMIN) before its device can log in.
+const AUTO_APPROVE_ROLES = ['SUPER_ADMIN', 'ADMIN'];
+
 const DEVICE_BLOCK_MESSAGE = 'This device is not authorized. Please contact the Software Provider.';
 const DEVICE_DISABLED_MESSAGE = 'This device has been disabled. Please contact the Software Provider.';
 const DEVICE_PROFILE_DISABLED_MESSAGE = 'This profile has been disabled. Please contact the Software Provider.';
@@ -16,6 +22,7 @@ const DEVICE_PROFILE_DISABLED_MESSAGE = 'This profile has been disabled. Please 
 const sha256 = (input) => crypto.createHash('sha256').update(String(input || '')).digest('hex');
 
 const isControlRole = (role) => CONTROL_ROLES.includes(String(role || '').toUpperCase().trim());
+const isAutoApproveRole = (role) => AUTO_APPROVE_ROLES.includes(String(role || '').toUpperCase().trim());
 
 const generateRegistrationCode = () => {
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -27,10 +34,12 @@ const generateRegistrationCode = () => {
 
 module.exports = {
   CONTROL_ROLES,
+  AUTO_APPROVE_ROLES,
   DEVICE_BLOCK_MESSAGE,
   DEVICE_DISABLED_MESSAGE,
   DEVICE_PROFILE_DISABLED_MESSAGE,
   sha256,
   isControlRole,
+  isAutoApproveRole,
   generateRegistrationCode,
 };

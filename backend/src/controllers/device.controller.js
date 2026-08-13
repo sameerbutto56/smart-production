@@ -7,7 +7,7 @@ const prisma = require('../prisma');
 const bcrypt = require('bcryptjs');
 const {
   sha256,
-  isControlRole,
+  isAutoApproveRole,
   DEVICE_BLOCK_MESSAGE,
   DEVICE_DISABLED_MESSAGE,
   DEVICE_PROFILE_DISABLED_MESSAGE,
@@ -42,8 +42,10 @@ const devicePublic = (d) => ({
 const deviceGate = async (user, { deviceId, deviceName, registrationCode, ip, userAgent }) => {
   const role = String(user?.role || '').toUpperCase().trim();
 
-  // Control roles can always reach the system; auto-register their device as APPROVED.
-  if (isControlRole(role)) {
+  // Only SUPER_ADMIN/ADMIN self-register so the system stays reachable on the
+  // very first login (bootstrap). Every other profile - including Software
+  // Settings - is strictly gated to pre-authorized devices.
+  if (isAutoApproveRole(role)) {
     const hash = sha256(deviceId);
     const existing = deviceId
       ? await prisma.deviceAuthorization.findFirst({ where: { deviceCodeHash: hash, assignedRole: role } })
@@ -128,7 +130,23 @@ const deviceGate = async (user, { deviceId, deviceName, registrationCode, ip, us
     if (existing.status === 'DISABLED') {
       return { allowed: false, message: DEVICE_DISABLED_MESSAGE, code: 'DEVICE_DISABLED' };
     }
-    // PENDING / REJECTED for this profile → still blocked; no duplicate request.
+    if (existing.status === 'REJECTED') {
+      // Rejected is not permanent: the next attempt re-opens a fresh PENDING
+      // request so Software Settings can approve the device later.
+      await prisma.deviceAuthorization.update({
+        where: { id: existing.id },
+        data: {
+          status: 'PENDING',
+          rejectedBy: null,
+          rejectedAt: null,
+          requestNote: 'Re-submitted after rejection',
+          lastIp: ip || null,
+          lastUserAgent: userAgent || null,
+        },
+      });
+      return { allowed: false, message: DEVICE_BLOCK_MESSAGE, code: 'DEVICE_NOT_AUTHORIZED' };
+    }
+    // PENDING for this profile → still blocked; no duplicate request.
     return { allowed: false, message: DEVICE_BLOCK_MESSAGE, code: 'DEVICE_NOT_AUTHORIZED' };
   }
 
