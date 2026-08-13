@@ -45,6 +45,7 @@ import {
   ClipboardCheck,
   PackageX,
   Settings,
+  SearchCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDateOnly } from '../utils/dateTime';
@@ -52,6 +53,7 @@ import socket from '../socket';
 import useDemandNotification from '../hooks/useDemandNotification';
 import toast from 'react-hot-toast';
 import SystemPauseControl from './SystemPauseControl';
+import ProfileEmployeeGate from './ProfileEmployeeGate';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -350,7 +352,7 @@ const Layout = () => {
 
   useEffect(() => {
     let mounted = true;
-    api.get('/api/outlet-orders/employees?outlet=Dispatch&profile=FAISAL_PROFILE')
+    api.get('/api/outlet-orders/employees?profile=FAISAL_PROFILE')
       .then(res => {
         if (!mounted) return;
         const list = res.data?.employees || [];
@@ -392,6 +394,37 @@ const Layout = () => {
     setFaisalPwd('');
     localStorage.removeItem('faisalEmployee');
   };
+
+  // Employee gates for profiles without a dedicated page-level login
+  // (Store / Production / Inventory View). Dynamic, never hardcoded — the
+  // employee lists come from Employee Management assignment data.
+  const GATED_PROFILES = [
+    { role: 'STORE', profile: 'STORE', label: 'Store', icon: Warehouse },
+    { role: 'PRODUCTION', profile: 'PRODUCTION', label: 'Production', icon: Factory },
+    { role: 'INVENTORY_VIEW', profile: 'INVENTORY_VIEW', label: 'Inventory View', icon: SearchCheck },
+  ];
+  const [profileGates, setProfileGates] = useState({
+    STORE: { loggedIn: false, employee: '' },
+    PRODUCTION: { loggedIn: false, employee: '' },
+    INVENTORY_VIEW: { loggedIn: false, employee: '' },
+  });
+  const [gateLogoutSignal, setGateLogoutSignal] = useState(0);
+
+  const handleGateStateChange = useCallback((s) => {
+    if (!s?.role) return;
+    setProfileGates(prev => ({
+      ...prev,
+      [s.role]: { loggedIn: !!s.loggedIn, employee: s.employee || '' },
+    }));
+  }, []);
+
+  const handleGateLogout = (key) => {
+    setGateLogoutSignal(v => v + 1);
+    setProfileGates(prev => ({ ...prev, [key]: { loggedIn: false, employee: '' } }));
+  };
+
+  const activeGate = GATED_PROFILES.find(g => user?.role === g.role && profileGates[g.role]?.loggedIn);
+
 
   useEffect(() => {
     if (user?.role) {
@@ -591,13 +624,16 @@ const Layout = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--background)', color: 'var(--text-primary)' }}>
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        isCollapsed={isCollapsed}
-        toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-        toggleCollapse={() => setIsCollapsed(!isCollapsed)}
-      />
+    <ProfileEmployeeGate role="STORE" profile="STORE" label="Store" icon={Warehouse} onStateChange={handleGateStateChange} logoutSignal={gateLogoutSignal}>
+      <ProfileEmployeeGate role="PRODUCTION" profile="PRODUCTION" label="Production" icon={Factory} onStateChange={handleGateStateChange} logoutSignal={gateLogoutSignal}>
+        <ProfileEmployeeGate role="INVENTORY_VIEW" profile="INVENTORY_VIEW" label="Inventory View" icon={SearchCheck} onStateChange={handleGateStateChange} logoutSignal={gateLogoutSignal}>
+          <div className="flex h-screen overflow-hidden" style={{ background: 'var(--background)', color: 'var(--text-primary)' }}>
+            <Sidebar 
+              isOpen={isSidebarOpen} 
+              isCollapsed={isCollapsed}
+              toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+              toggleCollapse={() => setIsCollapsed(!isCollapsed)}
+            />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Universal Top Bar */}
@@ -645,6 +681,17 @@ const Layout = () => {
               >
                 <UserCheck size={14} />
                 {faisalEmployee}
+                <LogOut size={14} />
+              </button>
+            )}
+            {activeGate && (
+              <button
+                onClick={() => handleGateLogout(activeGate.role)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-all"
+                title="Switch Employee"
+              >
+                <UserCheck size={14} />
+                {activeGate.label}: {profileGates[activeGate.role]?.employee}
                 <LogOut size={14} />
               </button>
             )}
@@ -805,7 +852,10 @@ const Layout = () => {
           <Outlet />
         </main>
       </div>
-    </div>
+      </div>
+        </ProfileEmployeeGate>
+      </ProfileEmployeeGate>
+    </ProfileEmployeeGate>
   );
 };
 

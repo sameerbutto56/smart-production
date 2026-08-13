@@ -1224,16 +1224,28 @@ const getComeFromProduction = async (req, res) => {
   }
 };
 
+// Profiles without a natural outlet (Faisal, Dispatch, Store, Production, Inventory
+// View) are outlet-agnostic — an employee assigned that profile appears in the
+// selector regardless of which outlet the employee record lives at. Only POS and
+// OUTLET_ORDER_ENTRY stay outlet-scoped (per-branch cashiers), and the no-profile
+// call (My Tasks employee filter) keeps the default outlet behavior.
+const NON_OUTLET_PROFILES = ['FAISAL_PROFILE', 'DISPATCH', 'STORE', 'PRODUCTION', 'INVENTORY_VIEW'];
+
 const getOutletEmployees = async (req, res) => {
   try {
     const outlet = req.query.outlet || getOutletName(req) || 'Johar Town';
     const profile = req.query.profile;
+    const where = { isActive: true };
+    if (profile) {
+      where.profiles = { array_contains: profile };
+      if (!NON_OUTLET_PROFILES.includes(profile)) {
+        where.outletName = outlet;
+      }
+    } else {
+      where.outletName = outlet;
+    }
     const emps = await prisma.outletEmployee.findMany({
-      where: {
-        outletName: outlet,
-        isActive: true,
-        ...(profile ? { profiles: { array_contains: profile } } : {}),
-      },
+      where,
       select: { id: true, name: true, profiles: true },
       orderBy: { name: 'asc' }
     });
