@@ -342,14 +342,25 @@ const Layout = () => {
   const [faisalEmployee, setFaisalEmployee] = useState(() => localStorage.getItem('faisalEmployee') || '');
   const [faisalPwd, setFaisalPwd] = useState('');
   const [faisalShowPwd, setFaisalShowPwd] = useState(false);
-  const [faisalLoggedIn, setFaisalLoggedIn] = useState(() => !!localStorage.getItem('faisalEmployee'));
+  // Fresh session always requires the employee login step — never auto-skip via
+  // a stale localStorage value. Only an explicit successful login sets this true.
+  const [faisalLoggedIn, setFaisalLoggedIn] = useState(false);
   const [faisalLoginLoading, setFaisalLoginLoading] = useState(false);
   const [faisalEmployees, setFaisalEmployees] = useState([]);
 
   useEffect(() => {
     let mounted = true;
     api.get('/api/outlet-orders/employees?outlet=Dispatch&profile=FAISAL_PROFILE')
-      .then(res => { if (mounted) setFaisalEmployees(res.data?.employees || []); })
+      .then(res => {
+        if (!mounted) return;
+        const list = res.data?.employees || [];
+        setFaisalEmployees(list);
+        // If the remembered employee is no longer active/available, forget them.
+        if (faisalEmployee && !list.some(e => e.name === faisalEmployee)) {
+          setFaisalEmployee('');
+          localStorage.removeItem('faisalEmployee');
+        }
+      })
       .catch(() => { if (mounted) setFaisalEmployees([]); });
     return () => { mounted = false; };
   }, []);
