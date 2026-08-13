@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { SystemPauseProvider } from './context/SystemPauseContext';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './context/ThemeContext';
@@ -96,6 +97,7 @@ function App() {
         <LanguageProvider>
           <SearchProvider>
             <NotificationProvider>
+            <SystemPauseProvider>
             <Toaster position="top-right" toastOptions={{ className: 'glass text-white font-black', style: { background: '#111827', border: '1px solid #1f2937' } }} />
             <Router>
               <ErrorBoundary>
@@ -182,6 +184,7 @@ function App() {
               </Routes>
               </ErrorBoundary>
             </Router>
+            </SystemPauseProvider>
             </NotificationProvider>
           </SearchProvider>
         </LanguageProvider>

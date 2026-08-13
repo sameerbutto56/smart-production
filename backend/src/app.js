@@ -71,6 +71,11 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// Global System Pause guard — blocks all mutating /api requests while paused
+// (auth/system/feedback stay open so Admin can sign back in and resume).
+const { systemPauseGuard } = require('./middleware/systemPauseGuard');
+app.use('/api', systemPauseGuard);
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is alive!', time: new Date().toISOString() });
 });
@@ -116,8 +121,10 @@ const engravingRoutes = require('./routes/engraving.routes');
 const ceoRoutes = require('./routes/ceo.routes');
 const auditRoutes = require('./routes/audit.routes');
 const softwareSettingsRoutes = require('./routes/softwareSettings.routes');
+const systemRoutes = require('./routes/system.routes');
 
 app.use('/api/auth', authRoutes);
+app.use('/api/system', systemRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/admin', adminRoutes);

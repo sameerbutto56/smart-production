@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSystemPause } from '../context/SystemPauseContext';
 import {
   LayoutDashboard, 
   Package, 
@@ -334,7 +335,7 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
-  const [systemPaused, setSystemPaused] = useState(false);
+  const { paused: systemPaused, info: pauseInfo } = useSystemPause();
 
   // Faisal employee login
   const [faisalEmployee, setFaisalEmployee] = useState(() => localStorage.getItem('faisalEmployee') || '');
@@ -385,18 +386,6 @@ const Layout = () => {
       document.title = `${user.role.replace(/_/g, ' ')} - ENAMELS PRODUCTION`;
     }
   }, [user]);
-
-  useEffect(() => {
-    const checkPause = async () => {
-      try {
-        const res = await api.get('/api/admin/pause-status');
-        setSystemPaused(res.data.paused);
-      } catch { /* ignore */ }
-    };
-    checkPause();
-    const interval = setInterval(checkPause, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [globalSearch, setLocalSearch] = useState('');
@@ -733,10 +722,20 @@ const Layout = () => {
           </div>
         </header>
 
-        {systemPaused && (
-          <div className="bg-red-600/20 border-b-2 border-red-500/30 px-6 py-3 flex items-center justify-center gap-3 flex-shrink-0">
+        {systemPaused ? (
+          <div className="bg-red-600/20 border-b-2 border-red-500/40 px-6 py-3 flex items-center justify-center gap-3 flex-shrink-0">
             <PauseCircle className="text-red-400 animate-pulse" size={16} />
-            <span className="text-red-300 font-black text-xs uppercase tracking-widest">System Paused — All production operations are suspended for holidays</span>
+            <span className="text-red-300 font-black text-xs uppercase tracking-widest">🔴 SYSTEM PAUSED — All functions are temporarily stopped by Admin.</span>
+            {pauseInfo?.pausedBy && (
+              <span className="text-red-400/80 text-[10px] font-bold uppercase tracking-wider">
+                · {pauseInfo.pausedBy} · {new Date(pauseInfo.pausedAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="bg-emerald-600/10 border-b border-emerald-500/20 px-6 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-emerald-400/90 font-black text-[10px] uppercase tracking-widest">🟢 SYSTEM ACTIVE — All functions have been resumed.</span>
           </div>
         )}
 

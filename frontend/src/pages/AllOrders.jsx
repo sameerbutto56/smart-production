@@ -27,6 +27,7 @@ import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { getDelayInfo, getStageDelays, getEffectiveStage, fmtDuration, stageLabel } from '../utils/delayUtils';
+import { useSystemPause } from '../context/SystemPauseContext';
 import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
@@ -56,6 +57,7 @@ const getDateRange = (key) => {
 
 const AllOrders = () => {
   const { user } = useAuth();
+  const { periods: pausePeriods } = useSystemPause();
   const isReadOnly = user?.role === 'FAISAL';
   const { data: orders = [], loading, refresh } = useCache('orders:all', {
     fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []),
@@ -356,11 +358,11 @@ const AllOrders = () => {
   const delayMap = useMemo(() => {
     const map = {};
     (baseOrders || []).forEach(o => {
-      const d = getDelayInfo(o, delayConfig);
+      const d = getDelayInfo(o, delayConfig, pausePeriods);
       if (d) map[o.id] = d;
     });
     return map;
-  }, [baseOrders, delayConfig]);
+  }, [baseOrders, delayConfig, pausePeriods]);
 
   const departmentDelays = useMemo(() => {
     const counts = {};
@@ -370,7 +372,7 @@ const AllOrders = () => {
     return counts;
   }, [delayMap]);
 
-  const stageDelays = useMemo(() => getStageDelays(baseOrders, delayConfig), [baseOrders, delayConfig]);
+  const stageDelays = useMemo(() => getStageDelays(baseOrders, delayConfig, pausePeriods), [baseOrders, delayConfig, pausePeriods]);
 
   const dateRange = useMemo(() => getDateRange(dateFilter), [dateFilter]);
 

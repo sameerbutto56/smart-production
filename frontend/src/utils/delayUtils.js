@@ -80,6 +80,26 @@ export const getEffectiveStage = (order) => {
   return order?.currentStage;
 };
 
+// Active (non-paused) milliseconds within [startMs, endMs], given the pause-period
+// history from /api/system/state (periods: [{pausedAt, endedAt|null, ...}]). Mirrors
+// the backend systemPause util — every paused window overlapping the range is
+// subtracted so delay timers freeze during a pause and resume where they stopped.
+export const activeElapsedMs = (startMs, endMs, periods) => {
+  const s = Number(startMs) || 0;
+  const e = Number(endMs) || Date.now();
+  if (!Array.isArray(periods) || periods.length === 0) return Math.max(0, e - s);
+  const now = e;
+  let pausedMs = 0;
+  for (const p of periods) {
+    const ps = new Date(p.startedAt || p.pausedAt).getTime();
+    if (Number.isNaN(ps)) continue;
+    const pe = p.endedAt ? new Date(p.endedAt).getTime() : now;
+    if (Number.isNaN(pe)) continue;
+    pausedMs += Math.max(0, Math.min(e, pe) - Math.max(s, ps));
+  }
+  return Math.max(0, (e - s) - pausedMs);
+};
+
 export const DEFAULT_DELAY_CONFIG = {
   VERIFICATION: 2, // 2 hours
   STORE: 2,        // 2 hours
@@ -107,8 +127,9 @@ export const STAGE_CONFIG_MAP = {
 };
 
 // Auto delay detection from the order's active stage (supports custom delay config).
-// Returns null when on time.
-export const getDelayInfo = (order, delayConfig = null) => {
+// Returns null when on time. `pausePeriods` (from /api/system/state) freezes the
+// elapsed timer for any paused window, so delays are computed only on active time.
+export const getDelayInfo = (order, delayConfig = null, pausePeriods = null) => {
   if (!order) return null;
   const status = (order.status || '').toUpperCase();
   if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].includes(status)) return null;
@@ -153,9 +174,8 @@ export const getDelayInfo = (order, delayConfig = null) => {
   const department = STAGE_DEPARTMENTS[effectiveStage] || 'Store';
   const reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
 
-  const expectedDeadline = startMs + allowedMs;
-
-  if (expectedDeadline >= now) return null;
+  const phaseActive = activeElapsedMs(startMs, now, pausePeriods);
+  if (phaseActive < allowedMs) return null;
 
   const totalStart = order.createdAt ? new Date(order.createdAt).getTime() : startMs;
   return {
@@ -166,16 +186,16 @@ export const getDelayInfo = (order, delayConfig = null) => {
     reason: reasonLabel,
     isAcceptanceDelay: false,
     phaseStart: startMs,
-    phaseElapsed: Math.max(0, now - startMs),
-    totalElapsed: Math.max(0, now - totalStart),
-    delayDuration: Math.max(0, now - expectedDeadline),
+    phaseElapsed: phaseActive,
+    totalElapsed: activeElapsedMs(totalStart, now, pausePeriods),
+    delayDuration: Math.max(0, phaseActive - allowedMs),
   };
 };
 
-export const getStageDelays = (orders, delayConfig = null) => {
+export const getStageDelays = (orders, delayConfig = null, pausePeriods = null) => {
   const map = {};
   (orders || []).forEach((o) => {
-    const d = getDelayInfo(o, delayConfig);
+    const d = getDelayInfo(o, delayConfig, pausePeriods);
     if (!d) return;
     if (!map[d.stage]) map[d.stage] = { stage: d.stage, label: d.stageLabel, department: d.department, count: 0 };
     map[d.stage].count++;

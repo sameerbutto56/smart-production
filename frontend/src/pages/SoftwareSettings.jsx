@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save } from 'lucide-react';
+import { useSystemPause } from '../context/SystemPauseContext';
+import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History } from 'lucide-react';
 
 const PROFILE_LABELS = {
   POS: 'POS',
@@ -43,7 +44,10 @@ const DEFAULT_DELAY_CONFIG = {
 
 const SoftwareSettings = () => {
   const { user } = useAuth();
+  const { paused: systemPaused, info: pauseInfo, history: pauseHistory, refresh: refreshPauseState, fetchHistory: fetchPauseHistory, pause: pauseSystem, resume: resumeSystem } = useSystemPause();
   const [activeTab, setActiveTab] = useState('employees');
+  const [pausePassword, setPausePassword] = useState('');
+  const [pauseBusy, setPauseBusy] = useState(false);
 
   // ── Employee management state ──
   const [employees, setEmployees] = useState([]);
@@ -277,6 +281,7 @@ const SoftwareSettings = () => {
     { key: 'employees', label: 'Employee Management', icon: <Users size={16} /> },
     { key: 'payment', label: 'Payment Method Change', icon: <ArrowLeftRight size={16} /> },
     { key: 'delay', label: 'Set Delay', icon: <Clock size={16} /> },
+    { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
 
   return (
@@ -510,7 +515,6 @@ const SoftwareSettings = () => {
         </>
       )}
 
-      {/* ═══════════════ SET DELAY TAB ═══════════════ */}
       {activeTab === 'delay' && (
         <div className="glass rounded-2xl p-6 border-2 border-gray-700/50 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -625,6 +629,111 @@ const SoftwareSettings = () => {
               </button>
               <button onClick={() => setSelectedInvoice(null)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-xl text-sm">Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════ SYSTEM PAUSE TAB ═══════════════ */}
+      {activeTab === 'system' && (
+        <div className="space-y-6">
+          <div className={`glass rounded-2xl p-6 border-2 ${systemPaused ? 'border-red-500/40' : 'border-emerald-500/30'} space-y-4`}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  {systemPaused
+                    ? <PauseCircle className="text-red-400" /> 
+                    : <PlayCircle className="text-emerald-400" />}
+                  Global System Pause / Resume
+                </h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  While paused, all operational functions are stopped — order entry, POS sales, production, store, verification, dispatch, delivery, returns and cancellations. No existing data is changed.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { fetchPauseHistory(); refreshPauseState(); }}
+                  className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all">
+                  <RefreshCw size={15} /> Refresh
+                </button>
+                {systemPaused
+                  ? <button onClick={() => document.getElementById('pause-password-input')?.focus()}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
+                      <PlayCircle size={16} /> Resume System
+                    </button>
+                  : <button onClick={() => document.getElementById('pause-password-input')?.focus()}
+                      className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
+                      <PauseCircle size={16} /> Pause System
+                    </button>}
+              </div>
+            </div>
+
+            {systemPaused && pauseInfo ? (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-5 py-4">
+                <p className="font-black text-red-300 text-sm">🔴 SYSTEM PAUSED — All functions are temporarily stopped by Admin.</p>
+                <p className="text-xs text-red-400/90 mt-1 font-bold">
+                  Paused by {pauseInfo.pausedBy} · {pauseInfo.source} · {fmtDate(pauseInfo.pausedAt)}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-5 py-4">
+                <p className="font-black text-emerald-300 text-sm">🟢 SYSTEM ACTIVE — All functions have been resumed.</p>
+              </div>
+            )}
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!pausePassword) return;
+              setPauseBusy(true);
+              const action = systemPaused ? 'resume' : 'pause';
+              (systemPaused ? resumeSystem(pausePassword) : pauseSystem(pausePassword))
+                .then((res) => {
+                  if (!res) return;
+                  toast.success(res.data?.message || (systemPaused ? 'System resumed.' : 'System paused.'));
+                  setPausePassword('');
+                })
+                .catch((err) => toast.error(err.response?.data?.message || 'Failed to update system state'))
+                .finally(() => setPauseBusy(false));
+            }} className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-xs font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
+                <input id="pause-password-input" type="password" value={pausePassword} onChange={(e) => setPausePassword(e.target.value)}
+                  placeholder="Enter your password to confirm" required
+                  className="w-full bg-gray-950/50 border-2 border-gray-700 rounded-xl py-2.5 px-3 mt-1 focus:border-blue-500 outline-none font-bold text-white text-sm" />
+              </div>
+              <button type="submit" disabled={pauseBusy || !pausePassword}
+                className={`flex items-center gap-2 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 ${systemPaused ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
+                {pauseBusy ? <Loader2 className="animate-spin" size={16} /> : systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                {systemPaused ? 'Confirm Resume' : 'Confirm Pause'}
+              </button>
+            </form>
+          </div>
+
+          {/* Pause history */}
+          <div className="glass rounded-2xl border-2 border-gray-700/50 overflow-hidden">
+            <div className="px-5 py-3 bg-gray-800/70 flex items-center gap-2 border-b border-gray-700">
+              <History className="text-blue-400" size={18} />
+              <h3 className="font-black text-white">Pause / Resume History</h3>
+              <span className="ml-auto text-xs font-bold text-gray-400">{pauseHistory.length} events</span>
+            </div>
+            {pauseHistory.length === 0 ? (
+              <div className="px-5 py-8 text-center text-gray-500 text-sm font-bold">No pause/resume events recorded yet.</div>
+            ) : (
+              <div className="divide-y divide-gray-700/70 max-h-[420px] overflow-y-auto">
+                {pauseHistory.map((h, i) => {
+                  const isPause = String(h.action || '').toUpperCase() === 'PAUSE';
+                  return (
+                    <div key={i} className="px-5 py-3 flex flex-wrap items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full ${isPause ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                      <span className={`text-xs font-black uppercase tracking-wider ${isPause ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {isPause ? 'Paused' : 'Resumed'}
+                      </span>
+                      <span className="text-sm font-bold text-white">{h.by || h.pausedBy || h.resumedBy || '—'}</span>
+                      <span className="text-xs text-gray-400 font-bold">{h.source}</span>
+                      <span className="ml-auto text-xs text-gray-500 font-bold">{fmtDate(h.at || h.pausedAt || h.resumedAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

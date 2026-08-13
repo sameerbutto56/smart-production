@@ -64,6 +64,7 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useSystemPause } from '../context/SystemPauseContext';
 import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
 import { PauseCircle, PlayCircle } from 'lucide-react';
@@ -139,23 +140,23 @@ const AdminDashboard = () => {
 
   const dashboardRefreshRef = useRef();
   const analyticsRefreshRef = useRef();
-  const pauseRefreshRef = useRef();
   const unseenRefreshRef = useRef();
   const prodReturnedRefreshRef = useRef();
   const editRequestsRefreshRef = useRef();
   const queueRefreshRef = useRef();
 
+  const { paused: systemPaused, info: pauseInfo, periods: pausePeriods, pause: pauseSystem, resume: resumeSystem } = useSystemPause();
+
   const needsData = activeTab !== null;
   const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache(needsData ? 'admin:dashboard:orders' : null, { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
   const { data: analytics, refresh: refreshAnalytics } = useCache(needsData ? 'admin:dashboard:analytics' : null, { fetcher: () => api.get('/api/orders/analytics').then(r => r.data), ttl: 60000 });
-  const { data: systemPaused = false, refresh: refreshPause } = useCache(needsData ? 'admin:pause-status' : null, { fetcher: () => api.get('/api/admin/pause-status').then(r => r.data.paused), ttl: 300000 });
   const { data: storeUnseenData, refresh: refreshUnseen } = useCache(needsData ? 'admin:store-unseen' : null, { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 30000 });
   const { data: storeProductionData, refresh: refreshProdReturned } = useCache(needsData ? 'admin:store-production' : null, { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 30000 });
   const { data: editRequestsData, loading: editRequestsLoading, refresh: refreshEditRequests } = useCache(needsData ? 'admin:edit-requests' : null, { fetcher: () => api.get('/api/edit-requests', { params: { status: 'PENDING' } }).then(r => Array.isArray(r.data) ? r.data : []), ttl: 30000 });
 
   const allOrders = allOrdersData || EMPTY_ARRAY;
   const editRequests = useMemo(() => Array.isArray(editRequestsData) ? editRequestsData : EMPTY_ARRAY, [editRequestsData]);
-  const delayBreakdown = useMemo(() => getStageDelays(allOrders), [allOrders]);
+  const delayBreakdown = useMemo(() => getStageDelays(allOrders, null, pausePeriods), [allOrders, pausePeriods]);
   const stats = useMemo(() => ({
     totalOrders: allOrders.length,
     urgentOrders: allOrders.filter(o => o?.urgent).length,
@@ -181,12 +182,11 @@ const AdminDashboard = () => {
   useEffect(() => {
     dashboardRefreshRef.current = refreshDashboard;
     analyticsRefreshRef.current = refreshAnalytics;
-    pauseRefreshRef.current = refreshPause;
     unseenRefreshRef.current = refreshUnseen;
     prodReturnedRefreshRef.current = refreshProdReturned;
     editRequestsRefreshRef.current = refreshEditRequests;
     queueRefreshRef.current = queueRefresh;
-  }, [refreshDashboard, refreshAnalytics, refreshPause, refreshUnseen, refreshProdReturned, refreshEditRequests, queueRefresh]);
+  }, [refreshDashboard, refreshAnalytics, refreshUnseen, refreshProdReturned, refreshEditRequests, queueRefresh]);
 
   useEffect(() => {
     const onOrderUpdated = () => queueRefreshRef.current?.();
@@ -343,17 +343,19 @@ const AdminDashboard = () => {
     e.preventDefault();
     setPausing(true);
     try {
-      const res = await api.post('/api/admin/pause',
-        { password: pausePassword }
-      );
+      const res = systemPaused
+        ? await resumeSystem(pausePassword)
+        : await pauseSystem(pausePassword);
+      if (!res) return;
       setShowPauseModal(false);
       setPausePassword('');
-      toast.success(res.data.message);
-      pauseRefreshRef.current?.();
+      toast.success(res.data?.message || (systemPaused ? 'System resumed.' : 'System paused.'));
+      queueRefreshRef.current?.();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to toggle pause');
+      toast.error(error.response?.data?.message || 'Failed to update system state');
+    } finally {
+      setPausing(false);
     }
-    setPausing(false);
   };
 
   const handleDashboardSearch = (val) => {
@@ -664,7 +666,7 @@ const AdminDashboard = () => {
               {systemPaused && (
                 <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
                   <PauseCircle className="text-red-400" size={18} />
-                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">System Paused</span>
+                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">🔴 SYSTEM PAUSED — All functions are temporarily stopped by Admin.</span>
                 </div>
               )}
               {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
@@ -1394,7 +1396,7 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <h2 className="text-2xl font-black text-white">{systemPaused ? 'Resume System' : 'Pause System'}</h2>
-                  <p className="text-gray-400 text-sm font-bold">{systemPaused ? 'Reactivate all production operations.' : 'Stop all production operations for holidays.'}</p>
+                  <p className="text-gray-400 text-sm font-bold">{systemPaused ? 'Reactivate all functions.' : 'Stop all functions temporarily. No operations can run while paused.'}</p>
                 </div>
               </div>
               <form onSubmit={handleTogglePause} className="space-y-4">

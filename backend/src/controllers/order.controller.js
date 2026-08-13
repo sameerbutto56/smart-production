@@ -541,7 +541,7 @@ const getOrders = async (req, res) => {
     // each auditLog.findFirst({ details: { contains } }) is a slow full-text scan
     // (~500ms x up to 10 stages) that pushed /api/orders?status=delivery to 16-25s,
     // blowing the frontend 15s timeout and leaving the delivery dashboard empty.
-    if (filterStatus !== 'delivery' && Date.now() - lastEscalationCheckAt > ESCALATION_CHECK_INTERVAL) {
+    if (filterStatus !== 'delivery' && !(await isSystemPaused()) && Date.now() - lastEscalationCheckAt > ESCALATION_CHECK_INTERVAL) {
       lastEscalationCheckAt = Date.now();
       try {
         const overduePriorityStages = await prisma.orderStage.findMany({
