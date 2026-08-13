@@ -58,6 +58,58 @@ const getDeliveryOrders = async (req, res) => {
   }
 };
 
+// Shared delivery-return routine: returns the order to Dispatch, marks it RETURNED,
+// records the attempt/history/audit and notifies both Dispatch and Inventory View
+// (so the returned order feeds the existing Inventory View → Returns flow for restock).
+const performDeliveryReturn = async (req, order, riderName, reason, autoReturned) => {
+  const now = new Date();
+  const activeStage = order.stages?.find(s =>
+    ['ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY'].includes(s.stageName) &&
+    ['PENDING', 'IN_PROGRESS'].includes(s.status)
+  );
+  if (activeStage) {
+    await prisma.orderStage.update({
+      where: { id: activeStage.id },
+      data: { status: 'COMPLETED', completedAt: now, rejectionReason: `${autoReturned ? 'Auto-returned after 3 no-response attempts' : `Returned by ${riderName}`}: ${reason || 'No reason'}` }
+    });
+  }
+
+  await prisma.order.update({
+    where: { id: order.id },
+    data: { currentStage: 'DISPATCH', status: 'RETURNED', returnedAt: now }
+  });
+
+  const attemptCount = await prisma.deliveryAttempt.count({ where: { orderId: order.id } });
+  await prisma.deliveryAttempt.create({
+    data: {
+      orderId: order.id,
+      attemptNumber: attemptCount + 1,
+      status: 'RETURNED',
+      riderName: riderName || 'SYSTEM',
+      attemptedAt: now,
+      notes: autoReturned ? `Auto-returned after 3 no-response attempts: ${reason || ''}` : (reason || 'Returned by delivery boy')
+    }
+  });
+
+  await prisma.routingHistory.create({
+    data: { orderId: order.id, sentByUserId: req.user?.id || null, previousStage: activeStage?.stageName || 'OUT_FOR_DELIVERY', newStage: 'DISPATCH', sentToStage: 'DISPATCH', remarks: `${autoReturned ? 'Auto-returned after 3 no-response attempts' : `Returned by ${riderName}`}: ${reason || 'No reason'}` }
+  });
+
+  await prisma.auditLog.create({
+    data: { orderId: order.id, action: autoReturned ? 'DELIVERY_AUTO_RETURNED' : 'DISPATCH_RETURNED', details: `${autoReturned ? 'Auto-returned after 3 no-response attempts' : `Returned by ${riderName}`}: ${reason || 'No reason'}`, performedBy: req.user?.id || 'SYSTEM' }
+  });
+
+  await notify.create(req, { type: 'delivery_returned', moduleName: 'My Tasks', path: '/dispatch', role: 'DISPATCH', title: 'Order Returned', message: `Order #${order.orderNumber} returned from delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned to Dispatch', employeeName: req.user?.name }).catch(() => {});
+
+  // Feed the Inventory View → Returns flow so the returned order can be restocked.
+  await notify.create(req, { type: 'return_exchange', moduleName: 'Return & Exchange', path: '/return-exchange', role: 'INVENTORY_VIEW', title: 'Order Returned from Delivery', message: `Order #${order.orderNumber} returned from delivery — process the return to restock inventory`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Return from Delivery', employeeName: req.user?.name }).catch(() => {});
+
+  const io = req.app?.get('io');
+  if (io) io.emit('order-updated', { orderId: order.id });
+
+  return { returnedAt: now };
+};
+
 // PUT /api/delivery/:orderId/accept — delivery boy accepts order
 const acceptDelivery = async (req, res) => {
   try {
@@ -229,6 +281,13 @@ const noResponse = async (req, res) => {
 
     await notify.create(req, { type: 'delivery_no_response', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'No Response', message: `Order #${order.orderNumber} no response on delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'No Response', employeeName: req.user?.name }).catch(() => {});
 
+    // After 3 no-response attempts the order auto-returns to Dispatch (it leaves
+    // the delivery queue) and feeds the Inventory View → Returns flow.
+    if (currentCount >= 3) {
+      await performDeliveryReturn(req, order, riderName, `No response after ${currentCount} attempts`, true);
+      return res.json({ message: `Order auto-returned to dispatch after ${currentCount} no-response attempts`, noResponseCount: currentCount, autoReturned: true });
+    }
+
     res.json({ message: `Day ${currentCount} – No Response logged`, noResponseCount: currentCount });
   } catch (error) {
     res.status(500).json({ message: 'Failed to log no response', error: error.message });
@@ -244,33 +303,7 @@ const returnOrder = async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    const now = new Date();
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { currentStage: 'DISPATCH', status: 'RETURNED', returnedAt: now }
-    });
-
-    const attemptCount = await prisma.deliveryAttempt.count({ where: { orderId } });
-    await prisma.deliveryAttempt.create({
-      data: {
-        orderId,
-        attemptNumber: attemptCount + 1,
-        status: 'RETURNED',
-        riderName,
-        attemptedAt: now,
-        notes: reason || 'Returned by delivery boy'
-      }
-    });
-
-    await prisma.routingHistory.create({
-      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DISPATCH', sentToStage: 'DISPATCH', remarks: `Returned by ${riderName}: ${reason || 'No reason'}` }
-    });
-
-    await prisma.auditLog.create({
-      data: { orderId, action: 'DISPATCH_RETURNED', details: `Returned by ${riderName}: ${reason || 'No reason'}`, performedBy: req.user?.id || 'SYSTEM' }
-    });
-
-    await notify.create(req, { type: 'delivery_returned', moduleName: 'My Tasks', path: '/dispatch', role: 'DISPATCH', title: 'Order Returned', message: `Order #${order.orderNumber} returned from delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned to Dispatch', employeeName: req.user?.name }).catch(() => {});
+    await performDeliveryReturn(req, order, riderName, reason || 'Returned by delivery boy', false);
 
     res.json({ message: 'Order returned to dispatch' });
   } catch (error) {
