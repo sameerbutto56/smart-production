@@ -899,7 +899,7 @@ const getOutletAnalytics = async (req, res) => {
     });
     const posTotal = posUnified.totalSales;
     const posCount = posUnified.totalOrders;
-    const posGross = posTotal + (posUnified.totalDiscount || 0);
+    const posGross = posUnified.grossSales || posTotal;
 
     // 7. Inventory overview
     const invWhere = outletName ? { outletName } : {};

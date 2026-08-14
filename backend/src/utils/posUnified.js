@@ -14,9 +14,11 @@
  *    paidAt date via amountPaidNow, NEVER counted as a new sale.
  *  - Returns are deducted on their processing (createdAt) date via refundAmount.
  *  - Net Revenue = Total Sales − Discounts − Returns − General Entries/Expenses:
- *    Gross/Total Sales → minus Total Discount → minus Refunds/Returned Amounts →
- *    minus Journal Expenses → Net Revenue. Every component is computed within the
- *    same date window, so a per-period filter always recalculates all four figures.
+ *    Total Sales (gross value BEFORE discounts) → minus Total Discount →
+ *    minus Refunds/Returned Amounts → minus Journal Expenses → Net Revenue. The
+ *    discount is deducted EXACTLY ONCE (never from the already-discounted received
+ *    total). Every component is computed within the same date window, so a
+ *    per-period filter always recalculates all four figures.
  */
 const KNOWN_METHODS = ['CASH', 'CARD', 'ONLINE'];
 
@@ -31,8 +33,9 @@ const saleRevenue = (s) => (s && s.advanceAmount > 0 ? Math.min(s.advanceAmount,
  *           totalBalanceCollections, totalJournalExpenses, totalBankDeposits,
  *           paymentBreakdown, salesByDay, ordersByDay, bestSellingProducts,
  *           sales, balancePayments, returns }
- * grossSales = totalSales + totalDiscount (received revenue before discounts are applied).
- * netRevenue = totalSales − totalDiscount − refundAmount − totalJournalExpenses.
+ * totalSales is the GROSS value before discounts (received revenue + discount).
+ * netRevenue = totalSales − totalDiscount − refundAmount − totalJournalExpenses
+ * (the discount is subtracted exactly once).
  */
 const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier }) => {
   const dayFilter = {};
@@ -78,16 +81,20 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
     prisma.posSaleItem.findMany({ where: { sale: saleWhere }, select: { productName: true, quantity: true } }),
   ]);
 
-  let totalSales = 0;
-  sales.forEach((s) => { totalSales += saleRevenue(s); });
+  let receivedTotal = 0;
+  sales.forEach((s) => { receivedTotal += saleRevenue(s); });
 
   const balancePaymentTotal = balancePayments.reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
-  totalSales += balancePaymentTotal;
+  receivedTotal += balancePaymentTotal;
 
   const refundAmount = returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
   const totalDiscount = discountAgg._sum.discountAmount || 0;
   const totalJournalExpenses = journalAgg._sum.amount || 0;
-  const grossSales = totalSales + totalDiscount;
+  // Total Sales is the GROSS value BEFORE discounts: the received (post-discount)
+  // total plus the discount given back. The discount is then deducted EXACTLY ONCE
+  // when deriving Net Revenue — never from the already-discounted received total.
+  const totalSales = receivedTotal + totalDiscount;
+  const grossSales = totalSales;
   const netRevenue = Math.max(0, totalSales - totalDiscount - refundAmount - totalJournalExpenses);
   const totalBankDeposits = bankDepAgg._sum.amount || 0;
 
