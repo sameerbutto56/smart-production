@@ -123,6 +123,7 @@ const auditRoutes = require('./routes/audit.routes');
 const softwareSettingsRoutes = require('./routes/softwareSettings.routes');
 const systemRoutes = require('./routes/system.routes');
 const deviceRoutes = require('./routes/device.routes');
+const orderControlRoutes = require('./routes/orderControl.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);
@@ -164,6 +165,7 @@ app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/ceo', ceoRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/software-settings', softwareSettingsRoutes);
+app.use('/api/order-control', orderControlRoutes);
 
 // Global error handler (must be last)
 app.use(errorHandler);
