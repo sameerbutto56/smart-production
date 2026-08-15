@@ -9,6 +9,25 @@ const { getPendingAudit } = require('../utils/auditLock');
 // replacement goods are processed (availability ticks + in-stock deduction).
 const REPLACEMENT_ROUTES = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'LOGO_DESIGN', 'WORKERS', 'DISPATCH'];
 
+// A replacement counts as genuinely "in flight" only while its replacement
+// ORDER (the instance) still has a live task. The original order's own status
+// or its earlier passage through Store never counts — only the replacement
+// instance's active task does. A missing/deleted REP order, or one that has
+// reached a terminal state, is never an active task and must not block a fresh
+// replacement from being created or sent to Store.
+const REP_ORDER_TERMINAL_STATUSES = ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'];
+const isReplacementInFlight = async (caseRecord) => {
+  if (!caseRecord || !caseRecord.replacementOrderId) return false;
+  const repOrder = await prisma.order.findUnique({
+    where: { id: caseRecord.replacementOrderId },
+    select: { id: true, currentStage: true, status: true }
+  });
+  if (!repOrder) return false;
+  const terminal = REP_ORDER_TERMINAL_STATUSES.includes(repOrder.status)
+    || REP_ORDER_TERMINAL_STATUSES.includes(repOrder.currentStage);
+  return !terminal;
+};
+
 const lookupOrder = async (req, res) => {
   try {
     const { query } = req.params;
@@ -84,25 +103,30 @@ const createReturnExchange = async (req, res) => {
       return res.status(400).json({ message: 'A replacement reason is required.' });
     }
 
-    // Prevent duplicate ACTIVE replacement cases for the same order — a
-    // replacement already in flight must not spawn orphaned PENDING duplicates
-    // that sit in Faisal's "Awaiting Review" list forever.
+    // Prevent duplicate ACTIVE replacement cases for the same order. The guard
+    // is keyed on the REPLACEMENT INSTANCE's live task, never on the original
+    // order's status or Store history. Only (a) a sibling still awaiting Faisal
+    // review, or (b) a sibling whose replacement ORDER is still genuinely in
+    // flight, blocks a fresh replacement — so a replacement whose REP order was
+    // completed/cancelled/deleted can never wedge the original forever.
     if (type === 'REPLACEMENT') {
-      const activeReplacement = await prisma.returnExchange.findFirst({
-        where: {
-          orderId,
-          type: 'REPLACEMENT',
-          status: { in: ['PENDING', 'FAISAL_APPROVED', 'IN_PRODUCTION', 'STORE_RECEIVE', 'DISPATCH_READY', 'WAREHOUSE_APPROVED'] }
-        },
+      const siblings = await prisma.returnExchange.findMany({
+        where: { orderId, type: 'REPLACEMENT' },
         orderBy: { createdAt: 'desc' }
       });
-      if (activeReplacement) {
-        return res.status(409).json({
-          message: activeReplacement.routedTo === 'FAISAL'
-            ? 'This order already has a replacement awaiting your review. Open that case instead of creating a new one.'
-            : 'A replacement for this order is already being processed. It will not be duplicated.',
-          existingCase: activeReplacement
-        });
+      for (const sib of siblings) {
+        if (sib.routedTo === 'FAISAL' && sib.status === 'PENDING' && !sib.replacementOrderId) {
+          return res.status(409).json({
+            message: 'This order already has a replacement awaiting your review. Open that case instead of creating a new one.',
+            existingCase: sib
+          });
+        }
+        if (sib.replacementOrderId && await isReplacementInFlight(sib)) {
+          return res.status(409).json({
+            message: 'A replacement for this order is already being processed. It will not be duplicated.',
+            existingCase: sib
+          });
+        }
       }
     }
 
@@ -679,12 +703,18 @@ const sendToStore = async (req, res) => {
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
     if (record.type !== 'REPLACEMENT') return res.status(400).json({ message: 'Only replacement cases can be sent to Store' });
-    if (record.routedTo !== 'FAISAL') return res.status(400).json({ message: 'This case is not awaiting Faisal' });
+    // Accept both the one-step flow (PENDING, still routed to FAISAL) and the
+    // legacy two-step Approve → Send flow (status FAISAL_APPROVED, routed to
+    // STORE, replacement order not yet created) — both must reach Store cleanly.
+    const awaitingFaisal = record.routedTo === 'FAISAL';
+    const approvedUnsent = record.routedTo === 'STORE' && record.status === 'FAISAL_APPROVED' && !record.replacementOrderId;
+    if (!awaitingFaisal && !approvedUnsent) return res.status(400).json({ message: 'This case is not awaiting Faisal' });
     if (record.replacementOrderId) return res.status(400).json({ message: 'Replacement order already created for this case' });
 
-    // Never allow TWO in-flight replacement orders for the same original — a
-    // different case of this order must not create REP-<orig>-2 while the
-    // original replacement lifecycle is still active.
+    // Only a sibling whose replacement INSTANCE still has a live task blocks —
+    // a different case of this order must not stop a fresh replacement merely
+    // because the original previously passed through Store. A case whose REP
+    // order was completed/cancelled/deleted is never in flight.
     const inFlightCase = await prisma.returnExchange.findFirst({
       where: {
         orderId: record.orderId,
@@ -694,7 +724,7 @@ const sendToStore = async (req, res) => {
         status: { notIn: ['CANCELLED', 'COMPLETED', 'REPLACEMENT_COMPLETED', 'WAREHOUSE_REJECTED'] }
       }
     });
-    if (inFlightCase) {
+    if (inFlightCase && await isReplacementInFlight(inFlightCase)) {
       const inFlightOrder = inFlightCase.replacementOrderId
         ? await prisma.order.findUnique({ where: { id: inFlightCase.replacementOrderId }, select: { orderNumber: true } })
         : null;

@@ -208,14 +208,17 @@ const FaisalReplacements = ({ refreshKey }) => {
     if (validItems.length === 0) { toast.error('Add at least one replacement product with a name'); return; }
     if (!orderFound) { toast.error('Load the original order first'); return; }
 
-    // Refuse to start a duplicate replacement while one is already active
-    const activeCase = (orderFound.returnExchangeCases || []).find(c =>
-      c.type === 'REPLACEMENT' && ['PENDING', 'FAISAL_APPROVED', 'IN_PRODUCTION', 'STORE_RECEIVE', 'DISPATCH_READY', 'WAREHOUSE_APPROVED'].includes(c.status)
+    // Mirror guard (backend is authoritative): only refuse a new replacement
+    // when a sibling case is genuinely awaiting Faisal review — PENDING with
+    // Faisal and no replacement order created yet. Any other state (a case
+    // whose replacement order is live, completed, cancelled, or deleted) is
+    // decided by the backend's liveness check, so a dead/completed replacement
+    // never blocks a new one.
+    const awaitingCase = (orderFound.returnExchangeCases || []).find(c =>
+      c.type === 'REPLACEMENT' && c.status === 'PENDING' && c.routedTo === 'FAISAL' && !c.replacementOrderId
     );
-    if (activeCase) {
-      toast.error(activeCase.routedTo === 'FAISAL'
-        ? 'This order already has a replacement awaiting your review.'
-        : 'A replacement for this order is already being processed.');
+    if (awaitingCase) {
+      toast.error('This order already has a replacement awaiting your review. Open that case instead of creating a new one.');
       return;
     }
 
