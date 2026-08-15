@@ -985,37 +985,46 @@ const outletRouteOrder = async (req, res) => {
     );
     if (!currentStage) return res.status(400).json({ message: 'No active stage found for routing' });
 
-    // Complete current stage
-    await prisma.orderStage.update({
-      where: { id: currentStage.id },
-      data: { status: 'COMPLETED', completedAt: new Date() }
-    });
+    // For sendToOutlet, validate target outlet before opening any transaction
+    let targetOutletName = null;
+    if (action === 'sendToOutlet') {
+      if (!targetOutlet) return res.status(400).json({ message: 'Target outlet is required' });
+      targetOutletName = targetOutlet;
+    }
 
     if (action === 'customerTakeDeliver') {
-      // Customer Take & Deliver — mark order DELIVERED
-      await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          currentStage: 'ORDER_ENTRY',
-          status: 'COMPLETED',
-          customerTakenAt: new Date(),
-          orderTakenBy: req.user?.name || 'Outlet Staff',
-          deliveredAt: new Date()
-        }
-      });
+      // Customer Take & Deliver — mark order DELIVERED. All writes are atomic:
+      // stage completion + order completion + audit + routing history commit together.
+      await prisma.$transaction(async (tx) => {
+        await tx.orderStage.update({
+          where: { id: currentStage.id },
+          data: { status: 'COMPLETED', completedAt: new Date() }
+        });
 
-      await createAuditLog(orderId, 'CUSTOMER_TAKEN',
-        `Customer taken by ${outletName}`,
-        req.user?.id || 'SYSTEM');
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            currentStage: 'ORDER_ENTRY',
+            status: 'COMPLETED',
+            customerTakenAt: new Date(),
+            orderTakenBy: req.user?.name || 'Outlet Staff',
+            deliveredAt: new Date()
+          }
+        });
 
-      await prisma.routingHistory.create({
-        data: {
-          orderId, sentByUserId: req.user?.id || null,
-          previousStage: currentStage.stageName, newStage: 'DELIVERED',
-          sentToStage: 'DELIVERED',
-          remarks: remarks || 'Customer picked up order'
-        }
-      });
+        await createAuditLog(orderId, 'CUSTOMER_TAKEN',
+          `Customer taken by ${outletName}`,
+          req.user?.id || 'SYSTEM', tx);
+
+        await tx.routingHistory.create({
+          data: {
+            orderId, sentByUserId: req.user?.id || null,
+            previousStage: currentStage.stageName, newStage: 'DELIVERED',
+            sentToStage: 'DELIVERED',
+            remarks: remarks || 'Customer picked up order'
+          }
+        });
+      }, { timeout: 30000 });
 
       await notify.create(req, {
         type: 'order_completed', moduleName: 'Orders', path: '/orders',
@@ -1032,32 +1041,10 @@ const outletRouteOrder = async (req, res) => {
       return res.json({ message: 'Order completed: Customer Take & Deliver' });
     }
 
-    // For sendToOutlet, validate target outlet
-    let targetOutletName = null;
-    if (action === 'sendToOutlet') {
-      if (!targetOutlet) return res.status(400).json({ message: 'Target outlet is required' });
-      targetOutletName = targetOutlet;
-    }
-
-    // Create destination stage
+    // Resolve destination stage deadline + recipient users (reads) before the transaction
     const durations = await require('./order-helpers').getStageDurations?.() || {};
     const deadline = new Date(Date.now() + ((durations[destinationStage] || 48) * 60 * 60 * 1000));
-    await prisma.orderStage.create({
-      data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
-    });
 
-    // Update order's currentStage
-    const orderUpdateData = { currentStage: destinationStage, status: 'PENDING' };
-    if (destinationStage === 'ENAMELS_DELIVERY') {
-      orderUpdateData.deliveryType = 'ENAMELS';
-      orderUpdateData.deliveryMethod = 'Enamels Delivery';
-    }
-    await prisma.order.update({
-      where: { id: orderId },
-      data: orderUpdateData
-    });
-
-    // Find recipient users
     const recipientRoles = {
       LOGO_DESIGN: ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
       PRODUCTION_ACCEPTANCE: ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'],
@@ -1077,28 +1064,57 @@ const outletRouteOrder = async (req, res) => {
       select: { id: true }
     });
 
-    // Routing history
-    await prisma.routingHistory.create({
-      data: {
-        orderId, sentByUserId: req.user?.id,
-        sentToStage: destinationStage,
-        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
-        previousStage: currentStage.stageName,
-        newStage: destinationStage,
-        remarks: remarks || `Outlet routed to ${destinationStage}${targetOutletName ? ` (${targetOutletName})` : ''}`,
-        createdAt: new Date()
-      }
-    });
-
-    // Reset seen status
-    await prisma.seenTask.deleteMany({
-      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
-    }).catch(() => {});
-
+    // Complete current stage → create destination stage → advance order → record
+    // routing history → reset seen → audit, all in ONE transaction so the order can
+    // never be left half-routed (new currentStage without a destination stage, or vice versa).
+    const orderUpdateData = { currentStage: destinationStage, status: 'PENDING' };
+    if (destinationStage === 'ENAMELS_DELIVERY') {
+      orderUpdateData.deliveryType = 'ENAMELS';
+      orderUpdateData.deliveryMethod = 'Enamels Delivery';
+    }
     const auditAction = action === 'sendToOutlet' ? 'OUTLET_ROUTED' : 'MANUAL_ROUTE';
-    await createAuditLog(orderId, auditAction,
-      `Routed from ${currentStage.stageName} to ${destinationStage}${targetOutletName ? ` (${targetOutletName})` : ''} by ${req.user?.name}`,
-      req.user?.id || 'SYSTEM');
+    const routingRemarks = remarks || `Outlet routed to ${destinationStage}${targetOutletName ? ` (${targetOutletName})` : ''}`;
+
+    await prisma.$transaction(async (tx) => {
+      // Complete current stage
+      await tx.orderStage.update({
+        where: { id: currentStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+
+      // Create destination stage
+      await tx.orderStage.create({
+        data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+      });
+
+      // Update order's currentStage
+      await tx.order.update({
+        where: { id: orderId },
+        data: orderUpdateData
+      });
+
+      // Routing history
+      await tx.routingHistory.create({
+        data: {
+          orderId, sentByUserId: req.user?.id,
+          sentToStage: destinationStage,
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: currentStage.stageName,
+          newStage: destinationStage,
+          remarks: routingRemarks,
+          createdAt: new Date()
+        }
+      });
+
+      // Reset seen status
+      await tx.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
+      }).catch(() => {});
+
+      await createAuditLog(orderId, auditAction,
+        `Routed from ${currentStage.stageName} to ${destinationStage}${targetOutletName ? ` (${targetOutletName})` : ''} by ${req.user?.name}`,
+        req.user?.id || 'SYSTEM', tx);
+    }, { timeout: 30000 });
 
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });

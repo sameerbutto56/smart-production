@@ -3,10 +3,11 @@ const { calculateDeadline } = require('../utils/deadline');
 const notify = require('../utils/notify');
 const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 
-const createAuditLog = async (orderId, action, details, userId) => {
+const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
     if (!userId) return;
-    await prisma.auditLog.create({
+    const db = tx || prisma;
+    await db.auditLog.create({
       data: { orderId, action, details, performedBy: userId, timestamp: new Date() }
     });
   } catch (error) {
@@ -14,9 +15,10 @@ const createAuditLog = async (orderId, action, details, userId) => {
   }
 };
 
-const createDispatchLog = async (data) => {
+const createDispatchLog = async (data, tx) => {
   try {
-    await prisma.dispatchLog.create({ data });
+    const db = tx || prisma;
+    await db.dispatchLog.create({ data });
   } catch (error) {
     console.error('Dispatch Log Error:', error);
   }
@@ -163,63 +165,68 @@ const bookCourier = async (req, res) => {
     };
     const mappedDeliveryType = deliveryTypeMap[courierName] || null;
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        trackingNumber,
-        courierDetails,
-        deliveryMethod: courierName,
-        deliveryType: mappedDeliveryType,
-        dispatchStatus: 'BOOKED'
-      }
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        orderId,
-        action: 'COURIER_BOOKED',
-        details: `Courier booked: ${courierName}. Tracking: ${trackingNumber}. Booked by: ${req.user.name}`,
-        performedBy: req.user.id
-      }
-    });
-
-    // Auto-create OUT_FOR_DELIVERY stage
-    const existingStage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status === 'PENDING');
-    if (!existingStage) {
-      const durations = await getStageDurations(order.priority);
-      const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
-      await prisma.orderStage.create({
-        data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
+    // All courier-booking writes (order courier fields → audit → OUT_FOR_DELIVERY
+    // stage create → currentStage advance → routing history + seen reset for ENAMELS)
+    // are atomic — a booked courier can never leave the order half-routed.
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          trackingNumber,
+          courierDetails,
+          deliveryMethod: courierName,
+          deliveryType: mappedDeliveryType,
+          dispatchStatus: 'BOOKED'
+        }
       });
-    }
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { currentStage: 'OUT_FOR_DELIVERY' }
-    });
-
-    // Routing history + SeenTask for delivery users
-    if (mappedDeliveryType === 'ENAMELS') {
-      const recipientUsers = await prisma.user.findMany({
-        where: { role: { in: ['OUT_FOR_DELIVERY', 'DELIVERY_BOY'] } },
-        select: { id: true }
-      });
-      await prisma.routingHistory.create({
+      await tx.auditLog.create({
         data: {
           orderId,
-          sentByUserId: req.user.id,
-          sentToStage: 'OUT_FOR_DELIVERY',
-          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
-          previousStage: 'DISPATCH',
-          newStage: 'OUT_FOR_DELIVERY',
-          remarks: `Dispatched via Enamels Delivery. Tracking: ${trackingNumber || 'N/A'}`,
-          createdAt: new Date()
+          action: 'COURIER_BOOKED',
+          details: `Courier booked: ${courierName}. Tracking: ${trackingNumber}. Booked by: ${req.user.name}`,
+          performedBy: req.user.id
         }
-      }).catch(() => {});
-      await prisma.seenTask.deleteMany({
-        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
-      }).catch(() => {});
-    }
+      });
+
+      // Auto-create OUT_FOR_DELIVERY stage
+      const existingStage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status === 'PENDING');
+      if (!existingStage) {
+        const durations = await getStageDurations(order.priority);
+        const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
+        await tx.orderStage.create({
+          data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
+        });
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { currentStage: 'OUT_FOR_DELIVERY' }
+      });
+
+      // Routing history + SeenTask for delivery users
+      if (mappedDeliveryType === 'ENAMELS') {
+        const recipientUsers = await tx.user.findMany({
+          where: { role: { in: ['OUT_FOR_DELIVERY', 'DELIVERY_BOY'] } },
+          select: { id: true }
+        });
+        await tx.routingHistory.create({
+          data: {
+            orderId,
+            sentByUserId: req.user.id,
+            sentToStage: 'OUT_FOR_DELIVERY',
+            sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+            previousStage: 'DISPATCH',
+            newStage: 'OUT_FOR_DELIVERY',
+            remarks: `Dispatched via Enamels Delivery. Tracking: ${trackingNumber || 'N/A'}`,
+            createdAt: new Date()
+          }
+        }).catch(() => {});
+        await tx.seenTask.deleteMany({
+          where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
+        }).catch(() => {});
+      }
+    }, { timeout: 30000 });
 
     await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery', message: `Order #${order.orderNumber} booked with courier`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Courier Booked', employeeName: req.user?.name }).catch(() => {});
 

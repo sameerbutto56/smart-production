@@ -1,10 +1,11 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 
-const createAuditLog = async (orderId, action, details, userId) => {
+const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
     if (!userId) return;
-    await prisma.auditLog.create({
+    const db = tx || prisma;
+    await db.auditLog.create({
       data: { orderId, action, details, performedBy: userId, timestamp: new Date() }
     });
   } catch (error) {
@@ -12,9 +13,10 @@ const createAuditLog = async (orderId, action, details, userId) => {
   }
 };
 
-const createDispatchLog = async (data) => {
+const createDispatchLog = async (data, tx) => {
   try {
-    await prisma.dispatchLog.create({ data });
+    const db = tx || prisma;
+    await db.dispatchLog.create({ data });
   } catch (error) {
     console.error('Dispatch Log Error:', error);
   }
@@ -265,25 +267,27 @@ const dispatchFromProfile = async (req, res) => {
     }
 
     if (dispatchMethod === 'FORWARD_TO_FAISAL') {
-      // Keep order at DISPATCH, assign to Faisal
-      await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          dispatchOfficer: 'Faisal',
-          forwardedBy: 'Khawar'
-        }
-      });
+      // Keep order at DISPATCH, assign to Faisal (atomic: order + audit + dispatch log)
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            dispatchOfficer: 'Faisal',
+            forwardedBy: 'Khawar'
+          }
+        });
 
-      await createAuditLog(orderId, 'FORWARDED_TO_FAISAL', `Order forwarded from Khawar to Faisal dispatch`, req.user?.id);
-      await createDispatchLog({
-        orderId,
-        officerName: 'Khawar',
-        action: 'FORWARDED',
-        dispatchMethod: 'FORWARD_TO_FAISAL',
-        orderNumber: order.orderNumber,
-        customerName: order.customerName,
-        city: order.city
-      });
+        await createAuditLog(orderId, 'FORWARDED_TO_FAISAL', `Order forwarded from Khawar to Faisal dispatch`, req.user?.id, tx);
+        await createDispatchLog({
+          orderId,
+          officerName: 'Khawar',
+          action: 'FORWARDED',
+          dispatchMethod: 'FORWARD_TO_FAISAL',
+          orderNumber: order.orderNumber,
+          customerName: order.customerName,
+          city: order.city
+        }, tx);
+      }, { timeout: 30000 });
 
       const io = req.app?.get('io');
       if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
@@ -306,24 +310,6 @@ const dispatchFromProfile = async (req, res) => {
     updateData.deliveryType = mappedDeliveryType;
     if (trackingUrl) updateData.trackingNumber = trackingUrl;
 
-    // Complete the DISPATCH stage
-    const currentStage = order.stages.find(s =>
-      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
-    );
-    if (currentStage) {
-      await prisma.orderStage.update({
-        where: { id: currentStage.id },
-        data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Dispatched via ${dispatchMethod} by ${employeeName}` }
-      });
-    }
-
-    // Create OUT_FOR_DELIVERY stage with appropriate deadline
-    const durations = await getStageDurations(order.priority);
-    const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
-    await prisma.orderStage.create({
-      data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
-    });
-
     updateData.currentStage = 'OUT_FOR_DELIVERY';
     updateData.status = 'IN_PROGRESS';
     updateData.dispatchStatus = mappedDeliveryType === 'WALK_IN' ? 'DELIVERED' : 'BOOKED';
@@ -331,7 +317,14 @@ const dispatchFromProfile = async (req, res) => {
       updateData.deliveredAt = new Date();
     }
 
-    await prisma.order.update({ where: { id: orderId }, data: updateData });
+    // Complete the DISPATCH stage → create OUT_FOR_DELIVERY → update order →
+    // routing history → reset seen → audit + dispatch log, all in ONE transaction so
+    // the order can never be left half-dispatched.
+    const currentStage = order.stages.find(s =>
+      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+    );
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
 
     // Routing history for delivery users
     const getRolesForStage = (stage) => {
@@ -345,34 +338,53 @@ const dispatchFromProfile = async (req, res) => {
       where: { role: { in: getRolesForStage('OUT_FOR_DELIVERY') } },
       select: { id: true }
     });
-    await prisma.routingHistory.create({
-      data: {
-        orderId,
-        sentByUserId: req.user?.id || 'system',
-        sentToStage: 'OUT_FOR_DELIVERY',
-        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
-        previousStage: 'DISPATCH',
-        newStage: 'OUT_FOR_DELIVERY',
-        remarks: `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`,
-        createdAt: new Date()
-      }
-    }).catch(() => {});
-    await prisma.seenTask.deleteMany({
-      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
-    }).catch(() => {});
 
-    // Audit + Dispatch log
     const auditAction = dispatchMethod === 'ENAMELS' ? 'DISPATCHED_ENAMELS' : 'DISPATCHED_COURIER';
-    await createAuditLog(orderId, auditAction, `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`, req.user?.id);
-    await createDispatchLog({
-      orderId,
-      officerName: employeeName,
-      action: 'DISPATCHED',
-      dispatchMethod,
-      orderNumber: order.orderNumber,
-      customerName: order.customerName,
-      city: order.city
-    });
+    const dispatchRemarks = `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`;
+
+    await prisma.$transaction(async (tx) => {
+      if (currentStage) {
+        await tx.orderStage.update({
+          where: { id: currentStage.id },
+          data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Dispatched via ${dispatchMethod} by ${employeeName}` }
+        });
+      }
+
+      // Create OUT_FOR_DELIVERY stage with appropriate deadline
+      await tx.orderStage.create({
+        data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
+      });
+
+      await tx.order.update({ where: { id: orderId }, data: updateData });
+
+      await tx.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user?.id || 'system',
+          sentToStage: 'OUT_FOR_DELIVERY',
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: 'DISPATCH',
+          newStage: 'OUT_FOR_DELIVERY',
+          remarks: dispatchRemarks,
+          createdAt: new Date()
+        }
+      }).catch(() => {});
+      await tx.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
+      }).catch(() => {});
+
+      // Audit + Dispatch log
+      await createAuditLog(orderId, auditAction, `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`, req.user?.id, tx);
+      await createDispatchLog({
+        orderId,
+        officerName: employeeName,
+        action: 'DISPATCHED',
+        dispatchMethod,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        city: order.city
+      }, tx);
+    }, { timeout: 30000 });
 
     const io = req.app?.get('io');
     if (io) io.emit('order-updated', { orderId, createdById: order.createdById });

@@ -1116,71 +1116,76 @@ const routeReplacement = async (req, res) => {
       }
     }
 
-    // 2) Complete STORE stage, create destination stage, advance the order
-    await prisma.orderStage.update({
-      where: { id: storeStage.id },
-      data: { status: 'COMPLETED', completedAt: new Date() }
-    });
-    const deadline = calculateDeadline(new Date(), 24);
-    await prisma.orderStage.create({
-      data: { orderId: order.id, stageName: nextStage, status: 'PENDING', deadlineAt: deadline }
-    });
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { currentStage: nextStage, status: 'PENDING' }
-    });
-
-    const recipientUsers = await prisma.user.findMany({
-      where: { role: { in: getRolesForStage(nextStage) } },
-      select: { id: true }
-    });
-    await prisma.routingHistory.create({
-      data: {
-        orderId: order.id,
-        sentByUserId: req.user?.id || null,
-        sentToStage: nextStage,
-        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
-        previousStage: 'STORE',
-        newStage: nextStage,
-        remarks: notes || `Replacement routed to ${nextStage} by ${req.user?.name || 'Store'}`
-      }
-    }).catch(e => console.error('Replacement routing history error:', e));
-    await prisma.seenTask.deleteMany({
-      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: nextStage }
-    }).catch(() => {});
-
-    const detail = deductedItems > 0
-      ? ` — ${deductedItems} item(s) deducted from inventory (In Stock)`
-      : ' — no items deducted (all routed onward for production/logo)';
-    await prisma.auditLog.create({
-      data: {
-        orderId: order.id,
-        action: 'REPLACEMENT_ROUTED',
-        details: `Replacement order ${order.orderNumber} routed from STORE → ${nextStage} by ${req.user?.name || 'Store'}${detail}. Performed: ${new Date().toLocaleString()}.`,
-        performedBy: req.user?.id || 'SYSTEM'
-      }
-    });
-    await prisma.auditLog.create({
-      data: {
-        orderId: record.orderId,
-        action: 'REPLACEMENT_ROUTED',
-        details: `Replacement case routed to ${nextStage} — replacement order ${order.orderNumber}. Performed: ${new Date().toLocaleString()}.`,
-        performedBy: req.user?.id || 'SYSTEM'
-      }
-    });
-
-    // 3) Sync the case so it leaves the Store queue and reflects its next phase
+    // 2) Complete STORE stage, create destination stage, advance the order.
+    //    All routing writes (stage close → destination stage → order advance →
+    //    routing history → seen reset → audits → case sync) are atomic.
     const newCaseStatus = ['DISPATCH', 'OUT_FOR_DELIVERY'].includes(nextStage) ? 'DISPATCH_READY' : 'IN_PRODUCTION';
-    await prisma.returnExchange.update({
-      where: { id },
-      data: {
-        status: newCaseStatus,
-        storeProcessedBy: req.user?.name || 'Store',
-        storeProcessedAt: new Date(),
-        inventoryAdjusted: deductedItems > 0,
-        productionRoutedAt: newCaseStatus === 'IN_PRODUCTION' ? (record.productionRoutedAt || new Date()) : record.productionRoutedAt
-      }
-    });
+    const deadline = calculateDeadline(new Date(), 24);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.orderStage.update({
+        where: { id: storeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+      await tx.orderStage.create({
+        data: { orderId: order.id, stageName: nextStage, status: 'PENDING', deadlineAt: deadline }
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: { currentStage: nextStage, status: 'PENDING' }
+      });
+
+      const recipientUsers = await tx.user.findMany({
+        where: { role: { in: getRolesForStage(nextStage) } },
+        select: { id: true }
+      });
+      await tx.routingHistory.create({
+        data: {
+          orderId: order.id,
+          sentByUserId: req.user?.id || null,
+          sentToStage: nextStage,
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: 'STORE',
+          newStage: nextStage,
+          remarks: notes || `Replacement routed to ${nextStage} by ${req.user?.name || 'Store'}`
+        }
+      }).catch(e => console.error('Replacement routing history error:', e));
+      await tx.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: nextStage }
+      }).catch(() => {});
+
+      const detail = deductedItems > 0
+        ? ` — ${deductedItems} item(s) deducted from inventory (In Stock)`
+        : ' — no items deducted (all routed onward for production/logo)';
+      await tx.auditLog.create({
+        data: {
+          orderId: order.id,
+          action: 'REPLACEMENT_ROUTED',
+          details: `Replacement order ${order.orderNumber} routed from STORE → ${nextStage} by ${req.user?.name || 'Store'}${detail}. Performed: ${new Date().toLocaleString()}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'REPLACEMENT_ROUTED',
+          details: `Replacement case routed to ${nextStage} — replacement order ${order.orderNumber}. Performed: ${new Date().toLocaleString()}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+
+      // 3) Sync the case so it leaves the Store queue and reflects its next phase
+      await tx.returnExchange.update({
+        where: { id },
+        data: {
+          status: newCaseStatus,
+          storeProcessedBy: req.user?.name || 'Store',
+          storeProcessedAt: new Date(),
+          inventoryAdjusted: deductedItems > 0,
+          productionRoutedAt: newCaseStatus === 'IN_PRODUCTION' ? (record.productionRoutedAt || new Date()) : record.productionRoutedAt
+        }
+      });
+    }, { timeout: 30000 });
 
     await notify.create(req, {
       type: 'stage_task',
@@ -1453,69 +1458,73 @@ const redispatchOrder = async (req, res) => {
       });
     }
 
-    // 1) Mark any active stages as COMPLETED
-    const activeStages = order.stages.filter(s => ['PENDING', 'IN_PROGRESS'].includes(s.status));
-    for (const stage of activeStages) {
-      await prisma.orderStage.update({
-        where: { id: stage.id },
-        data: { status: 'COMPLETED', completedAt: new Date() }
-      });
-    }
-
-    // 2) Create new DISPATCH stage in PENDING status
+    // 1) Mark any active stages as COMPLETED, create new DISPATCH stage, reset order,
+    //    record routing history + audit + clear seen tasks — ALL in one transaction so a
+    //    re-dispatch can never leave the order half-routed.
     const durations = await getStageDurations(order.priority);
     const deadline = calculateDeadline(new Date(), durations['DISPATCH'] || 12);
 
-    await prisma.orderStage.create({
-      data: {
-        orderId,
-        stageName: 'DISPATCH',
-        status: 'PENDING',
-        deadlineAt: deadline
+    await prisma.$transaction(async (tx) => {
+      const activeStages = order.stages.filter(s => ['PENDING', 'IN_PROGRESS'].includes(s.status));
+      for (const stage of activeStages) {
+        await tx.orderStage.update({
+          where: { id: stage.id },
+          data: { status: 'COMPLETED', completedAt: new Date() }
+        });
       }
-    });
 
-    // 3) Update Order: currentStage = DISPATCH, status = PENDING, dispatchOfficer = null, dispatchStatus = PENDING
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        currentStage: 'DISPATCH',
-        status: 'PENDING',
-        dispatchOfficer: null,
-        dispatchStatus: 'PENDING'
-      }
-    });
+      // 2) Create new DISPATCH stage in PENDING status
+      await tx.orderStage.create({
+        data: {
+          orderId,
+          stageName: 'DISPATCH',
+          status: 'PENDING',
+          deadlineAt: deadline
+        }
+      });
 
-    // 4) Add to Routing History
-    await prisma.routingHistory.create({
-      data: {
-        orderId,
-        sentByUserId: req.user?.id || null,
-        previousStage: order.currentStage,
-        newStage: 'DISPATCH',
-        sentToStage: 'DISPATCH',
-        remarks: notes || `Re-dispatch requested by ${req.user?.name || 'Inventory View'}`
-      }
-    });
+      // 3) Update Order: currentStage = DISPATCH, status = PENDING, dispatchOfficer = null, dispatchStatus = PENDING
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          currentStage: 'DISPATCH',
+          status: 'PENDING',
+          dispatchOfficer: null,
+          dispatchStatus: 'PENDING'
+        }
+      });
 
-    // 5) Add Audit Log for timeline tracking
-    await prisma.auditLog.create({
-      data: {
-        orderId,
-        action: 'REDISPATCH_REQUESTED',
-        details: `Order re-dispatch requested by ${req.user?.name || 'Inventory View'}${notes ? `. Notes: ${notes}` : ''}. Performed: ${new Date().toLocaleString()}.`,
-        performedBy: req.user?.id || 'SYSTEM'
-      }
-    });
+      // 4) Add to Routing History
+      await tx.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user?.id || null,
+          previousStage: order.currentStage,
+          newStage: 'DISPATCH',
+          sentToStage: 'DISPATCH',
+          remarks: notes || `Re-dispatch requested by ${req.user?.name || 'Inventory View'}`
+        }
+      });
 
-    // Delete seen tasks so it appears in unseen for all dispatchers
-    const recipientUsers = await prisma.user.findMany({
-      where: { role: { in: ['DISPATCH', 'STORE_EMPLOYEE'] } },
-      select: { id: true }
-    });
-    await prisma.seenTask.deleteMany({
-      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: 'DISPATCH' }
-    }).catch(() => {});
+      // 5) Add Audit Log for timeline tracking
+      await tx.auditLog.create({
+        data: {
+          orderId,
+          action: 'REDISPATCH_REQUESTED',
+          details: `Order re-dispatch requested by ${req.user?.name || 'Inventory View'}${notes ? `. Notes: ${notes}` : ''}. Performed: ${new Date().toLocaleString()}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+
+      // Delete seen tasks so it appears in unseen for all dispatchers
+      const recipientUsers = await tx.user.findMany({
+        where: { role: { in: ['DISPATCH', 'STORE_EMPLOYEE'] } },
+        select: { id: true }
+      });
+      await tx.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: 'DISPATCH' }
+      }).catch(() => {});
+    }, { timeout: 30000 });
 
     // Create notifications for dispatchers
     await notify.create(req, {

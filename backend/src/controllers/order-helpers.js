@@ -17,13 +17,14 @@ const isSystemPaused = async () => {
   } catch { return false; }
 };
 
-const createAuditLog = async (orderId, action, details, userId) => {
+const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
     if (!userId) {
       console.warn('Audit Log: No userId provided for action:', action);
       return;
     }
-    await prisma.auditLog.create({
+    const db = tx || prisma;
+    await db.auditLog.create({
       data: {
         orderId,
         action,
