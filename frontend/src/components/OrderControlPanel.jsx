@@ -3,11 +3,8 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { Search, Loader2, Navigation, AlertTriangle, CheckCircle2, RefreshCw, MapPin, ShieldAlert, ArrowRight, User, Hash, FileText, Clock, Info } from 'lucide-react';
 import { formatDateTime } from '../utils/dateTime';
-import { useAuth } from '../context/AuthContext';
 
 function OrderControlPanel() {
-  const { user } = useAuth();
-  const canReroute = user && ['SUPER_ADMIN', 'ADMIN'].includes(user.role);
   const [query, setQuery] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -199,23 +196,16 @@ function OrderControlPanel() {
               <h3 className="text-lg font-black text-white">Manual Re-Route</h3>
             </div>
             <p className="text-xs text-gray-400 mb-4">
-              Only <span className="font-bold text-amber-300">Super Admin / Admin</span> can re-route. The order is
-              completed at its current stage, a new <span className="font-bold">PENDING</span> stage is created for the
-              destination, the destination profile's seen-tasks are reset (it lands unseen), routing history + audit log are
-              written, and the destination profile is notified. Production-bound routes from Store / Logo always land in
+              The order is completed at its current stage, a new <span className="font-bold">PENDING</span> stage is created
+              for the destination, the destination profile's seen-tasks are reset (it lands unseen), routing history + audit log
+              are written, and the destination profile is notified. Production-bound routes from Store / Logo always land in
               <span className="font-bold text-amber-300"> PRODUCTION_ACCEPTANCE</span>.
             </p>
-
-            {!canReroute && (
-              <div className="bg-red-600/15 border border-red-700/60 rounded-xl p-3 text-sm text-red-300 font-bold">
-                Your profile cannot re-route orders. Ask a Super Admin or Admin.
-              </div>
-            )}
 
             <div className="grid md:grid-cols-2 gap-4 mt-4">
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wide">Destination Stage</label>
-                <select value={destStage} onChange={e => setDestStage(e.target.value)} disabled={!canReroute}
+                <select value={destStage} onChange={e => setDestStage(e.target.value)}
                   className="mt-1 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50">
                   <option value="">Select destination…</option>
                   {(data.destStages || []).map(d => (
@@ -227,7 +217,7 @@ function OrderControlPanel() {
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wide">
                   Reason (required — written to the audit trail)
                 </label>
-                <textarea value={reason} onChange={e => setReason(e.target.value)} disabled={!canReroute} rows={3}
+                <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
                   placeholder="e.g. Order was mis-routed to Store; correcting to Production Acceptance."
                   className="mt-1 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50 resize-none" />
               </div>
@@ -237,7 +227,7 @@ function OrderControlPanel() {
               <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
                 <Info size={13} /> Terminal orders (cancelled / completed / rejected) cannot be re-routed.
               </p>
-              <button onClick={handleReroute} disabled={!canReroute || rerouting}
+              <button onClick={handleReroute} disabled={rerouting}
                 className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-black px-5 py-2.5 rounded-xl text-sm disabled:opacity-40">
                 {rerouting ? <Loader2 className="animate-spin" size={16} /> : <ArrowRight size={16} />} Re-Route Order
               </button>
