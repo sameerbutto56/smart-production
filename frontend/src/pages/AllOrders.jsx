@@ -221,6 +221,7 @@ const AllOrders = () => {
   const [dateFilter, setDateFilter] = useState('all'); // all|today|yesterday|last7|thisMonth
   const [filterDepartment, setFilterDepartment] = useState(null); // Store|Production|Logo|Dispatch|Inventory Verification
   const [filterDelayStage, setFilterDelayStage] = useState(null); // specific workflow stage (e.g. 'PRODUCTION')
+  const [exporting, setExporting] = useState(false);
   
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
@@ -345,6 +346,52 @@ const AllOrders = () => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  // Backend-driven Excel export — mirrors the screen's active filter exactly
+  // (category / delay department / delay stage + status / type / urgent / city / date).
+  const handleExportExcel = async () => {
+    const params = {};
+    if (filterCategory && filterCategory !== 'all') params.category = filterCategory;
+    if (filterDepartment) params.department = filterDepartment;
+    if (filterDelayStage) params.stage = filterDelayStage;
+
+    const q = (searchTerm || '').trim();
+    if (q.length >= 2) {
+      // Server search is active on screen — export the global search results
+      // (secondary filters are bypassed, mirroring isServerSearchActive).
+      params.search = q;
+    } else {
+      if (filterStatus && filterStatus !== 'ALL') params.status = filterStatus;
+      if (filterType && filterType !== 'ALL') params.type = filterType;
+      if (filterUrgent) params.urgent = 'true';
+      if (filterCity) params.city = filterCity;
+      const range = getDateRange(dateFilter);
+      if (range) {
+        params.dateFrom = new Date(range.start).toISOString();
+        params.dateTo = new Date(range.end).toISOString();
+      }
+    }
+
+    setExporting(true);
+    try {
+      const res = await api.get('/api/orders/export', { params, responseType: 'blob', timeout: 120000 });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      const stagePart = String(filterDelayStage || filterDepartment || filterCategory || 'all').toLowerCase().replace(/[^a-z0-9_-]/gi, '');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `orders_${stagePart}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      const msg = err.response?.data?.message || 'Failed to download Excel. Please try again.';
+      toast.error(msg);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const [delayConfig, setDelayConfig] = useState(null);
@@ -546,6 +593,16 @@ const AllOrders = () => {
             </button>
 
             <LanguageToggle />
+
+            <button
+              onClick={handleExportExcel}
+              disabled={exporting}
+              className="px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl text-white font-black text-xs md:text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Download the currently filtered orders as an Excel file"
+            >
+              <Download size={16} />
+              <span>{exporting ? 'Preparing…' : 'Download Excel'}</span>
+            </button>
         </div>
       </div>
 

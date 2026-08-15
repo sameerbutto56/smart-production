@@ -2,6 +2,7 @@ const express = require('express');
 const { 
   createOrder, 
   getOrders, 
+  getOrdersExport,
   requestStageCompletion, 
   approveStageCompletion, 
   rejectStageCompletion,
@@ -67,6 +68,10 @@ router.delete('/history', authenticate, authorize(['SUPER_ADMIN', 'FAISAL']), cl
 
 // List all orders (available to all authenticated users)
 router.get('/', authenticate, getOrders);
+
+// Excel export of the Orders screen (category/department/stage delay filters).
+// Registered before /:orderId so 'export' is never captured as an order id.
+router.get('/export', authenticate, getOrdersExport);
 
 // Track order by orderNumber (any authenticated user)
 router.get('/track/:orderNumber', authenticate, trackOrder);

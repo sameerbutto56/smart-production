@@ -1,7 +1,10 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
+const { getDelayMap, fmtDuration } = require('../utils/orderDelay');
+const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
+const XLSX = require('xlsx');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
 
@@ -722,6 +725,188 @@ const getOrders = async (req, res) => {
     res.json(sortByPriority(orders));
   } catch (error) {
     res.status(500).json({ message: 'Error fetching orders', error: error.message });
+  }
+};
+
+// Excel export of the Orders screen dataset. Mirrors getOrders' query surface and
+// applies the same category/department/stage delay filters the AllOrders screen uses,
+// so the exported rows always equal the displayed filter (backend-side filtering —
+// never a frontend "export everything" fallback). One Excel row per order item.
+const getOrdersExport = async (req, res) => {
+  try {
+    const role = String(req.user.role || '').toUpperCase().trim();
+    const { category, department, stage, search, status, type, urgent, city, dateFrom, dateTo } = req.query;
+    const isSearch = Boolean(String(search || '').trim());
+
+    let where = {};
+
+    // 1. Role boundary isolation (same as getOrders) — skipped during global search
+    //    because the Orders screen bypasses role filtering when server search is active.
+    if (!isSearch && (role === 'OUTLET' || role === 'FAISAL')) {
+      where.createdById = req.user.id;
+    }
+
+    // 2. Global search branch (same lookup as getOrders)
+    const q = String(search || '').trim();
+    if (q) {
+      where.OR = [
+        { orderNumber: { contains: q, mode: 'insensitive' } },
+        { invoiceNumber: { contains: q, mode: 'insensitive' } },
+        { customerName: { contains: q, mode: 'insensitive' } },
+        { customerPhone: { contains: q } }
+      ];
+    }
+
+    // 3. Same dataset the Orders screen filters in memory:
+    //    active orders (500) + most recent 100 completed/history orders.
+    const include = {
+      stages: {
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true }
+      },
+      auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
+      createdBy: { select: { name: true } }
+    };
+    const [activeOrders, completedOrders] = await prisma.$transaction([
+      prisma.order.findMany({
+        where: { ...where, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
+        include, orderBy: { createdAt: 'desc' }, take: 500
+      }),
+      prisma.order.findMany({
+        where: { ...where, status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
+        include, orderBy: { createdAt: 'desc' }, take: 100
+      })
+    ]);
+
+    let orders = sortByPriority([...activeOrders, ...completedOrders]);
+
+    // 4. Delay classification — same config + pause windows as the screen.
+    let delayConfig = null;
+    try {
+      const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+      if (setting && setting.value) delayConfig = JSON.parse(setting.value);
+    } catch (e) { delayConfig = null; }
+    let pausePeriods = null;
+    try {
+      const state = await getSystemState();
+      pausePeriods = Array.isArray(state.periods) ? state.periods : null;
+    } catch (e) { pausePeriods = null; }
+    const profileKey = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'SOFTWARE_SETTINGS'].includes(role) ? 'control' : null;
+    const delayMap = getDelayMap(orders, delayConfig, pausePeriods, profileKey);
+
+    // 5. Apply the same filter chain as AllOrders (ANDed conditions).
+    if (category === 'delayed') {
+      orders = orders.filter((o) => delayMap[o.id]);
+    } else if (category === 'standard') {
+      orders = orders.filter((o) => String(o.type || '').toUpperCase() === 'STANDARD');
+    } else if (category === 'custom') {
+      orders = orders.filter((o) => ['READY_LOGO', 'FULL_CUSTOM'].includes(String(o.type || '').toUpperCase()));
+    } else if (category === 'urgent') {
+      orders = orders.filter((o) => String(o.priority || '').toUpperCase() === 'URGENT');
+    } else if (category === 'super_urgent') {
+      orders = orders.filter((o) => String(o.priority || '').toUpperCase() === 'SUPER_URGENT');
+    }
+    if (department) orders = orders.filter((o) => delayMap[o.id] && delayMap[o.id].department === department);
+    if (stage) orders = orders.filter((o) => delayMap[o.id] && delayMap[o.id].stage === stage);
+
+    // 5b. Non-search client filters (mirror baseFilteredOrders on the Orders screen):
+    //     status / type / urgent / city / date + the STORE_RECEIVE visibility rule.
+    //     Skipped during global search, exactly like the screen's isServerSearchActive path.
+    if (!isSearch) {
+      if (status && String(status).toUpperCase() !== 'ALL') {
+        const st = String(status).toUpperCase();
+        orders = orders.filter((o) => String(o.status || '').toUpperCase() === st);
+      }
+      if (type && String(type).toUpperCase() !== 'ALL') {
+        const ty = String(type).toUpperCase();
+        orders = orders.filter((o) => String(o.type || '').toUpperCase() === ty);
+      }
+      if (urgent === 'true' || urgent === '1') {
+        orders = orders.filter((o) => o.urgent === true);
+      }
+      if (city) {
+        const c = String(city).toLowerCase();
+        orders = orders.filter((o) => String(o.city || '').toLowerCase().includes(c));
+      }
+      const from = dateFrom ? new Date(dateFrom).getTime() : null;
+      const to = dateTo ? new Date(dateTo).getTime() : null;
+      if (from !== null || to !== null) {
+        orders = orders.filter((o) => {
+          const ts = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+          if (from !== null && ts < from) return false;
+          if (to !== null && ts >= to) return false;
+          return true;
+        });
+      }
+      // STORE_RECEIVE is Store-only — never in Online/Outlet/Admin views (mirror notStoreReceive).
+      if (!['STORE', 'STORE_EMPLOYEE'].includes(role)) {
+        orders = orders.filter((o) => o.currentStage !== 'STORE_RECEIVE');
+      }
+    }
+
+    // 6. Build one Excel row per order item.
+    const rows = [];
+    const flatten = (items) => (Array.isArray(items) ? items : []);
+    const val = (d) => (d === null || d === undefined ? '' : String(d));
+    orders.forEach((o) => {
+      const d = delayMap[o.id];
+      const items = flatten(o.productDetails);
+      if (items.length === 0) {
+        rows.push({
+          'Order Number': val(o.orderNumber),
+          'Order Date': o.createdAt ? new Date(o.createdAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : '',
+          'Customer Name': val(o.customerName),
+          'Customer Phone': val(o.customerPhone),
+          'Product Name': '',
+          'Product Details': '',
+          'Quantity': '',
+          'Size': '',
+          'Color': '',
+          'Customizations': '',
+          'Current Order Status': val(o.status),
+          'Delay Type': d ? d.reason : '',
+          'Delay Stage': d ? d.stageLabel : '',
+          'Delay Duration': d ? fmtDuration(d.delayDuration) : ''
+        });
+      } else {
+        items.forEach((item, i) => {
+          rows.push({
+            'Order Number': val(o.orderNumber),
+            'Order Date': o.createdAt ? new Date(o.createdAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : '',
+            'Customer Name': val(o.customerName),
+            'Customer Phone': val(o.customerPhone),
+            'Product Name': val(item.productName || item.name || item.productType || ''),
+            'Product Details': val(item.productType || ''),
+            'Quantity': val(item.quantity ?? 1),
+            'Size': val(item.size || ''),
+            'Color': val(item.color || ''),
+            'Customizations': val(item.customization || ''),
+            'Current Order Status': val(o.status),
+            'Delay Type': d ? d.reason : '',
+            'Delay Stage': d ? d.stageLabel : '',
+            'Delay Duration': d ? fmtDuration(d.delayDuration) : ''
+          });
+        });
+      }
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Order Number': 'No orders match the selected filter' }]);
+    const colWidths = {};
+    rows.forEach((r) => {
+      Object.keys(r).forEach((k) => {
+        colWidths[k] = Math.max(colWidths[k] || 10, String(r[k] || '').length + 2);
+      });
+    });
+    ws['!cols'] = Object.keys(colWidths).map((k) => ({ wch: colWidths[k] }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Orders');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const safeStage = String(stage || '').replace(/[^a-zA-Z0-9_-]/g, '') || 'all';
+    res.setHeader('Content-Disposition', `attachment; filename=orders-${safeStage}-${Date.now()}.xlsx`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    return res.send(buf);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error exporting orders', error: error.message });
   }
 };
 
@@ -4336,6 +4521,7 @@ const getOrderPerformance = async (req, res) => {
 module.exports = {
   createOrder,
   getOrders,
+  getOrdersExport,
   requestStageCompletion,
   approveStageCompletion,
   rejectStageCompletion,
