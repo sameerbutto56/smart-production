@@ -844,50 +844,51 @@ const getOrdersExport = async (req, res) => {
       }
     }
 
-    // 6. Build one Excel row per order item.
+    // 6. Build one Excel row per product element, mirroring the screens' normalizeProduct()
+    //    (OrderCard) and `item.productDetails || item` unwrapping (AllOrders). productDetails
+    //    has three shapes across creation flows:
+    //      - ecommerce/web:   [{ productDetails: {…}, quantity, customization, … }, …]
+    //      - outlet:          [{ name, productType, color, size, quantity, … }, …]
+    //      - legacy single:   a bare product object (or a wrapper object with productDetails)
+    //    Each element emits exactly one row; a 3-product order exports 3 rows; a missing or
+    //    empty productDetails emits a single blank-product row (order-level info intact).
     const rows = [];
-    const flatten = (items) => (Array.isArray(items) ? items : []);
-    const val = (d) => (d === null || d === undefined ? '' : String(d));
+    const val = (d) => {
+      if (d === null || d === undefined) return '';
+      if (typeof d === 'object') { try { return JSON.stringify(d); } catch { return ''; } }
+      return String(d);
+    };
     orders.forEach((o) => {
       const d = delayMap[o.id];
-      const items = flatten(o.productDetails);
-      if (items.length === 0) {
+      let raw = o.productDetails;
+      if (typeof raw === 'string') {
+        try { raw = JSON.parse(raw); } catch { raw = null; }
+      }
+      const elements = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? [raw] : []);
+      const productRows = elements.length ? elements : [{}];
+      productRows.forEach((entry) => {
+        const wrapped = entry && typeof entry === 'object' && entry.productDetails && typeof entry.productDetails === 'object';
+        const inner = wrapped ? entry.productDetails : (entry || {});
+        const qty = wrapped
+          ? (entry.quantity ?? inner.quantity ?? 1)
+          : (inner.quantity ?? 1);
         rows.push({
           'Order Number': val(o.orderNumber),
           'Order Date': o.createdAt ? new Date(o.createdAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : '',
           'Customer Name': val(o.customerName),
           'Customer Phone': val(o.customerPhone),
-          'Product Name': '',
-          'Product Details': '',
-          'Quantity': '',
-          'Size': '',
-          'Color': '',
-          'Customizations': '',
+          'Product Name': val(inner.productName || inner.name || inner.productType || ''),
+          'Product Details': val(inner.productType || inner.fabricType || ''),
+          'Quantity': val(qty),
+          'Size': val(inner.size || ''),
+          'Color': val(inner.color || ''),
+          'Customizations': val(wrapped ? (entry.customization ?? inner.customization ?? '') : (inner.customization || '')),
           'Current Order Status': val(o.status),
           'Delay Type': d ? d.reason : '',
           'Delay Stage': d ? d.stageLabel : '',
           'Delay Duration': d ? fmtDuration(d.delayDuration) : ''
         });
-      } else {
-        items.forEach((item, i) => {
-          rows.push({
-            'Order Number': val(o.orderNumber),
-            'Order Date': o.createdAt ? new Date(o.createdAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : '',
-            'Customer Name': val(o.customerName),
-            'Customer Phone': val(o.customerPhone),
-            'Product Name': val(item.productName || item.name || item.productType || ''),
-            'Product Details': val(item.productType || ''),
-            'Quantity': val(item.quantity ?? 1),
-            'Size': val(item.size || ''),
-            'Color': val(item.color || ''),
-            'Customizations': val(item.customization || ''),
-            'Current Order Status': val(o.status),
-            'Delay Type': d ? d.reason : '',
-            'Delay Stage': d ? d.stageLabel : '',
-            'Delay Duration': d ? fmtDuration(d.delayDuration) : ''
-          });
-        });
-      }
+      });
     });
 
     const wb = XLSX.utils.book_new();
@@ -1022,12 +1023,16 @@ const requestStageCompletion = async (req, res) => {
       }
     }
 
-    // Production In split guard: a Logo stage completing its design must route to
+    // Production In split guard: a stage completing its work must route to
     // PRODUCTION_ACCEPTANCE (Production In's stage), never straight to PRODUCTION
     // (Production Out's stage) — otherwise the order bypasses Production In entirely.
-    // Legacy/cached clients may still send 'PRODUCTION' — normalize it here.
+    // STORE is included because the Store "Process & Route" select and the replacement
+    // hub can send a STORE-stage order straight to PRODUCTION; the pipeline's own
+    // NEXT_STAGES already routes STORE → PRODUCTION_ACCEPTANCE, so this keeps manual
+    // routes consistent (e.g. REP-49465 was routed STORE → PRODUCTION and bypassed
+    // the gate). Legacy/cached clients may still send 'PRODUCTION' — normalize it here.
     if (actualNextStage === 'PRODUCTION' &&
-        ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
+        ['STORE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
       actualNextStage = 'PRODUCTION_ACCEPTANCE';
     }
 
@@ -2876,11 +2881,14 @@ const manualRouteOrder = async (req, res) => {
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
 
-    // Production In split guard: routing a Logo stage to PRODUCTION must land in
+    // Production In split guard: routing a STORE or Logo stage to PRODUCTION must land in
     // PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted before
-    // Production Out works on it — never straight to PRODUCTION (Production Out).
+    // Production Out works on it — never straight to PRODUCTION (Production Out). STORE is
+    // included because the Store "Process & Route" select and the replacement hub can send
+    // a STORE-stage order straight to PRODUCTION; the pipeline's own NEXT_STAGES already
+    // routes STORE → PRODUCTION_ACCEPTANCE, so this keeps manual routes consistent.
     if (destinationStage === 'PRODUCTION' &&
-        currentStage && ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
+        currentStage && ['STORE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
       destinationStage = 'PRODUCTION_ACCEPTANCE';
     }
 
@@ -3100,9 +3108,18 @@ const getUnseenOrders = async (req, res) => {
     const whereClause = {
       currentStage: { in: relevantStages },
       status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-      source: { not: 'REPLACEMENT' },
       stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
     };
+    // Replacement (REP-...) orders are hub-managed (Store Returns/Replacements) ONLY while
+    // they sit at the STORE stage. Once routed onward they flow through the normal pipeline
+    // as real orders, so they MUST appear in every downstream department's queue (Production
+    // In/Out, Logo, Dispatch, Delivery, ...). A blanket source exclusion stranded in-flight
+    // replacements — e.g. REP-49465 routed STORE → PRODUCTION was invisible to Production
+    // Out. Only STORE/STORE_EMPLOYEE (relevantStages includes 'STORE') keep the exclusion,
+    // because the replacement hub owns STORE-stage REP orders.
+    if (relevantStages.includes('STORE')) {
+      whereClause.source = { not: 'REPLACEMENT' };
+    }
     // Filter by outlet name for OUTLET role so each outlet only sees its own orders
     // Johar Town also sees Jail Road orders (auto-routing from Jail Road)
     if (userRole === 'OUTLET') {
@@ -3990,6 +4007,11 @@ const getStoreDashboardOrders = async (req, res) => {
     const whereStore = {
       currentStage: 'STORE',
       status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+      // This endpoint is strictly STORE-stage, so the REPLACEMENT exclusion is intentional:
+      // STORE-stage replacement orders are hub-managed (Store Returns/Replacements) and must
+      // NOT duplicate into the normal store queue. The blanket source exclusion that stranded
+      // in-flight replacements (e.g. REP-49465 at PRODUCTION) was removed from the role-based
+      // unseen-tasks / dispatch queries; here it stays because currentStage is pinned to 'STORE'.
       source: { not: 'REPLACEMENT' }
     };
     if (sourceFilter !== 'ALL') {
