@@ -160,9 +160,17 @@ const OutletInvoiceHistory = ({ outlet }) => {
         const custParts = [];
         if (item.customization1) custParts.push('Custom 1');
         if (item.customization2) custParts.push('Custom 2');
-        if (item.nameEngrave) custParts.push('Engrave');
+        const custAmt = ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0));
+        const engraveAmt = item.engravingCharges || (item.nameEngrave ? 300 : 0);
+        const logoAmt = item.logoCharges || (item.logoDesign ? 300 : 0);
         if (custParts.length > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(custAmt)})</div>`);
+        }
+        if (engraveAmt > 0) {
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Engraving (+${pf(engraveAmt)})</div>`);
+        }
+        if (logoAmt > 0) {
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Logo Design (+${pf(logoAmt)})</div>`);
         }
         if (item.otherCharges > 0) {
           doc.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
@@ -176,8 +184,12 @@ const OutletInvoiceHistory = ({ outlet }) => {
       doc.write('</div><div class="section-label">SUMMARY</div>');
       doc.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
       if (sale.alterationCharges > 0) doc.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
-      const rcust = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
+      const rcust = (sale.items || []).reduce((s, i) => s + ((i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0)), 0);
       if (rcust > 0) doc.write(`<tr><td>Customization</td><td class="value">${pf(rcust)}</td></tr>`);
+      const rengr = (sale.items || []).reduce((s, i) => s + (i.engravingCharges || (i.nameEngrave ? 300 : 0)), 0);
+      if (rengr > 0) doc.write(`<tr><td>Engraving</td><td class="value">${pf(rengr)}</td></tr>`);
+      const rlogo = (sale.items || []).reduce((s, i) => s + (i.logoCharges || (i.logoDesign ? 300 : 0)), 0);
+      if (rlogo > 0) doc.write(`<tr><td>Logo Design</td><td class="value">${pf(rlogo)}</td></tr>`);
       const rother = (sale.items || []).reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0);
       if (rother > 0) doc.write(`<tr><td>Other Charges</td><td class="value">${pf(rother)}</td></tr>`);
       if (sale.extraCharges > 0) doc.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);

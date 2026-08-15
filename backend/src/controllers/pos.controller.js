@@ -485,12 +485,15 @@ const createSale = async (req, res) => {
       const cust2 = item.customization2 ? 1000 : 0;
       const engrave = item.nameEngrave ? 300 : 0;
       const logo = item.logoDesign ? 300 : 0;
-      const custCharges = cust1 + cust2 + engrave + logo;
+      const custCharges = cust1 + cust2;
+      const engravingCharges = engrave;
+      const logoCharges = logo;
+      const totalExtraCharges = custCharges + engravingCharges + logoCharges;
       const otherCharges = parseFloat(item.otherCharges || 0);
       const dpct = parseFloat(item.discountPct || 0);
       const dfixed = parseFloat(item.discountFixed || 0);
       const itemDiscount = (lineBase * dpct / 100) + dfixed * qty;
-      const itemNet = Math.max(0, lineBase - itemDiscount) + itemAlt * qty + custCharges * qty + otherCharges;
+      const itemNet = Math.max(0, lineBase - itemDiscount) + itemAlt * qty + totalExtraCharges * qty + otherCharges;
       subtotal += lineBase;
       totalAlt += itemAlt * qty;
       totalItemDiscount += itemDiscount;
@@ -510,6 +513,8 @@ const createSale = async (req, res) => {
         nameEngrave: item.nameEngrave || false,
         logoDesign: item.logoDesign || false,
         customizationCharges: custCharges,
+        engravingCharges,
+        logoCharges,
         otherCharges,
         discountPct: dpct,
         discountFixed: dfixed,

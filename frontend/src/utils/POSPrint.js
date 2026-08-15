@@ -104,9 +104,17 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
           const custParts = [];
           if (item.customization1) custParts.push('Custom 1');
           if (item.customization2) custParts.push('Custom 2');
-          if (item.nameEngrave) custParts.push('Engrave');
+          const custAmt = ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0));
+          const engraveAmt = item.engravingCharges || (item.nameEngrave ? 300 : 0);
+          const logoAmt = item.logoCharges || (item.logoDesign ? 300 : 0);
           if (custParts.length > 0) {
-            doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
+            doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(custAmt)})</div>`);
+          }
+          if (engraveAmt > 0) {
+            doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Engraving (+${pf(engraveAmt)})</div>`);
+          }
+          if (logoAmt > 0) {
+            doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Logo Design (+${pf(logoAmt)})</div>`);
           }
           if (item.otherCharges > 0) {
             doc.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
@@ -137,8 +145,12 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
         if (receiptExchangeCredit > 0) doc.write(`<tr><td style="color:#c00;font-weight:900;">Exchange Credit</td><td class="value" style="color:#c00;font-weight:900;">-${pf(receiptExchangeCredit)}</td></tr>`);
         if (sale.alterationCharges > 0) doc.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
         if (sale.deliveryCharges > 0) doc.write(`<tr><td>Delivery Charges</td><td class="value">${pf(sale.deliveryCharges)}</td></tr>`);
-        const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
+        const receiptCustTotal = (sale.items || []).reduce((s, i) => s + ((i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0)), 0);
         if (receiptCustTotal > 0) doc.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
+        const receiptEngrTotal = (sale.items || []).reduce((s, i) => s + (i.engravingCharges || (i.nameEngrave ? 300 : 0)), 0);
+        if (receiptEngrTotal > 0) doc.write(`<tr><td>Engraving</td><td class="value">${pf(receiptEngrTotal)}</td></tr>`);
+        const receiptLogoTotal = (sale.items || []).reduce((s, i) => s + (i.logoCharges || (i.logoDesign ? 300 : 0)), 0);
+        if (receiptLogoTotal > 0) doc.write(`<tr><td>Logo Design</td><td class="value">${pf(receiptLogoTotal)}</td></tr>`);
         const receiptOtherTotal = (sale.items || []).reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0);
         if (receiptOtherTotal > 0) doc.write(`<tr><td>Other Charges</td><td class="value">${pf(receiptOtherTotal)}</td></tr>`);
         if (sale.extraCharges > 0) doc.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
