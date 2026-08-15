@@ -163,46 +163,39 @@ const buildTimeline = async (order) => {
   return entries.map(e => ({ ...e, actor: userMap[e.sentByUserId || e.performedBy] || null, sentByUserId: undefined, performedBy: undefined }));
 };
 
+// Base relation includes for a locate payload (routingHistory is NOT a back-relation on
+// Order — RoutingHistory.orderId is a plain indexed string — so it is fetched separately).
+const ORDER_INCLUDES = {
+  stages: { orderBy: { createdAt: 'asc' } },
+  auditLogs: { orderBy: { timestamp: 'desc' }, take: 25 },
+  createdBy: { select: { id: true, name: true } }
+};
+
+const findOrderWithHistory = async (where) => {
+  const order = await prisma.order.findUnique({ where, include: ORDER_INCLUDES });
+  if (!order) return null;
+  order.routingHistory = await prisma.routingHistory.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'asc' } });
+  return order;
+};
+
 // GET /api/order-control/locate/:query — resolve any order's exact current queue location.
 const locateOrder = async (req, res) => {
   try {
     const query = (req.params.query || '').trim();
     if (!query) return res.status(400).json({ message: 'Order number or invoice number is required' });
 
-    let order = await prisma.order.findUnique({
-      where: { orderNumber: query },
-      include: {
-        stages: { orderBy: { createdAt: 'asc' } },
-        routingHistory: { orderBy: { createdAt: 'asc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 25 },
-        createdBy: { select: { id: true, name: true } }
-      }
-    });
-    if (!order) {
-      order = await prisma.order.findUnique({
-        where: { invoiceNumber: query },
-        include: {
-          stages: { orderBy: { createdAt: 'asc' } },
-          routingHistory: { orderBy: { createdAt: 'asc' } },
-          auditLogs: { orderBy: { timestamp: 'desc' }, take: 25 },
-          createdBy: { select: { id: true, name: true } }
-        }
-      });
-    }
+    let order = await findOrderWithHistory({ orderNumber: query });
+    if (!order) order = await findOrderWithHistory({ invoiceNumber: query });
     if (!order) {
       const matches = await prisma.order.findMany({
-        where: { OR: [{ orderNumber: { contains: query } }, { invoiceNumber: { contains: query } }] },
-        include: {
-          stages: { orderBy: { createdAt: 'asc' } },
-          routingHistory: { orderBy: { createdAt: 'asc' } },
-          auditLogs: { orderBy: { timestamp: 'desc' }, take: 25 },
-          createdBy: { select: { id: true, name: true } }
-        },
+        where: { OR: [{ orderNumber: { contains: query } }, { invoiceNumber: { contains: query } }, { customerName: { contains: query, mode: 'insensitive' } }, { customerPhone: { contains: query } }] },
+        include: ORDER_INCLUDES,
         orderBy: { createdAt: 'desc' },
         take: 5
       });
       if (!matches.length) return res.status(404).json({ message: 'Order not found' });
       order = matches[0];
+      order.routingHistory = await prisma.routingHistory.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'asc' } });
     }
 
     const seenCount = await prisma.seenTask.count({ where: { orderId: order.id, stageName: order.currentStage } });
@@ -335,13 +328,9 @@ const rerouteOrder = async (req, res) => {
     const seenCount = await prisma.seenTask.count({ where: { orderId, stageName: destinationStage } });
     const freshOrder = await prisma.order.findUnique({
       where: { id: orderId },
-      include: {
-        stages: { orderBy: { createdAt: 'asc' } },
-        routingHistory: { orderBy: { createdAt: 'asc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 25 },
-        createdBy: { select: { id: true, name: true } }
-      }
+      include: ORDER_INCLUDES
     });
+    if (freshOrder) freshOrder.routingHistory = await prisma.routingHistory.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
 
     res.json({
       message: `Order re-routed to ${destinationStage}`,
