@@ -1026,13 +1026,14 @@ const requestStageCompletion = async (req, res) => {
     // Production In split guard: a stage completing its work must route to
     // PRODUCTION_ACCEPTANCE (Production In's stage), never straight to PRODUCTION
     // (Production Out's stage) — otherwise the order bypasses Production In entirely.
-    // STORE is included because the Store "Process & Route" select and the replacement
-    // hub can send a STORE-stage order straight to PRODUCTION; the pipeline's own
-    // NEXT_STAGES already routes STORE → PRODUCTION_ACCEPTANCE, so this keeps manual
-    // routes consistent (e.g. REP-49465 was routed STORE → PRODUCTION and bypassed
-    // the gate). Legacy/cached clients may still send 'PRODUCTION' — normalize it here.
+    // STORE and STORE_RECEIVE are included because the Store "Process & Route" select,
+    // the Store Receive destination chips, and the replacement hub can send a Store-stage
+    // order straight to PRODUCTION; the pipeline's own NEXT_STAGES already routes
+    // STORE → PRODUCTION_ACCEPTANCE, so this keeps manual routes consistent
+    // (e.g. REP-49465 was routed STORE → PRODUCTION and bypassed the gate). Legacy/cached
+    // clients may still send 'PRODUCTION' — normalize it here.
     if (actualNextStage === 'PRODUCTION' &&
-        ['STORE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
+        ['STORE', 'STORE_RECEIVE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
       actualNextStage = 'PRODUCTION_ACCEPTANCE';
     }
 
@@ -2881,14 +2882,16 @@ const manualRouteOrder = async (req, res) => {
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
 
-    // Production In split guard: routing a STORE or Logo stage to PRODUCTION must land in
-    // PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted before
-    // Production Out works on it — never straight to PRODUCTION (Production Out). STORE is
-    // included because the Store "Process & Route" select and the replacement hub can send
-    // a STORE-stage order straight to PRODUCTION; the pipeline's own NEXT_STAGES already
-    // routes STORE → PRODUCTION_ACCEPTANCE, so this keeps manual routes consistent.
+    // Production In split guard: routing a STORE / STORE_RECEIVE or Logo stage to PRODUCTION
+    // must land in PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted
+    // before Production Out works on it — never straight to PRODUCTION (Production Out). STORE
+    // and STORE_RECEIVE are included because the Store "Process & Route" select, the Store
+    // Receive destination chips, and the replacement hub can send a Store-stage order straight
+    // to PRODUCTION; the pipeline's own NEXT_STAGES already routes STORE → PRODUCTION_ACCEPTANCE,
+    // so this keeps manual routes consistent (e.g. REP-49465 was routed STORE → PRODUCTION and
+    // bypassed the gate).
     if (destinationStage === 'PRODUCTION' &&
-        currentStage && ['STORE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
+        currentStage && ['STORE', 'STORE_RECEIVE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
       destinationStage = 'PRODUCTION_ACCEPTANCE';
     }
 

@@ -1447,7 +1447,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         onChange={(e) => setNextStage(e.target.value)}
                       >
                         <option value="">Auto-route (default)</option>
-                        <option value="PRODUCTION">Send to Production</option>
+                        <option value="PRODUCTION_ACCEPTANCE">Send to Production Acceptance</option>
                         <option value="LOGO_DESIGN">Send to Logo Design</option>
                         <option value="WORKERS">Send to Workers</option>
                         <option value="DISPATCH">Send to Dispatch</option>
@@ -1772,7 +1772,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       return (
                         <div className="space-y-2">
                           <div className="flex flex-wrap gap-1">
-                            {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','WORKERS','DISPATCH','OUT_FOR_DELIVERY','OUTLET_RECEIVE','ORDER_ENTRY'].map(dest => (
+                            {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','WORKERS','DISPATCH','OUT_FOR_DELIVERY','OUTLET_RECEIVE','ORDER_ENTRY'].map(dest => (
                               <button key={dest} onClick={() => setStoreRouteDest(dest)}
                                 className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-all ${
                                   storeRouteDest === dest
