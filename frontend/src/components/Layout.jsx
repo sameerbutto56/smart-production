@@ -338,6 +338,7 @@ const Layout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
   const { paused: systemPaused, affected: pauseAffected, info: pauseInfo } = useSystemPause();
+  const { activeAlert, acknowledge } = useDemandNotification();
 
   // Faisal employee login
   const [faisalEmployee, setFaisalEmployee] = useState(() => localStorage.getItem('faisalEmployee') || '');
