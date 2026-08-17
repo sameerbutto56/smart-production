@@ -98,15 +98,19 @@ const OutletPOSDashboard = ({ outlet }) => {
 
   // Re-fetch when tab becomes visible or window regains focus (covers navigation back)
   useEffect(() => {
-    const handler = () => debouncedFetchJournal();
+    const handler = () => { debouncedFetchJournal(); debouncedFetchCleared(); };
     window.addEventListener('journal-entry-saved', handler);
+    window.addEventListener('balance-payment-saved', handler);
     window.addEventListener('focus', handler);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') handler(); });
+    const visHandler = () => { if (document.visibilityState === 'visible') handler(); };
+    document.addEventListener('visibilitychange', visHandler);
     return () => {
       window.removeEventListener('journal-entry-saved', handler);
+      window.removeEventListener('balance-payment-saved', handler);
       window.removeEventListener('focus', handler);
+      document.removeEventListener('visibilitychange', visHandler);
     };
-  }, [debouncedFetchJournal]);
+  }, [debouncedFetchJournal, debouncedFetchCleared]);
 
   // Cross-tab sync via BroadcastChannel
   useEffect(() => {
@@ -310,6 +314,84 @@ const OutletPOSDashboard = ({ outlet }) => {
             })}
           </div>
 
+          {/* Balance Summary — Pending + Cleared History */}
+          {dashboard && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Pending Balance Orders */}
+              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Wallet size={14} /> Pending Balance
+                </h3>
+                <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800">
+                  <DollarSign size={14} className="text-amber-400" />
+                  <span className="text-sm font-black text-amber-300">{formatCurrency(balanceData.pending)}</span>
+                  <span className="text-[10px] text-gray-500 font-bold">across {balanceData.pendingCount} order{balanceData.pendingCount !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {(dashboard.balanceOrders || []).filter(b => b.remaining > 0.01).slice(0, 10).map(b => (
+                    <div key={b.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-black text-white">{b.orderNumber || b.receiptNumber}</p>
+                          <p className="text-[10px] text-gray-500">{b.customerName || 'Walk-in'} &bull; {formatDateOnly(b.createdAt)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-black text-amber-400">-{formatCurrency(b.remaining)}</p>
+                          <p className="text-[10px] text-gray-500">Paid: {formatCurrency(b.paid)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {balanceData.pendingCount > 10 && (
+                    <p className="text-center text-[10px] text-gray-600 pt-1">+ {balanceData.pendingCount - 10} more</p>
+                  )}
+                  {balanceData.pendingCount === 0 && (
+                    <p className="text-center text-gray-500 font-bold py-4 text-xs">No pending balances</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Cleared Balance History */}
+              <div className="bg-gray-900 border border-emerald-800/50 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <History size={14} /> Cleared Balance History
+                </h3>
+                <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800">
+                  <CheckCircle size={14} className="text-emerald-400" />
+                  <span className="text-sm font-black text-emerald-300">{formatCurrency(clearedBalances?.totalCollected || 0)}</span>
+                  <span className="text-[10px] text-gray-500 font-bold">{clearedBalances?.count || 0} payment{(clearedBalances?.count || 0) !== 1 ? 's' : ''}</span>
+                </div>
+                {clearedLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <RefreshCw className="animate-spin text-gray-500" size={20} />
+                  </div>
+                ) : (clearedBalances?.payments || []).length === 0 ? (
+                  <p className="text-center text-gray-500 font-bold py-6 text-xs">No balance payments recorded</p>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {(clearedBalances?.payments || []).slice(0, 10).map(p => (
+                      <div key={p.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-black text-white">{p.posSale?.customerName || 'Walk-in'}</p>
+                            <p className="text-[10px] text-gray-500">{p.originalInvoiceNumber || p.posSale?.receiptNumber || 'N/A'} &bull; {formatDateOnly(p.paidAt)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-black text-emerald-400">+{formatCurrency(p.amountPaidNow)}</p>
+                            <p className="text-[10px] text-gray-500">{p.paymentMethod}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {(clearedBalances?.payments || []).length > 10 && (
+                      <p className="text-center text-[10px] text-gray-600 pt-1">+ {(clearedBalances?.payments || []).length - 10} more</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Peak Day & Charts */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
@@ -446,84 +528,6 @@ const OutletPOSDashboard = ({ outlet }) => {
                 ))}
                 {dashboard.bankDeposits.length > 10 && (
                   <p className="text-center text-[10px] text-gray-600 pt-1">+ {dashboard.bankDeposits.length - 10} more deposits</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Balance Summary — Pending + Cleared History */}
-          {balanceData && (balanceData.pendingCount > 0 || balanceData.clearedCount > 0 || (clearedBalances?.count || 0) > 0) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Pending Balance Orders */}
-              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
-                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <Wallet size={14} /> Pending Balance
-                </h3>
-                <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800">
-                  <DollarSign size={14} className="text-amber-400" />
-                  <span className="text-sm font-black text-amber-300">{formatCurrency(balanceData.pending)}</span>
-                  <span className="text-[10px] text-gray-500 font-bold">across {balanceData.pendingCount} order{balanceData.pendingCount !== 1 ? 's' : ''}</span>
-                </div>
-                <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {(dashboard.balanceOrders || []).filter(b => b.remaining > 0.01).slice(0, 10).map(b => (
-                    <div key={b.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-black text-white">{b.orderNumber || b.receiptNumber}</p>
-                          <p className="text-[10px] text-gray-500">{b.customerName || 'Walk-in'} &bull; {formatDateOnly(b.createdAt)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-black text-amber-400">-{formatCurrency(b.remaining)}</p>
-                          <p className="text-[10px] text-gray-500">Paid: {formatCurrency(b.paid)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {balanceData.pendingCount > 10 && (
-                    <p className="text-center text-[10px] text-gray-600 pt-1">+ {balanceData.pendingCount - 10} more</p>
-                  )}
-                  {balanceData.pendingCount === 0 && (
-                    <p className="text-center text-gray-500 font-bold py-4 text-xs">No pending balances</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Cleared Balance History */}
-              <div className="bg-gray-900 border border-emerald-800/50 rounded-2xl p-4">
-                <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <History size={14} /> Cleared Balance History
-                </h3>
-                <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800">
-                  <CheckCircle size={14} className="text-emerald-400" />
-                  <span className="text-sm font-black text-emerald-300">{formatCurrency(clearedBalances?.totalCollected || 0)}</span>
-                  <span className="text-[10px] text-gray-500 font-bold">{clearedBalances?.count || 0} payment{(clearedBalances?.count || 0) !== 1 ? 's' : ''}</span>
-                </div>
-                {clearedLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <RefreshCw className="animate-spin text-gray-500" size={20} />
-                  </div>
-                ) : (clearedBalances?.payments || []).length === 0 ? (
-                  <p className="text-center text-gray-500 font-bold py-6 text-xs">No balance payments recorded</p>
-                ) : (
-                  <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {(clearedBalances?.payments || []).slice(0, 10).map(p => (
-                      <div key={p.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-black text-white">{p.posSale?.customerName || 'Walk-in'}</p>
-                            <p className="text-[10px] text-gray-500">{p.originalInvoiceNumber || p.posSale?.receiptNumber || 'N/A'} &bull; {formatDateOnly(p.paidAt)}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-black text-emerald-400">+{formatCurrency(p.amountPaidNow)}</p>
-                            <p className="text-[10px] text-gray-500">{p.paymentMethod}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {(clearedBalances?.payments || []).length > 10 && (
-                      <p className="text-center text-[10px] text-gray-600 pt-1">+ {(clearedBalances?.payments || []).length - 10} more</p>
-                    )}
-                  </div>
                 )}
               </div>
             </div>

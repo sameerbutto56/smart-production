@@ -1052,6 +1052,7 @@ export function POSProvider({ children }) {
       toast.success('Balance payment recorded');
       fetchBalanceInvoices();
       fetchBalanceCollections(balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo);
+      refreshSales();
     } catch (e) { toast.error(e.response?.data?.message || 'Payment failed'); }
     finally { setPaying(false); }
   };
