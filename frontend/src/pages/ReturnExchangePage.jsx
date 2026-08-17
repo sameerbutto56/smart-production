@@ -1,39 +1,70 @@
 import React, { useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History } from 'lucide-react';
+import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const ReturnExchangePage = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [order, setOrder] = useState(null);
+  const [returnCase, setReturnCase] = useState(null);
+  const [orderData, setOrderData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeAction, setActiveAction] = useState(null); // 'return' | 'replace' | 'noresponse' | 'redispatch' | null
-  const [activeView, setActiveView] = useState('lookup'); // 'lookup' | 'cases'
+  const [activeAction, setActiveAction] = useState(null);
+  const [activeView, setActiveView] = useState('lookup');
   const [cases, setCases] = useState([]);
   const [casesLoading, setCasesLoading] = useState(false);
+  const [caseSearchQuery, setCaseSearchQuery] = useState('');
+  const [accepting, setAccepting] = useState(false);
 
   const lookupOrder = useCallback(async () => {
     if (!searchQuery.trim()) return toast.error('Enter order number');
     setLoading(true);
+    setReturnCase(null);
+    setOrderData(null);
+    setActiveAction(null);
     try {
-      const res = await api.get(`/api/return-exchange/lookup/${encodeURIComponent(searchQuery.trim())}`);
-      setOrder(res.data);
-      setActiveAction(null);
-    } catch (err) { toast.error(err.response?.data?.message || 'Order not found'); setOrder(null); }
+      const res = await api.get(`/api/return-exchange/returns/search?orderNumber=${encodeURIComponent(searchQuery.trim())}`);
+      const foundCases = res.data.cases || [];
+      if (foundCases.length === 0) {
+        toast.error('Order not found in Returns');
+        setLoading(false);
+        return;
+      }
+      const c = foundCases[0];
+      setReturnCase(c);
+      setOrderData(c.order || null);
+    } catch (err) { toast.error(err.response?.data?.message || 'Order not found in Returns'); }
     setLoading(false);
   }, [searchQuery]);
 
-  const fetchCases = useCallback(async () => {
+  const fetchCases = useCallback(async (search) => {
     setCasesLoading(true);
     try {
-      const res = await api.get('/api/return-exchange/cases?limit=100');
+      const params = new URLSearchParams({ limit: '100' });
+      if (search && search.trim()) params.set('search', search.trim());
+      const res = await api.get(`/api/return-exchange/cases?${params}`);
       setCases(res.data.cases || []);
     } catch { setCases([]); }
     setCasesLoading(false);
   }, []);
+
+  const handleAcceptReturn = async () => {
+    if (!returnCase) return;
+    setAccepting(true);
+    try {
+      await api.post(`/api/return-exchange/${returnCase.id}/accept-return`);
+      toast.success('Return accepted! You can now Return or Re-Dispatch the order.');
+      setReturnCase(prev => ({ ...prev, status: 'ACCEPTED', acceptedBy: user?.name, acceptedAt: new Date().toISOString() }));
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to accept return'); }
+    setAccepting(false);
+  };
+
+  const handleCaseSearch = (e) => {
+    e.preventDefault();
+    fetchCases(caseSearchQuery);
+  };
 
   const parseProducts = (pd) => {
     if (!pd) return [];
@@ -47,6 +78,10 @@ const ReturnExchangePage = () => {
   const fmtDateTime = (d) => d ? formatDateTime(d) : '';
 
   const STAGE_MAP = { ORDER_ENTRY: 'Order Entry', STORE: 'Store', PRODUCTION: 'Production', DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered' };
+
+  const isPending = returnCase && returnCase.status === 'PENDING';
+  const isAccepted = returnCase && returnCase.status === 'ACCEPTED';
+  const canShowActions = isAccepted;
 
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-6">
@@ -64,13 +99,15 @@ const ReturnExchangePage = () => {
           <button onClick={() => setActiveView('lookup')} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeView === 'lookup' ? 'bg-rose-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
             <div className="flex items-center gap-2"><Search size={16} /> Order Lookup</div>
           </button>
-          <button onClick={() => { setActiveView('cases'); fetchCases(); }} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeView === 'cases' ? 'bg-rose-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+          <button onClick={() => { setActiveView('cases'); fetchCases(''); }} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeView === 'cases' ? 'bg-rose-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
             <div className="flex items-center gap-2"><History size={16} /> All Cases</div>
           </button>
         </div>
 
         {activeView === 'cases' ? (
-          <AllCasesView cases={cases} loading={casesLoading} fmtDate={fmtDate} fmtDateTime={fmtDateTime} />
+          <AllCasesView cases={cases} loading={casesLoading} fmtDate={fmtDate} fmtDateTime={fmtDateTime}
+            searchQuery={caseSearchQuery} setSearchQuery={setCaseSearchQuery} onSearch={handleCaseSearch}
+            onRefresh={() => fetchCases(caseSearchQuery)} />
         ) : (
           <>
             {/* Search */}
@@ -79,7 +116,7 @@ const ReturnExchangePage = () => {
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && lookupOrder()}
-                  placeholder="Enter Order Number, Invoice #, or Phone..."
+                  placeholder="Enter Order Number to search in Returns..."
                   className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white font-bold text-sm outline-none focus:border-rose-500" />
               </div>
               <button onClick={lookupOrder} disabled={loading}
@@ -88,12 +125,100 @@ const ReturnExchangePage = () => {
               </button>
             </div>
 
-            {/* Order Details */}
-            {order && (
-              <OrderDetails order={order} activeAction={activeAction} setActiveAction={setActiveAction}
-                parseProducts={parseProducts} fmtCurrency={fmtCurrency} fmtDate={fmtDate} fmtDateTime={fmtDateTime}
-                user={user} onRefresh={() => lookupOrder()} STAGE_MAP={STAGE_MAP} />
+            {/* No Results */}
+            {!loading && searchQuery && !returnCase && (
+              <div className="text-center py-12">
+                <Package className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400 font-bold">Order not found in Returns</p>
+                <p className="text-xs text-gray-600 mt-1">This order is not currently in the Returns workflow</p>
+              </div>
             )}
+
+            {/* Pending Acceptance Banner */}
+            {isPending && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/20 rounded-lg"><Clock size={20} className="text-amber-400" /></div>
+                  <div>
+                    <h3 className="text-sm font-black text-amber-400">Pending Acceptance</h3>
+                    <p className="text-xs text-gray-400">This order was returned by delivery and is awaiting your acceptance.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[10px] text-gray-400">
+                  <span>Returned by: <span className="text-white font-bold">{returnCase.deliveryReturnedBy || 'Unknown'}</span></span>
+                  {returnCase.deliveryReturnedAt && <span>at {fmtDateTime(returnCase.deliveryReturnedAt)}</span>}
+                  {returnCase.returnReason && <span>Reason: <span className="text-amber-400">{returnCase.returnReason}</span></span>}
+                </div>
+                <button onClick={handleAcceptReturn} disabled={accepting}
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  <PackageCheck size={16} />
+                  {accepting ? 'Accepting...' : 'Accept Return'}
+                </button>
+              </div>
+            )}
+
+            {/* Accepted Banner */}
+            {isAccepted && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
+                <CheckCircle size={20} className="text-emerald-400" />
+                <div>
+                  <p className="text-sm font-black text-emerald-400">Return Accepted</p>
+                  <p className="text-[10px] text-gray-400">Accepted by {returnCase.acceptedBy || 'Unknown'} at {fmtDateTime(returnCase.acceptedAt)}. You can now Return or Re-Dispatch this order.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Order Details */}
+            {orderData && (
+              <OrderDetails order={orderData} activeAction={activeAction} setActiveAction={setActiveAction}
+                parseProducts={parseProducts} fmtCurrency={fmtCurrency} fmtDate={fmtDate} fmtDateTime={fmtDateTime}
+                user={user} onRefresh={lookupOrder} STAGE_MAP={STAGE_MAP} canShowActions={canShowActions} />
+            )}
+
+            {/* Return Case Info (when no order data but case found) */}
+            {returnCase && !orderData && (
+              <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-white">{returnCase.orderNumber || 'No Order #'}</span>
+                  <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${isAccepted ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{returnCase.status}</span>
+                </div>
+                <p className="text-xs text-gray-400">{returnCase.customerName}</p>
+                {returnCase.returnReason && <p className="text-xs text-gray-500">Reason: {returnCase.returnReason}</p>}
+                {returnCase.originalProducts && (
+                  <div className="space-y-1">
+                    {parseProducts(returnCase.originalProducts).map((item, i) => {
+                      const pd = item.productDetails || item;
+                      return (
+                        <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex justify-between">
+                          <span className="text-white font-bold">{pd.name || pd.productType} {pd.color ? `(${pd.color})` : ''} x{item.quantity || 1}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Actions after acceptance */}
+                {canShowActions && (
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-700">
+                    <button onClick={() => setActiveAction('return')}
+                      className={`p-3 rounded-xl border-2 transition-all text-center ${activeAction === 'return' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
+                      <RotateCcw size={20} className="mx-auto mb-1" />
+                      <p className="text-xs font-black">Return</p>
+                    </button>
+                    <button onClick={() => setActiveAction('redispatch')}
+                      className={`p-3 rounded-xl border-2 transition-all text-center ${activeAction === 'redispatch' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
+                      <Send size={20} className="mx-auto mb-1" />
+                      <p className="text-xs font-black">Re-Dispatch</p>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Forms */}
+            {activeAction === 'return' && returnCase && orderData && <ReturnForm order={orderData} returnCase={returnCase} user={user} onRefresh={lookupOrder} parseProducts={parseProducts} />}
+            {activeAction === 'replace' && orderData && <ReplaceForm order={orderData} user={user} onRefresh={lookupOrder} parseProducts={parseProducts} />}
+            {activeAction === 'noresponse' && orderData && <NoResponseForm order={orderData} user={user} onRefresh={lookupOrder} />}
+            {activeAction === 'redispatch' && returnCase && <ReDispatchForm orderId={returnCase.orderId} order={orderData} user={user} onRefresh={lookupOrder} />}
           </>
         )}
       </div>
@@ -101,11 +226,11 @@ const ReturnExchangePage = () => {
   );
 };
 
-const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmtCurrency, fmtDate, fmtDateTime, user, onRefresh, STAGE_MAP }) => {
+const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmtCurrency, fmtDate, fmtDateTime, user, onRefresh, STAGE_MAP, canShowActions }) => {
   const products = parseProducts(order.productDetails);
   const isDelivered = order.stages?.some(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status === 'COMPLETED') || order.currentStage === 'DELIVERED';
   const isReturned = order.status === 'RETURNED' || order.refundStatus === 'REQUESTED';
-  const hasActiveCase = order.returnExchangeCases?.some(c => c.status !== 'COMPLETED' && c.status !== 'WAREHOUSE_REJECTED' && c.status !== 'CANCELLED');
+  const hasActiveCase = order.returnExchangeCases?.some(c => !['COMPLETED', 'WAREHOUSE_REJECTED', 'CANCELLED'].includes(c.status));
   const noResponseCount = order.noResponseCount || 0;
 
   return (
@@ -115,7 +240,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-lg font-black text-white">{order.orderNumber || 'No Order #'}</h3>
-            <p className="text-sm text-gray-400">{order.customerName} • {order.customerPhone}</p>
+            <p className="text-sm text-gray-400">{order.customerName} - {order.customerPhone}</p>
             {order.invoiceNumber && <p className="text-xs text-amber-400 font-bold">Invoice: {order.invoiceNumber}</p>}
           </div>
           <div className="text-right">
@@ -172,8 +297,8 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
         </div>
       )}
 
-      {/* Action Buttons */}
-      {!hasActiveCase && (
+      {/* Action Buttons — only when accepted and no active case */}
+      {canShowActions && !hasActiveCase && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button onClick={() => setActiveAction('return')}
             className={`p-4 rounded-xl border-2 transition-all text-center ${activeAction === 'return' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
@@ -211,7 +336,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
       {activeAction === 'return' && <ReturnForm order={order} user={user} onRefresh={onRefresh} parseProducts={parseProducts} />}
       {activeAction === 'replace' && <ReplaceForm order={order} user={user} onRefresh={onRefresh} parseProducts={parseProducts} />}
       {activeAction === 'noresponse' && <NoResponseForm order={order} user={user} onRefresh={onRefresh} />}
-      {activeAction === 'redispatch' && <ReDispatchForm order={order} user={user} onRefresh={onRefresh} />}
+      {activeAction === 'redispatch' && <ReDispatchForm orderId={order.id} order={order} user={user} onRefresh={onRefresh} />}
 
       {/* Existing Cases */}
       {order.returnExchangeCases?.length > 0 && !hasActiveCase && (
@@ -222,7 +347,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
               <div className="flex items-center justify-between">
                 <div>
                   <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${c.type === 'RETURN' ? 'bg-red-500/20 text-red-400' : c.type === 'REPLACEMENT' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>{c.type}</span>
-                  <span className={`ml-2 px-2 py-0.5 rounded font-bold text-[10px] ${c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700 text-gray-400'}`}>{c.status}</span>
+                  <span className={`ml-2 px-2 py-0.5 rounded font-bold text-[10px] ${c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : c.status === 'ACCEPTED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700 text-gray-400'}`}>{c.status}</span>
                 </div>
                 <span className="text-gray-500">{fmtDateTime(c.createdAt)}</span>
               </div>
@@ -262,7 +387,7 @@ const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
           const pd = item.productDetails || item;
           return (
             <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex justify-between">
-              <span className="text-white font-bold">{pd.name || pd.productType} {pd.color ? `(${pd.color})` : ''} ×{item.quantity || 1}</span>
+              <span className="text-white font-bold">{pd.name || pd.productType} {pd.color ? `(${pd.color})` : ''} x{item.quantity || 1}</span>
               <span className="text-gray-500">Will be restocked by Store</span>
             </div>
           );
@@ -313,7 +438,6 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
     <div className="bg-gray-800 rounded-xl p-5 border border-blue-500/30 space-y-4">
       <h3 className="text-sm font-black text-blue-400 flex items-center gap-2"><RefreshCw size={16} /> Initiate Replacement</h3>
       <div className="grid grid-cols-2 gap-4">
-        {/* Left: Original */}
         <div>
           <p className="text-xs font-black text-gray-400 uppercase mb-2">Original Items</p>
           <div className="space-y-1">
@@ -322,13 +446,12 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
               return (
                 <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs">
                   <p className="text-white font-bold">{pd.name || pd.productType}</p>
-                  <p className="text-gray-500">{pd.color || ''} {pd.size || ''} ×{item.quantity || 1}</p>
+                  <p className="text-gray-500">{pd.color || ''} {pd.size || ''} x{item.quantity || 1}</p>
                 </div>
               );
             })}
           </div>
         </div>
-        {/* Right: Replacement */}
         <div>
           <p className="text-xs font-black text-gray-400 uppercase mb-2">Replacement Items</p>
           <div className="space-y-2">
@@ -364,7 +487,7 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
       </div>
       <div>
         <label className="text-xs font-bold text-amber-400 block mb-1">Special Note (optional)</label>
-        <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2} placeholder="Special instructions for Faisal (e.g. exact size/color/fabric to deliver)"
+        <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2} placeholder="Special instructions for Faisal"
           className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 resize-none" />
       </div>
       <button onClick={handleSubmit} disabled={submitting || !reason.trim()}
@@ -375,14 +498,14 @@ const ReplaceForm = ({ order, user, onRefresh, parseProducts }) => {
   );
 };
 
-const ReDispatchForm = ({ order, user, onRefresh }) => {
+const ReDispatchForm = ({ orderId, order, user, onRefresh }) => {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await api.post(`/api/return-exchange/${order.id}/redispatch`, { notes });
+      await api.post(`/api/return-exchange/${orderId}/redispatch`, { notes });
       toast.success('Order routed to Dispatch queue successfully!');
       setNotes('');
       onRefresh();
@@ -402,19 +525,12 @@ const ReDispatchForm = ({ order, user, onRefresh }) => {
       </p>
       <div>
         <label className="text-xs font-bold text-gray-400 block mb-1">Re-Dispatch Notes (optional)</label>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          rows={3}
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
           placeholder="Enter any specific instructions or reason for re-dispatch..."
-          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-purple-500 resize-none"
-        />
+          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-purple-500 resize-none" />
       </div>
-      <button
-        onClick={handleSubmit}
-        disabled={submitting}
-        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all"
-      >
+      <button onClick={handleSubmit} disabled={submitting}
+        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 transition-all">
         {submitting ? 'Routing...' : 'Confirm Re-Dispatch'}
       </button>
     </div>
@@ -482,7 +598,7 @@ const ActiveCaseBanner = ({ cases, fmtDateTime }) => {
       {active.map(c => (
         <div key={c.id} className="flex items-center gap-2 text-xs">
           <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${c.type === 'RETURN' ? 'bg-red-500/20 text-red-400' : c.type === 'REPLACEMENT' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>{c.type}</span>
-          <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${c.status === 'DISPATCH_READY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700 text-gray-400'}`}>{c.status.replace(/_/g, ' ')}</span>
+          <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${c.status === 'DISPATCH_READY' || c.status === 'ACCEPTED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700 text-gray-400'}`}>{c.status.replace(/_/g, ' ')}</span>
           <span className="text-gray-500">Started: {fmtDateTime(c.createdAt)}</span>
         </div>
       ))}
@@ -490,7 +606,7 @@ const ActiveCaseBanner = ({ cases, fmtDateTime }) => {
   );
 };
 
-const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime }) => {
+const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime, searchQuery, setSearchQuery, onSearch, onRefresh }) => {
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const filtered = cases.filter(c => (!filterType || c.type === filterType) && (!filterStatus || c.status === filterStatus));
@@ -499,6 +615,25 @@ const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime }) => {
 
   return (
     <div className="space-y-4">
+      {/* Search Bar */}
+      <form onSubmit={onSearch} className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by Order Number, Customer Name..."
+            className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white font-bold text-sm outline-none focus:border-rose-500" />
+        </div>
+        <button type="submit" className="px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-sm transition-all">
+          Search
+        </button>
+        {searchQuery && (
+          <button type="button" onClick={() => { setSearchQuery(''); onRefresh(); }}
+            className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-sm transition-all">
+            Clear
+          </button>
+        )}
+      </form>
+
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {[
           { label: 'Total', value: stats.total, color: 'text-white' },
@@ -527,6 +662,7 @@ const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime }) => {
           className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none">
           <option value="">All Statuses</option>
           <option value="PENDING">Pending</option>
+          <option value="ACCEPTED">Accepted</option>
           <option value="WAREHOUSE_APPROVED">Warehouse Approved</option>
           <option value="DISPATCH_READY">Dispatch Ready</option>
           <option value="COMPLETED">Completed</option>
@@ -545,7 +681,7 @@ const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime }) => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${c.type === 'RETURN' ? 'bg-red-500/20 text-red-400' : c.type === 'REPLACEMENT' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>{c.type}</span>
-                  <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : c.status === 'PENDING' ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-700 text-gray-400'}`}>{c.status.replace(/_/g, ' ')}</span>
+                  <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : c.status === 'ACCEPTED' ? 'bg-emerald-500/20 text-emerald-400' : c.status === 'PENDING' ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-700 text-gray-400'}`}>{c.status.replace(/_/g, ' ')}</span>
                   <span className="text-xs font-black text-white">{c.orderNumber || 'N/A'}</span>
                   <span className="text-xs text-gray-400">{c.customerName}</span>
                 </div>
@@ -553,6 +689,8 @@ const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime }) => {
               </div>
               {c.returnReason && <p className="text-[10px] text-gray-500 mt-1">Reason: {c.returnReason}</p>}
               {c.handledBy && <p className="text-[10px] text-gray-500">Handled by: {c.handledBy}</p>}
+              {c.deliveryReturnedBy && <p className="text-[10px] text-gray-500">Returned by: {c.deliveryReturnedBy} at {fmtDateTime(c.deliveryReturnedAt)}</p>}
+              {c.acceptedBy && <p className="text-[10px] text-emerald-400">Accepted by: {c.acceptedBy} at {fmtDateTime(c.acceptedAt)}</p>}
               {c.warehouseApprovedBy && <p className="text-[10px] text-emerald-400">Approved by: {c.warehouseApprovedBy} on {fmtDateTime(c.warehouseApprovedAt)}</p>}
             </div>
           ))}

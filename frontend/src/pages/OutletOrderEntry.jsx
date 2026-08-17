@@ -382,6 +382,9 @@ const OutletOrderEntry = () => {
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
 
   const buildCustomization = useCallback(() => {
+    if (!engravingRequired) {
+      return { articleNames: [], nameSpelling: '', nameColor: '', logoColor: '', logoPlacement: '', designNotes: '', designReference: '', additionalFeatures: [], logos: [], engravingType: '', skipEngraving: true };
+    }
     const filteredNames = engravingLines.filter(l => l.trim());
     const filteredLogos = logoEntries.filter(l => l.name?.trim() || l.design?.trim());
     return {
@@ -395,7 +398,7 @@ const OutletOrderEntry = () => {
       additionalFeatures: [],
       logos: filteredLogos,
       engravingType: engravingType || '',
-      skipEngraving: !engravingRequired
+      skipEngraving: false
     };
   }, [engravingLines, logoEntries, engravingThreadColor, customThreadColor, engravingPlacement, engravingType, engravingRequired]);
 
@@ -435,11 +438,11 @@ const OutletOrderEntry = () => {
         })),
         engravingRequired,
         engravingType: engravingRequired ? engravingType : null,
-        engravingInstructions: engravingInstructions || null,
-        logoRequired: logoEntries.some(l => l.name?.trim() || l.design?.trim()),
-        logoDesign: logoDesign || null,
-        engravingNames: engravingNames.length > 0 ? engravingNames : null,
-        engravingLogos: engravingLogos.length > 0 ? engravingLogos : null,
+        engravingInstructions: engravingRequired ? (engravingInstructions || null) : null,
+        logoRequired: engravingRequired ? logoEntries.some(l => l.name?.trim() || l.design?.trim()) : false,
+        logoDesign: engravingRequired ? (logoDesign || null) : null,
+        engravingNames: engravingRequired ? (engravingNames.length > 0 ? engravingNames : null) : null,
+        engravingLogos: engravingRequired ? (engravingLogos.length > 0 ? engravingLogos : null) : null,
         customization: buildCustomization(),
         sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
         standardSize: sizingMode === 'standard' ? selectedStandardSize : null,
@@ -1191,7 +1194,7 @@ const OutletOrderEntry = () => {
                   )}
                 </>
               )}
-              {logoDesign && <p className="text-gray-400">Logo Design: <span className="text-white font-black">{logoDesign}</span></p>}
+              {engravingRequired && logoDesign && <p className="text-gray-400">Logo Design: <span className="text-white font-black">{logoDesign}</span></p>}
             </div>
 
             <div className="bg-gray-800 rounded-xl p-4 space-y-3">

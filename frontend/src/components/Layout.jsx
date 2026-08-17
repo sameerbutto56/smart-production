@@ -54,7 +54,6 @@ import useDemandNotification from '../hooks/useDemandNotification';
 import toast from 'react-hot-toast';
 import SystemPauseControl from './SystemPauseControl';
 import ProfileEmployeeGate from './ProfileEmployeeGate';
-import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -432,8 +431,6 @@ const Layout = () => {
     }
   }, [user]);
 
-  const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
-  const [globalSearch, setLocalSearch] = useState('');
   const { unreadCounts, markModuleRead, setBellNotifCallback } = useNotifications();
   const [bellOpen, setBellOpen] = useState(false);
   const [bellNotifs, setBellNotifs] = useState([]);
@@ -475,80 +472,6 @@ const Layout = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [bellOpen]);
 
-  const handleGlobalSearch = (e) => {
-    e.preventDefault();
-    if (!globalSearch.trim()) return;
-    
-    // Always update the context search to enable cross-page filtering
-    setContextSearch(globalSearch);
-    if (location.pathname !== '/dashboard' && location.pathname !== '/tasks' && location.pathname !== '/orders') {
-        navigate('/orders');
-    }
-    setLocalSearch('');
-  };
-
-  useEffect(() => {
-    const handleGlobalAlert = (data) => {
-      if (!data?.urgent) return;
-      toast.success(`${data.title}: ${data.message}`, {
-        duration: 8000,
-        position: 'top-center',
-        style: {
-          background: '#030712',
-          color: '#fff',
-          border: '2px solid #ef4444',
-          padding: '16px',
-          borderRadius: '24px',
-          fontWeight: '900',
-          textTransform: 'uppercase',
-          boxShadow: '0 10px 40px rgba(239,68,68,0.3)'
-        }
-      });
-    };
-
-    socket.on('global-alert', (data) => {
-      if (data?.urgent) handleGlobalAlert(data);
-    });
-    socket.on('new-order', (order) => {
-      if (!order?.urgent) return;
-      handleGlobalAlert({
-        title: 'New Urgent Order',
-        message: `Order #${order.orderNumber || (order.id ? order.id.substring(0, 8) : 'N/A')} is now in the system.`,
-        type: 'NEW_ORDER',
-        urgent: true
-      });
-    });
-    socket.on('stage-completion-requested', (data) => {
-      if (!data?.stage) return;
-      const isUrgent = data.urgent || data.stage?.order?.urgent;
-      if (!isUrgent) return;
-      const stageName = data.stage.stageName || '';
-      handleGlobalAlert({
-        title: 'Urgent Approval Required',
-        message: `${stageName.replace('_', ' ')} stage completed. Waiting for approval.`,
-        type: 'APPROVAL_REQUIRED',
-        urgent: true
-      });
-    });
-    socket.on('status-update', (data) => {
-      if (!data?.status || !data?.urgent) return;
-      handleGlobalAlert({
-        title: 'Urgent Status Update',
-        message: `Order #${data.orderNumber || 'N/A'} is now ${data.status.replace('_', ' ')}.`,
-        type: 'STATUS_UPDATE',
-        urgent: true
-      });
-    });
-
-    return () => {
-      socket.off('global-alert');
-      socket.off('new-order');
-      socket.off('stage-completion-requested');
-      socket.off('status-update');
-    };
-  }, []);
-
-  const { activeAlert, acknowledge } = useDemandNotification();
 
   if (user?.role === 'FAISAL' && !faisalLoggedIn) {
     return (
@@ -653,22 +576,6 @@ const Layout = () => {
               <Menu size={16} />
             </button>
             
-            {/* Search Input */}
-            {user?.role && user.role !== 'MAIN_EMPLOYEE' && (
-              <form onSubmit={handleGlobalSearch} className="relative group w-full max-w-md hidden sm:block">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={16} />
-                <input
-                  type="text"
-                  placeholder="Quick Search: Enter Order Number or Customer..."
-                  value={globalSearch}
-                  onChange={(e) => {
-                    setLocalSearch(e.target.value);
-                    setContextSearch(e.target.value);
-                  }}
-                  className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-xs md:text-sm font-black uppercase tracking-widest text-white shadow-inner"
-                />
-              </form>
-            )}
           </div>
 
           <div className="flex items-center gap-3">

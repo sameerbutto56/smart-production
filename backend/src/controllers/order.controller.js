@@ -251,7 +251,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification, discount } = req.body;
 
   // Derive priority and urgent
   const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
@@ -389,11 +389,13 @@ const createOrder = async (req, res) => {
     let baseTotal = finalProductDetails && Array.isArray(finalProductDetails)
       ? finalProductDetails.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
       : (parseFloat(req.body.totalPrice) || 0);
-    const orderTotalBeforeDelivery = baseTotal + finalLogoCharges + finalNamePrintingCharges + finalCustomizationPrice;
+    const discountAmount = parseFloat(discount) || 0;
+    const baseProductAmount = baseTotal;
+    const orderTotalBeforeDelivery = baseTotal + finalLogoCharges + finalNamePrintingCharges + finalCustomizationPrice - discountAmount;
     if (orderTotalBeforeDelivery > 7000) {
       finalDeliveryCharges = 0;
     }
-    const finalTotalPrice = orderTotalBeforeDelivery + finalDeliveryCharges;
+    const finalTotalPrice = Math.max(0, orderTotalBeforeDelivery + finalDeliveryCharges);
 
     const order = await prisma.order.create({
       data: {
@@ -436,6 +438,8 @@ const createOrder = async (req, res) => {
         shopifyOrderDate: shopifyOrderDate ? new Date(shopifyOrderDate) : null,
         productImage,
         totalPrice: finalTotalPrice,
+        baseProductAmount,
+        discountAmount,
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
         placedBy: placedBy || null,
@@ -3467,7 +3471,8 @@ const getOrderTimeline = async (req, res) => {
       CANCELLATION_REQUESTED: 'Cancellation Requested',
       CANCELLATION_APPROVED: 'Cancellation Approved',
       CANCELLATION_REJECTED: 'Cancellation Rejected',
-      REDISPATCH_REQUESTED: 'Re-Dispatch Requested'
+      REDISPATCH_REQUESTED: 'Re-Dispatch Requested',
+      MANUAL_PRODUCT_AMOUNT_ADJUSTED: 'Product Amount Adjusted'
     };
 
     // --- Build CONSOLIDATED stage entries (one per OrderStage) ---
@@ -4543,6 +4548,85 @@ const getOrderPerformance = async (req, res) => {
   }
 };
 
+// ====== EDIT PRODUCT AMOUNT (Admin/Faisal only) ======
+const editProductAmount = async (req, res) => {
+  const { orderId } = req.params;
+  const { baseProductAmount, discountAmount, reason } = req.body;
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true, orderNumber: true, status: true, currentStage: true, totalPrice: true,
+        baseProductAmount: true, discountAmount: true, logoCharges: true,
+        namePrintingCharges: true, customizationPrice: true, deliveryCharges: true
+      }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const TERMINAL = ['DELIVERED', 'RETURNED', 'CANCELLED', 'COMPLETED', 'REPLACEMENT_COMPLETED'];
+    if (TERMINAL.includes(order.status)) {
+      return res.status(400).json({ message: `Cannot edit product amount — order is ${order.status}.` });
+    }
+
+    const newProductAmt = parseFloat(baseProductAmount);
+    if (isNaN(newProductAmt) || newProductAmt < 0) {
+      return res.status(400).json({ message: 'Product amount must be a non-negative number.' });
+    }
+
+    const newDiscount = discountAmount !== undefined ? parseFloat(discountAmount) || 0 : (order.discountAmount || 0);
+    if (newDiscount < 0) {
+      return res.status(400).json({ message: 'Discount must be a non-negative number.' });
+    }
+
+    const brandingTotal = (order.logoCharges || 0) + (order.namePrintingCharges || 0) + (order.customizationPrice || 0);
+    const newTotalPrice = Math.max(0, newProductAmt + brandingTotal - newDiscount + (order.deliveryCharges || 0));
+
+    const [updated] = await prisma.$transaction([
+      prisma.order.update({
+        where: { id: orderId },
+        data: {
+          baseProductAmount: newProductAmt,
+          discountAmount: newDiscount,
+          totalPrice: newTotalPrice,
+          baseProductAmountEditedBy: req.user?.name || req.user?.email || 'Unknown',
+          baseProductAmountEditedAt: new Date()
+        }
+      }),
+      prisma.auditLog.create({
+        data: {
+          orderId,
+          action: 'MANUAL_PRODUCT_AMOUNT_ADJUSTED',
+          performedBy: req.user?.name || req.user?.email || 'Unknown',
+          performedById: req.user?.id || null,
+          details: `Product amount adjusted from Rs. ${order.baseProductAmount || 0} to Rs. ${newProductAmt}${newDiscount !== (order.discountAmount || 0) ? `, discount from Rs. ${order.discountAmount || 0} to Rs. ${newDiscount}` : ''}. New totalPrice: Rs. ${newTotalPrice}. Reason: ${reason || 'No reason provided'}`,
+          previousValue: { baseProductAmount: order.baseProductAmount, discountAmount: order.discountAmount, totalPrice: order.totalPrice },
+          newValue: { baseProductAmount: newProductAmt, discountAmount: newDiscount, totalPrice: newTotalPrice }
+        }
+      })
+    ]);
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId, action: 'product-amount-adjusted' });
+
+    res.json({
+      message: 'Product amount updated successfully',
+      order: {
+        id: updated.id,
+        orderNumber: updated.orderNumber,
+        baseProductAmount: updated.baseProductAmount,
+        discountAmount: updated.discountAmount,
+        totalPrice: updated.totalPrice,
+        editedBy: updated.baseProductAmountEditedBy,
+        editedAt: updated.baseProductAmountEditedAt
+      }
+    });
+  } catch (error) {
+    console.error('[editProductAmount] Error:', error);
+    res.status(500).json({ message: 'Failed to update product amount', error: error.message });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
@@ -4592,5 +4676,6 @@ module.exports = {
   getCancellationRequests,
   getCancellationRequestByOrder,
   approveCancellationRequest,
-  rejectCancellationRequest
+  rejectCancellationRequest,
+  editProductAmount
 };

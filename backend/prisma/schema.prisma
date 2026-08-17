@@ -77,6 +77,10 @@ model Order {
   customizationPrice Float?    @default(0)
   deliveryCharges  Float?       @default(0)
   totalPrice      Float?       @default(0)
+  baseProductAmount Float?     @default(0)
+  discountAmount  Float?       @default(0)
+  baseProductAmountEditedBy String?
+  baseProductAmountEditedAt DateTime?
   productionDeadline DateTime?
   trackingNumber  String?
   courierDetails  Json?

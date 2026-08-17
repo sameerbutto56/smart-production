@@ -1389,13 +1389,17 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
     const outHasEngraving = outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || order.logoDesign || !!order.instructionNotes;
 
+    // For outlet orders, engravingRequired checkbox is authoritative — if unchecked,
+    // no engraving data should appear regardless of stale fields in the DB.
+    const engravingCheckboxOff = order.source === 'OUTLET' && order.engravingRequired === false;
+
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
-    const hasAnyCustomization = brandingItems.some(item => {
+    const hasAnyCustomization = !engravingCheckboxOff && brandingItems.some(item => {
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
       return hasEngravingData(c);
     });
 
-    if (hasAnyCustomization || outHasEngraving) {
+    if (!engravingCheckboxOff && (hasAnyCustomization || outHasEngraving)) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.engraving}</div>`);
       // Per-item customization (standard flow)
       if (hasAnyCustomization) {

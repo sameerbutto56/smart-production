@@ -46,7 +46,8 @@ const {
   getCancellationRequests,
   getCancellationRequestByOrder,
   approveCancellationRequest,
-  rejectCancellationRequest
+  rejectCancellationRequest,
+  editProductAmount
 } = require('../controllers/order.controller');
 const {
   updateDeliveryStatus,
@@ -145,6 +146,9 @@ router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']
 
 // Order Edit Request
 router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_ENTRY', 'OUTLET']), createEditRequest);
+
+// Edit Product Amount (Admin/Faisal only)
+router.put('/:orderId/product-amount', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), editProductAmount);
 
 // Manual Routing (Admin/FAISAL only)
 router.post('/:orderId/route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
