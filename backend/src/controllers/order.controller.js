@@ -251,7 +251,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification, discount } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification, discount, engravingRequired, engravingText, engravingType, logoRequired, engravingNames, engravingLogos } = req.body;
 
   // Derive priority and urgent
   const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
@@ -377,12 +377,12 @@ const createOrder = async (req, res) => {
       try { parsedCustomization = JSON.parse(finalCustomization); } catch (e) { parsedCustomization = {}; }
     }
     const brandingRates = await getBrandingRates();
-    const hasLogo = !!(logoDesign || (items && items.some(i => i.logoDesign || i.customization?.logoDetails)));
-    const hasNamePrinting = !!(parsedCustomization?.nameSpelling || (items && items.some(i => i.customization?.nameSpelling)));
+    const hasLogo = engravingRequired ? !!(logoDesign || (items && items.some(i => i.logoDesign || i.customization?.logoDetails))) : false;
+    const hasNamePrinting = engravingRequired ? !!(parsedCustomization?.nameSpelling || (items && items.some(i => i.customization?.nameSpelling))) : false;
     const hasCustomization = !!(type === 'FULL_CUSTOM');
 
-    const finalLogoCharges = parseFloat(req.body.logoCharges) || (hasLogo ? brandingRates.logoCharge : 0);
-    const finalNamePrintingCharges = parseFloat(req.body.namePrintingCharges) || (hasNamePrinting ? brandingRates.namePrintingCharge : 0);
+    const finalLogoCharges = engravingRequired ? (parseFloat(req.body.logoCharges) || (hasLogo ? brandingRates.logoCharge : 0)) : 0;
+    const finalNamePrintingCharges = engravingRequired ? (parseFloat(req.body.namePrintingCharges) || (hasNamePrinting ? brandingRates.namePrintingCharge : 0)) : 0;
     const finalCustomizationPrice = parseFloat(req.body.customizationPrice) || (hasCustomization ? brandingRates.customizationCharge : 0);
     let finalDeliveryCharges = parseFloat(req.body.deliveryCharges) || 0;
 
@@ -421,20 +421,26 @@ const createOrder = async (req, res) => {
         urgent: finalUrgent,
         priority: finalPriority,
         quantity: parseInt(quantity) || 1,
-        logoDesign,
-        logoName,
+        logoDesign: engravingRequired ? logoDesign : null,
+        logoName: engravingRequired ? logoName : null,
         logoCharges: finalLogoCharges,
         namePrintingCharges: finalNamePrintingCharges,
         customizationPrice: finalCustomizationPrice,
         deliveryCharges: finalDeliveryCharges,
-        customization: finalCustomization ? JSON.stringify(finalCustomization) : null,
+        customization: engravingRequired ? (finalCustomization ? JSON.stringify(finalCustomization) : null) : null,
         productDetails: finalProductDetails || null,
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
         advancePaid: advancePaid || (advanceAmount > 0) || false,
         advanceAmount: advanceAmount || 0,
         paymentStatus: paymentStatus || 'PENDING',
         instructionNotes: instructionNotes || null,
-        engravingInstructions: engravingInstructions || null,
+        engravingInstructions: engravingRequired ? (engravingInstructions || null) : null,
+        engravingRequired: !!engravingRequired,
+        engravingText: engravingRequired ? (engravingText || null) : null,
+        engravingType: engravingRequired ? (engravingType || null) : null,
+        logoRequired: engravingRequired ? (logoRequired || false) : false,
+        engravingNames: engravingRequired ? (engravingNames ? (typeof engravingNames === 'string' ? engravingNames : JSON.stringify(engravingNames)) : null) : null,
+        engravingLogos: engravingRequired ? (engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null) : null,
         shopifyOrderDate: shopifyOrderDate ? new Date(shopifyOrderDate) : null,
         productImage,
         totalPrice: finalTotalPrice,
@@ -887,6 +893,9 @@ const getOrdersExport = async (req, res) => {
           'Size': val(inner.size || ''),
           'Color': val(inner.color || ''),
           'Customizations': val(wrapped ? (entry.customization ?? inner.customization ?? '') : (inner.customization || '')),
+          'Base Product Amount': o.baseProductAmount || '',
+          'Discount': o.discountAmount || '',
+          'Total Price': o.totalPrice || '',
           'Current Order Status': val(o.status),
           'Delay Type': d ? d.reason : '',
           'Delay Stage': d ? d.stageLabel : '',

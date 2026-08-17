@@ -1479,6 +1479,14 @@ const redispatchOrder = async (req, res) => {
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
+    // Gate: redispatch requires the delivery return to be accepted first
+    const deliveryReturnCase = await prisma.returnExchange.findFirst({
+      where: { orderId: order.id, type: 'RETURN', status: 'PENDING', deliveryReturnedAt: { not: null } }
+    });
+    if (deliveryReturnCase) {
+      return res.status(400).json({ message: 'This order has a pending delivery return that must be accepted before re-dispatch. Go to Return & Exchange → Order Lookup to accept the return first.' });
+    }
+
     // POS/Inventory lock check
     const pendingAudit = await getPendingAudit(prisma, { type: 'OUTLET', outletName: order.outletName });
     if (pendingAudit) {
@@ -1581,4 +1589,87 @@ const redispatchOrder = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder };
+// POST /api/return-exchange/:id/accept-return — Inventory View accepts a delivery-returned order
+const acceptReturn = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const caseRecord = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!caseRecord) return res.status(404).json({ message: 'Return case not found' });
+    if (caseRecord.type !== 'RETURN') return res.status(400).json({ message: 'Only RETURN cases can be accepted' });
+    if (caseRecord.status !== 'PENDING') return res.status(400).json({ message: `Case is already ${caseRecord.status} — cannot accept` });
+
+    const now = new Date();
+    await prisma.returnExchange.update({
+      where: { id },
+      data: {
+        status: 'ACCEPTED',
+        acceptedBy: req.user?.name || 'Inventory View',
+        acceptedById: req.user?.id || null,
+        acceptedAt: now
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        orderId: caseRecord.orderId,
+        action: 'RETURN_ACCEPTED_BY_INVENTORY',
+        details: `Return accepted by ${req.user?.name || 'Inventory View'}. Delivery returned by ${caseRecord.deliveryReturnedBy || 'Unknown'} at ${caseRecord.deliveryReturnedAt ? new Date(caseRecord.deliveryReturnedAt).toLocaleString() : 'N/A'}.`,
+        performedBy: req.user?.id || 'SYSTEM'
+      }
+    });
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id, orderId: caseRecord.orderId });
+
+    res.json({ message: 'Return accepted successfully', status: 'ACCEPTED', acceptedAt: now });
+  } catch (error) {
+    console.error('Error accepting return:', error);
+    res.status(500).json({ message: 'Failed to accept return', error: error.message });
+  }
+};
+
+// GET /api/return-exchange/returns/search?orderNumber=XXX — search ReturnExchange cases by order number (Inventory View → Returns only)
+const searchReturns = async (req, res) => {
+  try {
+    const { orderNumber } = req.query;
+    if (!orderNumber || !String(orderNumber).trim()) return res.status(400).json({ message: 'orderNumber is required' });
+    const q = String(orderNumber).trim();
+
+    const cases = await prisma.returnExchange.findMany({
+      where: {
+        type: 'RETURN',
+        OR: [
+          { orderNumber: { equals: q, mode: 'insensitive' } },
+          { orderNumber: { endsWith: q, mode: 'insensitive' } },
+          { customerName: { contains: q, mode: 'insensitive' } },
+          { customerPhone: { contains: q } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    // Enrich with order data
+    const orderIds = [...new Set(cases.map(c => c.orderId))];
+    let orderMap = {};
+    if (orderIds.length) {
+      const orders = await prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        select: { id: true, orderNumber: true, customerName: true, customerPhone: true, totalPrice: true, productDetails: true, status: true, currentStage: true }
+      });
+      orderMap = Object.fromEntries(orders.map(o => [o.id, o]));
+    }
+
+    const results = cases.map(c => ({
+      ...c,
+      order: orderMap[c.orderId] || null
+    }));
+
+    res.json({ cases: results, total: results.length });
+  } catch (error) {
+    console.error('Error searching returns:', error);
+    res.status(500).json({ message: 'Failed to search returns', error: error.message });
+  }
+};
+
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns };

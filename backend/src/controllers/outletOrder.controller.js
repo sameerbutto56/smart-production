@@ -746,6 +746,135 @@ const trackOrder = async (req, res) => {
   }
 };
 
+const lookupOrderWithFinancials = async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+    if (!orderNumber || !orderNumber.trim()) return res.status(400).json({ message: 'Order number is required' });
+
+    const q = orderNumber.trim();
+
+    // 1. Find order by exact orderNumber, then invoiceNumber, then contains fallback
+    let order = await prisma.order.findUnique({
+      where: { orderNumber: q },
+      select: {
+        id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
+        address: true, city: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true,
+        productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
+        engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
+        engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
+        deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true
+      }
+    });
+    if (!order) {
+      order = await prisma.order.findUnique({
+        where: { invoiceNumber: q },
+        select: {
+          id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
+          address: true, city: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true,
+          productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
+          engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
+          engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
+          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true
+        }
+      });
+    }
+    if (!order) {
+      const matches = await prisma.order.findMany({
+        where: { orderNumber: { contains: q } },
+        orderBy: { createdAt: 'desc' }, take: 1,
+        select: {
+          id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
+          address: true, city: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true,
+          productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
+          engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
+          engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
+          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true
+        }
+      });
+      order = matches[0] || null;
+    }
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // 2. Find linked POS sale(s) by orderNumber or orderId
+    let posSale = null;
+    let balancePayments = [];
+    if (order.orderNumber) {
+      posSale = await prisma.posSale.findFirst({
+        where: { orderNumber: order.orderNumber },
+        include: { items: true, returns: true, balancePayments: { orderBy: { paidAt: 'asc' } } }
+      });
+    }
+    if (!posSale && order.id) {
+      posSale = await prisma.posSale.findFirst({
+        where: { orderId: order.id },
+        include: { items: true, returns: true, balancePayments: { orderBy: { paidAt: 'asc' } } }
+      });
+    }
+
+    // 3. Compute financial status
+    let financial = null;
+    if (posSale) {
+      const totalPaid = (posSale.advanceAmount || 0) + posSale.balancePayments.reduce((s, bp) => s + (bp.amountPaidNow || 0), 0);
+      const totalReturns = posSale.returns.reduce((s, r) => s + (r.refundAmount || 0), 0);
+      const remaining = Math.max(0, (posSale.grandTotal || 0) - totalPaid);
+      const isPaid = remaining <= 0.01;
+      financial = {
+        posSaleId: posSale.id,
+        receiptNumber: posSale.receiptNumber,
+        grandTotal: posSale.grandTotal,
+        advanceAmount: posSale.advanceAmount,
+        totalPaid,
+        totalReturns,
+        remaining,
+        paymentMethod: posSale.paymentMethod,
+        cashierName: posSale.cashierName,
+        posSaleDate: posSale.createdAt,
+        paymentStatus: isPaid ? 'PAID' : 'BALANCE',
+        balancePayments: posSale.balancePayments.map(bp => ({
+          id: bp.id, receiptNumber: bp.receiptNumber, amountPaidNow: bp.amountPaidNow,
+          paymentMethod: bp.paymentMethod, cashierName: bp.cashierName, paidAt: bp.paidAt
+        }))
+      };
+    } else {
+      // No POS sale found — derive from order fields
+      const adv = order.advanceAmount || 0;
+      const tot = order.totalPrice || 0;
+      const isPaid = order.paymentStatus === 'PAID' || (adv >= tot && tot > 0);
+      financial = {
+        posSaleId: null,
+        receiptNumber: null,
+        grandTotal: tot,
+        advanceAmount: adv,
+        totalPaid: adv,
+        totalReturns: 0,
+        remaining: Math.max(0, tot - adv),
+        paymentMethod: null,
+        cashierName: null,
+        posSaleDate: null,
+        paymentStatus: isPaid ? 'PAID' : (adv > 0 ? 'ADVANCE' : 'PENDING'),
+        balancePayments: []
+      };
+    }
+
+    // 4. Find client by phone for measurement pre-fill
+    let client = null;
+    if (order.customerPhone) {
+      const clients = await prisma.client.findMany({
+        where: { phone: { contains: order.customerPhone }, isActive: true },
+        orderBy: { createdAt: 'desc' }, take: 1,
+        select: { id: true, clientNumber: true, name: true, phone: true, gender: true,
+          permanentAddress: true, city: true, sizeDetails: true, standardSizes: true, measurementChart: true }
+      });
+      client = clients[0] || null;
+    }
+
+    res.json({ order, financial, client });
+  } catch (error) {
+    console.error('[lookupOrderWithFinancials] error:', error.message);
+    res.status(500).json({ message: 'Error looking up order' });
+  }
+};
+
 const getOutletAnalytics = async (req, res) => {
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
@@ -1302,4 +1431,4 @@ const verifyOutletEmployee = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee };
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, lookupOrderWithFinancials, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee };

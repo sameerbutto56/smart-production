@@ -1646,6 +1646,9 @@ export function printDispatchSheet(order) {
   win.document.write(`</div>`);
   if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
     win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓ — No COD Due</div>`);
+  } else if (order.paymentStatus === 'BALANCE') {
+    const bal = Math.max(0, parseFloat(order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:20px;font-weight:900;color:#d97706">BALANCE: ${currency(bal)} — Partial Payment Remaining</div>`);
   } else if (parseFloat(order.advanceAmount || 0) > 0) {
     const codAmt = Math.max(0, parseFloat(order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
     win.document.write(`<div style="margin-top:8px;padding:6px 10px;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:18px">`);

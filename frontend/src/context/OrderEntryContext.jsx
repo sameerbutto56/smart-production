@@ -129,6 +129,9 @@ export const OrderEntryProvider = ({ children }) => {
   const [duplicateOrder, setDuplicateOrder] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [fromVerification, setFromVerification] = useState(urlFromVerification && !!urlEditOrderId);
+  const [orderLookupResult, setOrderLookupResult] = useState(null);
+  const [orderLookupLoading, setOrderLookupLoading] = useState(false);
+  const orderLookupRef = useRef(null);
   const dateInputRef = useRef(null);
   const verificationLoadRef = useRef(null);
 
@@ -505,6 +508,26 @@ export const OrderEntryProvider = ({ children }) => {
     setEditOrderLoading(false);
   }, [editOrderNumber, user]);
 
+  const lookupOrderByNumber = useCallback(async (orderNumber) => {
+    const q = (orderNumber || '').trim();
+    if (!q || q.length < 3) {
+      setOrderLookupResult(null);
+      return null;
+    }
+    setOrderLookupLoading(true);
+    try {
+      const res = await api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(q)}`);
+      const data = res.data || null;
+      setOrderLookupResult(data);
+      return data;
+    } catch (err) {
+      setOrderLookupResult(null);
+      return null;
+    } finally {
+      setOrderLookupLoading(false);
+    }
+  }, []);
+
   const submitOrderEditRequest = useCallback(async (externalPayload) => {
     if (!editOrderId) { setError('No order selected for editing.'); return; }
     setIsSubmitting(true); setLoading(true); setError('');
@@ -703,6 +726,12 @@ export const OrderEntryProvider = ({ children }) => {
     if (cartItems.length === 0 || isSubmitting) return;
     const basicErr = validateBasicInfo();
     if (basicErr) { setError(basicErr); return; }
+    // Prevent duplicate order creation: if an existing order was found for this number, block checkout
+    if (orderLookupResult && orderLookupResult.order && !isEditMode) {
+      setError(`This order number already exists (${orderLookupResult.order.orderNumber || formData.orderNumber}) — Customer: ${orderLookupResult.order.customerName}, Stage: ${orderLookupResult.order.currentStage}. Use Edit mode to modify it.`);
+      setIsSubmitting(false); setLoading(false);
+      return;
+    }
     setIsSubmitting(true); setLoading(true); setError('');
     try {
       const finalItems = cartItems.map(item => ({
@@ -765,7 +794,7 @@ export const OrderEntryProvider = ({ children }) => {
       }
     }
     setLoading(false); setIsSubmitting(false);
-  }, [cartItems, isSubmitting, formData, resetFormData, goForVerification, validateBasicInfo]);
+  }, [cartItems, isSubmitting, formData, resetFormData, goForVerification, validateBasicInfo, orderLookupResult, isEditMode]);
 
   const openDuplicateOrder = useCallback(() => {
     const num = duplicateOrder;
@@ -955,7 +984,7 @@ export const OrderEntryProvider = ({ children }) => {
     showReview, isEditMode, editOrderId, originalOrder, showEditReview,
     editReason, editOrderNumber, editOrderData, editOrderLoading, editOrderError,
     logoEntries, articleNameEntries, formData, cartItems, showAddMore, showProductSelector, isCartOpen, dateInputRef,
-    requiredErrors, duplicateOrder,
+    requiredErrors, duplicateOrder, orderLookupResult, orderLookupLoading,
     // Setters
     setSelectedProductCategory, setProductSearchTerm, setColorSearchTerm, setExpandedProducts,
     setShowReview, setIsEditMode, setEditOrderId, setOriginalOrder, setShowEditReview,
@@ -966,7 +995,7 @@ export const OrderEntryProvider = ({ children }) => {
     goForVerification, setGoForVerification, fromVerification, setFromVerification,
     // Handlers
     t, useUrdu, isUrdu, isOutlet, LanguageToggle,
-    fetchInventory, toggleEditMode, fetchOrderByNumber, submitOrderEditRequest,
+    fetchInventory, toggleEditMode, fetchOrderByNumber, lookupOrderByNumber, submitOrderEditRequest,
     getSizeChart, handleSizeSelect, validateProductConfig, validateCurrentTab, validateBasicInfo,
     preventEnterSubmit, fmtDate, parseDate,
     handleAddToCart, removeCartItem, editCartItem, handleAddMoreProducts, handleCheckout,

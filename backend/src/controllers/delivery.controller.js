@@ -101,11 +101,41 @@ const performDeliveryReturn = async (req, order, riderName, reason, autoReturned
 
   await notify.create(req, { type: 'delivery_returned', moduleName: 'My Tasks', path: '/dispatch', role: 'DISPATCH', title: 'Order Returned', message: `Order #${order.orderNumber} returned from delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned to Dispatch', employeeName: req.user?.name }).catch(() => {});
 
-  // Feed the Inventory View → Returns flow so the returned order can be restocked.
-  await notify.create(req, { type: 'return_exchange', moduleName: 'Return & Exchange', path: '/return-exchange', role: 'INVENTORY_VIEW', title: 'Order Returned from Delivery', message: `Order #${order.orderNumber} returned from delivery — process the return to restock inventory`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Return from Delivery', employeeName: req.user?.name }).catch(() => {});
+  // Create a ReturnExchange case so the order appears in Inventory View → Returns
+  // with PENDING status (awaiting acceptance by Inventory View).
+  const parseProductsForCase = (pd) => {
+    if (!pd) return [];
+    if (typeof pd === 'string') { try { return JSON.parse(pd); } catch { return []; } }
+    if (Array.isArray(pd)) return pd;
+    return [];
+  };
+  const existingCase = await prisma.returnExchange.findFirst({
+    where: { orderId: order.id, type: 'RETURN', status: 'PENDING' }
+  });
+  if (!existingCase) {
+    await prisma.returnExchange.create({
+      data: {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        type: 'RETURN',
+        status: 'PENDING',
+        routedTo: 'INVENTORY_VIEW',
+        returnReason: reason || 'Returned from delivery',
+        originalProducts: parseProductsForCase(order.productDetails),
+        deliveryReturnedBy: riderName || req.user?.name || 'SYSTEM',
+        deliveryReturnedById: req.user?.id || null,
+        deliveryReturnedAt: now
+      }
+    });
+  }
+
+  await notify.create(req, { type: 'return_exchange', moduleName: 'Return & Exchange', path: '/return-exchange', role: 'INVENTORY_VIEW', title: 'Order Returned from Delivery', message: `Order #${order.orderNumber} returned from delivery — awaiting acceptance`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Return from Delivery', employeeName: req.user?.name }).catch(() => {});
 
   const io = req.app?.get('io');
   if (io) io.emit('order-updated', { orderId: order.id });
+  if (io) io.emit('return-exchange-updated', { orderId: order.id });
 
   return { returnedAt: now };
 };

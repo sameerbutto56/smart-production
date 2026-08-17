@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Hash, User, Phone, Star, Layout } from 'lucide-react';
+import { Hash, User, Phone, Star, Layout, Search, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
 
 const BasicInfoTab = () => {
@@ -8,14 +8,40 @@ const BasicInfoTab = () => {
     formData, setFormData, t, useUrdu, isOutlet, isEditMode,
     memoCartTotalItems, memoCartTotalPrice, memoIsFreeDelivery,
     preventEnterSubmit, dateInputRef, fmtDate, parseDate, cartItems,
-    requiredErrors, setRequiredErrors
+    requiredErrors, setRequiredErrors,
+    orderLookupResult, orderLookupLoading, lookupOrderByNumber,
+    setCartItems, setOriginalOrder
   } = useOrderEntry();
 
   const [shopifyInput, setShopifyInput] = useState(() => fmtDate(formData.shopifyOrderDate));
+  const orderNumberDebounceRef = useRef(null);
+  const lastLookupRef = useRef('');
 
   useEffect(() => {
     setShopifyInput(fmtDate(formData.shopifyOrderDate));
   }, [formData.shopifyOrderDate, fmtDate]);
+
+  // Debounced auto-lookup for existing orders by order number (Outlet Order Entry only)
+  useEffect(() => {
+    if (!isOutlet || isEditMode) return;
+    const num = (formData.orderNumber || '').trim();
+    if (num.length < 3 || num === lastLookupRef.current) return;
+    if (orderNumberDebounceRef.current) clearTimeout(orderNumberDebounceRef.current);
+    orderNumberDebounceRef.current = setTimeout(() => {
+      lastLookupRef.current = num;
+      lookupOrderByNumber(num);
+    }, 600);
+    return () => { if (orderNumberDebounceRef.current) clearTimeout(orderNumberDebounceRef.current); };
+  }, [formData.orderNumber, isOutlet, isEditMode, lookupOrderByNumber]);
+
+  // Clear lookup result when order number is cleared or shortened
+  useEffect(() => {
+    const num = (formData.orderNumber || '').trim();
+    if (num.length < 3 && orderLookupResult) {
+      lastLookupRef.current = '';
+      lookupOrderByNumber('');
+    }
+  }, [formData.orderNumber, orderLookupResult, lookupOrderByNumber]);
 
   const clearFieldError = (field) => setRequiredErrors(prev => {
     if (!prev || !prev[field]) return prev;
@@ -52,6 +78,52 @@ const BasicInfoTab = () => {
                 placeholder="772" required />
             </div>
             {requiredErrors?.orderNumber && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.orderNumber}</p>}
+            {/* Order lookup status — shows financial status of existing order */}
+            {isOutlet && !isEditMode && (
+              <div className="mt-2">
+                {orderLookupLoading && (
+                  <div className="flex items-center gap-2 text-xs text-blue-400 ml-4">
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Looking up order...</span>
+                  </div>
+                )}
+                {!orderLookupLoading && orderLookupResult && orderLookupResult.order && (
+                  <div className={`ml-4 p-3 rounded-xl text-sm border ${
+                    orderLookupResult.financial?.paymentStatus === 'PAID'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : orderLookupResult.financial?.paymentStatus === 'BALANCE'
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                        : orderLookupResult.financial?.paymentStatus === 'ADVANCE'
+                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                          : 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {orderLookupResult.financial?.paymentStatus === 'PAID' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                      <span className="font-black">
+                        Existing Order Found: {orderLookupResult.order.orderNumber || formData.orderNumber}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-3 mt-1 text-xs">
+                      <span>Customer: {orderLookupResult.order.customerName}</span>
+                      {orderLookupResult.order.customerPhone && <span>Phone: {orderLookupResult.order.customerPhone}</span>}
+                      <span>Stage: {orderLookupResult.order.currentStage}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-3 mt-1 text-xs font-black">
+                      <span>Total: ₨{(orderLookupResult.financial?.grandTotal || orderLookupResult.order.totalPrice || 0).toLocaleString()}</span>
+                      {orderLookupResult.financial?.paymentStatus === 'PAID' && (
+                        <span className="text-emerald-400">✓ PAID</span>
+                      )}
+                      {orderLookupResult.financial?.paymentStatus === 'BALANCE' && (
+                        <span className="text-amber-400">Balance: ₨{(orderLookupResult.financial?.remaining || 0).toLocaleString()}</span>
+                      )}
+                      {orderLookupResult.financial?.paymentStatus === 'ADVANCE' && (
+                        <span className="text-blue-400">Advance: ₨{(orderLookupResult.financial?.advanceAmount || 0).toLocaleString()}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-4">
             <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')} <span className="text-red-500">*</span></label>

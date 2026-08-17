@@ -19,7 +19,8 @@ import {
   Phone,
   Users,
   List,
-  Grid
+  Grid,
+  DollarSign
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
@@ -298,6 +299,41 @@ const AllOrders = () => {
     } catch (error) {
       console.error('Error deleting order:', error);
       toast.error('Failed to delete order');
+    }
+  };
+
+  const [editAmountOrder, setEditAmountOrder] = useState(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editDiscount, setEditDiscount] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [editAmountSaving, setEditAmountSaving] = useState(false);
+
+  const handleOpenEditAmount = (order, e) => {
+    e.stopPropagation();
+    setEditAmountOrder(order);
+    setEditAmount(String(order.baseProductAmount ?? order.totalPrice ?? ''));
+    setEditDiscount(String(order.discountAmount ?? ''));
+    setEditReason('');
+  };
+
+  const handleSaveEditAmount = async () => {
+    if (!editAmountOrder) return;
+    const amt = parseFloat(editAmount);
+    if (isNaN(amt) || amt < 0) return toast.error('Amount must be a non-negative number');
+    const disc = parseFloat(editDiscount) || 0;
+    if (disc < 0) return toast.error('Discount cannot be negative');
+    setEditAmountSaving(true);
+    try {
+      const { data } = await api.put(`/api/orders/${editAmountOrder.id}/product-amount`, {
+        baseProductAmount: amt, discountAmount: disc, reason: editReason || undefined
+      });
+      toast.success(`Product amount updated. New total: Rs. ${data.order.totalPrice.toLocaleString()}`);
+      setEditAmountOrder(null);
+      refresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update');
+    } finally {
+      setEditAmountSaving(false);
     }
   };
 
@@ -1028,6 +1064,9 @@ const AllOrders = () => {
                       {order.editedByAdmin && (
                         <span className="inline-block bg-amber-500 text-black text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter mt-1">✏️ ADMIN EDITED</span>
                       )}
+                      {order.baseProductAmountEditedBy && (
+                        <span className="inline-block bg-orange-500 text-black text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter mt-1 ml-1">💲 AMT ADJUSTED</span>
+                      )}
                       <div className="text-xs theme-text-muted font-medium mt-1">
                         {order.customerName}
                         {order.city && (
@@ -1168,6 +1207,15 @@ const AllOrders = () => {
                         <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
                           {['SUPER_ADMIN', 'ADMIN'].includes(user?.role) && (
                             <button
+                              onClick={(e) => handleOpenEditAmount(order, e)}
+                              className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white p-2 rounded-lg transition-all"
+                              title="Edit Product Amount"
+                            >
+                              <DollarSign size={16} />
+                            </button>
+                          )}
+                          {['SUPER_ADMIN', 'ADMIN'].includes(user?.role) && (
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteOrder(order.id);
@@ -1238,6 +1286,9 @@ const AllOrders = () => {
                     <h2 className="text-2xl md:text-4xl font-black tracking-tighter theme-text-primary">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
                     {selectedOrder.editedByAdmin && (
                       <span className="bg-amber-500 text-black text-[10px] md:text-xs font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">✏️ ADMIN EDITED ORDER</span>
+                    )}
+                    {selectedOrder.baseProductAmountEditedBy && (
+                      <span className="bg-orange-500 text-black text-[10px] md:text-xs font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">💲 AMOUNT ADJUSTED</span>
                     )}
                     <div className="flex items-center gap-2">
                       <span className={`px-3 py-1 border text-xs md:text-sm font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
@@ -1844,6 +1895,14 @@ const AllOrders = () => {
                     <option value="ur">اردو</option>
                     <option value="en">English</option>
                   </select>
+                  {['SUPER_ADMIN', 'ADMIN'].includes(user?.role) && (
+                    <button
+                      onClick={() => { setEditAmountOrder(selectedOrder); setEditAmount(String(selectedOrder.baseProductAmount ?? selectedOrder.totalPrice ?? '')); setEditDiscount(String(selectedOrder.discountAmount ?? '')); setEditReason(''); }}
+                      className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                    >
+                      <DollarSign size={14} /> Edit Amount
+                    </button>
+                  )}
                   <button
                     onClick={() => { setPrintSections({ measurements: true, engraving: true }); setShowPrintFilter(true); }}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
@@ -1923,6 +1982,47 @@ const AllOrders = () => {
             </motion.div>
           </div>
         )}
+
+      {/* Edit Product Amount Modal */}
+      {editAmountOrder && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !editAmountSaving && setEditAmountOrder(null)}></div>
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative theme-bg rounded-3xl border theme-border p-6 md:p-8 w-full max-w-md shadow-2xl">
+            <h3 className="text-lg font-black uppercase tracking-widest mb-1">Edit Product Amount</h3>
+            <p className="text-xs theme-text-muted mb-6">Order #{editAmountOrder.orderNumber || editAmountOrder.id?.substring(0,8)}</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest theme-text-muted mb-1">Base Product Amount (Rs.)</label>
+                <input type="number" min="0" step="1" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} disabled={editAmountSaving}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-amber-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest theme-text-muted mb-1">Discount (Rs.)</label>
+                <input type="number" min="0" step="1" value={editDiscount} onChange={(e) => setEditDiscount(e.target.value)} disabled={editAmountSaving}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-amber-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest theme-text-muted mb-1">Reason</label>
+                <textarea value={editReason} onChange={(e) => setEditReason(e.target.value)} rows={2} placeholder="Why is this being changed?" disabled={editAmountSaving}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-amber-500 resize-none" />
+              </div>
+              {editAmountOrder.baseProductAmountEditedBy && (
+                <p className="text-[10px] theme-text-muted">Last edited by {editAmountOrder.baseProductAmountEditedBy} on {formatDateTime(editAmountOrder.baseProductAmountEditedAt)}</p>
+              )}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={handleSaveEditAmount} disabled={editAmountSaving || !editAmount}
+                className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all">
+                {editAmountSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button onClick={() => setEditAmountOrder(null)} disabled={editAmountSaving}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all">
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

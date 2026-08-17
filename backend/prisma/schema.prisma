@@ -980,6 +980,13 @@ model ReturnExchange {
   replacementCompleted Boolean  @default(false)
   replacementCompletedAt DateTime?
   replacementCompletedBy String?
+  // Delivery Boy Return → Inventory View acceptance tracking
+  deliveryReturnedBy String?     // delivery boy name who returned
+  deliveryReturnedById String?   // delivery boy user id
+  deliveryReturnedAt DateTime?   // when delivery boy returned
+  acceptedBy        String?      // inventory view user who accepted
+  acceptedById      String?      // inventory view user id
+  acceptedAt        DateTime?    // when accepted
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

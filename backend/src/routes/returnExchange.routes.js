@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth.middleware');
-const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder } = require('../controllers/returnExchange.controller');
+const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns } = require('../controllers/returnExchange.controller');
 
 const router = express.Router();
 
@@ -8,6 +8,7 @@ router.get('/lookup/:query', authenticate, lookupOrder);
 router.get('/track/:query', authenticate, trackReplacement);
 router.get('/cases', authenticate, getAllCases);
 router.get('/history/:orderId', authenticate, getCaseHistory);
+router.get('/returns/search', authenticate, searchReturns);
 router.post('/initiate', authenticate, createReturnExchange);
 router.post('/:orderId/reschedule', authenticate, rescheduleDelivery);
 router.post('/:id/approve', authenticate, approveWarehouse);
@@ -22,6 +23,7 @@ router.post('/:id/restock-original', authenticate, restockOriginal);
 router.post('/:id/update-status', authenticate, updateStatus);
 router.post('/:id/route', authenticate, routeReplacement);
 router.post('/:orderId/redispatch', authenticate, redispatchOrder);
+router.post('/:id/accept-return', authenticate, acceptReturn);
 router.post('/check-stock', authenticate, checkStockAvailability);
 
 module.exports = router;
