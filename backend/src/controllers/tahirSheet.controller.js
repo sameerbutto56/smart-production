@@ -3,10 +3,12 @@ const prisma = require('../prisma');
 // GET /api/gate-pass?date=YYYY-MM-DD
 // Returns assignments for the given date PLUS all carry-forward (pending/active) orders
 // from previous dates that are not yet delivered/returned.
-// Also auto-backfills missing DeliveryAssignment records for dispatched orders.
+// Backfill runs in the background (fire-and-forget) so the page always loads fast.
 const FINAL_STATUSES = ['DELIVERED', 'RETURNED', 'COMPLETED', 'CANCELLED', 'REJECTED'];
 const FINAL_STAGES = ['DELIVERED', 'RETURNED'];
 const DELIVERY_STAGES = ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY', 'IN_DISPATCH'];
+
+let backfillInFlight = false;
 
 const getTahirSheet = async (req, res) => {
   try {
@@ -19,23 +21,19 @@ const getTahirSheet = async (req, res) => {
     const dayStart = new Date(date + 'T00:00:00.000Z');
     const dayEnd = new Date(date + 'T23:59:59.999Z');
 
-    // 1. Fetch today's assignments (all delivery boys)
-    const todayAssignments = await prisma.deliveryAssignment.findMany({
-      where: {
-        assignmentDate: { gte: dayStart, lte: dayEnd },
-      },
-      orderBy: { assignedAt: 'asc' },
-    });
+    // 1. Fetch today's assignments + all previous assignments (carry-forward)
+    const [todayAssignments, previousAssignments] = await Promise.all([
+      prisma.deliveryAssignment.findMany({
+        where: { assignmentDate: { gte: dayStart, lte: dayEnd } },
+        orderBy: { assignedAt: 'asc' },
+      }),
+      prisma.deliveryAssignment.findMany({
+        where: { assignmentDate: { lt: dayStart } },
+        orderBy: { assignedAt: 'asc' },
+      }),
+    ]);
 
-    // 2. Fetch ALL previous (pre-date) assignments (all delivery boys)
-    const previousAssignments = await prisma.deliveryAssignment.findMany({
-      where: {
-        assignmentDate: { lt: dayStart },
-      },
-      orderBy: { assignedAt: 'asc' },
-    });
-
-    // 3. Deduplicate — same orderId can appear in both; prefer the latest assignment
+    // 2. Deduplicate — same orderId can appear in both; prefer the latest assignment
     const allRaw = [...previousAssignments, ...todayAssignments];
     const seen = new Map();
     for (const a of allRaw) {
@@ -47,114 +45,13 @@ const getTahirSheet = async (req, res) => {
     const allAssignments = Array.from(seen.values());
     const assignedOrderIds = new Set(allAssignments.map(a => a.orderId));
 
-    // 4. Auto-backfill: find orders in delivery stages that have NO DeliveryAssignment record
-    //    These are orders dispatched before the recordAssignment fix was deployed.
-    const unassignedOrders = await prisma.order.findMany({
-      where: {
-        id: { notIn: [...assignedOrderIds] },
-        OR: [
-          { currentStage: { in: DELIVERY_STAGES } },
-          { deliveryType: { in: ['ENAMELS', 'TCS', 'POST_EX'] } },
-          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } },
-          {
-            stages: {
-              some: { stageName: { in: DELIVERY_STAGES }, status: { in: ['PENDING', 'IN_PROGRESS', 'COMPLETED'] } }
-            }
-          },
-        ],
-      },
-      select: {
-        id: true, orderNumber: true, customerName: true, customerPhone: true,
-        address: true, city: true, totalPrice: true, advanceAmount: true,
-        deliveryCharges: true, outletName: true, source: true,
-        currentStage: true, status: true, productDetails: true,
-        deliveredAt: true, returnedAt: true, advancePaid: true,
-        paymentMethod: true, paymentStatus: true, dispatchStatus: true,
-        courierDetails: true, deliveryMethod: true, deliveryType: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'asc' },
-      take: 500,
-    });
-
-    // Create DeliveryAssignment records for discovered orders (best-effort backfill)
-    if (unassignedOrders.length > 0) {
-      const now = new Date();
-      const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-
-      for (const order of unassignedOrders) {
-        const deliveryBoyName = order.deliveryMethod
-          || (order.courierDetails?.courierName)
-          || (order.deliveryType === 'TCS' ? 'TCS' : order.deliveryType === 'POST_EX' ? 'PostEx' : 'Enamels Delivery');
-
-        // Use order's createdAt date (or today if it was routed today) as assignment date
-        const orderDate = new Date(order.createdAt);
-        const orderDayUTC = new Date(Date.UTC(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate()));
-        const assignDate = orderDayUTC.getTime() >= todayUTC.getTime() ? todayUTC : orderDayUTC;
-
-        try {
-          await prisma.deliveryAssignment.upsert({
-            where: {
-              orderId_deliveryBoyName_assignmentDate: {
-                orderId: order.id,
-                deliveryBoyName,
-                assignmentDate: assignDate,
-              },
-            },
-            create: {
-              orderId: order.id,
-              orderNumber: order.orderNumber,
-              customerName: order.customerName,
-              customerPhone: order.customerPhone,
-              address: order.address,
-              city: order.city,
-              totalPrice: order.totalPrice || 0,
-              advanceAmount: order.advanceAmount || 0,
-              deliveryCharges: order.deliveryCharges || 0,
-              outletName: order.outletName,
-              source: order.source,
-              assignedAt: order.createdAt,
-              assignmentDate: assignDate,
-              deliveryBoyName,
-              routedBy: 'System (auto-backfill)',
-              currentStage: order.currentStage,
-              status: order.status,
-              productDetails: order.productDetails || null,
-            },
-            update: {
-              currentStage: order.currentStage,
-              status: order.status,
-            },
-          });
-        } catch (backfillErr) {
-          console.error('Gate Pass backfill error for order', order.orderNumber, backfillErr.message);
-        }
-      }
-
-      // Re-fetch assignments now that backfill is done
-      const backfilledToday = await prisma.deliveryAssignment.findMany({
-        where: { assignmentDate: { gte: dayStart, lte: dayEnd } },
-        orderBy: { assignedAt: 'asc' },
-      });
-      const backfilledPrevious = await prisma.deliveryAssignment.findMany({
-        where: { assignmentDate: { lt: dayStart } },
-        orderBy: { assignedAt: 'asc' },
-      });
-
-      // Re-deduplicate with backfilled data
-      const allBackfilled = [...backfilledPrevious, ...backfilledToday];
-      const seen2 = new Map();
-      for (const a of allBackfilled) {
-        const existing = seen2.get(a.orderId);
-        if (!existing || new Date(a.assignmentDate) > new Date(existing.assignmentDate)) {
-          seen2.set(a.orderId, a);
-        }
-      }
-      allAssignments.length = 0;
-      allAssignments.push(...Array.from(seen2.values()));
+    // 3. Fire-and-forget backfill: runs in background, never blocks the response
+    if (!backfillInFlight) {
+      backfillInFlight = true;
+      runBackfill(assignedOrderIds).finally(() => { backfillInFlight = false; });
     }
 
-    // 5. Enrich with live order status
+    // 4. Enrich with live order status
     const finalOrderIds = allAssignments.map(a => a.orderId);
     const orders = finalOrderIds.length ? await prisma.order.findMany({
       where: { id: { in: finalOrderIds } },
@@ -195,7 +92,7 @@ const getTahirSheet = async (req, res) => {
       };
     });
 
-    // 6. Separate today vs carry-forward, filter out final from carry-forward display
+    // 5. Separate today vs carry-forward, filter out final from carry-forward display
     const todayOrders = enriched.filter(e => e.isToday);
     const carryForwardOrders = enriched.filter(e => !e.isToday && !e.isFinal);
 
@@ -225,6 +122,97 @@ const getTahirSheet = async (req, res) => {
     res.status(500).json({ message: 'Error fetching Gate Pass', error: error.message });
   }
 };
+
+// Background backfill — creates DeliveryAssignment records for historical dispatched orders
+// that were dispatched before the recordAssignment hooks were in place.
+// Runs async, never blocks the API response. At most one concurrent run.
+async function runBackfill(existingOrderIds) {
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 60);
+
+    const unassignedOrders = await prisma.order.findMany({
+      where: {
+        id: { notIn: [...existingOrderIds] },
+        createdAt: { gte: cutoff },
+        OR: [
+          { currentStage: { in: DELIVERY_STAGES } },
+          { deliveryType: { in: ['ENAMELS', 'TCS', 'POST_EX'] } },
+          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } },
+        ],
+      },
+      select: {
+        id: true, orderNumber: true, customerName: true, customerPhone: true,
+        address: true, city: true, totalPrice: true, advanceAmount: true,
+        deliveryCharges: true, outletName: true, source: true,
+        currentStage: true, status: true, productDetails: true,
+        deliveryMethod: true, deliveryType: true, courierDetails: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+
+    if (unassignedOrders.length === 0) return;
+
+    console.log(`Gate Pass backfill: creating ${unassignedOrders.length} missing assignment records`);
+
+    const now = new Date();
+    const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+    for (const order of unassignedOrders) {
+      const deliveryBoyName = order.deliveryMethod
+        || (order.courierDetails?.courierName)
+        || (order.deliveryType === 'TCS' ? 'TCS' : order.deliveryType === 'POST_EX' ? 'PostEx' : 'Enamels Delivery');
+
+      const orderDate = new Date(order.createdAt);
+      const orderDayUTC = new Date(Date.UTC(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate()));
+      const assignDate = orderDayUTC.getTime() >= todayUTC.getTime() ? todayUTC : orderDayUTC;
+
+      try {
+        await prisma.deliveryAssignment.upsert({
+          where: {
+            orderId_deliveryBoyName_assignmentDate: {
+              orderId: order.id,
+              deliveryBoyName,
+              assignmentDate: assignDate,
+            },
+          },
+          create: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            customerName: order.customerName,
+            customerPhone: order.customerPhone,
+            address: order.address,
+            city: order.city,
+            totalPrice: order.totalPrice || 0,
+            advanceAmount: order.advanceAmount || 0,
+            deliveryCharges: order.deliveryCharges || 0,
+            outletName: order.outletName,
+            source: order.source,
+            assignedAt: order.createdAt,
+            assignmentDate: assignDate,
+            deliveryBoyName,
+            routedBy: 'System (auto-backfill)',
+            currentStage: order.currentStage,
+            status: order.status,
+            productDetails: order.productDetails || null,
+          },
+          update: {
+            currentStage: order.currentStage,
+            status: order.status,
+          },
+        });
+      } catch (backfillErr) {
+        console.error('Gate Pass backfill error for order', order.orderNumber, backfillErr.message);
+      }
+    }
+
+    console.log(`Gate Pass backfill: done (${unassignedOrders.length} orders processed)`);
+  } catch (err) {
+    console.error('Gate Pass backfill failed:', err.message);
+  }
+}
 
 // POST /api/tahir-sheet/record — record an assignment (called by routing hooks)
 const recordAssignment = async (data) => {
