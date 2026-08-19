@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
+const { recordAssignment } = require('./tahirSheet.controller');
 
 const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
@@ -388,6 +389,10 @@ const dispatchFromProfile = async (req, res) => {
 
     const io = req.app?.get('io');
     if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    if (mappedDeliveryType === 'ENAMELS') {
+      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: employeeName, outletName: order.outletName }).catch(() => {});
+    }
 
     res.json({ message: `Order dispatched via ${dispatchMethod} by ${employeeName}` });
   } catch (error) {

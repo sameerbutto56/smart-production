@@ -68,14 +68,14 @@ const TahirSheet = () => {
   }, [selectedDate, fetchAvailableDates]);
 
   const goToPrevDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
+    const d = new Date(selectedDate + 'T00:00:00.000Z');
+    d.setUTCDate(d.getUTCDate() - 1);
     setSelectedDate(d.toISOString().split('T')[0]);
   };
 
   const goToNextDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
+    const d = new Date(selectedDate + 'T00:00:00.000Z');
+    d.setUTCDate(d.getUTCDate() + 1);
     setSelectedDate(d.toISOString().split('T')[0]);
   };
 
@@ -158,7 +158,7 @@ const TahirSheet = () => {
               'text-gray-600 hover:bg-gray-100 cursor-pointer'
             }`}
           >
-            {dateStr ? new Date(dateStr + 'T00:00:00').getUTCDate() : ''}
+            {dateStr ? new Date(dateStr + 'T00:00:00.000Z').getUTCDate() : ''}
           </button>
         ))}
       </div>
@@ -282,7 +282,7 @@ const TahirSheet = () => {
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <div className="text-center">
-                  <div className="font-bold text-gray-900">{new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</div>
+                  <div className="font-bold text-gray-900">{new Date(selectedDate + 'T00:00:00.000Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</div>
                   {hasRecords && (
                     <span className="text-xs text-emerald-600 font-medium">Has Records</span>
                   )}
@@ -312,7 +312,7 @@ const TahirSheet = () => {
             {/* Mini calendar */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="text-sm font-semibold text-gray-700 mb-2">
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
+                {new Date(selectedDate + 'T00:00:00.000Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
               </div>
               {renderCalendar()}
               <div className="flex items-center gap-2 mt-3 text-xs text-gray-500">
@@ -376,7 +376,7 @@ const TahirSheet = () => {
                     <h3 className="font-semibold text-gray-800">
                       Orders Assigned ({assignments.length})
                     </h3>
-                    <span className="text-xs text-gray-500">Assigned on {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>
+                    <span className="text-xs text-gray-500">Assigned on {new Date(selectedDate + 'T00:00:00.000Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -396,13 +396,17 @@ const TahirSheet = () => {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {assignments.map((a, i) => {
-                          const pd = typeof a.productDetails === 'string' ? JSON.parse(a.productDetails || '[]') : (Array.isArray(a.productDetails) ? a.productDetails : []);
-                          const prodList = pd.map(p => ({
-                            name: p.name || p.productName || p.productType || 'Item',
-                            color: p.color,
-                            size: p.size,
-                            qty: p.quantity || 1,
-                          }));
+                          const rawPd = typeof a.productDetails === 'string' ? JSON.parse(a.productDetails || '[]') : (Array.isArray(a.productDetails) ? a.productDetails : (a.productDetails && typeof a.productDetails === 'object' ? [a.productDetails] : []));
+                          const prodList = rawPd.map(entry => {
+                            const p = entry?.productDetails || entry || {};
+                            return {
+                              name: p.name || p.productName || p.productType || entry.name || entry.productName || entry.productType || 'Item',
+                              color: p.color || entry.color,
+                              size: p.size || entry.size,
+                              qty: entry.quantity || p.quantity || 1,
+                              unitPrice: entry.unitPrice || p.unitPrice || 0,
+                            };
+                          });
                           const statusLabel = a.delivered ? 'DELIVERED' : a.returned ? 'RETURNED' : 'PENDING';
                           const statusColor = a.delivered ? 'emerald' : a.returned ? 'red' : 'amber';
                           return (
@@ -423,6 +427,7 @@ const TahirSheet = () => {
                                     {p.color && <span className="text-gray-500"> — {p.color}</span>}
                                     {p.size && <span className="text-gray-400"> ({p.size})</span>}
                                     {p.qty > 1 && <span className="text-gray-400"> x{p.qty}</span>}
+                                    {p.unitPrice > 0 && <span className="text-gray-400"> @ {fmtCurrency(p.unitPrice)}</span>}
                                   </div>
                                 )) : <span className="text-gray-400">-</span>}
                               </td>

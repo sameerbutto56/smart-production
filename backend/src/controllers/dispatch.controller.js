@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const notify = require('../utils/notify');
 const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
+const { recordAssignment } = require('./tahirSheet.controller');
 
 const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
@@ -227,6 +228,10 @@ const bookCourier = async (req, res) => {
         }).catch(() => {});
       }
     }, { timeout: 30000 });
+
+    if (mappedDeliveryType === 'ENAMELS') {
+      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+    }
 
     await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery', message: `Order #${order.orderNumber} booked with courier`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Courier Booked', employeeName: req.user?.name }).catch(() => {});
 
