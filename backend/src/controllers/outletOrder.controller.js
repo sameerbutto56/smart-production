@@ -605,6 +605,9 @@ const sendOutletForDelivery = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
 
+    // Record delivery assignment for Gate Pass
+    recordAssignment({ orderId, deliveryBoyName: 'Customer Pickup', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+
     await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery from Outlet', message: `Order #${order.orderNumber} sent for delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Outlet → Delivery', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: 'Order sent for delivery' });
@@ -1271,9 +1274,13 @@ const outletRouteOrder = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
 
-    // Record delivery assignment for Tahir Sheet
+    // Record delivery assignment for Gate Pass
     if (destinationStage === 'ENAMELS_DELIVERY') {
-      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+      const deliveryBoyNames = {
+        sendToEnamelsDelivery: 'Enamels Delivery',
+        customerTakeDeliver: 'Customer Pickup',
+      };
+      recordAssignment({ orderId, deliveryBoyName: deliveryBoyNames[action] || 'Enamels Delivery', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
     }
 
     // Notify destination role

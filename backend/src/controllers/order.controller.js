@@ -1135,9 +1135,9 @@ const requestStageCompletion = async (req, res) => {
         `${currentStage.stageName} completed. ${manualNextStage ? `Manually routed to ${actualNextStage}` : `Auto-moved to ${actualNextStage}`}.`,
         req.user.id);
 
-      // Record Tahir assignment when routing to Enamels Delivery Boy
+      // Record delivery assignment when routing to Enamels Delivery Boy
       if (actualNextStage === 'ENAMELS_DELIVERY') {
-        recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+        recordAssignment({ orderId, deliveryBoyName: 'Enamels Delivery', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
       }
     } else if (currentStage.stageName === 'OUT_FOR_DELIVERY') {
       // FINAL STAGE COMPLETED
@@ -2506,6 +2506,10 @@ const sendForDelivery = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    // Record delivery assignment for Gate Pass
+    recordAssignment({ orderId, deliveryBoyName: 'Enamels Delivery', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+
     if (order?.customerName && order?.orderNumber) {
       await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery', message: `Order #${order.orderNumber} is out for delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Out for Delivery', employeeName: req.user?.name }).catch(() => {});
     }
@@ -3023,9 +3027,9 @@ const manualRouteOrder = async (req, res) => {
       await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} accepted by Production In — now assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
     }
 
-    // Record Tahir assignment when routing to Enamels Delivery Boy
+    // Record delivery assignment when routing to Enamels Delivery Boy
     if (destinationStage === 'ENAMELS_DELIVERY') {
-      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+      recordAssignment({ orderId, deliveryBoyName: 'Enamels Delivery', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
     }
 
     res.json({ message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
@@ -4168,12 +4172,12 @@ const dispatchOrder = async (req, res) => {
 
       await createAuditLog(orderId, 'DISPATCHED_ENAMELS', `Dispatched via Enamels Delivery. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
 
-      // Record assignment for Tahir Sheet
+      // Record assignment for Gate Pass
       try {
         const { recordAssignment } = require('./tahirSheet.controller');
         await recordAssignment({
           orderId,
-          deliveryBoyName: 'Tahir',
+          deliveryBoyName: 'Enamels Delivery',
           routedBy: req.user?.name,
           outletName: order.outletName,
         });

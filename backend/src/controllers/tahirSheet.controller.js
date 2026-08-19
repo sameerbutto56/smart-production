@@ -3,8 +3,10 @@ const prisma = require('../prisma');
 // GET /api/gate-pass?date=YYYY-MM-DD
 // Returns assignments for the given date PLUS all carry-forward (pending/active) orders
 // from previous dates that are not yet delivered/returned.
+// Also auto-backfills missing DeliveryAssignment records for dispatched orders.
 const FINAL_STATUSES = ['DELIVERED', 'RETURNED', 'COMPLETED', 'CANCELLED', 'REJECTED'];
 const FINAL_STAGES = ['DELIVERED', 'RETURNED'];
+const DELIVERY_STAGES = ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY', 'IN_DISPATCH'];
 
 const getTahirSheet = async (req, res) => {
   try {
@@ -42,14 +44,120 @@ const getTahirSheet = async (req, res) => {
         seen.set(a.orderId, a);
       }
     }
-    const allAssignments = Array.from(seen.values()).sort((a, b) =>
-      new Date(a.assignedAt) - new Date(b.assignedAt)
-    );
+    const allAssignments = Array.from(seen.values());
+    const assignedOrderIds = new Set(allAssignments.map(a => a.orderId));
 
-    // 4. Enrich with live order status
-    const orderIds = allAssignments.map(a => a.orderId);
-    const orders = orderIds.length ? await prisma.order.findMany({
-      where: { id: { in: orderIds } },
+    // 4. Auto-backfill: find orders in delivery stages that have NO DeliveryAssignment record
+    //    These are orders dispatched before the recordAssignment fix was deployed.
+    const unassignedOrders = await prisma.order.findMany({
+      where: {
+        id: { notIn: [...assignedOrderIds] },
+        OR: [
+          { currentStage: { in: DELIVERY_STAGES } },
+          { deliveryType: { in: ['ENAMELS', 'TCS', 'POST_EX'] } },
+          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } },
+          {
+            stages: {
+              some: { stageName: { in: DELIVERY_STAGES }, status: { in: ['PENDING', 'IN_PROGRESS', 'COMPLETED'] } }
+            }
+          },
+        ],
+      },
+      select: {
+        id: true, orderNumber: true, customerName: true, customerPhone: true,
+        address: true, city: true, totalPrice: true, advanceAmount: true,
+        deliveryCharges: true, outletName: true, source: true,
+        currentStage: true, status: true, productDetails: true,
+        deliveredAt: true, returnedAt: true, advancePaid: true,
+        paymentMethod: true, paymentStatus: true, dispatchStatus: true,
+        courierDetails: true, deliveryMethod: true, deliveryType: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 500,
+    });
+
+    // Create DeliveryAssignment records for discovered orders (best-effort backfill)
+    if (unassignedOrders.length > 0) {
+      const now = new Date();
+      const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+      for (const order of unassignedOrders) {
+        const deliveryBoyName = order.deliveryMethod
+          || (order.courierDetails?.courierName)
+          || (order.deliveryType === 'TCS' ? 'TCS' : order.deliveryType === 'POST_EX' ? 'PostEx' : 'Enamels Delivery');
+
+        // Use order's createdAt date (or today if it was routed today) as assignment date
+        const orderDate = new Date(order.createdAt);
+        const orderDayUTC = new Date(Date.UTC(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate()));
+        const assignDate = orderDayUTC.getTime() >= todayUTC.getTime() ? todayUTC : orderDayUTC;
+
+        try {
+          await prisma.deliveryAssignment.upsert({
+            where: {
+              orderId_deliveryBoyName_assignmentDate: {
+                orderId: order.id,
+                deliveryBoyName,
+                assignmentDate: assignDate,
+              },
+            },
+            create: {
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+              customerName: order.customerName,
+              customerPhone: order.customerPhone,
+              address: order.address,
+              city: order.city,
+              totalPrice: order.totalPrice || 0,
+              advanceAmount: order.advanceAmount || 0,
+              deliveryCharges: order.deliveryCharges || 0,
+              outletName: order.outletName,
+              source: order.source,
+              assignedAt: order.createdAt,
+              assignmentDate: assignDate,
+              deliveryBoyName,
+              routedBy: 'System (auto-backfill)',
+              currentStage: order.currentStage,
+              status: order.status,
+              productDetails: order.productDetails || null,
+            },
+            update: {
+              currentStage: order.currentStage,
+              status: order.status,
+            },
+          });
+        } catch (backfillErr) {
+          console.error('Gate Pass backfill error for order', order.orderNumber, backfillErr.message);
+        }
+      }
+
+      // Re-fetch assignments now that backfill is done
+      const backfilledToday = await prisma.deliveryAssignment.findMany({
+        where: { assignmentDate: { gte: dayStart, lte: dayEnd } },
+        orderBy: { assignedAt: 'asc' },
+      });
+      const backfilledPrevious = await prisma.deliveryAssignment.findMany({
+        where: { assignmentDate: { lt: dayStart } },
+        orderBy: { assignedAt: 'asc' },
+      });
+
+      // Re-deduplicate with backfilled data
+      const allBackfilled = [...backfilledPrevious, ...backfilledToday];
+      const seen2 = new Map();
+      for (const a of allBackfilled) {
+        const existing = seen2.get(a.orderId);
+        if (!existing || new Date(a.assignmentDate) > new Date(existing.assignmentDate)) {
+          seen2.set(a.orderId, a);
+        }
+      }
+      allAssignments.length = 0;
+      allAssignments.push(...Array.from(seen2.values()));
+    }
+
+    // 5. Enrich with live order status
+    const finalOrderIds = allAssignments.map(a => a.orderId);
+    const orders = finalOrderIds.length ? await prisma.order.findMany({
+      where: { id: { in: finalOrderIds } },
       select: {
         id: true, currentStage: true, status: true, deliveredAt: true,
         returnedAt: true, advanceAmount: true, advancePaid: true,
@@ -87,7 +195,7 @@ const getTahirSheet = async (req, res) => {
       };
     });
 
-    // 5. Separate today vs carry-forward, filter out final from carry-forward display
+    // 6. Separate today vs carry-forward, filter out final from carry-forward display
     const todayOrders = enriched.filter(e => e.isToday);
     const carryForwardOrders = enriched.filter(e => !e.isToday && !e.isFinal);
 
