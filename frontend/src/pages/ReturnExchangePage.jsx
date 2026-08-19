@@ -19,7 +19,7 @@ const ReturnExchangePage = () => {
   const [accepting, setAccepting] = useState(false);
 
   const lookupOrder = useCallback(async () => {
-    if (!searchQuery.trim()) return toast.error('Enter order number');
+    if (!searchQuery.trim()) return toast.error('Enter order number, invoice #, customer name, or phone');
     setLoading(true);
     setReturnCase(null);
     setOrderData(null);
@@ -27,15 +27,21 @@ const ReturnExchangePage = () => {
     try {
       const res = await api.get(`/api/return-exchange/returns/search?orderNumber=${encodeURIComponent(searchQuery.trim())}`);
       const foundCases = res.data.cases || [];
-      if (foundCases.length === 0) {
-        toast.error('Order not found in Returns');
-        setLoading(false);
-        return;
+      const foundOrder = res.data.order || null;
+      if (foundCases.length > 0) {
+        // Existing return cases found — load the first one as before
+        const c = foundCases[0];
+        setReturnCase(c);
+        setOrderData(c.order || null);
+      } else if (foundOrder) {
+        // No existing return cases, but the order exists — show order details with initiate buttons
+        setReturnCase(null);
+        setOrderData(foundOrder);
+        toast('Order found — you can initiate a Return or Replacement', { icon: '📦' });
+      } else {
+        toast.error('Order not found. Check the order number, invoice #, or customer phone.');
       }
-      const c = foundCases[0];
-      setReturnCase(c);
-      setOrderData(c.order || null);
-    } catch (err) { toast.error(err.response?.data?.message || 'Order not found in Returns'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Order not found'); }
     setLoading(false);
   }, [searchQuery]);
 
@@ -81,7 +87,7 @@ const ReturnExchangePage = () => {
 
   const isPending = returnCase && returnCase.status === 'PENDING';
   const isAccepted = returnCase && returnCase.status === 'ACCEPTED';
-  const canShowActions = isAccepted;
+  const canShowActions = isAccepted || (!returnCase && orderData);
 
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-6">

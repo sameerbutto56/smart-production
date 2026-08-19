@@ -10,6 +10,7 @@ const {
   resumeSystem,
 } = require('../utils/systemPause');
 const { PROFILES, CONTROL_ROLES, resolveProfileKey, rolesForProfiles } = require('../utils/pauseProfiles');
+const { getTimerState } = require('../utils/workingHours');
 const notify = require('../utils/notify');
 
 // Profiles the current pause applies to — computed at pause/resume time from the
@@ -150,4 +151,14 @@ const resume = async (req, res) => {
   }
 };
 
-module.exports = { getState, getHistory, getPauseProfileConfig, updatePauseProfileConfig, pause, resume };
+// Timer state — current working-hours status for synchronized client banners.
+const getTimer = async (_req, res) => {
+  try {
+    const state = getTimerState(Date.now());
+    res.json(state);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get timer state', error: error.message });
+  }
+};
+
+module.exports = { getState, getHistory, getPauseProfileConfig, updatePauseProfileConfig, pause, resume, getTimer };

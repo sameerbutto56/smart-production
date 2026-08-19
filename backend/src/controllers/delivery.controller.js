@@ -19,10 +19,16 @@ const parseDateRange = (dateFrom, dateTo) => {
 const getDeliveryOrders = async (req, res) => {
   try {
     const { deliveryType, dateFrom, dateTo } = req.query;
+
+    // Include only orders that are genuinely active or recently completed.
+    // RETURNED / CANCELLED orders are terminal and must NOT appear in the
+    // delivery boy's task list (the admin EnamelsDeliveryCard analytics
+    // endpoint covers historical data separately).
     const where = {
       OR: [
-        { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED', 'ENAMELS_DELIVERY'] } },
-        { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY', 'RETURNED', 'CANCELLED'] } }
+        { currentStage: { in: ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'] } },
+        { currentStage: 'DELIVERED' },
+        { status: 'COMPLETED' }
       ]
     };
     if (deliveryType) {
@@ -52,7 +58,20 @@ const getDeliveryOrders = async (req, res) => {
       },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });
-    res.json(orders);
+
+    // Deduplicate by orderId — a single findMany should never return the
+    // same row twice, but this is a safety net against edge-case stage +
+    // status overlaps producing duplicate cards.
+    const seen = new Set();
+    const deduped = [];
+    for (const o of orders) {
+      if (!seen.has(o.id)) {
+        seen.add(o.id);
+        deduped.push(o);
+      }
+    }
+
+    res.json(deduped);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch delivery orders', error: error.message });
   }
@@ -1143,6 +1162,166 @@ const getDeliveryAnalytics = async (req, res) => {
   }
 };
 
+// ─── Delivery Deposit (Cash to Admin) ────────────────────────────────────────
+
+// POST /api/delivery/deposits — delivery boy submits a cash-to-admin deposit
+const submitDeposit = async (req, res) => {
+  try {
+    const deliveryBoy = req.user?.name;
+    if (!deliveryBoy) return res.status(401).json({ message: 'User not found' });
+
+    const { cashAmount, onlineAmount, reference, notes } = req.body;
+    const cash = parseFloat(cashAmount) || 0;
+    const online = parseFloat(onlineAmount) || 0;
+    const total = cash + online;
+
+    if (total <= 0) return res.status(400).json({ message: 'Total amount must be greater than 0' });
+
+    const deposit = await prisma.deliveryDeposit.create({
+      data: {
+        deliveryBoy,
+        cashAmount: cash,
+        onlineAmount: online,
+        totalAmount: total,
+        reference: reference?.trim() || null,
+        notes: notes?.trim() || null,
+        status: 'PENDING',
+        createdBy: deliveryBoy,
+      }
+    });
+
+    await notify.create(req, {
+      type: 'delivery_deposit', moduleName: 'Deliveries', path: '/delivery', role: 'ADMIN',
+      title: 'New Delivery Deposit',
+      message: `${deliveryBoy} submitted ₨${total.toLocaleString()} deposit (Cash: ₨${cash.toLocaleString()}, Online: ₨${online.toLocaleString()})`,
+      action: 'Delivery Deposit', employeeName: deliveryBoy,
+    }).catch(() => {});
+
+    res.status(201).json({ message: 'Deposit submitted for review', deposit });
+  } catch (error) {
+    console.error('submitDeposit error:', error);
+    res.status(500).json({ message: 'Failed to submit deposit', error: error.message });
+  }
+};
+
+// GET /api/delivery/deposits/my — delivery boy gets own deposit history
+const getMyDeposits = async (req, res) => {
+  try {
+    const deliveryBoy = req.user?.name;
+    const { dateFrom, dateTo } = req.query;
+
+    const where = { deliveryBoy };
+    const dateFilter = parseDateRange(dateFrom, dateTo);
+    if (dateFilter) where.createdAt = dateFilter;
+
+    const deposits = await prisma.deliveryDeposit.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const totalAmount = deposits.reduce((s, d) => s + d.totalAmount, 0);
+
+    res.json({ deposits, totalAmount, count: deposits.length });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch deposits', error: error.message });
+  }
+};
+
+// GET /api/delivery/deposits/all — admin gets all deposits
+const getAllDeposits = async (req, res) => {
+  try {
+    const { dateFrom, dateTo, status: statusFilter, deliveryBoy: filterBoy } = req.query;
+
+    const where = {};
+    if (statusFilter) where.status = statusFilter.toUpperCase();
+    if (filterBoy) where.deliveryBoy = { contains: filterBoy, mode: 'insensitive' };
+    const dateFilter = parseDateRange(dateFrom, dateTo);
+    if (dateFilter) where.createdAt = dateFilter;
+
+    const deposits = await prisma.deliveryDeposit.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const totalAmount = deposits.reduce((s, d) => s + d.totalAmount, 0);
+
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const todayDeposits = deposits.filter(d => new Date(d.createdAt) >= todayStart);
+    const monthDeposits = deposits.filter(d => new Date(d.createdAt) >= monthStart);
+    const pendingDeposits = deposits.filter(d => d.status === 'PENDING');
+
+    res.json({
+      deposits, totalAmount, count: deposits.length,
+      todayAmount: todayDeposits.reduce((s, d) => s + d.totalAmount, 0),
+      todayCount: todayDeposits.length,
+      monthAmount: monthDeposits.reduce((s, d) => s + d.totalAmount, 0),
+      monthCount: monthDeposits.length,
+      pendingAmount: pendingDeposits.reduce((s, d) => s + d.totalAmount, 0),
+      pendingCount: pendingDeposits.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch deposits', error: error.message });
+  }
+};
+
+// PUT /api/delivery/deposits/:id/approve — admin approves a deposit
+const approveDeposit = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deposit = await prisma.deliveryDeposit.findUnique({ where: { id } });
+    if (!deposit) return res.status(404).json({ message: 'Deposit not found' });
+    if (deposit.status !== 'PENDING') return res.status(400).json({ message: `Deposit is already ${deposit.status}` });
+
+    const updated = await prisma.deliveryDeposit.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        reviewedBy: req.user?.name,
+        reviewedById: req.user?.id,
+        reviewedAt: new Date(),
+      }
+    });
+
+    await notify.create(req, {
+      type: 'delivery_deposit', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY',
+      title: 'Deposit Approved',
+      message: `Your ₨${deposit.totalAmount.toLocaleString()} deposit has been approved by ${req.user?.name}`,
+      action: 'Deposit Approved', employeeName: deposit.deliveryBoy,
+    }).catch(() => {});
+
+    res.json({ message: 'Deposit approved', deposit: updated });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to approve deposit', error: error.message });
+  }
+};
+
+// PUT /api/delivery/deposits/:id/reject — admin rejects a deposit
+const rejectDeposit = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const deposit = await prisma.deliveryDeposit.findUnique({ where: { id } });
+    if (!deposit) return res.status(404).json({ message: 'Deposit not found' });
+    if (deposit.status !== 'PENDING') return res.status(400).json({ message: `Deposit is already ${deposit.status}` });
+
+    const updated = await prisma.deliveryDeposit.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        reviewedBy: req.user?.name,
+        reviewedById: req.user?.id,
+        reviewedAt: new Date(),
+        rejectionReason: reason?.trim() || null,
+      }
+    });
+
+    await notify.create(req, {
+      type: 'delivery_deposit', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY',
+      title: 'Deposit Rejected',
+      message: `Your ₨${deposit.totalAmount.toLocaleString()} deposit was rejected${reason ? ': ' + reason : ''}`,
+      action: 'Deposit Rejected', employeeName: deposit.deliveryBoy,
+    }).catch(() => {});
+
+    res.json({ message: 'Deposit rejected', deposit: updated });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to reject deposit', error: error.message });
+  }
+};
+
 module.exports = {
   getDeliveryOrders,
   acceptDelivery,
@@ -1160,5 +1339,10 @@ module.exports = {
   payDeliveryEmployee,
   getDeliveryPaymentHistory,
   getActivityTimeline,
-  getDeliveryAnalytics
+  getDeliveryAnalytics,
+  submitDeposit,
+  getMyDeposits,
+  getAllDeposits,
+  approveDeposit,
+  rejectDeposit
 };

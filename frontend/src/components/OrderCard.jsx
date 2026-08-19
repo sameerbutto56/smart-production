@@ -11,6 +11,8 @@ import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
+import { computeWorkingMs, fmtWorkingDuration, getTimerState, isWorkingTime } from '../utils/workingHours';
+import { getAllowedHours, STAGE_CONFIG_MAP } from '../utils/delayUtils';
 import toast from 'react-hot-toast';
 
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
@@ -176,32 +178,69 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         setDeadlineStatus('COMPLETED');
         return;
       }
-      const deadline = new Date(currentStage.deadlineAt).getTime();
-      const now = new Date().getTime();
-      const diff = deadline - now;
 
-      if (diff <= 0) {
-        const absoluteDiff = Math.abs(diff);
-        const h = Math.floor(absoluteDiff / (1000 * 60 * 60));
-        const m = Math.floor((absoluteDiff % (1000 * 60 * 60)) / (1000 * 60));
-        setTimeLeft(`${t('Delayed')}: ${h}${t('h')} ${m}${t('m')}`);
-        setIsDelayed(true);
+      const now = Date.now();
+      const timerState = getTimerState(now);
+
+      // If timer is stopped (evening/sunday/before-9), show frozen status
+      if (timerState.status === 'stopped_evening' || timerState.status === 'stopped_sunday' || timerState.status === 'stopped_morning') {
+        // Still show the delay status if already delayed
+        const deadline = new Date(currentStage.deadlineAt).getTime();
+        const remaining = computeWorkingMs(now, deadline);
+        if (remaining > 0) {
+          setTimeLeft(fmtWorkingDuration(remaining));
+          setUrgencyColor('text-blue-400');
+          setIsDelayed(false);
+          setDeadlineStatus('PAUSED');
+        } else {
+          const delayed = computeWorkingMs(deadline, now);
+          setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)}`);
+          setUrgencyColor('text-red-500 font-black animate-pulse');
+          setIsDelayed(true);
+          setDeadlineStatus('OVERDUE');
+        }
+        return;
+      }
+
+      // Warning state (6:50 PM – 7:00 PM)
+      if (timerState.status === 'warning') {
+        const deadline = new Date(currentStage.deadlineAt).getTime();
+        const remaining = computeWorkingMs(now, deadline);
+        if (remaining > 0) {
+          setTimeLeft(`${fmtWorkingDuration(remaining)} ⏸`);
+          setUrgencyColor('text-amber-400 font-bold');
+          setDeadlineStatus('APPROACHING');
+        } else {
+          const delayed = computeWorkingMs(deadline, now);
+          setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)} ⏸`);
+          setUrgencyColor('text-red-500 font-black animate-pulse');
+          setIsDelayed(true);
+          setDeadlineStatus('OVERDUE');
+        }
+        return;
+      }
+
+      // Timer running — use working-hours computation
+      const deadline = new Date(currentStage.deadlineAt).getTime();
+      const remaining = computeWorkingMs(now, deadline);
+
+      if (remaining <= 0) {
+        const delayed = computeWorkingMs(deadline, now);
+        setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)}`);
         setUrgencyColor('text-red-500 font-black animate-pulse');
+        setIsDelayed(true);
         setDeadlineStatus('OVERDUE');
         return;
       }
 
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeLeft(fmtWorkingDuration(remaining));
+      setIsDelayed(false);
 
-      setTimeLeft(`${hours}${t('h')} ${minutes}${t('m')} ${seconds}${t('s')}`);
-      
-      // Dynamic color based on time left
-      if (hours < 1) { setUrgencyColor('text-red-400 font-black'); setDeadlineStatus('OVERDUE'); }
-      else if (hours < 4) { setUrgencyColor('text-yellow-400 font-bold'); setDeadlineStatus('APPROACHING'); }
-      else { setUrgencyColor('text-blue-400'); setDeadlineStatus('ON_TIME'); }
-    }, 1000);
+      const hours = remaining / 3600000;
+      if (hours < 1) { setUrgencyColor('text-red-400 font-black'); setDeadlineStatus('APPROACHING'); }
+      else if (hours < 4) { setUrgencyColor('text-amber-400 font-bold'); setDeadlineStatus('APPROACHING'); }
+      else { setUrgencyColor('text-emerald-400'); setDeadlineStatus('ON_TIME'); }
+    }, 5000); // 5-second tick (working-hours countdown is less volatile than wall-clock)
 
     return () => clearInterval(timer);
   }, [currentStage]);
@@ -742,6 +781,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {deadlineStatus === 'ON_TIME' && <span className="text-[6px] bg-emerald-500/10 text-emerald-400 px-1 py-0.5 rounded-sm font-black uppercase">ON TIME</span>}
                 {deadlineStatus === 'APPROACHING' && <span className="text-[6px] bg-amber-500/10 text-amber-400 px-1 py-0.5 rounded-sm font-black uppercase">APPROACHING</span>}
                 {deadlineStatus === 'OVERDUE' && <span className="text-[6px] bg-red-500/10 text-red-400 px-1 py-0.5 rounded-sm font-black uppercase animate-pulse">OVERDUE</span>}
+                {deadlineStatus === 'PAUSED' && <span className="text-[6px] bg-blue-500/10 text-blue-400 px-1 py-0.5 rounded-sm font-black uppercase">⏸ PAUSED</span>}
                 {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
               </div>
               <span className="text-[6px] text-gray-600 font-mono">

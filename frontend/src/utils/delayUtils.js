@@ -1,8 +1,8 @@
-// Shared delay-detection helpers used by the Admin Dashboard (Delay Orders card)
-// and AllOrders.jsx (stage-based delay filters). Mirrors the backend escalation
-// scan: a stage is delayed when deadlineAt < now (working-hours deadline computed
-// by calculateDeadline); legacy stages without deadlineAt fall back to a static
-// FALLBACK_STAGE_HOURS table.
+// Shared delay-detection helpers — Phase-Based Working-Hours Delay System.
+// Uses computeWorkingMs (9AM-7PM PKT, Mon-Sat, Sundays excluded) so delays
+// are computed only on working time, never on overnight/weekend hours.
+
+import { computeWorkingMs, computeWorkingHours, WORK_HOURS_PER_DAY, fmtWorkingDuration } from './workingHours';
 
 export const STAGE_DEPARTMENTS = {
   STORE: 'Store',
@@ -47,94 +47,120 @@ export const STAGE_LABELS = {
   DELIVERED: 'Delivered',
 };
 
-// Canonical workflow order used to sort the stage filter chips.
+// Canonical workflow order for sorting stage filter chips.
 export const STAGE_ORDER = [
   'ORDER_ENTRY', 'VERIFICATION', 'STORE', 'STORE_RECEIVE', 'LOGO_DESIGN',
   'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'WORKERS', 'DISPATCH', 'IN_DISPATCH',
   'OUTLET_RECEIVE', 'ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED'
 ];
 
-// Fallback expected phase duration (hours) when a stage has no deadlineAt (legacy rows)
+// Fallback allowed hours per phase when config is unavailable.
 export const FALLBACK_STAGE_HOURS = {
-  STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48,
-  STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, ENAMELS_DELIVERY: 24, DISPATCH: 12,
-  OUT_FOR_DELIVERY: 12, ORDER_ENTRY: 24, IN_DISPATCH: 24, VERIFICATION: 24,
+  ORDER_ENTRY: 4,
+  VERIFICATION: 4,
+  STORE: 24,
+  STORE_RECEIVE: 12,
+  WORKERS: 24,
+  PRODUCTION_ACCEPTANCE: 4,
+  PRODUCTION: 48,
+  LOGO_DESIGN: 24,
+  DISPATCH: 12,
+  IN_DISPATCH: 24,
+  OUTLET_RECEIVE: 48,
+  ENAMELS_DELIVERY: 24,
+  OUT_FOR_DELIVERY: 12,
+};
+
+// Default delay config for Software Settings (all phases, hours).
+export const DEFAULT_DELAY_CONFIG = {
+  ORDER_ENTRY: 4,
+  VERIFICATION: 4,
+  STORE: 24,
+  STORE_RECEIVE: 12,
+  WORKERS: 24,
+  PRODUCTION_ACCEPTANCE: 4,
+  PRODUCTION: 48,
+  LOGO_DESIGN: 24,
+  DISPATCH: 12,
+  IN_DISPATCH: 24,
+  OUTLET_RECEIVE: 48,
+  ENAMELS_DELIVERY: 24,
+  OUT_FOR_DELIVERY: 12,
+};
+
+// Each stage maps to a config key in the delay config.
+export const STAGE_CONFIG_MAP = {
+  ORDER_ENTRY: 'ORDER_ENTRY',
+  VERIFICATION: 'VERIFICATION',
+  STORE: 'STORE',
+  STORE_RECEIVE: 'STORE_RECEIVE',
+  WORKERS: 'WORKERS',
+  PRODUCTION_ACCEPTANCE: 'PRODUCTION_ACCEPTANCE',
+  PRODUCTION: 'PRODUCTION',
+  LOGO_DESIGN: 'LOGO_DESIGN',
+  DISPATCH: 'DISPATCH',
+  IN_DISPATCH: 'IN_DISPATCH',
+  OUTLET_RECEIVE: 'OUTLET_RECEIVE',
+  ENAMELS_DELIVERY: 'ENAMELS_DELIVERY',
+  OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
 };
 
 export const stageLabel = (stageName) =>
   STAGE_LABELS[stageName] || (stageName || '').replace(/_/g, ' ') || '';
 
-// <24h → "X Hours"; ≥24h → "X Day(s)" (never "48 Hours")
-export const fmtDuration = (ms) => {
-  const h = Math.floor((ms || 0) / 3600000);
-  if (h < 24) return `${Math.max(h, 1)} Hour${Math.max(h, 1) === 1 ? '' : 's'}`;
-  const d = Math.floor(h / 24);
-  return `${d} Day${d === 1 ? '' : 's'}`;
-};
+export const fmtDuration = fmtWorkingDuration;
 
 // The workflow stage an order is actually stuck in for tracking/delay purposes.
-// Verification keeps currentStage at ORDER_ENTRY — derive the real location from the
-// same fields as the backend getTrackingStatus helper.
 export const getEffectiveStage = (order) => {
   if (order?.goForVerification && !order?.verifiedAt && !order?.verificationReturnedAt) return 'VERIFICATION';
   return order?.currentStage;
 };
 
-// Active (non-paused) milliseconds within [startMs, endMs], given the pause-period
-// history from /api/system/state (periods: [{startedAt, endedAt|null, profiles?}]).
-// Mirrors the backend systemPause util — every paused window overlapping the range is
-// subtracted so delay timers freeze during a pause and resume where they stopped.
-// `profileKey`: the caller's pause profile key. When provided, only windows that
-// include that profile (or legacy windows with no profiles field) are subtracted, so
-// profiles excluded from the pause keep their timers running. Pass null/undefined to
-// treat every window as a pause (global / admin management view).
-export const activeElapsedMs = (startMs, endMs, periods, profileKey = null) => {
-  const s = Number(startMs) || 0;
-  const e = Number(endMs) || Date.now();
-  if (!Array.isArray(periods) || periods.length === 0) return Math.max(0, e - s);
-  const now = e;
-  let pausedMs = 0;
-  for (const p of periods) {
+/**
+ * Compute the allowed hours for a given phase from the delay config.
+ * Falls back to FALLBACK_STAGE_HOURS when config is missing.
+ */
+export const getAllowedHours = (stageName, delayConfig = null) => {
+  const configKey = STAGE_CONFIG_MAP[stageName] || stageName;
+  if (delayConfig) {
+    const rawVal = delayConfig[configKey];
+    if (typeof rawVal === 'number' && rawVal > 0) return rawVal;
+    if (rawVal && typeof rawVal.totalHours === 'number' && rawVal.totalHours > 0) return rawVal.totalHours;
+  }
+  return FALLBACK_STAGE_HOURS[stageName] || 24;
+};
+
+/**
+ * Compute working milliseconds with system-pause awareness.
+ * Subtracts pause overlaps from the working-hours total.
+ */
+const computeActiveWorkingMs = (startMs, endMs, pausePeriods = null, profileKey = null) => {
+  let workingMs = computeWorkingMs(startMs, endMs);
+  if (!Array.isArray(pausePeriods) || pausePeriods.length === 0) return workingMs;
+  const now = endMs;
+  for (const p of pausePeriods) {
+    if (!p || !p.startedAt) continue;
     if (profileKey && Array.isArray(p.profiles) && p.profiles.length && !p.profiles.includes(profileKey)) continue;
     const ps = new Date(p.startedAt || p.pausedAt).getTime();
     if (Number.isNaN(ps)) continue;
     const pe = p.endedAt ? new Date(p.endedAt).getTime() : now;
     if (Number.isNaN(pe)) continue;
-    pausedMs += Math.max(0, Math.min(e, pe) - Math.max(s, ps));
+    workingMs -= computeWorkingMs(Math.max(startMs, ps), Math.min(endMs, pe));
   }
-  return Math.max(0, (e - s) - pausedMs);
+  return Math.max(0, workingMs);
 };
 
-export const DEFAULT_DELAY_CONFIG = {
-  VERIFICATION: 2, // 2 hours
-  STORE: 2,        // 2 hours
-  LOGO: 4,         // 4 hours
-  PRODUCTION: 10,  // 10 hours
-  DISPATCH: 4      // 4 hours
-};
-
-export const STAGE_CONFIG_MAP = {
-  ORDER_ENTRY: 'VERIFICATION',
-  VERIFICATION: 'VERIFICATION',
-  STORE: 'STORE',
-  STORE_RECEIVE: 'STORE',
-  STORE_PRODUCTION: 'STORE',
-  LOGO_DESIGN: 'LOGO',
-  LOGO: 'LOGO',
-  PRODUCTION_ACCEPTANCE: 'PRODUCTION',
-  PRODUCTION: 'PRODUCTION',
-  WORKERS: 'PRODUCTION',
-  DISPATCH: 'DISPATCH',
-  IN_DISPATCH: 'DISPATCH',
-  OUTLET_RECEIVE: 'DISPATCH',
-  ENAMELS_DELIVERY: 'DISPATCH',
-  OUT_FOR_DELIVERY: 'DISPATCH'
-};
-
-// Auto delay detection from the order's active stage (supports custom delay config).
-// Returns null when on time. `pausePeriods` (from /api/system/state) freezes the
-// elapsed timer for any paused window, so delays are computed only on active time.
-// `profileKey` scopes which pause windows apply (see activeElapsedMs).
+/**
+ * Get comprehensive delay info for a single order.
+ * Uses working-hours computation (9AM-7PM PKT, Mon-Sat) for all time measurements.
+ * Returns null when the order is on time.
+ *
+ * @param {Object} order - Order with stages array
+ * @param {Object|null} delayConfig - Phase config { VERIFICATION: 2, STORE: 24, ... }
+ * @param {Array|null} pausePeriods - System pause periods
+ * @param {string|null} profileKey - Caller's pause profile
+ * @returns {Object|null} Delay info or null if on time
+ */
 export const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey = null) => {
   if (!order) return null;
   const status = (order.status || '').toUpperCase();
@@ -148,53 +174,73 @@ export const getDelayInfo = (order, delayConfig = null, pausePeriods = null, pro
     (s) => s.stageName === effectiveStage && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
   );
 
-  let phaseStart;
+  // Phase entry time
+  let phaseEnteredAt;
   if (!active && effectiveStage === 'VERIFICATION') {
     const entryStage = stages.find((s) => s.stageName === 'ORDER_ENTRY');
-    phaseStart = (entryStage && (entryStage.completedAt || entryStage.updatedAt || entryStage.createdAt)) || order.createdAt;
+    phaseEnteredAt = (entryStage && (entryStage.completedAt || entryStage.updatedAt || entryStage.createdAt)) || order.createdAt;
   } else if (!active) {
-    // If no active stage record is found, fall back to order.createdAt or updatedAt
-    phaseStart = order.updatedAt || order.createdAt;
+    phaseEnteredAt = order.updatedAt || order.createdAt;
   } else {
-    phaseStart = active.startedAt || active.createdAt || order.createdAt;
+    phaseEnteredAt = active.createdAt || order.createdAt;
   }
-  if (!phaseStart) return null;
+  if (!phaseEnteredAt) return null;
 
   const now = Date.now();
-  const startMs = new Date(phaseStart).getTime();
+  const enteredMs = new Date(phaseEnteredAt).getTime();
+  const allowedHours = getAllowedHours(effectiveStage, delayConfig);
+  const allowedMs = allowedHours * 3600 * 1000;
 
-  const configKey = STAGE_CONFIG_MAP[effectiveStage] || 'STORE';
-  let deadlineHours = 24;
-  if (delayConfig) {
-    const rawVal = delayConfig[configKey];
-    if (typeof rawVal === 'number') {
-      deadlineHours = rawVal;
-    } else if (rawVal && typeof rawVal.totalHours === 'number') {
-      deadlineHours = rawVal.totalHours;
-    }
-  } else {
-    deadlineHours = DEFAULT_DELAY_CONFIG[configKey] || 24;
-  }
+  // Working time elapsed in this phase
+  const phaseWorkingMs = computeActiveWorkingMs(enteredMs, now, pausePeriods, profileKey);
 
-  const allowedMs = deadlineHours * 3600 * 1000;
+  // Acceptance time
+  const acceptedAt = active?.startedAt ? new Date(active.startedAt).getTime() : null;
+  const acceptanceWaitingMs = acceptedAt
+    ? computeActiveWorkingMs(enteredMs, acceptedAt, pausePeriods, profileKey)
+    : computeActiveWorkingMs(enteredMs, now, pausePeriods, profileKey);
+
+  // Processing time (after acceptance)
+  const processingMs = acceptedAt
+    ? (active?.completedAt
+        ? computeActiveWorkingMs(acceptedAt, new Date(active.completedAt).getTime(), pausePeriods, profileKey)
+        : computeActiveWorkingMs(acceptedAt, now, pausePeriods, profileKey))
+    : 0;
+
+  // Total order elapsed
+  const orderCreatedMs = order.createdAt ? new Date(order.createdAt).getTime() : enteredMs;
+  const totalElapsedMs = computeActiveWorkingMs(orderCreatedMs, now, pausePeriods, profileKey);
+
   const department = STAGE_DEPARTMENTS[effectiveStage] || 'Store';
   const reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
 
-  const phaseActive = activeElapsedMs(startMs, now, pausePeriods, profileKey);
-  if (phaseActive < allowedMs) return null;
+  // On time when working time hasn't exceeded threshold
+  if (phaseWorkingMs < allowedMs) return null;
 
-  const totalStart = order.createdAt ? new Date(order.createdAt).getTime() : startMs;
+  const deadlineAt = active?.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
+  const delayDuration = Math.max(0, phaseWorkingMs - allowedMs);
+  const workingTimeRemainingMs = deadlineAt
+    ? computeActiveWorkingMs(now, deadlineAt, pausePeriods, profileKey)
+    : Math.max(0, allowedMs - phaseWorkingMs);
+
   return {
     orderId: order.id,
     stage: effectiveStage,
     stageLabel: stageLabel(effectiveStage),
     department,
     reason: reasonLabel,
-    isAcceptanceDelay: false,
-    phaseStart: startMs,
-    phaseElapsed: phaseActive,
-    totalElapsed: activeElapsedMs(totalStart, now, pausePeriods, profileKey),
-    delayDuration: Math.max(0, phaseActive - allowedMs),
+    isAcceptanceDelay: !acceptedAt,
+    phaseEnteredAt: enteredMs,
+    acceptedAt,
+    phaseWorkingMs,
+    acceptanceWaitingMs,
+    processingMs,
+    totalElapsedMs,
+    allowedHours,
+    allowedMs,
+    delayDuration,
+    deadlineAt,
+    workingTimeRemainingMs,
   };
 };
 

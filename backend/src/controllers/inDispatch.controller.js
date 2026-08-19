@@ -3,6 +3,7 @@ const notify = require('../utils/notify');
 const cache = require('../utils/cache');
 const { createAuditLog, syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const { generateBalanceReceiptNumber } = require('./pos.controller');
+const { recordAssignment } = require('./tahirSheet.controller');
 
 // Dedicated In Dispatch module — JOHAR TOWN outlet only.
 // Completely isolated from the existing Dispatch (dispatch officer) workflow.
@@ -406,6 +407,11 @@ const routeOrder = async (req, res) => {
       where: { id: order.id },
       data: orderUpdateData
     });
+
+    // Record delivery assignment for Tahir Sheet
+    if (destinationStage === 'ENAMELS_DELIVERY') {
+      recordAssignment({ orderId: order.id, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+    }
 
     // Recipient users
     const roles = destinationStage === 'ENAMELS_DELIVERY' ? ['DELIVERY_BOY'] : (destinationStage === 'DISPATCH' ? ['DISPATCH', 'STORE_EMPLOYEE'] : ['OUTLET']);

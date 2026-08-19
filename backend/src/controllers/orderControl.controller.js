@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const { createAuditLog } = require('./order-helpers');
 const { calculateDeadline } = require('../utils/deadline');
 const notify = require('../utils/notify');
+const { recordAssignment } = require('./tahirSheet.controller');
 
 // Mirrors order.controller.js constants so the control panel resolves real workflow
 // structure instead of a plain status write.
@@ -319,6 +320,11 @@ const rerouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    // Record delivery assignment for Tahir Sheet
+    if (destinationStage === 'ENAMELS_DELIVERY') {
+      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+    }
 
     const manRole = manDestRoleMap[destinationStage] || 'STORE';
     if (order?.customerName && order?.orderNumber) {

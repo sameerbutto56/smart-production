@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const { getDelayMap, fmtDuration } = require('../utils/orderDelay');
+const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
 const XLSX = require('xlsx');
@@ -397,6 +398,11 @@ const createOrder = async (req, res) => {
     }
     const finalTotalPrice = Math.max(0, orderTotalBeforeDelivery + finalDeliveryCharges);
 
+    // When user provided a financial summary with adjusted amounts, use the user's total as the authoritative grand total
+    const financialSummary = req.body.financialSummary || null;
+    const userAdjustedTotal = financialSummary?.total != null ? parseFloat(financialSummary.total) : null;
+    const effectiveTotalPrice = userAdjustedTotal != null ? Math.max(0, userAdjustedTotal) : finalTotalPrice;
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
@@ -443,9 +449,10 @@ const createOrder = async (req, res) => {
         engravingLogos: engravingRequired ? (engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null) : null,
         shopifyOrderDate: shopifyOrderDate ? new Date(shopifyOrderDate) : null,
         productImage,
-        totalPrice: finalTotalPrice,
+        totalPrice: effectiveTotalPrice,
         baseProductAmount,
         discountAmount,
+        financialSummary: financialSummary || undefined,
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
         placedBy: placedBy || null,
@@ -1127,6 +1134,11 @@ const requestStageCompletion = async (req, res) => {
       await createAuditLog(orderId, manualNextStage ? 'MANUAL_ROUTE' : 'STAGE_AUTO_TRANSITION',
         `${currentStage.stageName} completed. ${manualNextStage ? `Manually routed to ${actualNextStage}` : `Auto-moved to ${actualNextStage}`}.`,
         req.user.id);
+
+      // Record Tahir assignment when routing to Enamels Delivery Boy
+      if (actualNextStage === 'ENAMELS_DELIVERY') {
+        recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+      }
     } else if (currentStage.stageName === 'OUT_FOR_DELIVERY') {
       // FINAL STAGE COMPLETED
       await prisma.order.update({
@@ -3011,6 +3023,11 @@ const manualRouteOrder = async (req, res) => {
       await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} accepted by Production In — now assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
     }
 
+    // Record Tahir assignment when routing to Enamels Delivery Boy
+    if (destinationStage === 'ENAMELS_DELIVERY') {
+      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+    }
+
     res.json({ message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
   } catch (error) {
     res.status(500).json({ message: 'Error routing order', error: error.message });
@@ -4359,27 +4376,57 @@ const trackOrder = async (req, res) => {
   try {
     const query = (req.params.orderNumber || '').trim();
     if (!query) return res.status(400).json({ message: 'Order number or invoice number is required' });
-    let order = await prisma.order.findUnique({
-      where: { orderNumber: query },
-      include: {
-        stages: { orderBy: { createdAt: 'asc' } },
-        createdBy: { select: { id: true, name: true } }
-      }
-    });
-    if (!order) {
-      order = await prisma.order.findUnique({
-        where: { invoiceNumber: query },
-        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } }
-      });
+
+    const bareNumber = query.replace(/^#/, '');
+    const orderInclude = {
+      stages: { orderBy: { createdAt: 'asc' } },
+      createdBy: { select: { id: true, name: true } }
+    };
+
+    // Step 1: Exact orderNumber match (with # prefix tolerance)
+    let order = await prisma.order.findUnique({ where: { orderNumber: query }, include: orderInclude });
+    if (!order && bareNumber !== query) {
+      order = await prisma.order.findUnique({ where: { orderNumber: `#${bareNumber}` }, include: orderInclude });
     }
+    if (!order && /^\d/.test(bareNumber)) {
+      order = await prisma.order.findUnique({ where: { orderNumber: bareNumber }, include: orderInclude });
+    }
+
+    // Step 2: Exact invoiceNumber match
+    if (!order) {
+      order = await prisma.order.findUnique({ where: { invoiceNumber: query }, include: orderInclude });
+    }
+
+    // Step 3: Contains fallback across orderNumber, invoiceNumber, customerPhone, customerName
     if (!order) {
       const matches = await prisma.order.findMany({
-        where: { OR: [{ orderNumber: { contains: query } }, { invoiceNumber: { contains: query } }] },
-        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } },
+        where: {
+          OR: [
+            { orderNumber: { contains: query, mode: 'insensitive' } },
+            { invoiceNumber: { contains: query, mode: 'insensitive' } },
+            { customerPhone: { contains: query } },
+            { customerName: { contains: query, mode: 'insensitive' } }
+          ]
+        },
+        include: orderInclude,
         orderBy: { createdAt: 'desc' },
-        take: 1
+        take: 20
       });
-      order = matches[0] || null;
+
+      if (matches.length === 1) {
+        order = matches[0];
+      } else if (matches.length > 1) {
+        return res.json({
+          multiple: true,
+          results: matches.map(o => ({
+            id: o.id, orderNumber: o.orderNumber, invoiceNumber: o.invoiceNumber,
+            customerName: o.customerName, customerPhone: o.customerPhone,
+            status: o.status, currentStage: o.currentStage,
+            trackingStatus: getTrackingStatus(o),
+            totalPrice: o.totalPrice, createdAt: o.createdAt, source: o.source
+          }))
+        });
+      }
     }
     if (!order) return res.status(404).json({ message: 'Order not found' });
     order.trackingStatus = getTrackingStatus(order);

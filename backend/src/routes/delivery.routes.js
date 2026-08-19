@@ -17,11 +17,24 @@ const {
   payDeliveryEmployee,
   getDeliveryPaymentHistory,
   getActivityTimeline,
-  getDeliveryAnalytics
+  getDeliveryAnalytics,
+  submitDeposit,
+  getMyDeposits,
+  getAllDeposits,
+  approveDeposit,
+  rejectDeposit
 } = require('../controllers/delivery.controller');
 
 router.get('/analytics', auth, getDeliveryAnalytics);
 router.get('/orders', auth, getDeliveryOrders);
+
+// Delivery deposits
+router.post('/deposits', auth, submitDeposit);
+router.get('/deposits/my', auth, getMyDeposits);
+router.get('/deposits/all', auth, getAllDeposits);
+router.put('/deposits/:id/approve', auth, approveDeposit);
+router.put('/deposits/:id/reject', auth, rejectDeposit);
+
 router.put('/:orderId/accept', auth, acceptDelivery);
 router.put('/:orderId/deliver', auth, deliverOrder);
 router.put('/:orderId/no-response', auth, noResponse);

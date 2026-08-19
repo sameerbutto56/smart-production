@@ -319,7 +319,14 @@ const approveEditRequest = async (req, res) => {
     }
 
     if (requestedChanges.totalPrice !== undefined) {
-      updateData.totalPrice = parseFloat(requestedChanges.totalPrice);
+      // Use financialSummary.total if present (user-adjusted total), else raw totalPrice
+      const fs = requestedChanges.financialSummary;
+      const adjustedTotal = fs?.total != null ? parseFloat(fs.total) : parseFloat(requestedChanges.totalPrice);
+      updateData.totalPrice = Math.max(0, adjustedTotal || 0);
+    }
+
+    if (requestedChanges.financialSummary) {
+      updateData.financialSummary = requestedChanges.financialSummary;
     }
 
     if (requestedChanges.items && Array.isArray(requestedChanges.items)) {

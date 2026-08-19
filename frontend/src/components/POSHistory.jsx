@@ -18,11 +18,11 @@ const POSHistory = () => {
 
   const [generalEntries, setGeneralEntries] = useState([]);
   const [geLoading, setGeLoading] = useState(false);
-  const [showGE, setShowGE] = useState(false);
 
   const [balancePayments, setBalancePayments] = useState([]);
   const [bpLoading, setBpLoading] = useState(false);
-  const [showBP, setShowBP] = useState(true);
+
+  const [historyFilter, setHistoryFilter] = useState('all');
 
   useEffect(() => {
     setBpLoading(true);
@@ -40,41 +40,78 @@ const POSHistory = () => {
       .finally(() => setBpLoading(false));
   }, [selectedOutlet, salesRange, salesDateFrom, salesDateTo]);
 
+  const matchSearch = React.useCallback((q, ...fields) => {
+    if (!q) return true;
+    const ql = q.toLowerCase();
+    return fields.some(f => (f || '').toLowerCase().includes(ql));
+  }, []);
+
+  const searchQuery = (receiptSearch || '').trim();
+
+  const filteredBalancePayments = React.useMemo(() => {
+    if (!searchQuery) return balancePayments || [];
+    return (balancePayments || []).filter(bp =>
+      matchSearch(searchQuery, bp.posSale?.customerName, bp.posSale?.customerPhone, bp.receiptNumber, bp.originalInvoiceNumber, bp.posSale?.receiptNumber)
+    );
+  }, [balancePayments, searchQuery, matchSearch]);
+
+  const filteredGeneralEntries = React.useMemo(() => {
+    if (!searchQuery) return generalEntries || [];
+    return (generalEntries || []).filter(ge =>
+      matchSearch(searchQuery, ge.expenseTitle, ge.employeeName, ge.notes)
+    );
+  }, [generalEntries, searchQuery, matchSearch]);
+
   const unifiedTimeline = React.useMemo(() => {
     const saleItems = (filteredSales || []).map(s => ({
       _type: 'sale',
       _date: s.createdAt,
       _data: s,
     }));
-    const bpItems = showBP ? (balancePayments || []).map(bp => ({
+    const bpItems = filteredBalancePayments.map(bp => ({
       _type: 'balance_payment',
       _date: bp.paidAt || bp.createdAt,
       _data: bp,
-    })) : [];
-    const all = [...saleItems, ...bpItems];
+    }));
+    const geItems = filteredGeneralEntries.map(ge => ({
+      _type: 'general_entry',
+      _date: ge.createdAt,
+      _data: ge,
+    }));
+    let all;
+    if (historyFilter === 'general') all = geItems;
+    else if (historyFilter === 'balance') all = bpItems;
+    else all = [...saleItems, ...bpItems, ...geItems];
     all.sort((a, b) => new Date(b._date) - new Date(a._date));
     return all;
-  }, [filteredSales, balancePayments, showBP]);
+  }, [filteredSales, filteredBalancePayments, filteredGeneralEntries, historyFilter]);
 
   useEffect(() => {
-    if (showGE) {
-      setGeLoading(true);
-      const params = { outlet: selectedOutlet };
-      if (salesDateFrom) params.dateFrom = salesDateFrom;
-      if (salesDateTo) params.dateTo = salesDateTo;
-      if (salesRange === 'today') params.range = 'today';
-      else if (salesRange === 'week') params.range = 'week';
-      else if (salesRange === 'month') params.range = 'month';
-      else if (salesRange === 'yesterday') params.range = 'yesterday';
-      else if (salesRange === 'year') params.range = 'year';
-      api.get('/api/pos/journal-entries', { params })
-        .then(r => setGeneralEntries(r.data || []))
-        .catch(() => setGeneralEntries([]))
-        .finally(() => setGeLoading(false));
-    }
-  }, [showGE, selectedOutlet, salesRange, salesDateFrom, salesDateTo]);
+    setGeLoading(true);
+    const params = { outlet: selectedOutlet };
+    if (salesDateFrom) params.dateFrom = salesDateFrom;
+    if (salesDateTo) params.dateTo = salesDateTo;
+    if (salesRange === 'today') params.range = 'today';
+    else if (salesRange === 'week') params.range = 'week';
+    else if (salesRange === 'month') params.range = 'month';
+    else if (salesRange === 'yesterday') params.range = 'yesterday';
+    else if (salesRange === 'year') params.range = 'year';
+    api.get('/api/pos/journal-entries', { params })
+      .then(r => setGeneralEntries(r.data || []))
+      .catch(() => setGeneralEntries([]))
+      .finally(() => setGeLoading(false));
+  }, [selectedOutlet, salesRange, salesDateFrom, salesDateTo]);
 
-  const totalBPCollected = balancePayments.reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
+  const totalBPCollected = filteredBalancePayments.reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
+  const totalGE = filteredGeneralEntries.reduce((sum, ge) => sum + (ge.amount || 0), 0);
+  const totalBPSales = filteredSales?.length || 0;
+  const anyLoading = salesLoading || bpLoading || geLoading;
+
+  const filterTabs = [
+    { key: 'all', label: 'All', icon: ShoppingCart, badge: totalBPSales + filteredBalancePayments.length + filteredGeneralEntries.length, activeBg: 'bg-purple-700', activeBorder: 'border-purple-500' },
+    { key: 'general', label: 'General', icon: FileText, badge: filteredGeneralEntries.length, activeBg: 'bg-orange-700', activeBorder: 'border-orange-500' },
+    { key: 'balance', label: 'Balance', icon: CreditCard, badge: filteredBalancePayments.length, activeBg: 'bg-cyan-700', activeBorder: 'border-cyan-500' },
+  ];
 
   return (
     <div className="space-y-4 pb-20 px-4 overflow-y-auto h-full pt-4">
@@ -104,7 +141,7 @@ const POSHistory = () => {
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search invoice #, customer name, or phone..."
@@ -114,57 +151,36 @@ const POSHistory = () => {
           )}
         </div>
         <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1"><Download size={14} />Excel</button>
-        <button onClick={() => setShowGE(!showGE)} className={`font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1 border ${showGE ? 'bg-orange-700 text-white border-orange-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
-          <FileText size={14} />General
-        </button>
-        <button onClick={() => setShowBP(!showBP)} className={`font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1 border ${showBP ? 'bg-cyan-700 text-white border-cyan-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
-          <CreditCard size={14} />Balances{balancePayments.length > 0 ? ` (${balancePayments.length})` : ''}
-        </button>
       </div>
 
-      {showBP && balancePayments.length > 0 && (
-        <div className="bg-gray-800/60 rounded-2xl border border-cyan-800/50 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-black text-cyan-400 flex items-center gap-1.5"><CreditCard size={14} />Cleared Balance Payments</h3>
-            <span className="text-[10px] text-gray-500">{bpLoading ? 'Loading...' : `${balancePayments.length} payments • ${formatCurrency(totalBPCollected)} collected`}</span>
-          </div>
-        </div>
-      )}
-
-      {showGE && (
-        <div className="bg-gray-800/60 rounded-2xl border border-orange-800/50 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-black text-orange-400 flex items-center gap-1.5"><FileText size={14} />General Entries</h3>
-            <span className="text-[10px] text-gray-500">{geLoading ? 'Loading...' : `${generalEntries.length} entries`}</span>
-          </div>
-          {geLoading ? (
-            <p className="text-center text-gray-500 font-bold py-4 text-xs">Loading general entries...</p>
-          ) : generalEntries.length === 0 ? (
-            <p className="text-center text-gray-500 font-bold py-4 text-xs">No general entries in this period</p>
-          ) : (
-            <div className="space-y-2">
-              {generalEntries.map((ge, idx) => (
-                <div key={ge.id || idx} className="bg-gray-900 rounded-lg p-3 border border-gray-700/50 text-xs">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-white">{ge.expenseTitle}</p>
-                      <p className="text-[10px] text-gray-400">{ge.employeeName} &bull; {ge.notes || ''}</p>
-                    </div>
-                    <span className="font-bold text-red-400">-{formatCurrency(ge.amount)}</span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">{formatDateTime(ge.createdAt)}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        {filterTabs.map(tab => {
+          const isActive = historyFilter === tab.key;
+          const Icon = tab.icon;
+          return (
+            <button key={tab.key} onClick={() => setHistoryFilter(tab.key)}
+              className={`font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1 border transition-all ${isActive ? `${tab.activeBg} text-white ${tab.activeBorder}` : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
+              <Icon size={14} />{tab.label}{tab.badge > 0 ? ` (${tab.badge})` : ''}
+            </button>
+          );
+        })}
+        {historyFilter === 'balance' && totalBPCollected > 0 && (
+          <span className="ml-auto text-[10px] font-bold text-cyan-400">{formatCurrency(totalBPCollected)} collected</span>
+        )}
+        {historyFilter === 'general' && totalGE > 0 && (
+          <span className="ml-auto text-[10px] font-bold text-red-400">-{formatCurrency(totalGE)} expenses</span>
+        )}
+      </div>
 
       <div className="space-y-2">
-        {salesLoading && filteredSales.length === 0 && !bpLoading && (
+        {anyLoading && unifiedTimeline.length === 0 && (
           <div className="py-10 flex justify-center"><BarChart3 className="animate-spin text-blue-500" size={24} /></div>
         )}
-        {!salesLoading && !bpLoading && unifiedTimeline.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No invoices match your search' : 'No transactions yet'}</p>}
+        {!anyLoading && unifiedTimeline.length === 0 && (
+          <p className="text-center text-gray-500 py-8 font-bold">
+            {receiptSearch ? 'No invoices match your search' : historyFilter === 'general' ? 'No general entries in this period' : historyFilter === 'balance' ? 'No balance payments in this period' : 'No transactions yet'}
+          </p>
+        )}
 
         {unifiedTimeline.map(item => {
           if (item._type === 'sale') {
@@ -261,6 +277,31 @@ const POSHistory = () => {
                     <span className="text-[10px]">Invoice Total: {formatCurrency(bp.originalInvoiceTotal)} | Paid: {formatCurrency((bp.previouslyPaidAmount || 0) + bp.amountPaidNow)}</span>
                   )}
                 </div>
+              </div>
+            );
+          }
+
+          if (item._type === 'general_entry') {
+            const ge = item._data;
+            return (
+              <div key={`ge-${ge.id}`} className="bg-gray-800/60 rounded-2xl border border-orange-800/40 p-4">
+                <div className="flex items-start justify-between mb-1">
+                  <div>
+                    <p className="text-lg font-black text-white flex items-center gap-2">
+                      <span className="text-orange-400"><FileText size={16} /></span>
+                      {ge.expenseTitle || 'General Entry'}
+                      <span className="text-[9px] bg-orange-600 text-white px-2 py-0.5 rounded-full">EXPENSE</span>
+                    </p>
+                    <p className="text-xs text-gray-500 font-bold">{formatDateTime(ge.createdAt)} &bull; {ge.employeeName || 'N/A'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-black text-red-400">-{formatCurrency(ge.amount)}</p>
+                    <p className="text-[10px] text-gray-500 font-bold">GENERAL ENTRY</p>
+                  </div>
+                </div>
+                {ge.notes && (
+                  <p className="text-[10px] text-gray-400 font-bold mt-1">{ge.notes}</p>
+                )}
               </div>
             );
           }

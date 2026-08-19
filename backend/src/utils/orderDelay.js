@@ -1,10 +1,10 @@
-// Backend mirror of the frontend shared delay helpers (frontend/src/utils/delayUtils.js).
-// Used by the Orders Excel export so the exported "delayed" dataset is classified with
-// the exact same logic the Admin Orders screen uses to show delay filters. Mirrors the
-// escalation scan: a stage is delayed when deadlineAt < now / active elapsed exceeds the
-// configured hours; legacy stages without a deadline fall back to FALLBACK_STAGE_HOURS.
+// Backend delay engine — Phase-based working-hours delay detection.
+// Uses computeWorkingMs (9AM-7PM PKT, Mon-Sat, Sundays excluded) for accurate
+// delay computation. Each phase has an independent clock starting at stage.createdAt
+// (phase entry) / stage.startedAt (acceptance). Delay = working time in phase beyond
+// the configured threshold.
 
-const { activeElapsedMs } = require('./systemPause');
+const { computeWorkingMs, computeWorkingHours } = require('./workingHours');
 
 const STAGE_DEPARTMENTS = {
   STORE: 'Store',
@@ -49,37 +49,38 @@ const STAGE_LABELS = {
   DELIVERED: 'Delivered',
 };
 
+// Fallback allowed hours per phase when no config is available.
 const FALLBACK_STAGE_HOURS = {
-  STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48,
-  STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, ENAMELS_DELIVERY: 24, DISPATCH: 12,
-  OUT_FOR_DELIVERY: 12, ORDER_ENTRY: 24, IN_DISPATCH: 24, VERIFICATION: 24,
+  ORDER_ENTRY: 4,
+  VERIFICATION: 4,
+  STORE: 24,
+  STORE_RECEIVE: 12,
+  WORKERS: 24,
+  PRODUCTION_ACCEPTANCE: 4,
+  PRODUCTION: 48,
+  LOGO_DESIGN: 24,
+  DISPATCH: 12,
+  IN_DISPATCH: 24,
+  OUTLET_RECEIVE: 48,
+  ENAMELS_DELIVERY: 24,
+  OUT_FOR_DELIVERY: 12,
 };
 
-// Same defaults as the frontend delayUtils DEFAULT_DELAY_CONFIG (hours per config key).
-const DEFAULT_DELAY_CONFIG = {
-  VERIFICATION: 2, // 2 hours
-  STORE: 2,        // 2 hours
-  LOGO: 4,         // 4 hours
-  PRODUCTION: 10,  // 10 hours
-  DISPATCH: 4      // 4 hours
-};
-
+// Each phase maps to a config key in the Software Settings delay config.
 const STAGE_CONFIG_MAP = {
-  ORDER_ENTRY: 'VERIFICATION',
+  ORDER_ENTRY: 'ORDER_ENTRY',
   VERIFICATION: 'VERIFICATION',
   STORE: 'STORE',
-  STORE_RECEIVE: 'STORE',
-  STORE_PRODUCTION: 'STORE',
-  LOGO_DESIGN: 'LOGO',
-  LOGO: 'LOGO',
-  PRODUCTION_ACCEPTANCE: 'PRODUCTION',
+  STORE_RECEIVE: 'STORE_RECEIVE',
+  WORKERS: 'WORKERS',
+  PRODUCTION_ACCEPTANCE: 'PRODUCTION_ACCEPTANCE',
   PRODUCTION: 'PRODUCTION',
-  WORKERS: 'PRODUCTION',
+  LOGO_DESIGN: 'LOGO_DESIGN',
   DISPATCH: 'DISPATCH',
-  IN_DISPATCH: 'DISPATCH',
-  OUTLET_RECEIVE: 'DISPATCH',
-  ENAMELS_DELIVERY: 'DISPATCH',
-  OUT_FOR_DELIVERY: 'DISPATCH'
+  IN_DISPATCH: 'IN_DISPATCH',
+  OUTLET_RECEIVE: 'OUTLET_RECEIVE',
+  ENAMELS_DELIVERY: 'ENAMELS_DELIVERY',
+  OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
 };
 
 const stageLabel = (stageName) =>
@@ -97,7 +98,32 @@ const getEffectiveStage = (order) => {
   return order?.currentStage;
 };
 
-// Identical classification to frontend getDelayInfo — returns null when on time.
+/**
+ * Compute the allowed hours for a given phase from the delay config.
+ * Falls back to FALLBACK_STAGE_HOURS when config is missing.
+ */
+const getAllowedHours = (stageName, delayConfig = null) => {
+  const configKey = STAGE_CONFIG_MAP[stageName] || stageName;
+  if (delayConfig) {
+    const rawVal = delayConfig[configKey];
+    if (typeof rawVal === 'number' && rawVal > 0) return rawVal;
+    if (rawVal && typeof rawVal.totalHours === 'number' && rawVal.totalHours > 0) return rawVal.totalHours;
+  }
+  return FALLBACK_STAGE_HOURS[stageName] || 24;
+};
+
+/**
+ * Get comprehensive delay info for a single order.
+ * Uses working-hours computation (9AM-7PM PKT, Mon-Sat) to determine elapsed time,
+ * and system-pause awareness via the combined computeWorkingMs which already handles
+ * pause-period overlaps.
+ *
+ * @param {Object} order - Order with stages array
+ * @param {Object|null} delayConfig - Phase config { VERIFICATION: 2, STORE: 24, ... }
+ * @param {Array|null} pausePeriods - System pause periods
+ * @param {string|null} profileKey - Caller's pause profile
+ * @returns {Object|null} Delay info or null if on time
+ */
 const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey = null) => {
   if (!order) return null;
   const status = String(order.status || '').toUpperCase();
@@ -111,53 +137,95 @@ const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey
     (s) => s.stageName === effectiveStage && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
   );
 
-  let phaseStart;
+  // Phase entry time: when the order entered this phase
+  let phaseEnteredAt;
   if (!active && effectiveStage === 'VERIFICATION') {
     const entryStage = stages.find((s) => s.stageName === 'ORDER_ENTRY');
-    phaseStart = (entryStage && (entryStage.completedAt || entryStage.updatedAt || entryStage.createdAt)) || order.createdAt;
+    phaseEnteredAt = (entryStage && (entryStage.completedAt || entryStage.updatedAt || entryStage.createdAt)) || order.createdAt;
   } else if (!active) {
-    phaseStart = order.updatedAt || order.createdAt;
+    phaseEnteredAt = order.updatedAt || order.createdAt;
   } else {
-    phaseStart = active.startedAt || active.createdAt || order.createdAt;
+    phaseEnteredAt = active.createdAt || order.createdAt;
   }
-  if (!phaseStart) return null;
+  if (!phaseEnteredAt) return null;
 
   const now = Date.now();
-  const startMs = new Date(phaseStart).getTime();
+  const enteredMs = new Date(phaseEnteredAt).getTime();
+  const allowedHours = getAllowedHours(effectiveStage, delayConfig);
+  const allowedMs = allowedHours * 3600 * 1000;
 
-  const configKey = STAGE_CONFIG_MAP[effectiveStage] || 'STORE';
-  let deadlineHours = 24;
-  if (delayConfig) {
-    const rawVal = delayConfig[configKey];
-    if (typeof rawVal === 'number') {
-      deadlineHours = rawVal;
-    } else if (rawVal && typeof rawVal.totalHours === 'number') {
-      deadlineHours = rawVal.totalHours;
-    }
-  } else {
-    deadlineHours = DEFAULT_DELAY_CONFIG[configKey] || 24;
-  }
+  // Working time elapsed in this phase (9AM-7PM Mon-Sat, excluding pauses)
+  const phaseWorkingMs = computeActiveWorkingMsSafe(enteredMs, now, pausePeriods, profileKey);
 
-  const allowedMs = deadlineHours * 3600 * 1000;
+  // Acceptance time (if stage has been accepted)
+  const acceptedAt = active?.startedAt ? new Date(active.startedAt).getTime() : null;
+  const acceptanceWaitingMs = acceptedAt
+    ? computeActiveWorkingMsSafe(enteredMs, acceptedAt, pausePeriods, profileKey)
+    : computeActiveWorkingMsSafe(enteredMs, now, pausePeriods, profileKey);
+
+  // Processing time (after acceptance)
+  const processingMs = acceptedAt
+    ? (active?.completedAt
+        ? computeActiveWorkingMsSafe(acceptedAt, new Date(active.completedAt).getTime(), pausePeriods, profileKey)
+        : computeActiveWorkingMsSafe(acceptedAt, now, pausePeriods, profileKey))
+    : 0;
+
+  // Total order elapsed (from order creation)
+  const orderCreatedMs = order.createdAt ? new Date(order.createdAt).getTime() : enteredMs;
+  const totalElapsedMs = computeActiveWorkingMsSafe(orderCreatedMs, now, pausePeriods, profileKey);
+
   const department = STAGE_DEPARTMENTS[effectiveStage] || 'Store';
   const reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
 
-  const phaseActive = activeElapsedMs(startMs, now, pausePeriods, profileKey);
-  if (phaseActive < allowedMs) return null;
+  // On time when working time in phase hasn't exceeded threshold
+  if (phaseWorkingMs < allowedMs) return null;
 
-  const totalStart = order.createdAt ? new Date(order.createdAt).getTime() : startMs;
+  const deadlineAt = active?.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
+  // For the delay duration, use working time past the allowed threshold
+  const delayDuration = Math.max(0, phaseWorkingMs - allowedMs);
+
+  // Working time remaining until deadline (if deadline exists)
+  const workingTimeRemainingMs = deadlineAt
+    ? computeActiveWorkingMsSafe(now, deadlineAt, pausePeriods, profileKey)
+    : Math.max(0, allowedMs - phaseWorkingMs);
+
   return {
     orderId: order.id,
     stage: effectiveStage,
     stageLabel: stageLabel(effectiveStage),
     department,
     reason: reasonLabel,
-    isAcceptanceDelay: false,
-    phaseStart: startMs,
-    phaseElapsed: phaseActive,
-    totalElapsed: activeElapsedMs(totalStart, now, pausePeriods, profileKey),
-    delayDuration: Math.max(0, phaseActive - allowedMs),
+    isAcceptanceDelay: !acceptedAt,
+    phaseEnteredAt: enteredMs,
+    acceptedAt,
+    phaseWorkingMs,
+    acceptanceWaitingMs,
+    processingMs,
+    totalElapsedMs,
+    allowedHours,
+    allowedMs,
+    delayDuration,
+    deadlineAt,
+    workingTimeRemainingMs,
   };
+};
+
+// Wrapper that uses computeWorkingMs (working-hours-only) minus pause overlaps
+const computeActiveWorkingMsSafe = (startMs, endMs, pausePeriods = null, profileKey = null) => {
+  let workingMs = computeWorkingMs(startMs, endMs);
+  if (!Array.isArray(pausePeriods) || pausePeriods.length === 0) return workingMs;
+  const now = endMs;
+  for (const p of pausePeriods) {
+    if (!p || !p.startedAt) continue;
+    if (profileKey && Array.isArray(p.profiles) && p.profiles.length && !p.profiles.includes(profileKey)) continue;
+    const pStart = new Date(p.startedAt).getTime();
+    if (!Number.isFinite(pStart)) continue;
+    const pEnd = p.endedAt ? new Date(p.endedAt).getTime() : now;
+    if (!Number.isFinite(pEnd)) continue;
+    const overlapMs = computeWorkingMs(Math.max(startMs, pStart), Math.min(endMs, pEnd));
+    workingMs -= overlapMs;
+  }
+  return Math.max(0, workingMs);
 };
 
 // Builds a { orderId: delayInfo } map for a list of orders (used by exports).
@@ -175,11 +243,13 @@ module.exports = {
   DELAY_REASONS,
   STAGE_LABELS,
   FALLBACK_STAGE_HOURS,
-  DEFAULT_DELAY_CONFIG,
   STAGE_CONFIG_MAP,
   stageLabel,
   fmtDuration,
   getEffectiveStage,
+  getAllowedHours,
   getDelayInfo,
   getDelayMap,
+  computeWorkingMs,
+  computeWorkingHours,
 };

@@ -20,6 +20,7 @@ import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/payment
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import { printDeliveryReport } from '../utils/printReport';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
+import { classifyDeliveryTab } from '../utils/deliveryStatusUtils';
 
 const MAX_ATTEMPTS = 3;
 
@@ -748,6 +749,183 @@ const PerformancePanel = () => {
   );
 };
 
+/* ─── Deposit Panel (Submit Cash to Admin + History) ─── */
+const DepositPanel = () => {
+  const { user } = useAuth();
+  const [showSubmit, setShowSubmit] = useState(false);
+  const [cashAmount, setCashAmount] = useState('');
+  const [onlineAmount, setOnlineAmount] = useState('');
+  const [reference, setReference] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [myDeposits, setMyDeposits] = useState([]);
+  const [depositsLoading, setDepositsLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('ALL');
+
+  const fetchDeposits = useCallback(async () => {
+    setDepositsLoading(true);
+    try {
+      const params = filterStatus !== 'ALL' ? `?status=${filterStatus}` : '';
+      const res = await api.get(`/api/delivery/deposits/my${params}`);
+      setMyDeposits(res.data.deposits || res.data || []);
+    } catch (err) {
+      console.error('Deposits fetch error:', err?.response?.data || err.message);
+      toast.error('Failed to load deposits');
+    }
+    setDepositsLoading(false);
+  }, [filterStatus]);
+
+  useEffect(() => { fetchDeposits(); }, [fetchDeposits]);
+
+  const totalApprovedCash = myDeposits.filter(d => d.status === 'APPROVED').reduce((s, d) => s + (d.cashAmount || 0), 0);
+  const totalApprovedOnline = myDeposits.filter(d => d.status === 'APPROVED').reduce((s, d) => s + (d.onlineAmount || 0), 0);
+  const pendingCount = myDeposits.filter(d => d.status === 'PENDING').length;
+  const approvedCount = myDeposits.filter(d => d.status === 'APPROVED').length;
+  const rejectedCount = myDeposits.filter(d => d.status === 'REJECTED').length;
+
+  const handleSubmit = async () => {
+    const cash = parseFloat(cashAmount) || 0;
+    const online = parseFloat(onlineAmount) || 0;
+    if (cash <= 0 && online <= 0) { toast.error('Enter at least one amount'); return; }
+    try {
+      setSubmitting(true);
+      await api.post('/api/delivery/deposits', { cashAmount: cash, onlineAmount: online, reference: reference.trim() || undefined, notes: notes.trim() || undefined });
+      toast.success('Deposit submitted for admin review!');
+      setCashAmount(''); setOnlineAmount(''); setReference(''); setNotes(''); setShowSubmit(false);
+      fetchDeposits();
+    } catch (err) { toast.error(err?.response?.data?.message || 'Failed to submit deposit'); }
+    finally { setSubmitting(false); }
+  };
+
+  const statusBadge = (status) => {
+    const map = {
+      PENDING: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      APPROVED: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      REJECTED: 'bg-red-500/10 text-red-400 border-red-500/20',
+    };
+    const labels = { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' };
+    return <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black uppercase border ${map[status] || map.PENDING}`}>{labels[status] || status}</span>;
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+          <Building2 size={16} /> Cash to Admin
+        </h3>
+        <button onClick={() => setShowSubmit(!showSubmit)}
+          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all">
+          <Plus size={14} /> New Deposit
+        </button>
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 text-center">
+          <p className="text-[9px] text-emerald-400 font-black uppercase">Approved</p>
+          <p className="text-lg font-black text-emerald-400">{approvedCount}</p>
+          <p className="text-[9px] text-gray-500 font-bold">₨{totalApprovedCash.toLocaleString()} cash · ₨{totalApprovedOnline.toLocaleString()} online</p>
+        </div>
+        <div className="bg-amber-500/10 rounded-xl p-2.5 border border-amber-500/20 text-center">
+          <p className="text-[9px] text-amber-400 font-black uppercase">Pending</p>
+          <p className="text-lg font-black text-amber-400">{pendingCount}</p>
+        </div>
+        <div className="bg-red-500/10 rounded-xl p-2.5 border border-red-500/20 text-center">
+          <p className="text-[9px] text-red-400 font-black uppercase">Rejected</p>
+          <p className="text-lg font-black text-red-400">{rejectedCount}</p>
+        </div>
+      </div>
+
+      {/* Submit form */}
+      <AnimatePresence>
+        {showSubmit && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="bg-gray-800/60 rounded-2xl p-4 border border-emerald-500/20 space-y-3">
+              <p className="text-xs font-black text-emerald-400 uppercase tracking-widest">Submit Deposit</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Cash Amount</label>
+                  <input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Rs 0"
+                    className="w-full px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm font-bold text-white outline-none focus:border-emerald-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Online Amount</label>
+                  <input type="number" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} placeholder="Rs 0"
+                    className="w-full px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm font-bold text-white outline-none focus:border-emerald-500" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Reference (optional)</label>
+                <input type="text" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. Bank transfer ref"
+                  className="w-full px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm font-bold text-white outline-none focus:border-emerald-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Notes (optional)</label>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any notes..."
+                  className="w-full px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm font-bold text-white outline-none focus:border-emerald-500 resize-none" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleSubmit} disabled={submitting}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all">
+                  {submitting ? 'Submitting...' : 'Submit for Review'}
+                </button>
+                <button onClick={() => setShowSubmit(false)} className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-black transition-all">Cancel</button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Filter chips */}
+      <div className="flex gap-1.5">
+        {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map(s => (
+          <button key={s} onClick={() => setFilterStatus(s)}
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${filterStatus === s ? 'bg-blue-600 text-white' : 'theme-text-muted hover:text-white bg-gray-800/60'}`}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Deposit history */}
+      {depositsLoading ? <LoadingSpinner text="Loading deposits..." /> : myDeposits.length === 0 ? (
+        <div className="text-center py-10 text-gray-600 text-sm font-bold">No deposits yet.</div>
+      ) : (
+        <div className="space-y-2">
+          {myDeposits.map((d, i) => (
+            <div key={d.id || i} className="bg-gray-800/60 rounded-xl p-3 border border-gray-700/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  {statusBadge(d.status)}
+                  <span className="text-[10px] text-gray-500 font-bold">{formatDateTime(d.createdAt)}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-emerald-500/10 rounded-lg p-2 text-center">
+                  <p className="text-[9px] text-emerald-400 font-black uppercase">Cash</p>
+                  <p className="text-sm font-black text-emerald-400">₨{(d.cashAmount || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-blue-500/10 rounded-lg p-2 text-center">
+                  <p className="text-[9px] text-blue-400 font-black uppercase">Online</p>
+                  <p className="text-sm font-black text-blue-400">₨{(d.onlineAmount || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-purple-500/10 rounded-lg p-2 text-center">
+                  <p className="text-[9px] text-purple-400 font-black uppercase">Total</p>
+                  <p className="text-sm font-black text-purple-400">₨{(d.totalAmount || 0).toLocaleString()}</p>
+                </div>
+              </div>
+              {d.reference && <p className="text-[10px] text-gray-400 font-bold mt-1.5">Ref: {d.reference}</p>}
+              {d.notes && <p className="text-[10px] text-gray-500 font-bold mt-0.5">{d.notes}</p>}
+              {d.status === 'REJECTED' && d.rejectionReason && (
+                <p className="text-[10px] text-red-400 font-bold mt-1">Rejected: {d.rejectionReason}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ─── main page ─── */
 const DeliveryDashboard = () => {
   const { user } = useAuth();
@@ -765,20 +943,17 @@ const DeliveryDashboard = () => {
   const [view, setView] = useState('orders'); // orders, charges, cod, performance
 
   const dt = user?.name?.toLowerCase().includes('enamels') ? 'ENAMELS' : '';
-  const cacheKey = `orders:delivery:${dt || 'default'}:v2`;
+  const cacheKey = `orders:delivery:${dt || 'default'}:v3`;
   const { data: orders = [], loading, refresh } = useCache(cacheKey, {
     fetcher: async () => {
       // Use the dedicated delivery endpoint — the generic /api/orders?status=delivery
       // runs a slow escalation scan (16-25s) that blows the request timeout, so the
       // delivery dashboard showed no data.
+      // The backend now excludes RETURNED/CANCELLED and deduplicates by orderId,
+      // so no client-side status filter is needed.
       const params = dt ? `?deliveryType=${dt}` : '';
       const res = await api.get(`/api/delivery/orders${params}`);
-      return res.data.filter(o =>
-        o.currentStage === 'OUT_FOR_DELIVERY' ||
-        o.currentStage === 'DELIVERED' ||
-        o.currentStage === 'ENAMELS_DELIVERY' ||
-        o.status === 'COMPLETED'
-      );
+      return res.data;
     },
     ttl: 60 * 1000,
   });
@@ -838,17 +1013,13 @@ const DeliveryDashboard = () => {
     }
   };
 
-  const pending = orders.filter(o => !o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED');
-  const active = orders.filter(o => o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED');
-  const noResponse = orders.filter(o => (o.noResponseCount || 0) > 0 && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED');
-  const completed = orders.filter(o => o.currentStage === 'DELIVERED' || o.status === 'COMPLETED');
+  const pending = orders.filter(o => classifyDeliveryTab(o) === 'pending');
+  const active = orders.filter(o => classifyDeliveryTab(o) === 'active');
+  const noResponse = orders.filter(o => classifyDeliveryTab(o) === 'noresponse');
+  const completed = orders.filter(o => classifyDeliveryTab(o) === 'completed');
 
   const filtered = orders.filter(o => {
-    const inTab =
-      tab === 'pending' ? (!o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED') :
-      tab === 'active' ? (o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED') :
-      tab === 'noresponse' ? ((o.noResponseCount || 0) > 0 && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED') :
-      tab === 'completed' ? (o.currentStage === 'DELIVERED' || o.status === 'COMPLETED') : true;
+    const inTab = classifyDeliveryTab(o) === tab;
     if (!inTab) return false;
     const matchSearch = !search || o.customerName?.toLowerCase().includes(search.toLowerCase()) || o.customerPhone?.includes(search);
     const matchOrderNo = !orderNoSearch || (o.orderNumber || '').toLowerCase().includes(orderNoSearch.toLowerCase()) || o.id?.toLowerCase().includes(orderNoSearch.toLowerCase());
@@ -862,8 +1033,7 @@ const DeliveryDashboard = () => {
     .reduce((s, o) => s + getCodAmount(o), 0);
 
   const filteredCompleted = orders.filter(o => {
-    const isCompleted = o.currentStage === 'DELIVERED' || o.status === 'COMPLETED';
-    if (!isCompleted) return false;
+    if (classifyDeliveryTab(o) !== 'completed') return false;
     const matchSearch = !search || o.customerName?.toLowerCase().includes(search.toLowerCase()) || o.customerPhone?.includes(search);
     const matchOrderNo = !orderNoSearch || (o.orderNumber || '').toLowerCase().includes(orderNoSearch.toLowerCase()) || o.id?.toLowerCase().includes(orderNoSearch.toLowerCase());
     const delStage = o.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
@@ -947,6 +1117,7 @@ const DeliveryDashboard = () => {
           { key: 'orders', label: 'Orders', icon: Truck },
           { key: 'charges', label: 'Charges', icon: DollarSign },
           { key: 'cod', label: 'COD', icon: Wallet },
+          { key: 'deposits', label: 'Deposits', icon: Building2 },
           { key: 'performance', label: 'Stats', icon: BarChart3 },
         ].map(v => (
           <button key={v.key} onClick={() => setView(v.key)}
@@ -1059,6 +1230,9 @@ const DeliveryDashboard = () => {
 
       {/* COD Collection View */}
       {view === 'cod' && <CODCollectionPanel refresh={refresh} />}
+
+      {/* Deposits View */}
+      {view === 'deposits' && <DepositPanel />}
 
       {/* Performance View */}
       {view === 'performance' && <PerformancePanel />}

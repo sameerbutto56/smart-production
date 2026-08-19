@@ -1634,6 +1634,7 @@ const searchReturns = async (req, res) => {
     const { orderNumber } = req.query;
     if (!orderNumber || !String(orderNumber).trim()) return res.status(400).json({ message: 'orderNumber is required' });
     const q = String(orderNumber).trim();
+    const bareNumber = q.replace(/^#/, '');
 
     const cases = await prisma.returnExchange.findMany({
       where: {
@@ -1665,7 +1666,49 @@ const searchReturns = async (req, res) => {
       order: orderMap[c.orderId] || null
     }));
 
-    res.json({ cases: results, total: results.length });
+    // Fallback: if no existing return cases, search the Order table directly
+    // so the user can see the order and initiate a return
+    let foundOrder = null;
+    if (results.length === 0) {
+      const orderInclude = {
+        stages: { orderBy: { createdAt: 'asc' } },
+        deliveryAttempts: { orderBy: { attemptNumber: 'desc' } },
+        returnExchangeCases: { orderBy: { createdAt: 'desc' } }
+      };
+
+      if (/^REP-/i.test(q)) {
+        foundOrder = await prisma.order.findFirst({
+          where: { source: 'REPLACEMENT', orderNumber: { equals: q, mode: 'insensitive' } },
+          include: orderInclude
+        });
+      } else {
+        foundOrder = await prisma.order.findFirst({
+          where: {
+            OR: [
+              { orderNumber: { equals: q, mode: 'insensitive' } },
+              { orderNumber: { equals: `#${bareNumber}`, mode: 'insensitive' } },
+              { orderNumber: { endsWith: q, mode: 'insensitive' } },
+              { invoiceNumber: { equals: q, mode: 'insensitive' } },
+              { invoiceNumber: { endsWith: q, mode: 'insensitive' } },
+              { customerPhone: { contains: q } },
+              { customerName: { contains: q, mode: 'insensitive' } }
+            ]
+          },
+          orderBy: { createdAt: 'asc' },
+          include: orderInclude
+        });
+      }
+
+      // Enrich found order with createdBy
+      if (foundOrder && !foundOrder.createdBy) {
+        try {
+          const creator = await prisma.user.findUnique({ where: { id: foundOrder.createdById }, select: { id: true, name: true } });
+          if (creator) foundOrder.createdBy = creator;
+        } catch {}
+      }
+    }
+
+    res.json({ cases: results, total: results.length, order: foundOrder });
   } catch (error) {
     console.error('Error searching returns:', error);
     res.status(500).json({ message: 'Failed to search returns', error: error.message });

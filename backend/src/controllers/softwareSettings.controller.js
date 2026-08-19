@@ -361,11 +361,19 @@ const changePaymentMethod = async (req, res) => {
 };
 
 const DEFAULT_DELAY_CONFIG = {
-  VERIFICATION: { acceptanceMinutes: 30, totalHours: 2 },
-  STORE: { acceptanceMinutes: 30, totalHours: 4 },
-  LOGO: { acceptanceMinutes: 30, totalHours: 3 },
-  PRODUCTION: { acceptanceMinutes: 30, totalHours: 24 },
-  DISPATCH: { acceptanceMinutes: 30, totalHours: 4 }
+  ORDER_ENTRY: 4,
+  VERIFICATION: 4,
+  STORE: 24,
+  STORE_RECEIVE: 12,
+  WORKERS: 24,
+  PRODUCTION_ACCEPTANCE: 4,
+  PRODUCTION: 48,
+  LOGO_DESIGN: 24,
+  DISPATCH: 12,
+  IN_DISPATCH: 24,
+  OUTLET_RECEIVE: 48,
+  ENAMELS_DELIVERY: 24,
+  OUT_FOR_DELIVERY: 12,
 };
 
 const getDelayConfig = async (req, res) => {

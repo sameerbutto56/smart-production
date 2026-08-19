@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const {
-  getState, getHistory, getPauseProfileConfig, updatePauseProfileConfig, pause, resume,
+  getState, getHistory, getPauseProfileConfig, updatePauseProfileConfig, pause, resume, getTimer,
 } = require('../controllers/system.controller');
 
 const CONTROL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SOFTWARE_SETTINGS'];
@@ -18,5 +18,8 @@ router.put('/pause-profiles', authenticate, authorize(CONTROL_ROLES), updatePaus
 router.post('/pause', authenticate, authorize(CONTROL_ROLES), pause);
 router.post('/resume', authenticate, authorize(CONTROL_ROLES), resume);
 router.get('/history', authenticate, authorize(CONTROL_ROLES), getHistory);
+
+// Timer state — any authenticated user (drives synchronized timer banners).
+router.get('/timer-state', authenticate, getTimer);
 
 module.exports = router;

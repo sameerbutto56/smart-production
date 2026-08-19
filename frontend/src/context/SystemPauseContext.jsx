@@ -21,6 +21,8 @@ export const SystemPauseProvider = ({ children }) => {
   const busyRef = useRef(false);
 
   const refresh = useCallback(async () => {
+    const token = sessionStorage.getItem('token');
+    if (!token) { setLoading(false); return; }
     try {
       const res = await api.get('/api/system/state');
       setState({

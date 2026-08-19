@@ -51,6 +51,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatDateOnly } from '../utils/dateTime';
 import socket from '../socket';
 import useDemandNotification from '../hooks/useDemandNotification';
+import { getTimerState, fmtWorkingDuration } from '../utils/workingHours';
 import toast from 'react-hot-toast';
 import SystemPauseControl from './SystemPauseControl';
 import ProfileEmployeeGate from './ProfileEmployeeGate';
@@ -123,6 +124,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
     { name: 'Outlet Order Entry', path: '/outlet-order-entry', icon: ShoppingBag, roles: ['OUTLET'] },
     { name: 'In Dispatch', path: '/in-dispatch', icon: RouteIcon, roles: ['OUTLET'] },
+    { name: 'Tahir Sheet', path: '/tahir-sheet', icon: ClipboardList, roles: ['OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['FAISAL'] },
     { name: 'Replacements', path: '/replacements', icon: ArrowRightLeft, roles: ['FAISAL'] },
 
@@ -159,11 +161,11 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
       // In Dispatch is a dedicated JOHAR TOWN outlet module only
-      if (item.name === 'In Dispatch') {
+      if (item.name === 'In Dispatch' || item.name === 'Tahir Sheet') {
         const n = String(user?.name || '').toLowerCase();
         return n.includes('johar') || user?.name?.includes('1');
       }
-      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch'].includes(item.name);
+      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch', 'Tahir Sheet'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
@@ -340,13 +342,31 @@ const Layout = () => {
   const { paused: systemPaused, affected: pauseAffected, info: pauseInfo } = useSystemPause();
   const { activeAlert, acknowledge } = useDemandNotification();
 
+  // Working-hours timer state — polls backend every 60s for synchronized banners.
+  const [timerState, setTimerState] = useState({ status: 'running', message: '' });
+
+  useEffect(() => {
+    const fetchTimer = async () => {
+      try {
+        const res = await api.get('/api/system/timer-state');
+        setTimerState(res.data || { status: 'running', message: '' });
+      } catch {
+        // Fail-open: if timer-state fails, compute locally as fallback.
+        setTimerState(getTimerState(Date.now()));
+      }
+    };
+    fetchTimer();
+    const iv = setInterval(fetchTimer, 60000);
+    return () => clearInterval(iv);
+  }, []);
+
   // Faisal employee login
   const [faisalEmployee, setFaisalEmployee] = useState(() => localStorage.getItem('faisalEmployee') || '');
   const [faisalPwd, setFaisalPwd] = useState('');
   const [faisalShowPwd, setFaisalShowPwd] = useState(false);
-  // Fresh session always requires the employee login step — never auto-skip via
-  // a stale localStorage value. Only an explicit successful login sets this true.
-  const [faisalLoggedIn, setFaisalLoggedIn] = useState(false);
+  // Persist Faisal employee login across page refreshes via sessionStorage.
+  // Only manual logout or explicit session expiry should end the session.
+  const [faisalLoggedIn, setFaisalLoggedIn] = useState(() => sessionStorage.getItem('faisalLoggedIn') === '1');
   const [faisalLoginLoading, setFaisalLoginLoading] = useState(false);
   const [faisalEmployees, setFaisalEmployees] = useState([]);
 
@@ -375,6 +395,7 @@ const Layout = () => {
       const res = await api.post('/api/software-settings/verify-employee', { name: faisalEmployee, password: faisalPwd, profile: 'FAISAL_PROFILE' });
       if (res.data?.ok) {
         setFaisalLoggedIn(true);
+        sessionStorage.setItem('faisalLoggedIn', '1');
         setFaisalPwd('');
         localStorage.setItem('faisalEmployee', faisalEmployee);
         toast.success(`Logged in as ${faisalEmployee}`);
@@ -390,6 +411,7 @@ const Layout = () => {
 
   const handleFaisalLogout = () => {
     setFaisalLoggedIn(false);
+    sessionStorage.removeItem('faisalLoggedIn');
     setFaisalEmployee('');
     setFaisalPwd('');
     localStorage.removeItem('faisalEmployee');
@@ -709,6 +731,22 @@ const Layout = () => {
           <div className="bg-emerald-600/10 border-b border-emerald-500/20 px-6 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
             <span className="text-emerald-400/90 font-black text-[10px] uppercase tracking-widest">🟢 SYSTEM ACTIVE — All functions have been resumed.</span>
+          </div>
+        )}
+
+        {!systemPaused && timerState.status === 'warning' && (
+          <div className="bg-amber-500/20 border-b border-amber-400/40 px-6 py-1.5 flex items-center justify-center gap-2 flex-shrink-0 animate-pulse">
+            <span className="text-amber-400 font-black text-[10px] uppercase tracking-widest">⚠ WORKING HOURS ENDING SOON — timers will pause at 7:00 PM</span>
+          </div>
+        )}
+        {!systemPaused && (timerState.status === 'stopped_evening' || timerState.status === 'stopped_morning') && (
+          <div className="bg-red-500/15 border-b border-red-400/30 px-6 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
+            <span className="text-red-400/90 font-black text-[10px] uppercase tracking-widest">⏸ WORKING HOURS PAUSED — timers resume at {timerState.status === 'stopped_evening' ? '9:00 AM tomorrow' : '9:00 AM'}</span>
+          </div>
+        )}
+        {!systemPaused && timerState.status === 'stopped_sunday' && (
+          <div className="bg-blue-500/15 border-b border-blue-400/30 px-6 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
+            <span className="text-blue-400/90 font-black text-[10px] uppercase tracking-widest">📅 SUNDAY — No working hours today. Timers resume Monday 9:00 AM.</span>
           </div>
         )}
 

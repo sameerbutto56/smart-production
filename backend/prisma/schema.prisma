@@ -172,7 +172,9 @@ model Order {
   cancelledById   String?
   cancelledByName String?
   cancellationReason String?
-  cancellationRequests OrderCancellationRequest[] @relation("OrderCancellationRequests")
+   cancellationRequests OrderCancellationRequest[] @relation("OrderCancellationRequests")
+   // Adjusted financial breakdown (set when user overrides calculated amounts in Financial Summary)
+   financialSummary Json?   // { productPrice, logoCharges, namePrinting, customization, cap, delivery, discount, total }
 }
 
 model DispatchLog {
@@ -1384,6 +1386,27 @@ model BankDeposit {
   @@index([slipNumber])
 }
 
+model DeliveryDeposit {
+  id              String   @id @default(uuid())
+  deliveryBoy     String
+  cashAmount      Float    @default(0)
+  onlineAmount    Float    @default(0)
+  totalAmount     Float
+  reference       String?
+  notes           String?
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedBy      String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+
+  @@index([deliveryBoy])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model Notification {
   id           Int      @id @default(autoincrement())
   type         String
@@ -1523,4 +1546,33 @@ model InventoryAdjustmentLog {
   @@index([auditId])
   @@index([productId])
   @@index([createdAt])
+}
+
+model DeliveryAssignment {
+  id              String   @id @default(uuid())
+  orderId         String
+  orderNumber     String?
+  customerName    String?
+  customerPhone   String?
+  address         String?
+  city            String?
+  totalPrice      Float    @default(0)
+  advanceAmount   Float    @default(0)
+  deliveryCharges Float    @default(0)
+  outletName      String?
+  source          String?
+  assignedAt      DateTime @default(now())
+  assignmentDate  DateTime // date-only for efficient day-level queries
+  deliveryBoyName String
+  routedBy        String?  // who routed the order to delivery
+  deliveredAt     DateTime?
+  returnedAt      DateTime?
+  currentStage    String?
+  status          String?
+  createdAt       DateTime @default(now())
+
+  @@unique([orderId, deliveryBoyName, assignmentDate])
+  @@index([assignmentDate])
+  @@index([deliveryBoyName])
+  @@index([orderId])
 }

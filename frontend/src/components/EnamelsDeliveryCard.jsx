@@ -2,26 +2,12 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Loader2, Truck, User, Package, Activity, X, RefreshCw, Banknote, Clock, CheckCircle2, ChevronDown, ChevronUp, Calendar, MapPin, Phone, Filter } from 'lucide-react';
+import { Loader2, Truck, User, Package, Activity, X, RefreshCw, Banknote, Clock, CheckCircle2, ChevronDown, ChevronUp, Calendar, MapPin, Phone, Filter, Building2 } from 'lucide-react';
 import socket from '../socket';
 import { formatDateOnly, formatTimeOnly, formatDateTime } from '../utils/dateTime';
+import { STATUS_BADGE, STATUS_LABEL, STAT_COLORS } from '../utils/deliveryStatusUtils';
 
-const C = {
-  total: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-  accepted: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-  pickedUp: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
-  delivered: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-  pending: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-  inTransit: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-  returned: { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
-  noResponse: { text: 'text-gray-400', bg: 'bg-gray-500/10', border: 'border-gray-500/20' },
-  cancelled: { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
-  failed: { text: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
-  cash: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-  online: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-  cashOnline: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-  jail: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-};
+const C = STAT_COLORS;
 
 const PRESETS = [
   { key: 'all', label: 'All Time' },
@@ -31,26 +17,6 @@ const PRESETS = [
   { key: 'month', label: 'This Month', getRange: () => { const d = new Date(); const s = new Date(d.getFullYear(), d.getMonth(), 1); return { dateFrom: s.toISOString(), dateTo: new Date().toISOString() }; } },
   { key: 'custom', label: 'Custom Range' },
 ];
-
-const STATUS_BADGE = {
-  delivered: 'bg-emerald-500/20 text-emerald-400',
-  returned: 'bg-red-500/20 text-red-400',
-  cancelled: 'bg-rose-500/20 text-rose-400',
-  failed: 'bg-orange-500/20 text-orange-400',
-  noResponse: 'bg-gray-500/20 text-gray-400',
-  inTransit: 'bg-indigo-500/20 text-indigo-400',
-  pending: 'bg-amber-500/20 text-amber-400',
-};
-
-const STATUS_LABEL = {
-  delivered: 'Delivered',
-  returned: 'Returned',
-  cancelled: 'Cancelled',
-  failed: 'Failed',
-  noResponse: 'No Response',
-  inTransit: 'In Transit',
-  pending: 'Pending',
-};
 
 const formatDuration = (mins) => {
   if (mins == null || isNaN(mins)) return '—';
@@ -481,6 +447,45 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
   const [paymentFilter, setPaymentFilter] = useState('');
   const [jailRoadOnly, setJailRoadOnly] = useState(false);
 
+  const [deposits, setDeposits] = useState([]);
+  const [depositsLoading, setDepositsLoading] = useState(false);
+  const [depositActionLoading, setDepositActionLoading] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectTarget, setRejectTarget] = useState(null);
+
+  const fetchDeposits = useCallback(async () => {
+    setDepositsLoading(true);
+    try {
+      const res = await api.get('/api/delivery/deposits/all?status=PENDING');
+      setDeposits(res.data.deposits || res.data || []);
+    } catch (err) { console.error('Deposit fetch error:', err); }
+    setDepositsLoading(false);
+  }, []);
+
+  const handleApproveDeposit = async (depositId) => {
+    try {
+      setDepositActionLoading(depositId);
+      await api.put(`/api/delivery/deposits/${depositId}/approve`);
+      toast.success('Deposit approved!');
+      fetchDeposits();
+    } catch (err) { toast.error(err?.response?.data?.message || 'Failed to approve'); }
+    finally { setDepositActionLoading(null); }
+  };
+
+  const handleRejectDeposit = async () => {
+    if (!rejectTarget) return;
+    try {
+      setDepositActionLoading(rejectTarget);
+      await api.put(`/api/delivery/deposits/${rejectTarget}/reject`, { reason: rejectReason.trim() || 'Rejected by admin' });
+      toast.success('Deposit rejected');
+      setRejectTarget(null); setRejectReason('');
+      fetchDeposits();
+    } catch (err) { toast.error(err?.response?.data?.message || 'Failed to reject'); }
+    finally { setDepositActionLoading(null); }
+  };
+
+  useEffect(() => { if (activeTab === 'enamels_delivery') fetchDeposits(); }, [activeTab, fetchDeposits]);
+
   useEffect(() => {
     if (datePreset === 'custom') {
       if (customFrom && customTo) {
@@ -851,6 +856,68 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
             {orders.length > 100 && (
               <p className="text-[10px] font-bold text-gray-500 mt-3 text-center">Showing first 100 of {orders.length} — click a row for full details</p>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* 5. Delivery Boy Deposits — Pending Review */}
+      <div className="glass rounded-2xl p-5 border-2 theme-border">
+        <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Building2 size={16} className="text-amber-400" /> Delivery Boy Deposits — Pending Review
+          {deposits.length > 0 && <span className="ml-auto px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-full text-[10px] font-black">{deposits.length}</span>}
+        </h3>
+        {depositsLoading ? (
+          <div className="text-center py-6"><Loader2 size={20} className="animate-spin text-gray-400 mx-auto" /></div>
+        ) : deposits.length === 0 ? (
+          <div className="text-center py-6"><p className="theme-text-muted font-black uppercase text-xs">No pending deposits</p></div>
+        ) : (
+          <div className="space-y-3">
+            {deposits.map(d => (
+              <div key={d.id} className="bg-gray-800/60 rounded-xl p-4 border border-gray-700/50">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-blue-400">{d.deliveryBoy}</span>
+                    <span className="text-[10px] text-gray-500 font-bold">{formatDateTime(d.createdAt)}</span>
+                  </div>
+                  <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-[10px] font-black uppercase border border-amber-500/30">Pending Review</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="bg-emerald-500/10 rounded-lg p-2 text-center">
+                    <p className="text-[9px] text-emerald-400 font-black uppercase">Cash</p>
+                    <p className="text-sm font-black text-emerald-400">₨{(d.cashAmount || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-blue-500/10 rounded-lg p-2 text-center">
+                    <p className="text-[9px] text-blue-400 font-black uppercase">Online</p>
+                    <p className="text-sm font-black text-blue-400">₨{(d.onlineAmount || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-purple-500/10 rounded-lg p-2 text-center">
+                    <p className="text-[9px] text-purple-400 font-black uppercase">Total</p>
+                    <p className="text-sm font-black text-purple-400">₨{(d.totalAmount || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+                {d.reference && <p className="text-[10px] text-gray-400 font-bold mb-1">Ref: {d.reference}</p>}
+                {d.notes && <p className="text-[10px] text-gray-500 font-bold mb-2">Notes: {d.notes}</p>}
+                {rejectTarget === d.id ? (
+                  <div className="flex gap-2 mt-2">
+                    <input type="text" value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Rejection reason..."
+                      className="flex-1 px-3 py-2 rounded-xl bg-gray-900 border border-red-500/30 text-xs font-bold text-white outline-none" />
+                    <button onClick={handleRejectDeposit} disabled={!!depositActionLoading}
+                      className="px-3 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-black">Confirm</button>
+                    <button onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+                      className="px-3 py-2 bg-gray-700 text-white rounded-xl text-xs font-black">Cancel</button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => handleApproveDeposit(d.id)} disabled={!!depositActionLoading}
+                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all">
+                      {depositActionLoading === d.id ? 'Processing...' : 'Approve'}
+                    </button>
+                    <button onClick={() => setRejectTarget(d.id)} disabled={!!depositActionLoading}
+                      className="flex-1 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all">Reject</button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

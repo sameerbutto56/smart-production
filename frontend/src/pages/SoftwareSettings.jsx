@@ -68,11 +68,19 @@ const fmtDate = (d) => {
 };
 
 const DEFAULT_DELAY_CONFIG = {
-  VERIFICATION: 2, // 2 hours
-  STORE: 2,        // 2 hours
-  LOGO: 4,         // 4 hours
-  PRODUCTION: 10,  // 10 hours
-  DISPATCH: 4      // 4 hours
+  ORDER_ENTRY: 4,
+  VERIFICATION: 4,
+  STORE: 24,
+  STORE_RECEIVE: 12,
+  WORKERS: 24,
+  PRODUCTION_ACCEPTANCE: 4,
+  PRODUCTION: 48,
+  LOGO_DESIGN: 24,
+  DISPATCH: 12,
+  IN_DISPATCH: 24,
+  OUTLET_RECEIVE: 48,
+  ENAMELS_DELIVERY: 24,
+  OUT_FOR_DELIVERY: 12,
 };
 
 const SoftwareSettings = () => {
@@ -185,16 +193,19 @@ const SoftwareSettings = () => {
     try {
       const res = await api.get('/api/software-settings/delay-config');
       if (res.data) {
-        // Convert any legacy nested config format to new flat number format
+        // Convert any legacy nested config format to new flat number format;
+        // also include any extra keys stored by the backend (forward compat).
         const normalized = {};
-        Object.keys(DEFAULT_DELAY_CONFIG).forEach(k => {
-          const val = res.data[k];
+        const allKeys = new Set([...Object.keys(DEFAULT_DELAY_CONFIG), ...Object.keys(res.data)]);
+        allKeys.forEach(k => {
+          if (k === 'saved') return;
+          const val = res.data[k] ?? DEFAULT_DELAY_CONFIG[k];
           if (typeof val === 'number') {
             normalized[k] = val;
           } else if (val && typeof val.totalHours === 'number') {
             normalized[k] = val.totalHours;
           } else {
-            normalized[k] = DEFAULT_DELAY_CONFIG[k];
+            normalized[k] = DEFAULT_DELAY_CONFIG[k] || 24;
           }
         });
         setDelayConfig(normalized);
@@ -734,7 +745,7 @@ const SoftwareSettings = () => {
                 <Clock className="text-amber-400" /> Operational Phase Delay Configuration
               </h2>
               <p className="text-xs text-gray-400 mt-1">
-                Configure maximum allowed deadline hours for each operational department.
+                Configure maximum allowed working hours (9AM–7PM, Mon–Sat, Sundays excluded) for each operational phase. Delay is calculated only for time beyond the threshold.
               </p>
             </div>
             <button onClick={handleSaveDelayConfig} disabled={delaySaving || delayLoading}
@@ -751,11 +762,19 @@ const SoftwareSettings = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
+                { key: 'ORDER_ENTRY', title: 'Order Entry', color: 'from-slate-900/40 to-gray-900/40', border: 'border-slate-700/50' },
                 { key: 'VERIFICATION', title: 'Verification', color: 'from-purple-900/40 to-indigo-900/40', border: 'border-purple-700/50' },
                 { key: 'STORE', title: 'Store', color: 'from-blue-900/40 to-cyan-900/40', border: 'border-blue-700/50' },
-                { key: 'LOGO', title: 'Logo Department', color: 'from-amber-900/40 to-yellow-900/40', border: 'border-amber-700/50' },
+                { key: 'STORE_RECEIVE', title: 'Store Receive', color: 'from-sky-900/40 to-blue-900/40', border: 'border-sky-700/50' },
+                { key: 'WORKERS', title: 'Workers', color: 'from-teal-900/40 to-cyan-900/40', border: 'border-teal-700/50' },
+                { key: 'PRODUCTION_ACCEPTANCE', title: 'Production Acceptance', color: 'from-indigo-900/40 to-violet-900/40', border: 'border-indigo-700/50' },
                 { key: 'PRODUCTION', title: 'Production', color: 'from-orange-900/40 to-red-900/40', border: 'border-orange-700/50' },
+                { key: 'LOGO_DESIGN', title: 'Logo Design', color: 'from-amber-900/40 to-yellow-900/40', border: 'border-amber-700/50' },
                 { key: 'DISPATCH', title: 'Dispatch', color: 'from-emerald-900/40 to-teal-900/40', border: 'border-emerald-700/50' },
+                { key: 'IN_DISPATCH', title: 'In Dispatch', color: 'from-green-900/40 to-emerald-900/40', border: 'border-green-700/50' },
+                { key: 'OUTLET_RECEIVE', title: 'Outlet Receive', color: 'from-cyan-900/40 to-blue-900/40', border: 'border-cyan-700/50' },
+                { key: 'ENAMELS_DELIVERY', title: 'Enamels Delivery', color: 'from-pink-900/40 to-rose-900/40', border: 'border-pink-700/50' },
+                { key: 'OUT_FOR_DELIVERY', title: 'Out for Delivery', color: 'from-rose-900/40 to-red-900/40', border: 'border-rose-700/50' },
               ].map(phase => {
                 const current = delayConfig[phase.key] ?? DEFAULT_DELAY_CONFIG[phase.key];
                 return (

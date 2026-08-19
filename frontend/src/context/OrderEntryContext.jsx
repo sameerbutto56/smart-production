@@ -436,7 +436,12 @@ export const OrderEntryProvider = ({ children }) => {
           femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
           matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '', instructionNotes: '',
           shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
-          adjProductPrice: '', adjLogoCharges: '', adjNamePrinting: '', adjCustomization: '', adjCapCharges: '', adjDiscount: ''
+          adjProductPrice: found.financialSummary?.productPrice != null ? String(found.financialSummary.productPrice) : '',
+          adjLogoCharges: found.financialSummary?.logoCharges != null ? String(found.financialSummary.logoCharges) : '',
+          adjNamePrinting: found.financialSummary?.namePrinting != null ? String(found.financialSummary.namePrinting) : '',
+          adjCustomization: found.financialSummary?.customization != null ? String(found.financialSummary.customization) : '',
+          adjCapCharges: found.financialSummary?.cap != null ? String(found.financialSummary.cap) : '',
+          adjDiscount: found.financialSummary?.discount != null ? String(found.financialSummary.discount) : ''
         });
         let pd = [];
         try { pd = found.productDetails; }
@@ -552,7 +557,16 @@ export const OrderEntryProvider = ({ children }) => {
             advancePaid: formData.advancePaid, advanceAmount: parseFloat(formData.advanceAmount) || 0,
             paymentStatus: formData.paymentStatus || 'PENDING',
             items: finalItems, quantity: finalItems.reduce((s, i) => s + (i.quantity || 1), 0),
-            totalPrice: cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0),
+            totalPrice: (() => {
+                const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
+                const calcLogo = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
+                const calcName = cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
+                const calcCust = cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
+                const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
+                const beforeDelivery = calcProductPrice + calcLogo + calcName + calcCust + calcCap;
+                const calcDelivery = beforeDelivery > 7000 ? 0 : 250;
+                return (parseFloat(formData.adjProductPrice) || calcProductPrice) + (parseFloat(formData.adjLogoCharges) || calcLogo) + (parseFloat(formData.adjNamePrinting) || calcName) + (parseFloat(formData.adjCustomization) || calcCust) + (parseFloat(formData.adjCapCharges) || calcCap) + calcDelivery - (parseFloat(formData.adjDiscount) || 0);
+              })(),
             logoDesign: formData.logoDesign, logoName: formData.logoName,
             logoCharges: cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0),
             namePrintingCharges: cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0),
@@ -567,7 +581,26 @@ export const OrderEntryProvider = ({ children }) => {
               designNotes: formData.designNotes, designReference: formData.designReference,
               logos: logoEntries, engravingType: formData.engravingType || ''
             }),
-            instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null
+            instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null,
+            financialSummary: (() => {
+                const cp = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
+                const cl = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
+                const cn = cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
+                const cc = cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
+                const ca = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
+                const beforeDel = cp + cl + cn + cc + ca;
+                const cd = beforeDel > 7000 ? 0 : 250;
+                return {
+                  productPrice: parseFloat(formData.adjProductPrice) || cp,
+                  logoCharges: parseFloat(formData.adjLogoCharges) || cl,
+                  namePrinting: parseFloat(formData.adjNamePrinting) || cn,
+                  customization: parseFloat(formData.adjCustomization) || cc,
+                  cap: parseFloat(formData.adjCapCharges) || ca,
+                  delivery: cd,
+                  discount: parseFloat(formData.adjDiscount) || 0,
+                  total: (parseFloat(formData.adjProductPrice) || cp) + (parseFloat(formData.adjLogoCharges) || cl) + (parseFloat(formData.adjNamePrinting) || cn) + (parseFloat(formData.adjCustomization) || cc) + (parseFloat(formData.adjCapCharges) || ca) + cd - (parseFloat(formData.adjDiscount) || 0)
+                };
+              })()
           },
           reason: editReason
         };
@@ -777,7 +810,17 @@ export const OrderEntryProvider = ({ children }) => {
         instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || '',
         shopifyOrderDate: formData.shopifyOrderDate || null,
         placedBy: faisalEmp,
-        goForVerification
+        goForVerification,
+        financialSummary: {
+          productPrice: parseFloat(formData.adjProductPrice) || calcProductPrice,
+          logoCharges: parseFloat(formData.adjLogoCharges) || calcLogo,
+          namePrinting: parseFloat(formData.adjNamePrinting) || calcName,
+          customization: parseFloat(formData.adjCustomization) || calcCustomization,
+          cap: parseFloat(formData.adjCapCharges) || calcCap,
+          delivery: calcDelivery,
+          discount: parseFloat(formData.adjDiscount) || 0,
+          total: adjTotal
+        }
       });
       setCartItems([]); setSuccess(true);
       resetFormData();

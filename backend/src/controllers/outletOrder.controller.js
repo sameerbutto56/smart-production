@@ -3,6 +3,7 @@ const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const bcrypt = require('bcryptjs');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
+const { recordAssignment } = require('./tahirSheet.controller');
 const { createAuditLog } = require('./order-helpers');
 
 const getOutletName = (req) => {
@@ -697,45 +698,67 @@ const generateInvoiceNumberEndpoint = async (req, res) => {
   }
 };
 
+const getTrackingStatus = (order) => {
+  if (!order) return 'ORDER_ENTRY';
+  if (order.currentStage === 'CANCELLED' || order.status === 'CANCELLED') return 'CANCELLED';
+  if (!order.goForVerification) return order.currentStage || 'ORDER_ENTRY';
+  if (order.verifiedAt) return order.currentStage;
+  if (order.verificationReturnedAt) return 'RETURNED_FROM_VERIFICATION';
+  return 'VERIFICATION';
+};
+
 const trackOrder = async (req, res) => {
   try {
     const query = (req.params.query || '').trim();
     if (!query) return res.status(400).json({ message: 'Order number or invoice number is required' });
 
-    // Try exact match on orderNumber first
-    let order = await prisma.order.findUnique({
-      where: { orderNumber: query },
-      include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } }
-    });
+    const bareNumber = query.replace(/^#/, '');
+    const orderInclude = { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } };
 
-    // Try exact match on invoiceNumber
-    if (!order) {
-      order = await prisma.order.findUnique({
-        where: { invoiceNumber: query },
-        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } }
-      });
+    // Step 1: Exact orderNumber match (with # prefix tolerance)
+    let order = await prisma.order.findUnique({ where: { orderNumber: query }, include: orderInclude });
+    if (!order && bareNumber !== query) {
+      order = await prisma.order.findUnique({ where: { orderNumber: `#${bareNumber}` }, include: orderInclude });
+    }
+    if (!order && /^\d/.test(bareNumber)) {
+      order = await prisma.order.findUnique({ where: { orderNumber: bareNumber }, include: orderInclude });
     }
 
-    // Fallback: contains search on orderNumber
+    // Step 2: Exact invoiceNumber match
     if (!order) {
-      const matches = await prisma.order.findMany({
-        where: { orderNumber: { contains: query } },
-        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 1
-      });
-      order = matches[0] || null;
+      order = await prisma.order.findUnique({ where: { invoiceNumber: query }, include: orderInclude });
     }
 
-    // Fallback: contains search on invoiceNumber
+    // Step 3: Contains fallback across orderNumber, invoiceNumber, customerPhone, customerName
     if (!order) {
       const matches = await prisma.order.findMany({
-        where: { invoiceNumber: { contains: query } },
-        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } },
+        where: {
+          OR: [
+            { orderNumber: { contains: query, mode: 'insensitive' } },
+            { invoiceNumber: { contains: query, mode: 'insensitive' } },
+            { customerPhone: { contains: query } },
+            { customerName: { contains: query, mode: 'insensitive' } }
+          ]
+        },
+        include: orderInclude,
         orderBy: { createdAt: 'desc' },
-        take: 1
+        take: 20
       });
-      order = matches[0] || null;
+
+      if (matches.length === 1) {
+        order = matches[0];
+      } else if (matches.length > 1) {
+        return res.json({
+          multiple: true,
+          results: matches.map(o => ({
+            id: o.id, orderNumber: o.orderNumber, invoiceNumber: o.invoiceNumber,
+            customerName: o.customerName, customerPhone: o.customerPhone,
+            status: o.status, currentStage: o.currentStage,
+            trackingStatus: getTrackingStatus(o),
+            totalPrice: o.totalPrice, createdAt: o.createdAt, source: o.source
+          }))
+        });
+      }
     }
 
     if (!order) return res.status(404).json({ message: 'Order not found' });
@@ -1247,6 +1270,11 @@ const outletRouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
+
+    // Record delivery assignment for Tahir Sheet
+    if (destinationStage === 'ENAMELS_DELIVERY') {
+      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
+    }
 
     // Notify destination role
     const destRole = action === 'sendToOutlet' ? 'OUTLET' : (action === 'sendToEnamelsDelivery' ? 'DELIVERY_BOY' : (action === 'sendToLogo' ? 'LOGO_DESIGN' : 'PRODUCTION'));

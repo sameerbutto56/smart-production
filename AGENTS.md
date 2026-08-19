@@ -480,6 +480,21 @@
 ### Blocked
 - (none)
 
+### Implemented This Session — Financial Summary Edit Amount Persistence (full-stack) + Faisal Awaited Form Fix
+- **Requirement 1**: Make the Financial Summary Edit Amount in OrderEntry actually editable and persist the user's final intended total to the database, then use it as the authoritative total throughout the order lifecycle.
+- **Requirement 2**: Fix Faisal Replacements Awaited form disappearing when opening an existing awaiting case.
+- **Schema** (`backend/prisma/schema.prisma`): `Order` gained `financialSummary Json?` at L175. `npx prisma generate` + `npx prisma db push` synced live.
+- **Backend `createOrder`** (`order.controller.js` L389-454): accepts `financialSummary` from body; computes `effectiveTotalPrice = financialSummary.total || finalTotalPrice` when present; `prisma.order.create` uses `effectiveTotalPrice` as `totalPrice`; stores `financialSummary` on the Order record.
+- **Backend `approveEditRequest`** (`editRequest.controller.js` L321-328): when `financialSummary.total` present, uses it as effective `totalPrice` on the order; stores `financialSummary` on Order.
+- **Backend `resubmitFromVerification`** (`verification.controller.js` L308-315): accepts `financialSummary`; `financialSummary.total` overrides `payload.totalPrice`.
+- **Frontend `handleCheckout`** (`OrderEntryContext.jsx` L744-769): sends full `financialSummary` object with `productPrice`, `logoCharges`, `namePrinting`, `customization`, `cap`, `delivery`, `discount`, `total` (adjTotal).
+- **Frontend `submitOrderEditRequest`** (`OrderEntryContext.jsx` L536+): `totalPrice` in requestedChanges computed from adj* values; `financialSummary` object included.
+- **Frontend order edit prefill** (`OrderEntryContext.jsx` L439): loads `adj*` formData fields from `found.financialSummary` with null-safe fallback.
+- **Frontend `OrderEntry.jsx`**: Financial Summary `inp()` helper always renders editable inputs (read-only removed); `adjTotal` computed as `adjProductPrice + adjLogoCharges + adjNamePrinting + adjCustomization + adjCapCharges + adjDelivery - adjDiscount` (clamped ≥0).
+- **Faisal Awaited form fix** (`FaisalReplacements.jsx` L850): changed `{!hasAwaitingCase && (<>)` → `{(!hasAwaitingCase || editingCase) && (<>)}` so form renders when `editingCase` is set even when `hasAwaitingCase` is true.
+- **Outlet orders excluded**: `createOutletOrder` does NOT need `financialSummary` support — the Financial Summary edit UI only exists in Faisal/Online order entry.
+- **Verification**: `node --check` OK on all 3 controllers; `node -e require` OK (order controller: `LOAD OK` with 47 exports); `npm run build` EXIT=0 (3175 modules, 1m 16s). Deployed `dpl_Eg5kDjeu3FvTjWQ9v81XtAEcSdU7` + re-aliased `smart-production-v2.vercel.app`; live health 200; app serves (no SSO intercept); deployed `OrderEntry-CAvgtYDf.js` contains `financialSummary`; `FaisalReplacements-Cw4ZzJPT.js` contains `editingCase`; `/api/orders` 401 auth-guarded.
+
 ### Implemented This Session â€” Order Tracking (locate) + Order Control (manual transactional re-route) under Software Settings (commits `24a2b46` + `a631143`)
 - **Requirement**: Add an **Order Tracking** module (locate an order's exact queue location by order # / invoice # / customer name) and an **Order Control** module (manual transactional re-route with reason) under **Software Settings**. Follow the established `softwareSettings.routes.js` convention (company-office check, profile bucket re-key, final summary find, terse comments, `console.error` logging). Re-route must be ONE atomic transaction: complete current stage, create new stage (PENDING, prevStage=source, destStage=target), reset destination-profile seen-tasks, write routing history + audit log, notify destination profile. Store/Logo non-admitted destinations always override to `PRODUCTION_ACCEPTANCE`. Terminal orders (cancelled/completed/rejected) cannot be re-routed.
 - **Backend** (`backend/src/controllers/orderControl.controller.js` + `backend/src/routes/orderControl.routes.js`, mounted at `/api/order-control` in `backend/src/app.js`):

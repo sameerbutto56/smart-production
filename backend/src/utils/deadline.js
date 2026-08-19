@@ -15,7 +15,7 @@ const calculateDeadline = (startDate, durationHours) => {
   let remainingHours = durationHours;
 
   const WORK_START = 9;  // 9:00 AM Pakistan Time
-  const WORK_END = 20;   // 8:00 PM Pakistan Time
+  const WORK_END = 19;   // 7:00 PM Pakistan Time
 
   const addDaysUTC = (date, days) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
   const setHoursUTC = (date, hours) => {

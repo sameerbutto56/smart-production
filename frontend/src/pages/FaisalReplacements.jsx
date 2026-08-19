@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
-import { Package, RefreshCw, CheckCircle, XCircle, Eye, Search, Plus, Trash2, Send, FileText, RotateCcw, Clock } from 'lucide-react';
+import { Package, RefreshCw, CheckCircle, XCircle, Eye, Search, Plus, Trash2, Send, FileText, RotateCcw, Clock, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -60,17 +60,15 @@ const FaisalReplacements = ({ refreshKey }) => {
   const [processingId, setProcessingId] = useState(null);
   const [notes, setNotes] = useState({});
 
-  // Track by original or REP- order number
-  const [trackQuery, setTrackQuery] = useState('');
-  const [trackLoading, setTrackLoading] = useState(false);
-  const [trackData, setTrackData] = useState(null);
-  const [trackError, setTrackError] = useState('');
+  // Track by original or REP- order number (unified with search above)
 
-  // Hub: search original order
+  // Unified search — searches both track AND order lookup in parallel
   const [search, setSearch] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [orderFound, setOrderFound] = useState(null);
+  const [trackData, setTrackData] = useState(null);
   const [searchError, setSearchError] = useState('');
+  const [searchTab, setSearchTab] = useState(null); // null = idle, 'order' = found order, 'track' = found timeline
 
   // Create replacement form
   const [showCreate, setShowCreate] = useState(false);
@@ -78,6 +76,10 @@ const FaisalReplacements = ({ refreshKey }) => {
   const [returnReason, setReturnReason] = useState('');
   const [newItems, setNewItems] = useState([newItemRow()]);
   const [creating, setCreating] = useState(false);
+  const [overrideExisting, setOverrideExisting] = useState(false);
+
+  // Editing an existing awaiting case (opens the create modal pre-filled)
+  const [editingCase, setEditingCase] = useState(null);
 
   const fetchCases = useCallback(async () => {
     setLoading(true);
@@ -90,42 +92,133 @@ const FaisalReplacements = ({ refreshKey }) => {
 
   useEffect(() => { fetchCases(); }, [fetchCases, refreshKey]);
 
-  const lookupOrder = async () => {
+  // Unified search: tries order lookup and track replacement in parallel
+  const handleSearch = async () => {
     const q = search.trim();
     if (!q) return;
     setSearchLoading(true);
     setSearchError('');
     setOrderFound(null);
-    try {
-      const res = await api.get(`/api/return-exchange/lookup/${encodeURIComponent(q)}`);
-      setOrderFound(res.data);
-    } catch (err) {
-      setSearchError(err.response?.data?.message || 'Order not found');
+    setTrackData(null);
+    setSearchTab(null);
+
+    const isRep = q.toUpperCase().startsWith('REP-');
+    const [orderRes, trackRes] = await Promise.allSettled([
+      api.get(`/api/return-exchange/lookup/${encodeURIComponent(q)}`),
+      isRep ? api.get(`/api/return-exchange/track/${encodeURIComponent(q)}`) : Promise.resolve(null)
+    ]);
+
+    if (orderRes.status === 'fulfilled') {
+      setOrderFound(orderRes.value.data);
+      setSearchTab('order');
+    } else if (trackRes.status === 'fulfilled' && trackRes.value?.data) {
+      setTrackData(trackRes.value.data);
+      setSearchTab('track');
+    } else {
+      setSearchError(
+        orderRes.status === 'rejected'
+          ? orderRes.reason?.response?.data?.message || 'Order not found'
+          : 'No results found'
+      );
     }
     setSearchLoading(false);
-  };
-
-  const trackReplacement = async () => {
-    const q = trackQuery.trim();
-    if (!q) return;
-    setTrackLoading(true);
-    setTrackError('');
-    setTrackData(null);
-    try {
-      const res = await api.get(`/api/return-exchange/track/${encodeURIComponent(q)}`);
-      setTrackData(res.data);
-    } catch (err) {
-      setTrackError(err.response?.data?.message || 'No replacement found for this reference');
-    }
-    setTrackLoading(false);
   };
 
   const openCreate = () => {
     setSpecialNote('');
     setReturnReason('');
     setNewItems([newItemRow()]);
+    setOverrideExisting(false);
+    setEditingCase(null);
     setShowCreate(true);
   };
+
+  // Open the create modal pre-filled with an awaiting case's data so Faisal can
+  // edit the replacement items/notes/reason before sending to Store.
+  const openEditCase = (c) => {
+    setEditingCase(c);
+    setSpecialNote(c.specialNote || '');
+    setReturnReason(c.returnReason || '');
+    setOverrideExisting(false);
+
+    // Pre-fill replacement items from the case
+    const existingItems = parseItems(c.replacementItems);
+    if (existingItems.length > 0) {
+      setNewItems(existingItems.map(it => ({
+        name: it.name || it.productName || '',
+        productType: it.productType || it.name || '',
+        color: it.color || '',
+        size: it.size || '',
+        quantity: it.quantity || 1,
+        unitPrice: it.unitPrice || '',
+        fabricType: it.fabricType || '',
+        gender: it.gender || 'Male',
+        sleeveLength: it.sleeveLength || 'full',
+        shirtLength: it.shirtLength || 'long',
+        matchingCap: !!it.matchingCap,
+        matchingCapQty: it.matchingCapQty || 0,
+        notes: it.notes || '',
+        measurements: it.measurements || '',
+        engravingRequired: it.engravingRequired === 'yes' ? 'yes' : 'skip',
+        engravingLines: (it.engravingLines || []).length > 0 ? it.engravingLines : [{ type: 'direct', name: '', designNotes: '' }]
+      })));
+    } else {
+      setNewItems([newItemRow()]);
+    }
+
+    // We need the original order loaded to show original items in the modal.
+    // Load it via the case's orderId.
+    if (c.orderId && !orderFound) {
+      setSearchLoading(true);
+      api.get(`/api/return-exchange/lookup/${encodeURIComponent(c.orderNumber || c.id)}`)
+        .then(res => setOrderFound(res.data))
+        .catch(() => {})
+        .finally(() => setSearchLoading(false));
+    }
+
+    setShowCreate(true);
+  };
+
+  // Send edited items to Store for an existing awaiting case (no initiate — just update + send)
+  const sendEditedToStore = async () => {
+    if (!editingCase) return;
+    if (!returnReason.trim()) { toast.error('A replacement reason is required'); return; }
+    const validItems = buildItems();
+    if (validItems.length === 0) { toast.error('Add at least one replacement product with a name'); return; }
+
+    setCreating(true);
+    try {
+      // Update the case's special note and replacement items before sending
+      await api.post(`/api/return-exchange/${editingCase.id}/send-to-store`, {
+        replacementItems: validItems,
+        replacementSummary: {
+          originalItems: parseItems(editingCase.originalProducts).map((item, i) => {
+            const pd = item.productDetails || item;
+            return { index: i + 1, name: pd.name || pd.productType || '', color: pd.color || '', size: pd.size || '', quantity: item.quantity || 1 };
+          }),
+          newItems: validItems.map(it => ({ name: it.name, color: it.color, size: it.size, quantity: it.quantity, notes: it.notes })),
+          notes: specialNote,
+          returnReason,
+          createdBy: 'Faisal',
+          createdAt: new Date().toISOString()
+        }
+      });
+      toast.success('Replacement order created and sent to Store');
+      setShowCreate(false);
+      setEditingCase(null);
+      setOrderFound(null);
+      setSearch('');
+      await fetchCases();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send to Store');
+    }
+    setCreating(false);
+  };
+
+  const awaitingCase = (orderFound?.returnExchangeCases || []).find(c =>
+    c.type === 'REPLACEMENT' && c.status === 'PENDING' && c.routedTo === 'FAISAL' && !c.replacementOrderId
+  );
+  const hasAwaitingCase = !!awaitingCase && !overrideExisting;
 
   const updateItem = (idx, field, value) => {
     setNewItems(prev => prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
@@ -217,8 +310,7 @@ const FaisalReplacements = ({ refreshKey }) => {
     const awaitingCase = (orderFound.returnExchangeCases || []).find(c =>
       c.type === 'REPLACEMENT' && c.status === 'PENDING' && c.routedTo === 'FAISAL' && !c.replacementOrderId
     );
-    if (awaitingCase) {
-      toast.error('This order already has a replacement awaiting your review. Open that case instead of creating a new one.');
+    if (awaitingCase && !overrideExisting) {
       return;
     }
 
@@ -443,7 +535,8 @@ const FaisalReplacements = ({ refreshKey }) => {
   };
 
   return (
-    <div className="space-y-4 md:space-y-8 pb-20 px-4">
+    <div className="space-y-4 md:space-y-6 pb-20 px-4">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6">
         <div className="flex items-center space-x-4">
           <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-900/20 -rotate-2">
@@ -461,25 +554,85 @@ const FaisalReplacements = ({ refreshKey }) => {
         </div>
       </div>
 
-      {/* Track by original or REP- order number */}
-      <div className="theme-bg-subtle border-2 border-emerald-500/30 rounded-2xl p-4 md:p-5">
+      {/* Unified Search */}
+      <div className="theme-bg-subtle border-2 theme-border rounded-2xl p-4 md:p-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="p-2 rounded-xl bg-emerald-500/20"><RotateCcw size={18} className="text-emerald-400" /></div>
+          <div className="p-2 rounded-xl bg-blue-500/20"><Search size={18} className="text-blue-400" /></div>
           <div className="flex-1 min-w-[200px]">
             <input
-              value={trackQuery}
-              onChange={e => setTrackQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') trackReplacement(); }}
-              placeholder="Track by Original Order # (JT-123456) or Replacement Order # (REP-123456)..."
-              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-500"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+              placeholder="Search by Order #, Invoice #, Phone, Customer Name, or REP-# to track..."
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-500"
             />
           </div>
-          <button onClick={trackReplacement} disabled={trackLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
-            <Search size={14} /> {trackLoading ? 'Tracking...' : 'Track'}
+          <button onClick={handleSearch} disabled={searchLoading}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-5 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
+            <Search size={14} /> {searchLoading ? 'Searching...' : 'Search'}
           </button>
         </div>
-        {trackError && <p className="text-xs text-red-400 font-bold mt-3">⚠ {trackError}</p>}
-        {trackData && <div className="mt-4"><RenderTrackTimeline data={trackData} /></div>}
+
+        {searchError && <p className="text-xs text-red-400 font-bold mt-3">⚠ {searchError}</p>}
+
+        {/* Tracking Result */}
+        {trackData && searchTab === 'track' && (
+          <div className="mt-4">
+            <RenderTrackTimeline data={trackData} />
+          </div>
+        )}
+
+        {/* Order Lookup Result */}
+        {orderFound && searchTab === 'order' && (
+          <div className="mt-4 bg-gray-900 border border-blue-500/30 rounded-xl p-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-black text-white">#{orderFound.orderNumber || 'N/A'}</span>
+                  {orderFound.invoiceNumber && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">{orderFound.invoiceNumber}</span>}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">{orderFound.source}</span>
+                </div>
+                <p className="text-xs theme-text-secondary mt-1">{orderFound.customerName} • {orderFound.customerPhone} • {orderFound.city || ''}</p>
+                <p className="text-[10px] theme-text-muted mt-0.5">Stage: {orderFound.currentStage} • {orderFound.status} • Total: PKR {(orderFound.totalPrice || 0).toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* Existing cases */}
+            {(orderFound.returnExchangeCases || []).length > 0 && (
+              <div className="mt-3">
+                <p className="text-[10px] font-black theme-text-muted uppercase mb-1.5">Existing Cases</p>
+                <div className="space-y-1.5">
+                  {orderFound.returnExchangeCases.map(c => (
+                    <div key={c.id} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">{c.type}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE(c.status)}`}>{c.status.replace(/_/g, ' ')}</span>
+                      </div>
+                      {c.status === 'PENDING' && c.routedTo === 'FAISAL' && !c.replacementOrderId && (
+                        <button onClick={() => { setShowCreate(false); openEditCase(c); }}
+                          className="bg-blue-600 hover:bg-blue-500 text-white font-black py-1.5 px-3 rounded-lg text-[10px] flex items-center gap-1">
+                          <Pencil size={11} /> Edit & Send
+                        </button>
+                      )}
+                      {c.status === 'PENDING' && c.routedTo === 'FAISAL' && !c.replacementOrderId && (
+                        <button onClick={() => { setOverrideExisting(false); setShowCreate(false); sendToStore(c); }}
+                          disabled={processingId === c.id}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-1.5 px-3 rounded-lg text-[10px] flex items-center gap-1 disabled:opacity-50">
+                          <Send size={11} /> Send to Store
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button onClick={openCreate}
+              className="mt-3 bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1">
+              <Plus size={14} /> Create New Replacement
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -496,80 +649,6 @@ const FaisalReplacements = ({ refreshKey }) => {
             <p className="text-[10px] theme-text-muted uppercase font-black">{s.label}</p>
           </div>
         ))}
-      </div>
-
-      {/* Search original order */}
-      <div className="theme-bg-subtle border-2 theme-border rounded-2xl p-4 md:p-5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="p-2 rounded-xl bg-blue-500/20"><Search size={18} className="text-blue-400" /></div>
-          <div className="flex-1 min-w-[200px]">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') lookupOrder(); }}
-              placeholder="Search original Order # / Invoice # / Phone..."
-              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-500"
-            />
-          </div>
-          <button onClick={lookupOrder} disabled={searchLoading} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
-            <Search size={14} /> {searchLoading ? 'Searching...' : 'Load Order'}
-          </button>
-        </div>
-
-        {searchError && <p className="text-xs text-red-400 font-bold mt-3">⚠ {searchError}</p>}
-
-        {orderFound && (
-          <div className="mt-4 bg-gray-900 border border-blue-500/30 rounded-xl p-4">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-black text-white">#{orderFound.orderNumber || 'N/A'}</span>
-                  {orderFound.invoiceNumber && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">{orderFound.invoiceNumber}</span>}
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">{orderFound.source}</span>
-                </div>
-                <p className="text-xs theme-text-secondary mt-1">{orderFound.customerName} • {orderFound.customerPhone} • {orderFound.city || ''}</p>
-                <p className="text-[10px] theme-text-muted mt-0.5">Stage: {orderFound.currentStage} • {orderFound.status} • Total: PKR {(orderFound.totalPrice || 0).toLocaleString()}</p>
-              </div>
-              <button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1">
-                <Plus size={14} /> Create Replacement
-              </button>
-            </div>
-
-            <div className="mt-3 grid md:grid-cols-2 gap-3">
-              <div>
-                <p className="text-[10px] font-black theme-text-muted uppercase mb-1.5">Original Order Items</p>
-                <div className="space-y-1.5">
-                  {parseItems(orderFound.productDetails).map((item, i) => {
-                    const pd = item.productDetails || item;
-                    const sizeData = parseJSON(orderFound.sizeData);
-                    return (
-                      <div key={i} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs">
-                        <p className="font-bold text-white">{pd.name || pd.productType || 'Product'}</p>
-                        <p className="text-gray-500 text-[10px]">{pd.color || ''} {pd.size || ''} × {item.quantity || 1}</p>
-                        {sizeData && <p className="text-gray-500 text-[9px] mt-0.5">Measurements: {Object.entries(sizeData).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <p className="text-[10px] font-black theme-text-muted uppercase mb-1.5">Existing Cases for this Order</p>
-                <div className="space-y-1.5">
-                  {(orderFound.returnExchangeCases || []).length === 0 ? (
-                    <p className="text-xs text-gray-600">No previous cases</p>
-                  ) : (
-                    orderFound.returnExchangeCases.map(c => (
-                      <div key={c.id} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs flex items-center justify-between">
-                        <span className="font-bold text-white">{c.type}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE(c.status)}`}>{c.status.replace(/_/g, ' ')}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Filter chips */}
@@ -602,51 +681,96 @@ const FaisalReplacements = ({ refreshKey }) => {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(c => (
-            <div key={c.id} className="theme-bg-subtle border-2 theme-border rounded-2xl p-4 md:p-5">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-black theme-text-primary">#{c.orderNumber || 'N/A'}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE(c.status)}`}>{c.status.replace(/_/g, ' ')}</span>
-                    {c.routedTo === 'FAISAL' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">Awaiting Faisal</span>}
-                    {c.replacementOrderInfo && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
-                        Replacement: {c.replacementOrderInfo.orderNumber} • {c.replacementOrderInfo.currentStage}
-                      </span>
-                    )}
-                    {c.originalRestocked && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">Original Restocked</span>}
+          {filtered.map(c => {
+            const isAwaiting = c.status === 'PENDING' && c.routedTo === 'FAISAL' && !c.replacementOrderId;
+            const origItems = parseItems(c.originalProducts);
+            const repItems = parseItems(c.replacementItems);
+            const expanded = expandedId === c.id;
+
+            return (
+              <div key={c.id} className={`theme-bg-subtle border-2 rounded-2xl overflow-hidden transition-all ${isAwaiting ? 'border-orange-500/40' : 'theme-border'}`}>
+                {/* Card Header — always visible */}
+                <div className="p-4 md:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      {/* Status row */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-black theme-text-primary">#{c.orderNumber || 'N/A'}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE(c.status)}`}>{c.status.replace(/_/g, ' ')}</span>
+                        {isAwaiting && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 animate-pulse">Needs Review</span>}
+                        {c.replacementOrderInfo && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                            REP: {c.replacementOrderInfo.orderNumber} → {c.replacementOrderInfo.currentStage}
+                          </span>
+                        )}
+                      </div>
+                      {/* Customer + meta */}
+                      <p className="text-xs theme-text-secondary mt-1">
+                        {c.customerName} • {c.customerPhone} • {fmtDateTime(c.createdAt)}
+                      </p>
+                      {/* Reason — one line */}
+                      {c.returnReason && (
+                        <p className="text-xs text-amber-400 mt-1 font-bold truncate">Reason: {c.returnReason}</p>
+                      )}
+                      {/* Original → Replacement summary — one line each */}
+                      {origItems.length > 0 && (
+                        <p className="text-[10px] theme-text-muted mt-1">
+                          <span className="font-bold">Original:</span> {origItems.map((it, i) => { const pd = it.productDetails || it; return `${pd.name || pd.productType || ''} ${pd.color || ''}`.trim(); }).filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                      {repItems.length > 0 && (
+                        <p className="text-[10px] text-blue-400 mt-0.5">
+                          <span className="font-bold">Replacement:</span> {repItems.map(it => `${it.name || it.productName || ''} ${it.color || ''}`.trim()).filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {isAwaiting ? (
+                        <>
+                          <button onClick={() => openEditCase(c)}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1">
+                            <Pencil size={13} /> Edit & Send
+                          </button>
+                          <button onClick={() => setExpandedId(expanded ? null : c.id)}
+                            className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1">
+                            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setExpandedId(expanded ? null : c.id)}
+                          className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1">
+                          <Eye size={14} /> {expanded ? 'Hide' : 'Details'}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs theme-text-secondary mt-0.5">{c.customerName} • {c.customerPhone}</p>
-                  {c.returnReason && <p className="text-xs text-amber-400 mt-1 font-bold">Reason: {c.returnReason}</p>}
-                  {c.specialNote && (
-                    <p className="text-xs text-purple-400 mt-1 font-bold border-l-2 border-purple-500 pl-2">Special Note: {c.specialNote}</p>
-                  )}
-                  <p className="text-[10px] theme-text-muted mt-0.5">Initiated by {c.handledBy} • {fmtDateTime(c.createdAt)}</p>
-                  {c.faisalApprovedAt && <p className="text-[10px] text-emerald-400 mt-0.5">Approved & sent to Store: {c.faisalApprovedBy} on {fmtDateTime(c.faisalApprovedAt)}</p>}
                 </div>
-                <button onClick={() => setExpandedId(expandedId === c.id ? null : c.id)} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1">
-                  <Eye size={14} /> {expandedId === c.id ? 'Hide' : 'Details'}
-                </button>
-              </div>
 
-              {expandedId === c.id && (
-                <div className="mt-4 space-y-3">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[10px] font-black theme-text-muted uppercase mb-2">Original Items</p>
-                      {renderOriginal(c)}
+                {/* Expanded Details */}
+                {expanded && (
+                  <div className="border-t border-gray-700/50 p-4 md:p-5 bg-gray-900/30 space-y-3">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[10px] font-black theme-text-muted uppercase mb-2">Original Items</p>
+                        {renderOriginal(c)}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black theme-text-muted uppercase mb-2">Replacement Items</p>
+                        {renderReplacement(c)}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black theme-text-muted uppercase mb-2">Replacement Items</p>
-                      {renderReplacement(c)}
-                    </div>
-                  </div>
-                  {renderSummary(c)}
+                    {renderSummary(c)}
+                    {c.specialNote && (
+                      <p className="text-xs text-purple-400 font-bold border-l-2 border-purple-500 pl-2">Note: {c.specialNote}</p>
+                    )}
+                    {c.faisalApprovedAt && (
+                      <p className="text-[10px] text-emerald-400">Approved by {c.faisalApprovedBy} on {fmtDateTime(c.faisalApprovedAt)}</p>
+                    )}
 
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {c.status === 'PENDING' && c.routedTo === 'FAISAL' && !c.replacementOrderId && (
-                      <>
+                    {isAwaiting && (
+                      <div className="flex flex-wrap gap-2 pt-1">
                         <button onClick={() => sendToStore(c)} disabled={processingId === c.id}
                           className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
                           <Send size={14} /> Send to Store — Create Order
@@ -655,160 +779,218 @@ const FaisalReplacements = ({ refreshKey }) => {
                           className="bg-red-600 hover:bg-red-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
                           <XCircle size={14} /> Reject
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Create Replacement modal */}
-      {showCreate && orderFound && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
+      {/* Create / Edit Modal */}
+      {showCreate && (orderFound || editingCase) && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => { setShowCreate(false); setEditingCase(null); }}>
           <div className="theme-bg-subtle border-2 theme-border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-blue-500/20"><FileText size={18} className="text-blue-400" /></div>
+                <div className={`p-2 rounded-xl ${editingCase ? 'bg-orange-500/20' : 'bg-blue-500/20'}`}>
+                  {editingCase ? <Pencil size={18} className="text-orange-400" /> : <FileText size={18} className="text-blue-400" />}
+                </div>
                 <div>
-                  <h2 className="text-lg font-black theme-text-primary">Create Replacement</h2>
-                  <p className="text-xs theme-text-muted">#{orderFound.orderNumber} — {orderFound.customerName}</p>
+                  <h2 className="text-lg font-black theme-text-primary">{editingCase ? 'Edit & Send Replacement' : 'Create Replacement'}</h2>
+                  <p className="text-xs theme-text-muted">#{editingCase?.orderNumber || orderFound?.orderNumber || '...'} — {editingCase?.customerName || orderFound?.customerName || 'Loading...'}</p>
                 </div>
               </div>
-              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-white font-black text-xl">&times;</button>
+              <button onClick={() => { setShowCreate(false); setEditingCase(null); }} className="text-gray-500 hover:text-white font-black text-xl">&times;</button>
             </div>
 
-            <div>
-              <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Replacement Reason <span className="text-red-400">*</span></label>
-              <input value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="Why is this order being replaced? (required)"
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+            {/* Editing Banner */}
+            {editingCase && (
+              <div className="bg-orange-500/10 border-2 border-orange-500/40 rounded-xl p-3 flex items-center gap-3">
+                <Pencil size={16} className="text-orange-400 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-black text-orange-400">Editing Awaiting Case</p>
+                  <p className="text-[10px] text-gray-400">Update replacement products, reason, or notes — then send to Store</p>
+                </div>
+              </div>
+            )}
+
+            {/* Existing Awaiting Case Banner — when creating NEW and order has an awaiting case */}
+            {hasAwaitingCase && (!editingCase || awaitingCase.id !== editingCase.id) && (
+              <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <RotateCcw size={16} className="text-amber-400" />
+                  <p className="text-sm font-black text-amber-400">Existing Replacement Case Found</p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE(awaitingCase.status)}`}>{awaitingCase.status.replace(/_/g, ' ')}</span>
+                </div>
+                {awaitingCase.specialNote && <p className="text-xs text-purple-400 font-bold border-l-2 border-purple-500 pl-2">Special Note: {awaitingCase.specialNote}</p>}
+                {awaitingCase.returnReason && <p className="text-xs text-amber-400 font-bold">Reason: {awaitingCase.returnReason}</p>}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button onClick={async () => { setOverrideExisting(false); setShowCreate(false); await sendToStore(awaitingCase); }}
+                    disabled={processingId === awaitingCase.id}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-5 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
+                    <Send size={14} /> Send to Store — Create Order
+                  </button>
+                  <button onClick={() => { openEditCase(awaitingCase); setOverrideExisting(false); }}
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1">
+                    <Pencil size={14} /> Edit & Send
+                  </button>
+                  <button onClick={() => setOverrideExisting(true)}
+                    className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1">
+                    <Plus size={14} /> New Replacement Anyway
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Create Form — shown when no awaiting case, OR user chose override, OR editing an existing case */}
+            {(!hasAwaitingCase || editingCase) && (<>
+            {/* Step 1: Reason + Notes */}
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+              <p className="text-[10px] font-black text-gray-400 uppercase mb-3">1 — Reason & Notes</p>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Replacement Reason <span className="text-red-400">*</span></label>
+                  <input value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="Why is this order being replaced? (required)"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Special Note (optional)</label>
+                  <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2}
+                    placeholder="Additional instructions for Store (optional)"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500 resize-none" />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Special Note (optional)</label>
-              <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2}
-                placeholder="Additional instructions/information (optional)"
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500 resize-none" />
-            </div>
-
-            {/* Original Order Details */}
-            <div className="bg-gray-900 border border-gray-700 rounded-xl p-3">
-              <p className="text-[10px] font-black text-gray-400 uppercase mb-2">Original Order Details (read-only)</p>
-              <div className="space-y-1.5">
+            {/* Step 2: Original Order (read-only) */}
+            {orderFound && (
+            <details className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden" open>
+              <summary className="px-4 py-3 cursor-pointer select-none flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase">
+                <ChevronRight size={14} className="transform transition-transform group-open:rotate-90" />
+                2 — Original Order Details
+              </summary>
+              <div className="px-4 pb-3 space-y-1.5">
                 {parseItems(orderFound.productDetails).map((item, i) => {
                   const pd = item.productDetails || item;
                   return (
-                    <div key={i} className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2 text-xs">
-                      <p className="font-bold text-white">{pd.name || pd.productType || 'Product'}</p>
-                      <p className="text-gray-500 text-[10px]">
-                        {pd.color || ''} {pd.size || ''} × {item.quantity || 1}
-                        {pd.fabricType && <span> • {pd.fabricType}</span>}
-                        {pd.gender && <span> • {pd.gender}</span>}
-                      </p>
-                      {(pd.sleeveLength || pd.shirtLength) && <p className="text-gray-500 text-[9px]">Sleeve: {pd.sleeveLength || '—'} • Length: {pd.shirtLength || '—'}</p>}
+                    <div key={i} className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2 text-xs flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-white">{pd.name || pd.productType || 'Product'}</p>
+                        <p className="text-gray-500 text-[10px]">{pd.color || ''} {pd.size || ''} × {item.quantity || 1}{pd.fabricType ? ` • ${pd.fabricType}` : ''}{pd.gender ? ` • ${pd.gender}` : ''}</p>
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </details>
+            )}
 
-            {/* Replacement Details */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[10px] font-black theme-text-muted uppercase">New Replacement Product(s) — Full Details</p>
+            {/* Step 3: Replacement Products */}
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase">3 — New Replacement Product(s)</p>
                 <button onClick={addItem} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-1.5 px-3 rounded-lg text-[10px] flex items-center gap-1">
                   <Plus size={12} /> Add Product
                 </button>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {newItems.map((it, idx) => (
-                  <div key={idx} className="bg-gray-900 border border-gray-700 rounded-xl p-3">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      <input value={it.name} onChange={e => updateItem(idx, 'name', e.target.value)} placeholder="Product name *"
-                        className="col-span-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <input value={it.productType} onChange={e => updateItem(idx, 'productType', e.target.value)} placeholder="Type (default = name)"
-                        className="col-span-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <input value={it.color} onChange={e => updateItem(idx, 'color', e.target.value)} placeholder="Color"
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <input value={it.size} onChange={e => updateItem(idx, 'size', e.target.value)} placeholder="Size"
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <input value={it.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} type="number" min="1" placeholder="Qty"
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <input value={it.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} type="number" min="0" placeholder="Unit Price (optional)"
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <input value={it.fabricType} onChange={e => updateItem(idx, 'fabricType', e.target.value)} placeholder="Fabric"
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <select value={it.gender} onChange={e => updateItem(idx, 'gender', e.target.value)}
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Unisex">Unisex</option>
-                      </select>
-                      <select value={it.sleeveLength} onChange={e => updateItem(idx, 'sleeveLength', e.target.value)}
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
-                        <option value="full">Full Sleeve</option>
-                        <option value="half">Half Sleeve</option>
-                        <option value="three-quarter">3 Quarter Sleeve</option>
-                      </select>
-                      <select value={it.shirtLength} onChange={e => updateItem(idx, 'shirtLength', e.target.value)}
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
-                        <option value="long">Long</option>
-                        <option value="regular">Regular</option>
-                        <option value="short">Short</option>
-                      </select>
-                      <label className="flex items-center gap-2 text-xs text-gray-300 font-bold bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 cursor-pointer">
-                        <input type="checkbox" checked={it.matchingCap} onChange={e => updateItem(idx, 'matchingCap', e.target.checked)} className="accent-blue-500" />
-                        Matching Cap
-                      </label>
-                      {it.matchingCap && (
-                        <input value={it.matchingCapQty} onChange={e => updateItem(idx, 'matchingCapQty', e.target.value)} type="number" min="0" placeholder="Cap Qty"
-                          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      )}
-                      <input value={it.notes} onChange={e => updateItem(idx, 'notes', e.target.value)} placeholder="Special note (optional)"
-                        className="col-span-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      <textarea value={it.measurements} onChange={e => updateItem(idx, 'measurements', e.target.value)} rows={2}
-                        placeholder="Measurements — one per line, e.g.&#10;Chest: 42&#10;Waist: 34&#10;Shoulder: 18"
-                        className="col-span-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 resize-none" />
-                      <button onClick={() => removeItem(idx)} disabled={newItems.length === 1}
-                        className="flex items-center justify-center bg-red-600/20 hover:bg-red-600/40 text-red-400 font-black rounded-lg py-2 text-xs disabled:opacity-30">
-                        <Trash2 size={14} />
-                      </button>
+                  <details key={idx} className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden" open={newItems.length <= 2}>
+                    <summary className="px-3 py-2 cursor-pointer select-none flex items-center justify-between text-xs font-bold text-white">
+                      <span className="flex items-center gap-2">
+                        <span className="text-gray-500">#{idx + 1}</span>
+                        {it.name || <span className="text-gray-600 italic">New product</span>}
+                        {it.color && <span className="text-gray-500">• {it.color}</span>}
+                        {it.size && <span className="text-gray-500">• {it.size}</span>}
+                      </span>
+                      {it.engravingRequired === 'yes' && <span className="text-[9px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">Engraving</span>}
+                    </summary>
+                    <div className="px-3 pb-3 pt-1 space-y-2">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <input value={it.name} onChange={e => updateItem(idx, 'name', e.target.value)} placeholder="Product name *"
+                          className="col-span-2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <input value={it.color} onChange={e => updateItem(idx, 'color', e.target.value)} placeholder="Color"
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <input value={it.size} onChange={e => updateItem(idx, 'size', e.target.value)} placeholder="Size"
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <input value={it.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} type="number" min="1" placeholder="Qty"
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <input value={it.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} type="number" min="0" placeholder="Unit Price (optional)"
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <input value={it.productType} onChange={e => updateItem(idx, 'productType', e.target.value)} placeholder="Type (default = name)"
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <input value={it.fabricType} onChange={e => updateItem(idx, 'fabricType', e.target.value)} placeholder="Fabric"
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <select value={it.gender} onChange={e => updateItem(idx, 'gender', e.target.value)}
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Unisex">Unisex</option>
+                        </select>
+                        <select value={it.sleeveLength} onChange={e => updateItem(idx, 'sleeveLength', e.target.value)}
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                          <option value="full">Full Sleeve</option>
+                          <option value="half">Half Sleeve</option>
+                          <option value="three-quarter">3 Quarter Sleeve</option>
+                        </select>
+                        <select value={it.shirtLength} onChange={e => updateItem(idx, 'shirtLength', e.target.value)}
+                          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                          <option value="long">Long</option>
+                          <option value="regular">Regular</option>
+                          <option value="short">Short</option>
+                        </select>
+                        <label className="flex items-center gap-2 text-xs text-gray-300 font-bold bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 cursor-pointer">
+                          <input type="checkbox" checked={it.matchingCap} onChange={e => updateItem(idx, 'matchingCap', e.target.checked)} className="accent-blue-500" />
+                          Matching Cap
+                        </label>
+                        {it.matchingCap && (
+                          <input value={it.matchingCapQty} onChange={e => updateItem(idx, 'matchingCapQty', e.target.value)} type="number" min="0" placeholder="Cap Qty"
+                            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        )}
+                        <input value={it.notes} onChange={e => updateItem(idx, 'notes', e.target.value)} placeholder="Special note (optional)"
+                          className="col-span-2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                        <textarea value={it.measurements} onChange={e => updateItem(idx, 'measurements', e.target.value)} rows={2}
+                          placeholder="Measurements — one per line, e.g.&#10;Chest: 42&#10;Waist: 34"
+                          className="col-span-2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 resize-none" />
+                        <button onClick={() => removeItem(idx)} disabled={newItems.length === 1}
+                          className="flex items-center justify-center bg-red-600/20 hover:bg-red-600/40 text-red-400 font-black rounded-lg py-2 text-xs disabled:opacity-30">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-black theme-text-muted uppercase">Engraving:</span>
+                        <button onClick={() => updateItem(idx, 'engravingRequired', it.engravingRequired === 'yes' ? 'skip' : 'yes')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${it.engravingRequired === 'yes' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                          {it.engravingRequired === 'yes' ? 'Engraving ON' : 'Skip'}
+                        </button>
+                      </div>
+                      {it.engravingRequired === 'yes' && <EngravingFields it={it} idx={idx} />}
                     </div>
-
-                    {/* Engraving Yes / Skip */}
-                    <div className="mt-2 flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] font-black theme-text-muted uppercase">Engraving:</span>
-                      <button onClick={() => updateItem(idx, 'engravingRequired', it.engravingRequired === 'yes' ? 'skip' : 'yes')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${it.engravingRequired === 'yes' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                        Yes
-                      </button>
-                      <button onClick={() => updateItem(idx, 'engravingRequired', 'skip')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${it.engravingRequired !== 'yes' ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                        Skip
-                      </button>
-                    </div>
-                    {it.engravingRequired === 'yes' && <EngravingFields it={it} idx={idx} />}
-                  </div>
+                  </details>
                 ))}
               </div>
             </div>
 
-            {/* Summary preview */}
+            {/* Step 4: Summary */}
             <div className="bg-gray-900 border border-amber-500/30 rounded-xl p-3">
-              <p className="text-[10px] font-black text-amber-400 uppercase mb-1.5">Generated Summary</p>
-              <p className="text-[11px] theme-text-secondary"><span className="font-bold text-white">Original:</span> {parseItems(orderFound.productDetails).map((item, i) => { const pd = item.productDetails || item; return `${pd.name || pd.productType || ''} ${pd.color || ''} ${pd.size || ''} ×${item.quantity || 1}`; }).join(', ') || 'N/A'}</p>
-              <p className="text-[11px] theme-text-secondary mt-0.5"><span className="font-bold text-white">New:</span> {buildItems().map(it => `${it.name} ${it.color} ${it.size} ×${it.quantity}${it.engravingRequired === 'yes' ? (it.engraving?.engravingLines?.length ? ` [Engraving ×${it.engraving.engravingLines.length} lines]` : ' [Engraving]') : ''}`).join(', ') || 'N/A'}</p>
+              <p className="text-[10px] font-black text-amber-400 uppercase mb-1.5">Summary</p>
+              <p className="text-[11px] theme-text-secondary"><span className="font-bold text-white">Original:</span> {orderFound ? parseItems(orderFound.productDetails).map((item, i) => { const pd = item.productDetails || item; return `${pd.name || pd.productType || ''} ${pd.color || ''}`.trim(); }).join(', ') || 'N/A' : 'Loading...'}</p>
+              <p className="text-[11px] theme-text-secondary mt-0.5"><span className="font-bold text-white">New:</span> {buildItems().map(it => `${it.name} ${it.color} ×${it.quantity}`).join(', ') || 'N/A'}</p>
             </div>
 
+            {/* Actions */}
             <div className="flex items-center justify-end gap-2 pt-1">
-              <button onClick={() => setShowCreate(false)} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2.5 px-4 rounded-xl text-xs">Cancel</button>
-              <button onClick={createAndSend} disabled={creating}
+              <button onClick={() => { setShowCreate(false); setEditingCase(null); }} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2.5 px-4 rounded-xl text-xs">Cancel</button>
+              <button onClick={editingCase ? sendEditedToStore : createAndSend} disabled={creating}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-5 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
-                <Send size={14} /> {creating ? 'Creating...' : 'Create Order & Send to Store'}
+                <Send size={14} /> {creating ? 'Sending...' : editingCase ? 'Update & Send to Store' : 'Create Order & Send to Store'}
               </button>
             </div>
+            </>)}
           </div>
         </div>
       )}

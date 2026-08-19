@@ -309,6 +309,15 @@ const resubmitFromVerification = async (req, res) => {
       if (updateData[f] !== undefined) payload[f] = updateData[f];
     });
 
+    // If financialSummary is provided, use its total as the effective totalPrice
+    if (updateData.financialSummary) {
+      payload.financialSummary = updateData.financialSummary;
+      const fsTotal = updateData.financialSummary.total;
+      if (fsTotal != null) {
+        payload.totalPrice = Math.max(0, parseFloat(fsTotal) || 0);
+      }
+    }
+
     // If items array is provided, format it into productDetails
     if (updateData.items && Array.isArray(updateData.items)) {
       const items = updateData.items.map(item => ({

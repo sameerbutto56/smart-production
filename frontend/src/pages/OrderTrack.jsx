@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../services/api';
-import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, ArrowRightLeft, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck, AlertCircle, PackageX } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, ArrowRightLeft, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck, AlertCircle, PackageX, FileText, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
@@ -113,16 +113,25 @@ const OrderTrack = () => {
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [searchResults, setSearchResults] = useState(null);
   const navigate = useNavigate();
 
   const loadOrder = async (query, resetLinked = true) => {
     if (!query || !String(query).trim()) { setError('Please enter an order number'); return; }
-    const clean = String(query).trim().replace(/^#/, '');
+    const clean = String(query).trim();
     setLoading(true); setError('');
     setOrderNumber(clean);
-    if (resetLinked) { setOrder(null); setTimeline([]); setLinkedOriginal(null); setLinkedReplacement(null); }
+    if (resetLinked) { setOrder(null); setTimeline([]); setLinkedOriginal(null); setLinkedReplacement(null); setSearchResults(null); }
     try {
-      const res = await api.get(`/api/orders/track/${clean}`);
+      const res = await api.get(`/api/orders/track/${encodeURIComponent(clean)}`);
+      // Multiple matches (phone/name search) — show results list
+      if (res.data.multiple) {
+        setSearchResults(res.data.results);
+        setOrder(null); setTimeline([]);
+        setLoading(false);
+        return;
+      }
+      setSearchResults(null);
       setOrder(res.data);
       setLinkedOriginal(res.data._originalOrder || null);
       setLinkedReplacement(res.data._replacementOrder || null);
@@ -162,7 +171,7 @@ const OrderTrack = () => {
       <div className="flex gap-2">
         <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleTrack()}
-          placeholder="Enter order number (e.g., JT-836194 or REP-49502)..."
+          placeholder="Order #, invoice #, customer name, or phone..."
           className="flex-1 bg-gray-900 border-2 border-gray-800 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-purple-500 transition-colors" />
         <button onClick={handleTrack} disabled={loading}
           className="px-5 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2">
@@ -170,6 +179,46 @@ const OrderTrack = () => {
         </button>
       </div>
       {error && <p className="text-xs font-bold text-red-400">{error}</p>}
+
+      {/* Multi-result search results */}
+      {searchResults && (
+        <div className="bg-gray-900/60 rounded-2xl border border-gray-800/50 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+              <FileText size={12} className="inline mr-1" />
+              {searchResults.length} order{searchResults.length !== 1 ? 's' : ''} found
+            </p>
+            <button onClick={() => { setSearchResults(null); setOrderNumber(''); }}
+              className="text-[10px] font-bold text-gray-500 hover:text-gray-300 transition-colors">Clear</button>
+          </div>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {searchResults.map((r) => (
+              <button key={r.id} onClick={() => loadOrder(r.orderNumber)}
+                className="w-full text-left bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50 rounded-xl p-3 transition-all">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-black text-white">#{r.orderNumber}</p>
+                      {r.invoiceNumber && <span className="text-[10px] font-bold text-gray-500">{r.invoiceNumber}</span>}
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${r.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : r.status === 'CANCELLED' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                        {r.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 font-bold mt-1">
+                      {r.customerName}{r.customerPhone ? ` · ${r.customerPhone}` : ''}
+                    </p>
+                    <p className="text-[10px] text-gray-500 font-bold mt-0.5">
+                      {STAGE_LABELS[r.trackingStatus] || r.currentStage}
+                      {r.totalPrice ? ` · ₨${r.totalPrice.toLocaleString()}` : ''}
+                    </p>
+                  </div>
+                  <ArrowRight size={14} className="text-gray-600 shrink-0 mt-1" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {order && (
         <div className="space-y-4">

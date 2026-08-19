@@ -166,6 +166,7 @@ app.use('/api/ceo', ceoRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/software-settings', softwareSettingsRoutes);
 app.use('/api/order-control', orderControlRoutes);
+app.use('/api/tahir-sheet', require('./routes/tahirSheet.routes'));
 
 // Global error handler (must be last)
 app.use(errorHandler);

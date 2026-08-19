@@ -25,7 +25,7 @@ function OrderControlPanel() {
       const res = await api.get(`/api/order-control/locate/${encodeURIComponent(q)}`);
       setData(res.data);
       if (res.data.order) {
-        setDestStage(res.data.destStages?.[0]?.value || '');
+        setDestStage(res.data.destStages?.[0]?.stage || '');
       } else {
         setDestStage('');
         toast.error(res.data.message || 'Order not found.');
@@ -209,7 +209,7 @@ function OrderControlPanel() {
                   className="mt-1 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50">
                   <option value="">Select destination…</option>
                   {(data.destStages || []).map(d => (
-                    <option key={d.value} value={d.value}>{d.label}</option>
+                    <option key={d.stage} value={d.stage}>{d.label}</option>
                   ))}
                 </select>
               </div>
