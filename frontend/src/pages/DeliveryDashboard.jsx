@@ -24,6 +24,18 @@ import { classifyDeliveryTab } from '../utils/deliveryStatusUtils';
 
 const MAX_ATTEMPTS = 3;
 
+/* ─── Carry-forward helpers ─── */
+const getAssignedDate = (order) => {
+  const raw = order?.orderAcceptances?.[0]?.assignedAt || order?.createdAt;
+  return raw ? new Date(raw) : null;
+};
+const isCarryForward = (order) => {
+  const d = getAssignedDate(order);
+  if (!d) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return d < today;
+};
+
 /* ─── multiple online inputs ─── */
 const MultipleOnlineInputs = ({ entries, setEntries }) => {
   const addEntry = () => setEntries([...entries, { provider: '', amount: '', ref: '' }]);
@@ -160,13 +172,15 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
           ? 'border-red-500/30 bg-red-950/20'
           : isNoResp
           ? 'border-amber-500/30 bg-amber-950/20'
+          : isCarryForward(order) && (isPending || isAccepted)
+          ? 'border-amber-500/30 bg-amber-950/10'
           : isAccepted
           ? 'border-blue-500/30 bg-blue-950/10'
           : 'theme-border theme-bg'
       }`}
     >
       <div className={`h-1.5 w-full ${
-        isDelivered ? 'bg-emerald-500' : maxReached ? 'bg-red-500' : isNoResp ? 'bg-amber-500' : isAccepted ? 'bg-blue-600' : 'bg-gray-600'
+        isDelivered ? 'bg-emerald-500' : maxReached ? 'bg-red-500' : isNoResp ? 'bg-amber-500' : isCarryForward(order) && (isPending || isAccepted) ? 'bg-amber-500' : isAccepted ? 'bg-blue-600' : 'bg-gray-600'
       }`} />
 
       <div className="p-5 space-y-4">
@@ -178,6 +192,11 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-black theme-text-primary text-xl leading-tight">{order.customerName}</p>
+              {isCarryForward(order) && (
+                <span className="text-[10px] font-black text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/25 uppercase tracking-wider">
+                  Carry Forward · {formatDateOnly(getAssignedDate(order))}
+                </span>
+              )}
               {order.priority === 'SUPER_URGENT' && (
                 <span className="text-xs md:text-sm font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">⚡ SUPER URGENT</span>
               )}
@@ -1018,6 +1037,9 @@ const DeliveryDashboard = () => {
   const noResponse = orders.filter(o => classifyDeliveryTab(o) === 'noresponse');
   const completed = orders.filter(o => classifyDeliveryTab(o) === 'completed');
 
+  const pendingCarry = pending.filter(isCarryForward);
+  const activeCarry = active.filter(isCarryForward);
+
   const filtered = orders.filter(o => {
     const inTab = classifyDeliveryTab(o) === tab;
     if (!inTab) return false;
@@ -1133,14 +1155,15 @@ const DeliveryDashboard = () => {
           {/* Tab bar */}
           <div className="flex gap-1 bg-gray-900/60 rounded-2xl p-1 border border-gray-800 overflow-x-auto">
             {[
-              { key: 'pending', label: 'Pending', count: pending.length, color: 'bg-blue-600 text-white' },
-              { key: 'active', label: 'Active', count: active.length, color: 'bg-blue-600 text-white' },
+              { key: 'pending', label: 'Pending', count: pending.length, cf: pendingCarry.length, color: 'bg-blue-600 text-white' },
+              { key: 'active', label: 'Active', count: active.length, cf: activeCarry.length, color: 'bg-blue-600 text-white' },
               { key: 'noresponse', label: 'No Reply', count: noResponse.length, color: 'bg-amber-600 text-white' },
               { key: 'completed', label: 'Done', count: completed.length, color: 'bg-emerald-600 text-white' },
             ].map(t => (
               <button key={t.key} onClick={() => { setTab(t.key); setSelectedDate(''); }}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${tab === t.key ? t.color + ' shadow-lg' : 'theme-text-muted hover:text-white'}`}>
                 {t.label} ({t.count})
+                {t.cf > 0 && <span className="ml-1 text-[9px] text-amber-400 font-black normal-case">({t.cf} carry)</span>}
               </button>
             ))}
           </div>
@@ -1212,14 +1235,61 @@ const DeliveryDashboard = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((order, idx) => (
-                <OrderCard key={order.id} order={order} idx={idx} tab={tab}
-                  onAction={handleAction} onAccept={handleAccept}
-                  loading={actionLoading} acceptLoading={acceptLoading}
-                  paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods}
-                  halfPayments={halfPayments} setHalfPayments={setHalfPayments}
-                  multiOnlineEntries={multiOnlineEntries} setMultiOnlineEntries={setMultiOnlineEntries} />
-              ))}
+              {(tab === 'pending' || tab === 'active') && filtered.length > 0 ? (
+                <>
+                  {(() => {
+                    const todayOrders = filtered.filter(o => !isCarryForward(o));
+                    const carryOrders = filtered.filter(isCarryForward);
+                    return (
+                      <>
+                        {todayOrders.length > 0 && (
+                          <>
+                            <div className="flex items-center gap-2 py-1">
+                              <div className="h-px flex-1 bg-blue-500/30" />
+                              <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Today's Orders ({todayOrders.length})</span>
+                              <div className="h-px flex-1 bg-blue-500/30" />
+                            </div>
+                            {todayOrders.map((order, idx) => (
+                              <OrderCard key={order.id} order={order} idx={idx} tab={tab}
+                                onAction={handleAction} onAccept={handleAccept}
+                                loading={actionLoading} acceptLoading={acceptLoading}
+                                paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods}
+                                halfPayments={halfPayments} setHalfPayments={setHalfPayments}
+                                multiOnlineEntries={multiOnlineEntries} setMultiOnlineEntries={setMultiOnlineEntries} />
+                            ))}
+                          </>
+                        )}
+                        {carryOrders.length > 0 && (
+                          <>
+                            <div className="flex items-center gap-2 py-1">
+                              <div className="h-px flex-1 bg-amber-500/30" />
+                              <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Carry Forward ({carryOrders.length})</span>
+                              <div className="h-px flex-1 bg-amber-500/30" />
+                            </div>
+                            {carryOrders.map((order, idx) => (
+                              <OrderCard key={order.id} order={order} idx={idx} tab={tab}
+                                onAction={handleAction} onAccept={handleAccept}
+                                loading={actionLoading} acceptLoading={acceptLoading}
+                                paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods}
+                                halfPayments={halfPayments} setHalfPayments={setHalfPayments}
+                                multiOnlineEntries={multiOnlineEntries} setMultiOnlineEntries={setMultiOnlineEntries} />
+                            ))}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                filtered.map((order, idx) => (
+                  <OrderCard key={order.id} order={order} idx={idx} tab={tab}
+                    onAction={handleAction} onAccept={handleAccept}
+                    loading={actionLoading} acceptLoading={acceptLoading}
+                    paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods}
+                    halfPayments={halfPayments} setHalfPayments={setHalfPayments}
+                    multiOnlineEntries={multiOnlineEntries} setMultiOnlineEntries={setMultiOnlineEntries} />
+                ))
+              )}
             </div>
           )}
         </>

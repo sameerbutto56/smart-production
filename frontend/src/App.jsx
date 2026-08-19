@@ -42,7 +42,7 @@ const NotesPage = lazy(() => import('./pages/NotesPage'));
 const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
 const DispatchPage = lazy(() => import('./pages/DispatchPage'));
 const InDispatch = lazy(() => import('./pages/InDispatch'));
-const TahirSheet = lazy(() => import('./pages/TahirSheet'));
+const GatePass = lazy(() => import('./pages/GatePass'));
 const StoreDashboardPage = lazy(() => import('./pages/StoreDashboardPage'));
 const AlterationRequest = lazy(() => import('./pages/AlterationRequest'));
 const AlterationProduction = lazy(() => import('./pages/AlterationProduction'));
@@ -163,7 +163,7 @@ function App() {
                   <Route path="dispatch" element={<DispatchPage />} />
                   <Route path="dispatch-dashboard" element={<DispatchDashboard />} />
                   <Route path="in-dispatch" element={<InDispatch />} />
-                  <Route path="tahir-sheet" element={<TahirSheet />} />
+                  <Route path="gate-pass" element={<GatePass />} />
                   <Route path="store-dashboard" element={<StoreDashboardPage />} />
                   <Route path="alteration-request" element={<AlterationRequest />} />
                   <Route path="alteration-production" element={<AlterationProduction />} />

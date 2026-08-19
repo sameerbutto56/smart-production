@@ -390,9 +390,7 @@ const dispatchFromProfile = async (req, res) => {
     const io = req.app?.get('io');
     if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
 
-    if (mappedDeliveryType === 'ENAMELS') {
-      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: employeeName, outletName: order.outletName }).catch(() => {});
-    }
+    recordAssignment({ orderId, deliveryBoyName: dispatchMethod, routedBy: employeeName, outletName: order.outletName }).catch(() => {});
 
     res.json({ message: `Order dispatched via ${dispatchMethod} by ${employeeName}` });
   } catch (error) {

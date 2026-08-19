@@ -1,11 +1,14 @@
 const prisma = require('../prisma');
 
-// GET /api/tahir-sheet?date=YYYY-MM-DD&deliveryBoy=name
-// Returns all orders assigned to the delivery boy on the given date.
+// GET /api/gate-pass?date=YYYY-MM-DD
+// Returns assignments for the given date PLUS all carry-forward (pending/active) orders
+// from previous dates that are not yet delivered/returned.
+const FINAL_STATUSES = ['DELIVERED', 'RETURNED', 'COMPLETED', 'CANCELLED', 'REJECTED'];
+const FINAL_STAGES = ['DELIVERED', 'RETURNED'];
+
 const getTahirSheet = async (req, res) => {
   try {
-    const { date, deliveryBoy } = req.query;
-    const boyName = deliveryBoy || 'Tahir';
+    const { date } = req.query;
 
     if (!date) {
       return res.status(400).json({ message: 'date query param is required (YYYY-MM-DD)' });
@@ -14,70 +17,104 @@ const getTahirSheet = async (req, res) => {
     const dayStart = new Date(date + 'T00:00:00.000Z');
     const dayEnd = new Date(date + 'T23:59:59.999Z');
 
-    const assignments = await prisma.deliveryAssignment.findMany({
+    // 1. Fetch today's assignments (all delivery boys)
+    const todayAssignments = await prisma.deliveryAssignment.findMany({
       where: {
         assignmentDate: { gte: dayStart, lte: dayEnd },
-        deliveryBoyName: { contains: boyName, mode: 'insensitive' },
       },
       orderBy: { assignedAt: 'asc' },
     });
 
-    // Enrich with live order status
-    const orderIds = assignments.map(a => a.orderId);
+    // 2. Fetch ALL previous (pre-date) assignments (all delivery boys)
+    const previousAssignments = await prisma.deliveryAssignment.findMany({
+      where: {
+        assignmentDate: { lt: dayStart },
+      },
+      orderBy: { assignedAt: 'asc' },
+    });
+
+    // 3. Deduplicate — same orderId can appear in both; prefer the latest assignment
+    const allRaw = [...previousAssignments, ...todayAssignments];
+    const seen = new Map();
+    for (const a of allRaw) {
+      const existing = seen.get(a.orderId);
+      if (!existing || new Date(a.assignmentDate) > new Date(existing.assignmentDate)) {
+        seen.set(a.orderId, a);
+      }
+    }
+    const allAssignments = Array.from(seen.values()).sort((a, b) =>
+      new Date(a.assignedAt) - new Date(b.assignedAt)
+    );
+
+    // 4. Enrich with live order status
+    const orderIds = allAssignments.map(a => a.orderId);
     const orders = orderIds.length ? await prisma.order.findMany({
       where: { id: { in: orderIds } },
       select: {
         id: true, currentStage: true, status: true, deliveredAt: true,
         returnedAt: true, advanceAmount: true, advancePaid: true,
         paymentMethod: true, paymentStatus: true, productDetails: true,
+        dispatchStatus: true,
       },
     }) : [];
     const orderMap = Object.fromEntries(orders.map(o => [o.id, o]));
 
-    const enriched = assignments.map(a => {
+    const enriched = allAssignments.map(a => {
       const live = orderMap[a.orderId] || {};
-      const delivered = live.currentStage === 'DELIVERED' || live.status === 'COMPLETED';
-      const returned = live.currentStage === 'DISPATCH' && live.status === 'RETURNED';
+      const stage = live.currentStage || a.currentStage;
+      const status = live.status || a.status;
+      const dStatus = live.dispatchStatus || '';
+      const delivered = stage === 'DELIVERED' || status === 'COMPLETED' || !!a.deliveredAt;
+      const returned = stage === 'RETURNED' || status === 'RETURNED' || dStatus === 'RETURNED' || !!a.returnedAt;
+      const isFinal = FINAL_STATUSES.includes(status) || FINAL_STAGES.includes(stage);
+      const assignedDate = a.assignmentDate ? new Date(a.assignmentDate).toISOString().split('T')[0] : date;
+      const isToday = assignedDate === date;
       return {
         ...a,
-        currentStage: live.currentStage || a.currentStage,
-        status: live.status || a.status,
-        delivered: delivered || !!a.deliveredAt,
-        returned: returned || !!a.returnedAt,
+        currentStage: stage,
+        status,
+        delivered,
+        returned,
+        isFinal,
+        isToday,
+        assignedDate,
         advanceAmount: live.advanceAmount ?? a.advanceAmount,
         advancePaid: live.advancePaid ?? false,
         paymentMethod: live.paymentMethod || null,
         paymentStatus: live.paymentStatus || a.status,
-        productDetails: live.productDetails || null,
+        productDetails: live.productDetails || a.productDetails || null,
+        dispatchStatus: dStatus,
       };
     });
 
-    // Summary stats
-    const total = enriched.length;
-    const deliveredCount = enriched.filter(e => e.delivered).length;
-    const pendingCount = enriched.filter(e => !e.delivered && !e.returned).length;
-    const returnedCount = enriched.filter(e => e.returned).length;
-    const totalOrderValue = enriched.reduce((s, e) => s + (e.totalPrice || 0), 0);
-    const totalAdvance = enriched.reduce((s, e) => s + (e.advanceAmount || 0), 0);
-    const totalDeliveryCharges = enriched.reduce((s, e) => s + (e.deliveryCharges || 0), 0);
+    // 5. Separate today vs carry-forward, filter out final from carry-forward display
+    const todayOrders = enriched.filter(e => e.isToday);
+    const carryForwardOrders = enriched.filter(e => !e.isToday && !e.isFinal);
+
+    const visibleOrders = [...todayOrders, ...carryForwardOrders];
+
+    // Summary stats (all visible)
+    const total = visibleOrders.length;
+    const deliveredCount = visibleOrders.filter(e => e.delivered).length;
+    const pendingCount = visibleOrders.filter(e => !e.delivered && !e.returned).length;
+    const returnedCount = visibleOrders.filter(e => e.returned).length;
+    const carryForwardCount = carryForwardOrders.length;
 
     res.json({
       date,
-      deliveryBoy: boyName,
-      assignments: enriched,
+      assignments: visibleOrders,
       summary: {
         total,
         delivered: deliveredCount,
         pending: pendingCount,
         returned: returnedCount,
-        totalOrderValue,
-        totalAdvance,
-        totalDeliveryCharges,
+        carryForward: carryForwardCount,
+        todayAssigned: todayOrders.length,
       },
     });
   } catch (error) {
-    console.error('getTahirSheet error:', error);
-    res.status(500).json({ message: 'Error fetching Tahir Sheet', error: error.message });
+    console.error('getGatePass error:', error);
+    res.status(500).json({ message: 'Error fetching Gate Pass', error: error.message });
   }
 };
 
@@ -93,7 +130,7 @@ const recordAssignment = async (data) => {
         id: true, orderNumber: true, customerName: true, customerPhone: true,
         address: true, city: true, totalPrice: true, advanceAmount: true,
         deliveryCharges: true, outletName: true, source: true,
-        currentStage: true, status: true,
+        currentStage: true, status: true, productDetails: true,
       },
     });
     if (!order) return;
@@ -127,6 +164,7 @@ const recordAssignment = async (data) => {
         routedBy,
         currentStage: order.currentStage,
         status: order.status,
+        productDetails: order.productDetails || null,
       },
       update: {
         routedBy,
@@ -139,12 +177,11 @@ const recordAssignment = async (data) => {
   }
 };
 
-// GET /api/tahir-sheet/available-dates?deliveryBoy=name&month=YYYY-MM
+// GET /api/gate-pass/available-dates?month=YYYY-MM
 // Returns dates in the given month that have assignment records.
 const getAvailableDates = async (req, res) => {
   try {
-    const { deliveryBoy, month } = req.query;
-    const boyName = deliveryBoy || 'Tahir';
+    const { month } = req.query;
 
     let start, end;
     if (month) {
@@ -160,7 +197,6 @@ const getAvailableDates = async (req, res) => {
     const rows = await prisma.deliveryAssignment.findMany({
       where: {
         assignmentDate: { gte: start, lte: end },
-        deliveryBoyName: { contains: boyName, mode: 'insensitive' },
       },
       select: { assignmentDate: true },
       distinct: ['assignmentDate'],
@@ -172,7 +208,7 @@ const getAvailableDates = async (req, res) => {
       return d.toISOString().split('T')[0];
     });
 
-    res.json({ dates, deliveryBoy: boyName, month: month || null });
+    res.json({ dates, month: month || null });
   } catch (error) {
     console.error('getAvailableDates error:', error);
     res.status(500).json({ message: 'Error fetching available dates', error: error.message });

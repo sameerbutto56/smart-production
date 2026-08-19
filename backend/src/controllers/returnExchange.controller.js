@@ -950,7 +950,11 @@ const syncCaseStatus = async (caseRecord, linkedOrder) => {
   } else if (['PRODUCTION', 'PRODUCTION_ACCEPTANCE', 'LOGO_DESIGN', 'LOGO_DESIGNER', 'WORKERS', 'VERIFICATION'].includes(linkedOrder.currentStage)) {
     newStatus = 'IN_PRODUCTION';
   } else if (linkedOrder.currentStage === 'STORE') {
-    newStatus = 'FAISAL_APPROVED';
+    // Only revert to FAISAL_APPROVED if store hasn't already accepted.
+    // Once storeAcceptedAt is set, the case is in ACCEPTED state while at STORE.
+    if (!caseRecord.storeAcceptedAt) {
+      newStatus = 'FAISAL_APPROVED';
+    }
   }
 
   if (newStatus !== caseRecord.status) {

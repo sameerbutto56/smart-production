@@ -1133,7 +1133,7 @@ const outletRouteOrder = async (req, res) => {
     const destinationStage = actionStageMap[action];
     const currentStage = order.stages.find(s =>
       ['PENDING', 'IN_PROGRESS'].includes(s.status) &&
-      ['ORDER_ENTRY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'ENAMELS_DELIVERY'].includes(s.stageName)
+      ['ORDER_ENTRY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'ENAMELS_DELIVERY', 'ALTERATION_RETURN', 'ENGRAVING_RETURN'].includes(s.stageName)
     );
     if (!currentStage) return res.status(400).json({ message: 'No active stage found for routing' });
 

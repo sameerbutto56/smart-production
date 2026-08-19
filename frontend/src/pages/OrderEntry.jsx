@@ -598,10 +598,17 @@ const SmartOrderForm = () => {
                   const advanceAmt = parseFloat(formData.advanceAmount) || 0;
                   const adjTotal = adjProductPrice + adjLogoCharges + adjNamePrinting + adjCustomization + adjCap + adjDelivery - discount;
                   const remainingBalance = Math.max(0, adjTotal - advanceAmt);
+                  const INP_COLORS = {
+                    'emerald-400': 'text-emerald-400 focus:border-emerald-400',
+                    'amber-400': 'text-amber-400 focus:border-amber-400',
+                    'purple-400': 'text-purple-400 focus:border-purple-400',
+                    'cyan-400': 'text-cyan-400 focus:border-cyan-400',
+                    'rose-400': 'text-rose-400 focus:border-rose-400',
+                  };
                   const inp = (name, calcVal, color = 'emerald-400') => (
                     <input type="number" min="0" value={formData[name] ?? ''} placeholder={String(calcVal)}
-                      onChange={e => setFormData({ ...formData, [name]: e.target.value })}
-                      className={`w-full text-right theme-bg border border-gray-700/50 rounded-lg py-1 px-2 text-xs font-black text-${color} focus:border-${color} outline-none transition-all`} />
+                      onChange={e => setFormData(prev => ({ ...prev, [name]: e.target.value }))}
+                      className={`w-full text-right bg-gray-900/80 border border-gray-600/70 hover:border-gray-500 rounded-lg py-1.5 px-2 text-xs font-black ${INP_COLORS[color] || INP_COLORS['emerald-400']} outline-none transition-all cursor-text shadow-inner`} />
                   );
                   const fmt = (n) => n.toLocaleString();
                   return (
@@ -660,8 +667,8 @@ const SmartOrderForm = () => {
                               <td className="text-right text-gray-500 font-black py-1.5 px-2">—</td>
                               <td className="text-right py-1.5 pl-2">
                                 <input type="number" min="0" value={formData.adjDiscount ?? ''} placeholder="0"
-                                  onChange={e => setFormData({ ...formData, adjDiscount: e.target.value })}
-                                  className="w-full text-right theme-bg border border-red-500/50 rounded-lg py-1 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all" />
+                                  onChange={e => setFormData(prev => ({ ...prev, adjDiscount: e.target.value }))}
+                                  className="w-full text-right bg-gray-900/80 border border-red-500/50 hover:border-red-400 rounded-lg py-1.5 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all cursor-text shadow-inner" />
                               </td>
                             </tr>
                             <tr className="border-b border-gray-800/30">

@@ -408,10 +408,14 @@ const routeOrder = async (req, res) => {
       data: orderUpdateData
     });
 
-    // Record delivery assignment for Tahir Sheet
-    if (destinationStage === 'ENAMELS_DELIVERY') {
-      recordAssignment({ orderId: order.id, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
-    }
+    // Record delivery assignment for Gate Pass
+    const deliveryBoyNames = {
+      sendToEnamelsDelivery: 'Enamels Delivery',
+      sendToDispatch: 'Dispatch Courier',
+      customerTakeDeliver: 'Customer Pickup',
+      sendToOutlet: `Outlet → ${targetOutletName || 'Other'}`,
+    };
+    recordAssignment({ orderId: order.id, deliveryBoyName: deliveryBoyNames[action] || action, routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
 
     // Recipient users
     const roles = destinationStage === 'ENAMELS_DELIVERY' ? ['DELIVERY_BOY'] : (destinationStage === 'DISPATCH' ? ['DISPATCH', 'STORE_EMPLOYEE'] : ['OUTLET']);

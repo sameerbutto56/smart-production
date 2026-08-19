@@ -4167,6 +4167,17 @@ const dispatchOrder = async (req, res) => {
       }).catch(() => {});
 
       await createAuditLog(orderId, 'DISPATCHED_ENAMELS', `Dispatched via Enamels Delivery. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
+
+      // Record assignment for Tahir Sheet
+      try {
+        const { recordAssignment } = require('./tahirSheet.controller');
+        await recordAssignment({
+          orderId,
+          deliveryBoyName: 'Tahir',
+          routedBy: req.user?.name,
+          outletName: order.outletName,
+        });
+      } catch (e) { console.error('recordAssignment error (dispatchOrder ENAMELS):', e); }
     } else if (deliveryMethod === 'IMMENT') {
       // IMMENT — stay in DISPATCH, internal processing continues
       updateData.dispatchStatus = 'IMMENT_PROCESSING';

@@ -1,34 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import {
-  Calendar, Package, CheckCircle2, XCircle, Clock, MapPin,
-  Phone, User, RefreshCcw, Printer, ChevronLeft, ChevronRight,
-  Truck, IndianRupee, FileText, Search
+  Calendar, Package, CheckCircle2, XCircle, Clock,
+  RefreshCcw, Printer, ChevronLeft, ChevronRight,
+  Truck, FileText, Search
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { formatDateOnly } from '../utils/dateTime';
 import { toUrduName } from '../utils/urduDictionary';
-
-const fmtCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
-
-const getOutletName = (user) => {
-  const n = String(user?.name || '').toLowerCase();
-  if (n.includes('johar')) return 'Johar Town';
-  if (n.includes('jail')) return 'Jail Road';
-  if (n.includes('abbottabad')) return 'Abbottabad';
-  return user?.name || 'Outlet';
-};
 
 const today = () => {
   const d = new Date();
   return d.toISOString().split('T')[0];
 };
 
-const TahirSheet = () => {
-  const { user } = useAuth();
-  const outletName = getOutletName(user);
-
+const GatePass = () => {
   const [selectedDate, setSelectedDate] = useState(today());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -39,11 +24,11 @@ const TahirSheet = () => {
   const fetchSheet = useCallback(async (date) => {
     setLoading(true);
     try {
-      const res = await api.get('/api/tahir-sheet', { params: { date, deliveryBoy: 'Tahir' } });
+      const res = await api.get('/api/gate-pass', { params: { date } });
       setData(res.data);
     } catch (e) {
-      console.error('Tahir Sheet error:', e);
-      toast.error(e.response?.data?.message || 'Failed to load Tahir Sheet');
+      console.error('Gate Pass error:', e);
+      toast.error(e.response?.data?.message || 'Failed to load Gate Pass');
     } finally {
       setLoading(false);
     }
@@ -51,7 +36,7 @@ const TahirSheet = () => {
 
   const fetchAvailableDates = useCallback(async (month) => {
     try {
-      const res = await api.get('/api/tahir-sheet/available-dates', { params: { deliveryBoy: 'Tahir', month } });
+      const res = await api.get('/api/gate-pass/available-dates', { params: { month } });
       setAvailableDates(res.data.dates || []);
     } catch (e) {
       console.error('Available dates error:', e);
@@ -84,7 +69,6 @@ const TahirSheet = () => {
   const isToday = selectedDate === today();
   const hasRecords = availableDates.includes(selectedDate);
 
-  // Client-side filter
   const assignments = (data?.assignments || []).filter(a => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -96,9 +80,8 @@ const TahirSheet = () => {
     );
   });
 
-  const summary = data?.summary || { total: 0, delivered: 0, pending: 0, returned: 0, carryForward: 0, todayAssigned: 0, totalOrderValue: 0, totalAdvance: 0, totalDeliveryCharges: 0 };
+  const summary = data?.summary || { total: 0, delivered: 0, pending: 0, returned: 0, carryForward: 0, todayAssigned: 0 };
 
-  // Group: today first, then carry-forward
   const todayOrders = assignments.filter(a => a.isToday);
   const carryForwardOrders = assignments.filter(a => !a.isToday);
 
@@ -111,7 +94,6 @@ const TahirSheet = () => {
         color: p.color || entry.color,
         size: p.size || entry.size,
         qty: entry.quantity || p.quantity || 1,
-        unitPrice: entry.unitPrice || p.unitPrice || 0,
       };
     });
     const statusLabel = a.delivered ? 'DELIVERED' : a.returned ? 'RETURNED' : 'PENDING';
@@ -137,12 +119,9 @@ const TahirSheet = () => {
               {p.color && <span className="text-gray-500"> — {p.color}</span>}
               {p.size && <span className="text-gray-400"> ({p.size})</span>}
               {p.qty > 1 && <span className="text-gray-400"> x{p.qty}</span>}
-              {p.unitPrice > 0 && <span className="text-gray-400"> @ {fmtCurrency(p.unitPrice)}</span>}
             </div>
           )) : <span className="text-gray-400">-</span>}
         </td>
-        <td className="px-4 py-3 text-right font-semibold text-gray-800">{fmtCurrency(a.totalPrice)}</td>
-        <td className="px-4 py-3 text-right text-gray-600">{fmtCurrency(a.advanceAmount)}</td>
         <td className="px-4 py-3">
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-${statusColor}-100 text-${statusColor}-700`}>
             {a.delivered && <CheckCircle2 className="w-3 h-3 mr-1" />}
@@ -171,7 +150,7 @@ const TahirSheet = () => {
     const el = printRef.current;
     if (!el) return;
     const win = window.open('', '_blank', 'width=800,height=1000');
-    win.document.write('<html><head><title>Tahir Sheet - ' + selectedDate + '</title>');
+    win.document.write('<html><head><title>Gate Pass - ' + selectedDate + '</title>');
     win.document.write('<style>');
     win.document.write('body { font-family: Arial, sans-serif; margin: 20px; color: #111; }');
     win.document.write('.header { text-align: center; border-bottom: 3px solid #1e40af; padding-bottom: 10px; margin-bottom: 16px; }');
@@ -199,7 +178,6 @@ const TahirSheet = () => {
     win.print();
   };
 
-  // Calendar mini-grid for current month
   const renderCalendar = () => {
     const [y, m] = selectedDate.split('-').map(Number);
     const firstDay = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
@@ -234,28 +212,15 @@ const TahirSheet = () => {
     );
   };
 
-  if (!outletName.toLowerCase().includes('johar')) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8">
-          <FileText className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-          <h2 className="text-xl font-bold text-gray-700 mb-2">Access Restricted</h2>
-          <p className="text-gray-500">Tahir Sheet is only available for Johar Town Outlet.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Print-only content */}
       <div ref={printRef} className="hidden print:block">
         <div className="header">
-          <h1>ENAMELS — Daily Delivery Sheet</h1>
-          <h2>Delivery Boy: {data?.deliveryBoy || 'Tahir'} &bull; Date: {selectedDate}</h2>
+          <h1>ENAMELS — Gate Pass</h1>
+          <h2>Date: {selectedDate}</h2>
         </div>
         <div className="meta">
-          <span>Outlet: {outletName}</span>
           <span>Total Orders: {summary.total} (Today: {summary.todayAssigned}, Carry Forward: {summary.carryForward})</span>
           <span>Generated: {new Date().toLocaleString()}</span>
         </div>
@@ -264,9 +229,6 @@ const TahirSheet = () => {
           <div className="stat"><div className="label">Delivered</div><div className="value">{summary.delivered}</div></div>
           <div className="stat"><div className="label">Pending</div><div className="value">{summary.pending}</div></div>
           <div className="stat"><div className="label">Returned</div><div className="value">{summary.returned}</div></div>
-          <div className="stat"><div className="label">Total Value</div><div className="value">{fmtCurrency(summary.totalOrderValue)}</div></div>
-          <div className="stat"><div className="label">Advance</div><div className="value">{fmtCurrency(summary.totalAdvance)}</div></div>
-          <div className="stat"><div className="label">Delivery Charges</div><div className="value">{fmtCurrency(summary.totalDeliveryCharges)}</div></div>
         </div>
         <table>
           <thead>
@@ -276,9 +238,7 @@ const TahirSheet = () => {
               <th>Customer</th>
               <th>Phone</th>
               <th>Address</th>
-              <th>Products</th>
-              <th>Total</th>
-              <th>Advance</th>
+              <th>Products (Qty)</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -293,9 +253,7 @@ const TahirSheet = () => {
                   <td>{a.customerName || '-'}</td>
                   <td>{a.customerPhone || '-'}</td>
                   <td>{(a.address || '') + (a.city ? ', ' + a.city : '')}</td>
-                  <td style={{ maxWidth: 200, fontSize: 10 }}>{prodNames}</td>
-                  <td>{fmtCurrency(a.totalPrice)}</td>
-                  <td>{fmtCurrency(a.advanceAmount)}</td>
+                  <td style={{ maxWidth: 250, fontSize: 10 }}>{prodNames}</td>
                   <td className={a.delivered ? 'status-delivered' : a.returned ? 'status-returned' : 'status-pending'}>
                     {a.delivered ? 'DELIVERED' : a.returned ? 'RETURNED' : 'PENDING'}
                   </td>
@@ -305,7 +263,7 @@ const TahirSheet = () => {
           </tbody>
         </table>
         <div className="footer">
-          Printed from ENAMELS Smart Production — {outletName} &bull; {selectedDate}
+          Printed from ENAMELS Smart Production — Gate Pass &bull; {selectedDate}
         </div>
         <div className="signature">
           <div className="sig-line">Delivery Boy Signature</div>
@@ -320,8 +278,8 @@ const TahirSheet = () => {
           <div className="flex items-center gap-3">
             <Truck className="w-7 h-7 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Daily Tahir Sheet</h1>
-              <p className="text-sm text-gray-500">{outletName} — Delivery Assignment Record</p>
+              <h1 className="text-2xl font-bold text-gray-900">Gate Pass</h1>
+              <p className="text-sm text-gray-500">Delivery Assignment Record</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -336,7 +294,7 @@ const TahirSheet = () => {
               onClick={printSheet}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
             >
-              <Printer className="w-4 h-4" /> Print Sheet
+              <Printer className="w-4 h-4" /> Print Gate Pass
             </button>
           </div>
         </div>
@@ -344,7 +302,6 @@ const TahirSheet = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left sidebar — Date picker + calendar */}
           <div className="lg:col-span-1 space-y-4">
-            {/* Date navigation */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-3">
                 <button onClick={goToPrevDay} className="p-1 rounded hover:bg-gray-100">
@@ -378,7 +335,6 @@ const TahirSheet = () => {
               </div>
             </div>
 
-            {/* Mini calendar */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="text-sm font-semibold text-gray-700 mb-2">
                 {new Date(selectedDate + 'T00:00:00.000Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
@@ -392,7 +348,6 @@ const TahirSheet = () => {
               </div>
             </div>
 
-            {/* Search */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -412,7 +367,7 @@ const TahirSheet = () => {
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <RefreshCcw className="w-8 h-8 animate-spin text-blue-500" />
-                <span className="ml-3 text-gray-500">Loading sheet...</span>
+                <span className="ml-3 text-gray-500">Loading Gate Pass...</span>
               </div>
             ) : !data || assignments.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
@@ -421,30 +376,26 @@ const TahirSheet = () => {
                 <p className="text-gray-500 text-sm">
                   {hasRecords
                     ? `Records exist for ${selectedDate} but don't match the current filter.`
-                    : `No orders were assigned to Tahir on ${selectedDate}.`
+                    : `No orders were assigned on ${selectedDate}.`
                   }
                 </p>
                 <p className="text-gray-400 text-xs mt-2">Orders appear here only after being routed to Enamels Delivery Boy.</p>
               </div>
             ) : (
               <>
-                {/* Stats cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <StatCard icon={<Package className="w-5 h-5" />} label="Total" value={summary.total} color="blue" />
                   <StatCard icon={<Clock className="w-5 h-5" />} label="Today Assigned" value={summary.todayAssigned} color="indigo" />
                   <StatCard icon={<Truck className="w-5 h-5" />} label="Carry Forward" value={summary.carryForward} color="amber" />
                   <StatCard icon={<CheckCircle2 className="w-5 h-5" />} label="Delivered" value={summary.delivered} color="emerald" />
                   <StatCard icon={<Clock className="w-5 h-5" />} label="Pending" value={summary.pending} color="orange" />
                   <StatCard icon={<XCircle className="w-5 h-5" />} label="Returned" value={summary.returned} color="red" />
-                  <StatCard icon={<IndianRupee className="w-5 h-5" />} label="Total Value" value={fmtCurrency(summary.totalOrderValue)} color="purple" />
-                  <StatCard icon={<IndianRupee className="w-5 h-5" />} label="Advance" value={fmtCurrency(summary.totalAdvance)} color="cyan" />
                 </div>
 
-                {/* Order list */}
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-800">
-                      Orders Assigned ({assignments.length})
+                      Orders ({assignments.length})
                       {summary.carryForward > 0 && (
                         <span className="ml-2 text-xs font-normal text-amber-600">({summary.carryForward} carry-forward)</span>
                       )}
@@ -461,27 +412,23 @@ const TahirSheet = () => {
                           <th className="px-4 py-2.5">Phone</th>
                           <th className="px-4 py-2.5">Address</th>
                           <th className="px-4 py-2.5">Products</th>
-                          <th className="px-4 py-2.5 text-right">Total</th>
-                          <th className="px-4 py-2.5 text-right">Advance</th>
                           <th className="px-4 py-2.5">Status</th>
                           <th className="px-4 py-2.5">Assigned</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {/* Today's orders section header */}
                         {todayOrders.length > 0 && (
                           <tr>
-                            <td colSpan={10} className="px-4 py-2 bg-indigo-50 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                            <td colSpan={8} className="px-4 py-2 bg-indigo-50 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
                               Today's Assigned ({todayOrders.length})
                             </td>
                           </tr>
                         )}
                         {todayOrders.map((a, i) => renderOrderRow(a, i, 'today'))}
 
-                        {/* Carry-forward section header */}
                         {carryForwardOrders.length > 0 && (
                           <tr>
-                            <td colSpan={10} className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                            <td colSpan={8} className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-700 uppercase tracking-wide">
                               Carry Forward — Pending from Previous Days ({carryForwardOrders.length})
                             </td>
                           </tr>
@@ -508,4 +455,4 @@ const StatCard = ({ icon, label, value, color }) => (
   </div>
 );
 
-export default TahirSheet;
+export default GatePass;

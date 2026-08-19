@@ -9,6 +9,15 @@ import { STATUS_BADGE, STATUS_LABEL, STAT_COLORS } from '../utils/deliveryStatus
 
 const C = STAT_COLORS;
 
+/* ─── Carry-forward helpers ─── */
+const isCarryForwardOrder = (order) => {
+  const raw = order?.timeline?.assignedAt;
+  if (!raw) return false;
+  const d = new Date(raw);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return d < today;
+};
+
 const PRESETS = [
   { key: 'all', label: 'All Time' },
   { key: 'today', label: 'Today', getRange: () => { const d = new Date(); d.setHours(0,0,0,0); return { dateFrom: d.toISOString(), dateTo: new Date().toISOString() }; } },
@@ -543,6 +552,8 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
   const riders = data?.riders || [];
   const orders = data?.orders || [];
 
+  const carryForwardCount = useMemo(() => orders.filter(o => isCarryForwardOrder(o) && ['pending', 'inTransit', 'noResponse'].includes(o.primaryStatus)).length, [orders]);
+
   const filteredOrders = useMemo(() => {
     if (!selectedFilter) return [];
     return orders.filter(o => o.primaryStatus === selectedFilter);
@@ -583,6 +594,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     { label: 'Delivered', key: 'delivered', value: stats.delivered, filterKey: 'delivered' },
     { label: 'Pending', key: 'pending', value: stats.pending, filterKey: 'pending' },
     { label: 'In Transit', key: 'inTransit', value: stats.inTransit, filterKey: 'inTransit' },
+    { label: 'Carry Forward', key: 'carryForward', value: carryForwardCount, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: null },
     { label: 'Returned', key: 'returned', value: stats.returned, filterKey: 'returned' },
     { label: 'No Response', key: 'noResponse', value: stats.noResponse, filterKey: 'noResponse' },
     { label: 'Cancelled', key: 'cancelled', value: stats.cancelled, filterKey: 'cancelled' },
@@ -698,7 +710,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {statCards.map(card => {
-            const c = C[card.key] || C.total;
+            const c = card.color ? { bg: card.bg, text: card.color, border: card.border } : (C[card.key] || C.total);
             return (
               <div key={card.label} onClick={() => handleStatClick(card.filterKey)}
                 className={`${c.bg} rounded-2xl p-3 border ${c.border} text-center transition-all ${card.filterKey ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''}`}>
@@ -835,11 +847,21 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
                 {orders.slice(0, 100).map(o => (
                   <tr key={o.id} className="border-t border-gray-800 hover:bg-white/5 cursor-pointer"
                     onClick={() => setSelectedOrder(o)}>
-                    <td className="py-2 pr-2 font-bold theme-text-primary">#{o.orderNumber || o.id?.slice(0, 6)}</td>
+                    <td className="py-2 pr-2 font-bold theme-text-primary">
+                      #{o.orderNumber || o.id?.slice(0, 6)}
+                      {isCarryForwardOrder(o) && (
+                        <span className="ml-1.5 text-[8px] font-black text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded-full border border-amber-500/25 uppercase tracking-wider">
+                          CARRY
+                        </span>
+                      )}
+                    </td>
                     <td className="px-1 font-bold">{o.customerName || '—'}</td>
                     <td className="px-1 font-bold text-indigo-400">{o.riderName || '—'}</td>
                     <td className="px-1 text-gray-400">{o.outletName || '—'}</td>
-                    <td className="px-1 text-gray-400">{fmt(o.timeline?.assignedAt)}</td>
+                    <td className="px-1">
+                      <span className="text-gray-400">{fmt(o.timeline?.assignedAt)}</span>
+                      {isCarryForwardOrder(o) && <span className="block text-[8px] font-black text-amber-400 uppercase">Carry Forward</span>}
+                    </td>
                     <td className="px-1 text-gray-400">{fmt(o.timeline?.acceptedAt)}</td>
                     <td className="px-1 text-gray-400">{fmt(o.timeline?.pickedUpAt)}</td>
                     <td className="px-1 text-emerald-400 font-bold">{fmt(o.timeline?.deliveredAt)}</td>

@@ -229,9 +229,7 @@ const bookCourier = async (req, res) => {
       }
     }, { timeout: 30000 });
 
-    if (mappedDeliveryType === 'ENAMELS') {
-      recordAssignment({ orderId, deliveryBoyName: 'Tahir', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
-    }
+    recordAssignment({ orderId, deliveryBoyName: courierName, routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
 
     await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery', message: `Order #${order.orderNumber} booked with courier`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Courier Booked', employeeName: req.user?.name }).catch(() => {});
 

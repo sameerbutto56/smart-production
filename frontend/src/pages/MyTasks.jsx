@@ -93,15 +93,39 @@ const MyTasks = () => {
     setEngTasksLoading(false);
   }, []);
 
-  const handleAltDone = async (id) => {
-    setAltActionLoading(id);
-    try { await api.patch(`/api/alterations/${id}/done`); toast.success('Alteration completed'); fetchAltTasks(); } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  const handleAltDone = async (alt) => {
+    setAltActionLoading(alt.id);
+    try {
+      await api.patch(`/api/alterations/${alt.id}/done`);
+      toast.success('Alteration accepted');
+      if (alt.sourceOrderId) {
+        try {
+          await api.post(`/api/outlet-orders/${alt.sourceOrderId}/outlet-route`, { action: 'sendToInDispatch' });
+          toast.success('Order sent to In Dispatch');
+        } catch (routeErr) {
+          toast.error(routeErr.response?.data?.message || 'Accept succeeded but dispatch routing failed');
+        }
+      }
+      fetchAltTasks();
+    } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
     setAltActionLoading(null);
   };
 
-  const handleEngDone = async (id) => {
-    setEngActionLoading(id);
-    try { await api.patch(`/api/engravings/${id}/done`); toast.success('Engraving received'); fetchEngTasks(); } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  const handleEngDone = async (eng) => {
+    setEngActionLoading(eng.id);
+    try {
+      await api.patch(`/api/engravings/${eng.id}/done`);
+      toast.success('Engraving accepted');
+      if (eng.sourceOrderId) {
+        try {
+          await api.post(`/api/outlet-orders/${eng.sourceOrderId}/outlet-route`, { action: 'sendToInDispatch' });
+          toast.success('Order sent to In Dispatch');
+        } catch (routeErr) {
+          toast.error(routeErr.response?.data?.message || 'Accept succeeded but dispatch routing failed');
+        }
+      }
+      fetchEngTasks();
+    } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
     setEngActionLoading(null);
   };
 
@@ -773,9 +797,9 @@ const MyTasks = () => {
                           <Calendar size={12} />
                           {alt.completedAt && formatDateOnly(alt.completedAt)}
                         </div>
-                        <button onClick={() => handleAltDone(alt.id)} disabled={altActionLoading === alt.id}
+                        <button onClick={() => handleAltDone(alt)} disabled={altActionLoading === alt.id}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
-                          {altActionLoading === alt.id ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Done
+                          {altActionLoading === alt.id ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Accept & Send to In Dispatch
                         </button>
                       </div>
                     );
@@ -825,9 +849,9 @@ const MyTasks = () => {
                           <Calendar size={12} />
                           {eng.completedAt && formatDateOnly(eng.completedAt)}
                         </div>
-                        <button onClick={() => handleEngDone(eng.id)} disabled={engActionLoading === eng.id}
+                        <button onClick={() => handleEngDone(eng)} disabled={engActionLoading === eng.id}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
-                          {engActionLoading === eng.id ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Done
+                          {engActionLoading === eng.id ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Accept & Send to In Dispatch
                         </button>
                       </div>
                     );

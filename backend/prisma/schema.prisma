@@ -1569,6 +1569,7 @@ model DeliveryAssignment {
   returnedAt      DateTime?
   currentStage    String?
   status          String?
+  productDetails  Json?    // snapshot captured at assignment time
   createdAt       DateTime @default(now())
 
   @@unique([orderId, deliveryBoyName, assignmentDate])

@@ -124,7 +124,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
     { name: 'Outlet Order Entry', path: '/outlet-order-entry', icon: ShoppingBag, roles: ['OUTLET'] },
     { name: 'In Dispatch', path: '/in-dispatch', icon: RouteIcon, roles: ['OUTLET'] },
-    { name: 'Tahir Sheet', path: '/tahir-sheet', icon: ClipboardList, roles: ['OUTLET'] },
+    { name: 'Gate Pass', path: '/gate-pass', icon: ClipboardList, roles: ['OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['FAISAL'] },
     { name: 'Replacements', path: '/replacements', icon: ArrowRightLeft, roles: ['FAISAL'] },
 
@@ -161,11 +161,11 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
       // In Dispatch is a dedicated JOHAR TOWN outlet module only
-      if (item.name === 'In Dispatch' || item.name === 'Tahir Sheet') {
+      if (item.name === 'In Dispatch') {
         const n = String(user?.name || '').toLowerCase();
         return n.includes('johar') || user?.name?.includes('1');
       }
-      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch', 'Tahir Sheet'].includes(item.name);
+      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch', 'Gate Pass'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
