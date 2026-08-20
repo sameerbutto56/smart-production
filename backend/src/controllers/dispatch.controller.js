@@ -49,6 +49,7 @@ const getDispatchQueue = async (req, res) => {
       // Replacement (REP-...) orders flow through the normal pipeline once past STORE
       // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
       currentStage: { notIn: ['OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'] },
+      status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] },
       OR: [
         { currentStage: 'DISPATCH' },
         { dispatchStatus: { in: ['COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } }
@@ -400,9 +401,9 @@ const getDispatchDashboard = async (req, res) => {
       where: {
         ...baseWhere,
         OR: [
-          { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
-          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'RETURNED', 'REJECTED'] } },
-          { dispatchOfficer: { not: null } }
+          { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } },
+          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'REJECTED'] }, status: { notIn: ['RETURNED'] } },
+          { dispatchOfficer: { not: null }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } }
         ]
       },
       select: {

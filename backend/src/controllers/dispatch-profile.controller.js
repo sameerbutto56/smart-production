@@ -78,7 +78,7 @@ const getDispatchProfileOrders = async (req, res) => {
           // Replacement (REP-...) orders flow through the normal pipeline once past STORE
           // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
           currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-          status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+          status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
         },
         select: baseSelect,
         orderBy: baseOrder
@@ -123,7 +123,7 @@ const getDispatchProfileOrders = async (req, res) => {
     const dispatchOrders = await prisma.order.findMany({
       where: {
         currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
       },
       select: baseSelect,
       orderBy: baseOrder

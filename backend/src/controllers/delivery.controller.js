@@ -29,7 +29,8 @@ const getDeliveryOrders = async (req, res) => {
         { currentStage: { in: ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'] } },
         { currentStage: 'DELIVERED' },
         { status: 'COMPLETED' }
-      ]
+      ],
+      status: { notIn: ['RETURNED'] }
     };
     if (deliveryType) {
       const methodMap = { 'ENAMELS': 'Enamels Delivery', 'TCS': 'TCS', 'POST_EX': 'PostEx' };
@@ -93,9 +94,12 @@ const performDeliveryReturn = async (req, order, riderName, reason, autoReturned
     });
   }
 
+  // Keep currentStage as the delivery stage (already COMPLETED above).
+  // Do NOT set 'DISPATCH' — returned orders go to Inventory View → Returns via ReturnExchange case,
+  // not to Dispatch queues. Re-Dispatch from Inventory View will route back to DISPATCH explicitly.
   await prisma.order.update({
     where: { id: order.id },
-    data: { currentStage: 'DISPATCH', status: 'RETURNED', returnedAt: now }
+    data: { status: 'RETURNED', returnedAt: now }
   });
 
   const attemptCount = await prisma.deliveryAttempt.count({ where: { orderId: order.id } });
@@ -111,14 +115,14 @@ const performDeliveryReturn = async (req, order, riderName, reason, autoReturned
   });
 
   await prisma.routingHistory.create({
-    data: { orderId: order.id, sentByUserId: req.user?.id || null, previousStage: activeStage?.stageName || 'OUT_FOR_DELIVERY', newStage: 'DISPATCH', sentToStage: 'DISPATCH', remarks: `${autoReturned ? 'Auto-returned after 3 no-response attempts' : `Returned by ${riderName}`}: ${reason || 'No reason'}` }
+    data: { orderId: order.id, sentByUserId: req.user?.id || null, previousStage: activeStage?.stageName || 'OUT_FOR_DELIVERY', newStage: 'INVENTORY_VIEW', sentToStage: 'INVENTORY_VIEW', remarks: `${autoReturned ? 'Auto-returned after 3 no-response attempts' : `Returned by ${riderName}`}: ${reason || 'No reason'}` }
   });
 
   await prisma.auditLog.create({
     data: { orderId: order.id, action: autoReturned ? 'DELIVERY_AUTO_RETURNED' : 'DISPATCH_RETURNED', details: `${autoReturned ? 'Auto-returned after 3 no-response attempts' : `Returned by ${riderName}`}: ${reason || 'No reason'}`, performedBy: req.user?.id || 'SYSTEM' }
   });
 
-  await notify.create(req, { type: 'delivery_returned', moduleName: 'My Tasks', path: '/dispatch', role: 'DISPATCH', title: 'Order Returned', message: `Order #${order.orderNumber} returned from delivery`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Returned to Dispatch', employeeName: req.user?.name }).catch(() => {});
+  // No notification to DISPATCH — returned orders go directly to Inventory View → Returns via ReturnExchange case.
 
   // Create a ReturnExchange case so the order appears in Inventory View → Returns
   // with PENDING status (awaiting acceptance by Inventory View).

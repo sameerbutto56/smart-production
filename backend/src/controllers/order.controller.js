@@ -3267,7 +3267,7 @@ const getStoreRequests = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: {
         storeRequested: true,
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] },
         ...(isOutlet ? { source: 'OUTLET', outletName } : { source: { in: ['INTERNAL', 'ONLINE'] } })
       },
       include: {
