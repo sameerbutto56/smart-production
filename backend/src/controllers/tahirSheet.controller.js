@@ -7,6 +7,7 @@ const prisma = require('../prisma');
 const FINAL_STATUSES = ['DELIVERED', 'RETURNED', 'COMPLETED', 'CANCELLED', 'REJECTED'];
 const FINAL_STAGES = ['DELIVERED', 'RETURNED'];
 const DELIVERY_STAGES = ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY', 'IN_DISPATCH'];
+const CUTOFF_DATE = new Date('2026-08-19T00:00:00.000Z');
 
 let backfillInFlight = false;
 
@@ -22,7 +23,7 @@ const getTahirSheet = async (req, res) => {
     const dayEnd = new Date(date + 'T23:59:59.999Z');
 
     // 1. Fetch today's assignments + previous assignments (carry-forward)
-    //    Carry-forward DB query already excludes terminal orders for efficiency.
+    //    Carry-forward: only from CUTOFF_DATE forward, exclude terminal orders at DB level.
     const [todayAssignments, previousAssignments] = await Promise.all([
       prisma.deliveryAssignment.findMany({
         where: { assignmentDate: { gte: dayStart, lte: dayEnd } },
@@ -30,8 +31,7 @@ const getTahirSheet = async (req, res) => {
       }),
       prisma.deliveryAssignment.findMany({
         where: {
-          assignmentDate: { lt: dayStart },
-          // DB-level guard: exclude orders already marked terminal on the assignment record
+          assignmentDate: { gte: CUTOFF_DATE, lt: dayStart },
           status: { notIn: FINAL_STATUSES },
           deliveredAt: null,
           returnedAt: null,
@@ -137,8 +137,7 @@ const getTahirSheet = async (req, res) => {
 // Runs async, never blocks the API response. At most one concurrent run.
 async function runBackfill(existingOrderIds) {
   try {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 60);
+    const cutoff = new Date('2026-08-19T00:00:00.000Z');
 
     const unassignedOrders = await prisma.order.findMany({
       where: {
