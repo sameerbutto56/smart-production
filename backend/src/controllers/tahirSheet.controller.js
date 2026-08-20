@@ -21,14 +21,19 @@ const getTahirSheet = async (req, res) => {
     const dayStart = new Date(date + 'T00:00:00.000Z');
     const dayEnd = new Date(date + 'T23:59:59.999Z');
 
-    // 1. Fetch today's assignments + all previous assignments (carry-forward)
+    // 1. Fetch today's assignments + previous assignments (carry-forward)
+    //    Carry-forward DB query already excludes terminal orders for efficiency.
     const [todayAssignments, previousAssignments] = await Promise.all([
       prisma.deliveryAssignment.findMany({
         where: { assignmentDate: { gte: dayStart, lte: dayEnd } },
         orderBy: { assignedAt: 'asc' },
       }),
       prisma.deliveryAssignment.findMany({
-        where: { assignmentDate: { lt: dayStart } },
+        where: {
+          assignmentDate: { lt: dayStart },
+          // DB-level guard: exclude orders already marked terminal on the assignment record
+          status: { notIn: FINAL_STATUSES },
+        },
         orderBy: { assignedAt: 'asc' },
       }),
     ]);
@@ -92,13 +97,15 @@ const getTahirSheet = async (req, res) => {
       };
     });
 
-    // 5. Separate today vs carry-forward, filter out final from carry-forward display
+    // 5. Separate today vs carry-forward
+    //    Today: ALL today's assignments (including delivered/returned — they were part of today's work)
+    //    Carry-forward: ONLY genuinely incomplete orders from previous days (no delivered/returned/cancelled)
     const todayOrders = enriched.filter(e => e.isToday);
     const carryForwardOrders = enriched.filter(e => !e.isToday && !e.isFinal);
 
     const visibleOrders = [...todayOrders, ...carryForwardOrders];
 
-    // Summary stats (all visible)
+    // Summary stats
     const total = visibleOrders.length;
     const deliveredCount = visibleOrders.filter(e => e.delivered).length;
     const pendingCount = visibleOrders.filter(e => !e.delivered && !e.returned).length;
@@ -135,6 +142,8 @@ async function runBackfill(existingOrderIds) {
       where: {
         id: { notIn: [...existingOrderIds] },
         createdAt: { gte: cutoff },
+        // Never create assignment records for terminal orders
+        status: { notIn: FINAL_STATUSES },
         OR: [
           { currentStage: { in: DELIVERY_STAGES } },
           { deliveryType: { in: ['ENAMELS', 'TCS', 'POST_EX'] } },
@@ -311,4 +320,22 @@ const getAvailableDates = async (req, res) => {
   }
 };
 
-module.exports = { getTahirSheet, recordAssignment, getAvailableDates };
+// Mark a DeliveryAssignment as delivered or returned so DB-level filtering
+// excludes it from future carry-forward queries immediately (no enrichment needed).
+const markAssignmentTerminal = async (orderId, { delivered = false, returned = false } = {}) => {
+  try {
+    if (!orderId || (!delivered && !returned)) return;
+    const data = {};
+    if (delivered) data.deliveredAt = new Date();
+    if (returned) data.returnedAt = new Date();
+    // Update ALL assignment records for this order (there may be multiple across dates/boys)
+    await prisma.deliveryAssignment.updateMany({
+      where: { orderId },
+      data,
+    });
+  } catch (err) {
+    console.error('markAssignmentTerminal error:', err);
+  }
+};
+
+module.exports = { getTahirSheet, recordAssignment, getAvailableDates, markAssignmentTerminal };

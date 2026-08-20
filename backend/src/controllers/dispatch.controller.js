@@ -2,7 +2,7 @@ const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const notify = require('../utils/notify');
 const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
-const { recordAssignment } = require('./tahirSheet.controller');
+const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 
 const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
@@ -289,6 +289,13 @@ const updateCourierStatus = async (req, res) => {
       data: updateData
     });
 
+    // Mark delivery assignment terminal so it never carries forward in Gate Pass
+    if (dispatchStatus === 'DELIVERED' || dispatchStatus === 'COMPLETED') {
+      await markAssignmentTerminal(orderId, { delivered: true });
+    } else if (dispatchStatus === 'RETURNED' || dispatchStatus === 'REJECTED') {
+      await markAssignmentTerminal(orderId, { returned: true });
+    }
+
     await prisma.auditLog.create({
       data: {
         orderId,
@@ -364,6 +371,7 @@ const markPickedUp = async (req, res) => {
 
     await createAuditLog(orderId, 'PICKED_UP', `Order picked up by customer. Marked by: ${req.user.name}`, req.user.id);
     await syncReplacementCaseOnOrderCompletion(order);
+    await markAssignmentTerminal(orderId, { delivered: true });
 
     const io = req.app?.get('io');
     if (io) {

@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
+const { markAssignmentTerminal } = require('./tahirSheet.controller');
 
 const parseDateRange = (dateFrom, dateTo) => {
   const dateFilter = {};
@@ -101,6 +102,9 @@ const performDeliveryReturn = async (req, order, riderName, reason, autoReturned
     where: { id: order.id },
     data: { status: 'RETURNED', returnedAt: now }
   });
+
+  // Mark delivery assignment as returned so it never carries forward in Gate Pass
+  await markAssignmentTerminal(order.id, { returned: true });
 
   const attemptCount = await prisma.deliveryAttempt.count({ where: { orderId: order.id } });
   await prisma.deliveryAttempt.create({
@@ -221,6 +225,9 @@ const deliverOrder = async (req, res) => {
 
     await prisma.order.update({ where: { id: orderId }, data: updateData });
     await syncReplacementCaseOnOrderCompletion(order);
+
+    // Mark delivery assignment as delivered so it never carries forward in Gate Pass
+    await markAssignmentTerminal(orderId, { delivered: true });
 
     // Complete OUT_FOR_DELIVERY stage if exists
     const stage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status !== 'COMPLETED');

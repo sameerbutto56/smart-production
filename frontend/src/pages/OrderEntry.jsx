@@ -15,6 +15,138 @@ import EditOrderComparison from '../components/EditOrderComparison';
 
 const TAB_ICONS = { Layout, ShoppingCart, Scissors, Ruler };
 
+const FinancialSummarySection = React.memo(({
+  formData, setFormData, useUrdu,
+  memoCartProductPriceExBranding, memoCartTotalLogoCharges, memoCartTotalNamePrinting,
+  memoCartTotalCustomization, memoCartTotalCap, memoIsFreeDelivery, memoCalcDelivery,
+  memoCartTotalItems
+}) => {
+  const calcProductPrice = memoCartProductPriceExBranding;
+  const calcLogo = memoCartTotalLogoCharges;
+  const calcName = memoCartTotalNamePrinting;
+  const calcCustomization = memoCartTotalCustomization;
+  const calcCap = memoCartTotalCap;
+  const calcTotal = calcProductPrice + calcLogo + calcName + calcCustomization + calcCap + (memoIsFreeDelivery ? 0 : (memoCalcDelivery || 0));
+  const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
+  const adjLogoCharges = parseFloat(formData.adjLogoCharges) || calcLogo;
+  const adjNamePrinting = parseFloat(formData.adjNamePrinting) || calcName;
+  const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
+  const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
+  const adjDelivery = memoIsFreeDelivery ? 0 : (memoCalcDelivery || 0);
+  const discount = parseFloat(formData.adjDiscount) || 0;
+  const advanceAmt = parseFloat(formData.advanceAmount) || 0;
+  const adjTotal = adjProductPrice + adjLogoCharges + adjNamePrinting + adjCustomization + adjCap + adjDelivery - discount;
+  const remainingBalance = Math.max(0, adjTotal - advanceAmt);
+  const INP_COLORS = {
+    'emerald-400': 'text-emerald-400 focus:border-emerald-400',
+    'amber-400': 'text-amber-400 focus:border-amber-400',
+    'purple-400': 'text-purple-400 focus:border-purple-400',
+    'cyan-400': 'text-cyan-400 focus:border-cyan-400',
+    'rose-400': 'text-rose-400 focus:border-rose-400',
+  };
+  const handleChange = (name, value) => setFormData(prev => ({ ...prev, [name]: value }));
+  const inp = (name, calcVal, color = 'emerald-400') => (
+    <input type="text" inputMode="decimal" value={formData[name] ?? ''} placeholder={String(calcVal)}
+      onChange={e => handleChange(name, e.target.value)}
+      className={`w-full text-right bg-gray-900/80 border border-gray-600/70 hover:border-gray-500 rounded-lg py-1.5 px-2 text-xs font-black ${INP_COLORS[color] || INP_COLORS['emerald-400']} outline-none transition-all cursor-text shadow-inner`} />
+  );
+  const fmt = (n) => n.toLocaleString();
+  return (
+    <div className="theme-bg border border-gray-800/50 rounded-[2rem] p-4 md:p-6">
+      <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+        ₨ {useUrdu ? 'مالی خلاصہ' : 'Financial Summary'} <span className="text-[8px] text-gray-500 tracking-[0.3em]">{useUrdu ? 'گنیتی / تبديل شدہ' : 'CALCULATED / ADJUSTED'}</span>
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-800/50">
+              <th className="text-left text-gray-500 font-black uppercase tracking-wider py-1.5 pr-2">{useUrdu ? 'آئٹم' : 'Item'}</th>
+              <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 px-2 w-20">{useUrdu ? 'گنیتی' : 'Calculated'}</th>
+              <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 pl-2 w-20">{useUrdu ? 'تبدیل شدہ' : 'Adjusted'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-gray-800/30">
+              <td className="text-gray-300 font-bold py-1.5 pr-2">{useUrdu ? 'پروڈکٹ کی قیمت' : 'Product Price'}</td>
+              <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{fmt(calcProductPrice)}</td>
+              <td className="text-right py-1.5 pl-2">{inp('adjProductPrice', calcProductPrice)}</td>
+            </tr>
+            <tr className="border-b border-gray-800/30">
+              <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'لوگو چارجز' : 'Logo Charges'}</td>
+              <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{fmt(calcLogo)}</td>
+              <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
+            </tr>
+            <tr className="border-b border-gray-800/30">
+              <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام چارجز' : 'Name Charges'}</td>
+              <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{fmt(calcName)}</td>
+              <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
+            </tr>
+            <tr className="border-b border-gray-800/30">
+              <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن' : 'Customization'}</td>
+              <td className="text-right text-cyan-400 font-black py-1.5 px-2">₨{fmt(calcCustomization)}</td>
+              <td className="text-right py-1.5 pl-2">{inp('adjCustomization', calcCustomization, 'cyan-400')}</td>
+            </tr>
+            <tr className="border-b border-gray-800/30">
+              <td className="text-rose-400 font-bold py-1.5 pr-2">{useUrdu ? 'کیپ چارجز' : 'Cap Charges'}</td>
+              <td className="text-right text-rose-400 font-black py-1.5 px-2">₨{fmt(calcCap)}</td>
+              <td className="text-right py-1.5 pl-2">{inp('adjCapCharges', calcCap, 'rose-400')}</td>
+            </tr>
+            <tr className="border-b border-gray-800/30">
+              <td className={`font-bold py-1.5 pr-2 ${memoIsFreeDelivery ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {useUrdu ? 'ڈلیوری چارجز' : 'Delivery'} {memoIsFreeDelivery && <span className="text-[9px] tracking-widest text-emerald-500">(FREE)</span>}
+              </td>
+              <td className={`text-right font-black py-1.5 px-2 ${memoIsFreeDelivery ? 'text-emerald-500' : 'text-amber-400'}`}>
+                {memoIsFreeDelivery ? 'FREE' : `₨${fmt(memoCalcDelivery || 0)}`}
+              </td>
+              <td className="text-right py-1.5 pl-2">
+                <span className={`font-black text-xs ${memoIsFreeDelivery ? 'text-emerald-500' : 'text-amber-400'}`}>{memoIsFreeDelivery ? 'FREE' : `₨${fmt(memoCalcDelivery || 0)}`}</span>
+              </td>
+            </tr>
+            <tr className="border-b border-gray-800/30">
+              <td className="text-red-400 font-bold py-1.5 pr-2">{useUrdu ? 'رعایت' : 'Discount'}</td>
+              <td className="text-right text-gray-500 font-black py-1.5 px-2">—</td>
+              <td className="text-right py-1.5 pl-2">
+                <input type="text" inputMode="decimal" value={formData.adjDiscount ?? ''} placeholder="0"
+                  onChange={e => handleChange('adjDiscount', e.target.value)}
+                  className="w-full text-right bg-gray-900/80 border border-red-500/50 hover:border-red-400 rounded-lg py-1.5 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all cursor-text shadow-inner" />
+              </td>
+            </tr>
+            <tr className="border-b border-gray-800/30">
+              <td className="text-gray-200 font-black text-sm py-2 pr-2">{useUrdu ? 'کل رقم' : 'Grand Total'}</td>
+              <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{fmt(calcTotal)}</td>
+              <td className="text-right font-black text-white text-lg py-2 pl-2">₨{fmt(adjTotal)}</td>
+            </tr>
+            <tr>
+              <td className="text-emerald-400 font-bold py-1.5 pr-2">{useUrdu ? 'پیشگی وصول' : 'Advance Received'}</td>
+              <td className="text-right text-emerald-400 font-black py-1.5 px-2">{advanceAmt > 0 ? '✓ ' : ''}₨{fmt(advanceAmt)}</td>
+              <td className="text-right text-emerald-400 font-black py-1.5 pl-2">{advanceAmt > 0 ? '✓ ' : ''}₨{fmt(advanceAmt)}</td>
+            </tr>
+            <tr>
+              <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
+              <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{fmt(Math.max(0, calcTotal - advanceAmt))}</td>
+              <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{fmt(remainingBalance)}</td>
+            </tr>
+            <tr className="border-t-2 border-gray-700">
+              <td className="text-red-400 font-black text-sm py-2 pr-2 uppercase">{useUrdu ? 'کیش آن ڈلیوری' : 'COD Amount'}</td>
+              <td className="text-right text-red-400 font-black text-sm py-2 px-2">
+                {formData.paymentStatus === 'PAID' ? '₨0' : `₨${fmt(remainingBalance)}`}
+              </td>
+              <td className="text-right text-red-400 font-black text-lg py-2 pl-2">
+                {formData.paymentStatus === 'PAID' ? '₨0 (PAID)' : `₨${fmt(remainingBalance)}`}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-800/50">
+        <span className="text-xs text-gray-400">{useUrdu ? 'کل آئٹمز' : 'Total Items'}</span>
+        <span className="font-black theme-text-primary">{memoCartTotalItems}</span>
+      </div>
+    </div>
+  );
+});
+FinancialSummarySection.displayName = 'FinancialSummarySection';
+
 class SectionErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -45,7 +177,7 @@ const SmartOrderForm = () => {
     handleAddMoreProducts, handleCheckout, setShowAddMore, setIsCartOpen, setShowProductSelector,
     setShowEditReview, setError, filteredTabs, setLoading, setIsSubmitting,
     goForVerification, setGoForVerification, fromVerification, setIsEditMode, setFromVerification,
-    duplicateOrder, setDuplicateOrder, openDuplicateOrder
+    duplicateOrder, setDuplicateOrder, openDuplicateOrder, setFormData
   } = useOrderEntry();
 
   if (dataLoading) return <PageLoader text="Loading Order Entry..." />;
@@ -581,130 +713,17 @@ const SmartOrderForm = () => {
                   </div>
                   </SectionErrorBoundary>
                 )}
-                {(() => {
-                  const calcProductPrice = memoCartProductPriceExBranding;
-                  const calcLogo = memoCartTotalLogoCharges;
-                  const calcName = memoCartTotalNamePrinting;
-                  const calcCustomization = memoCartTotalCustomization;
-                  const calcCap = memoCartTotalCap;
-                  const calcTotal = calcProductPrice + calcLogo + calcName + calcCustomization + calcCap + (memoIsFreeDelivery ? 0 : (memoCalcDelivery || 0));
-                  const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
-                  const adjLogoCharges = parseFloat(formData.adjLogoCharges) || calcLogo;
-                  const adjNamePrinting = parseFloat(formData.adjNamePrinting) || calcName;
-                  const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
-                  const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
-                  const adjDelivery = memoIsFreeDelivery ? 0 : (memoCalcDelivery || 0);
-                  const discount = parseFloat(formData.adjDiscount) || 0;
-                  const advanceAmt = parseFloat(formData.advanceAmount) || 0;
-                  const adjTotal = adjProductPrice + adjLogoCharges + adjNamePrinting + adjCustomization + adjCap + adjDelivery - discount;
-                  const remainingBalance = Math.max(0, adjTotal - advanceAmt);
-                  const INP_COLORS = {
-                    'emerald-400': 'text-emerald-400 focus:border-emerald-400',
-                    'amber-400': 'text-amber-400 focus:border-amber-400',
-                    'purple-400': 'text-purple-400 focus:border-purple-400',
-                    'cyan-400': 'text-cyan-400 focus:border-cyan-400',
-                    'rose-400': 'text-rose-400 focus:border-rose-400',
-                  };
-                  const inp = (name, calcVal, color = 'emerald-400') => (
-                    <input type="number" min="0" value={formData[name] ?? ''} placeholder={String(calcVal)}
-                      onChange={e => setFormData(prev => ({ ...prev, [name]: e.target.value }))}
-                      className={`w-full text-right bg-gray-900/80 border border-gray-600/70 hover:border-gray-500 rounded-lg py-1.5 px-2 text-xs font-black ${INP_COLORS[color] || INP_COLORS['emerald-400']} outline-none transition-all cursor-text shadow-inner`} />
-                  );
-                  const fmt = (n) => n.toLocaleString();
-                  return (
-                    <div className="theme-bg border border-gray-800/50 rounded-[2rem] p-4 md:p-6">
-                      <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                        ₨ {useUrdu ? 'مالی خلاصہ' : 'Financial Summary'} <span className="text-[8px] text-gray-500 tracking-[0.3em]">{useUrdu ? 'گنیتی / تبديل شدہ' : 'CALCULATED / ADJUSTED'}</span>
-                      </h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-gray-800/50">
-                              <th className="text-left text-gray-500 font-black uppercase tracking-wider py-1.5 pr-2">{useUrdu ? 'آئٹم' : 'Item'}</th>
-                              <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 px-2 w-20">{useUrdu ? 'گنیتی' : 'Calculated'}</th>
-                              <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 pl-2 w-20">{useUrdu ? 'تبدیل شدہ' : 'Adjusted'}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr className="border-b border-gray-800/30">
-                              <td className="text-gray-300 font-bold py-1.5 pr-2">{useUrdu ? 'پروڈکٹ کی قیمت' : 'Product Price'}</td>
-                              <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{fmt(calcProductPrice)}</td>
-                              <td className="text-right py-1.5 pl-2">{inp('adjProductPrice', calcProductPrice)}</td>
-                            </tr>
-                            <tr className="border-b border-gray-800/30">
-                              <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'لوگو چارجز' : 'Logo Charges'}</td>
-                              <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{fmt(calcLogo)}</td>
-                              <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
-                            </tr>
-                            <tr className="border-b border-gray-800/30">
-                              <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام چارجز' : 'Name Charges'}</td>
-                              <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{fmt(calcName)}</td>
-                              <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
-                            </tr>
-                            <tr className="border-b border-gray-800/30">
-                              <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن' : 'Customization'}</td>
-                              <td className="text-right text-cyan-400 font-black py-1.5 px-2">₨{fmt(calcCustomization)}</td>
-                              <td className="text-right py-1.5 pl-2">{inp('adjCustomization', calcCustomization, 'cyan-400')}</td>
-                            </tr>
-                            <tr className="border-b border-gray-800/30">
-                              <td className="text-rose-400 font-bold py-1.5 pr-2">{useUrdu ? 'کیپ چارجز' : 'Cap Charges'}</td>
-                              <td className="text-right text-rose-400 font-black py-1.5 px-2">₨{fmt(calcCap)}</td>
-                              <td className="text-right py-1.5 pl-2">{inp('adjCapCharges', calcCap, 'rose-400')}</td>
-                            </tr>
-                            <tr className="border-b border-gray-800/30">
-                              <td className={`font-bold py-1.5 pr-2 ${memoIsFreeDelivery ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                {useUrdu ? 'ڈلیوری چارجز' : 'Delivery'} {memoIsFreeDelivery && <span className="text-[9px] tracking-widest text-emerald-500">(FREE)</span>}
-                              </td>
-                              <td className={`text-right font-black py-1.5 px-2 ${memoIsFreeDelivery ? 'text-emerald-500' : 'text-amber-400'}`}>
-                                {memoIsFreeDelivery ? 'FREE' : `₨${fmt(memoCalcDelivery || 0)}`}
-                              </td>
-                              <td className="text-right py-1.5 pl-2">
-                                <span className={`font-black text-xs ${memoIsFreeDelivery ? 'text-emerald-500' : 'text-amber-400'}`}>{memoIsFreeDelivery ? 'FREE' : `₨${fmt(memoCalcDelivery || 0)}`}</span>
-                              </td>
-                            </tr>
-                            <tr className="border-b border-gray-800/30">
-                              <td className="text-red-400 font-bold py-1.5 pr-2">{useUrdu ? 'رعایت' : 'Discount'}</td>
-                              <td className="text-right text-gray-500 font-black py-1.5 px-2">—</td>
-                              <td className="text-right py-1.5 pl-2">
-                                <input type="number" min="0" value={formData.adjDiscount ?? ''} placeholder="0"
-                                  onChange={e => setFormData(prev => ({ ...prev, adjDiscount: e.target.value }))}
-                                  className="w-full text-right bg-gray-900/80 border border-red-500/50 hover:border-red-400 rounded-lg py-1.5 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all cursor-text shadow-inner" />
-                              </td>
-                            </tr>
-                            <tr className="border-b border-gray-800/30">
-                              <td className="text-gray-200 font-black text-sm py-2 pr-2">{useUrdu ? 'کل رقم' : 'Grand Total'}</td>
-                              <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{fmt(calcTotal)}</td>
-                              <td className="text-right font-black text-white text-lg py-2 pl-2">₨{fmt(adjTotal)}</td>
-                            </tr>
-                            <tr>
-                              <td className="text-emerald-400 font-bold py-1.5 pr-2">{useUrdu ? 'پیشگی وصول' : 'Advance Received'}</td>
-                              <td className="text-right text-emerald-400 font-black py-1.5 px-2">{advanceAmt > 0 ? '✓ ' : ''}₨{fmt(advanceAmt)}</td>
-                              <td className="text-right text-emerald-400 font-black py-1.5 pl-2">{advanceAmt > 0 ? '✓ ' : ''}₨{fmt(advanceAmt)}</td>
-                            </tr>
-                            <tr>
-                              <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
-                              <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{fmt(Math.max(0, calcTotal - advanceAmt))}</td>
-                              <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{fmt(remainingBalance)}</td>
-                            </tr>
-                            <tr className="border-t-2 border-gray-700">
-                              <td className="text-red-400 font-black text-sm py-2 pr-2 uppercase">{useUrdu ? 'کیش آن ڈلیوری' : 'COD Amount'}</td>
-                              <td className="text-right text-red-400 font-black text-sm py-2 px-2">
-                                {formData.paymentStatus === 'PAID' ? '₨0' : `₨${fmt(remainingBalance)}`}
-                              </td>
-                              <td className="text-right text-red-400 font-black text-lg py-2 pl-2">
-                                {formData.paymentStatus === 'PAID' ? '₨0 (PAID)' : `₨${fmt(remainingBalance)}`}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-800/50">
-                        <span className="text-xs text-gray-400">{useUrdu ? 'کل آئٹمز' : 'Total Items'}</span>
-                        <span className="font-black theme-text-primary">{memoCartTotalItems}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                <FinancialSummarySection
+                  formData={formData} setFormData={setFormData} useUrdu={useUrdu}
+                  memoCartProductPriceExBranding={memoCartProductPriceExBranding}
+                  memoCartTotalLogoCharges={memoCartTotalLogoCharges}
+                  memoCartTotalNamePrinting={memoCartTotalNamePrinting}
+                  memoCartTotalCustomization={memoCartTotalCustomization}
+                  memoCartTotalCap={memoCartTotalCap}
+                  memoIsFreeDelivery={memoIsFreeDelivery}
+                  memoCalcDelivery={memoCalcDelivery}
+                  memoCartTotalItems={memoCartTotalItems}
+                />
               </div>
               <div className="bg-gray-800/50 rounded-2xl p-4 mb-4 border border-amber-500/20">
                 <label className="flex items-center gap-3 cursor-pointer">

@@ -3,7 +3,7 @@ const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const bcrypt = require('bcryptjs');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
-const { recordAssignment } = require('./tahirSheet.controller');
+const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 const { createAuditLog } = require('./order-helpers');
 
 const getOutletName = (req) => {
@@ -1180,6 +1180,8 @@ const outletRouteOrder = async (req, res) => {
           }
         });
       }, { timeout: 30000 });
+
+      await markAssignmentTerminal(orderId, { delivered: true });
 
       await notify.create(req, {
         type: 'order_completed', moduleName: 'Orders', path: '/orders',

@@ -3,7 +3,7 @@ const notify = require('../utils/notify');
 const cache = require('../utils/cache');
 const { createAuditLog, syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const { generateBalanceReceiptNumber } = require('./pos.controller');
-const { recordAssignment } = require('./tahirSheet.controller');
+const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 
 // Dedicated In Dispatch module — JOHAR TOWN outlet only.
 // Completely isolated from the existing Dispatch (dispatch officer) workflow.
@@ -355,6 +355,7 @@ const routeOrder = async (req, res) => {
         `Customer taken from In Dispatch by ${outletName}`,
         req.user?.id || 'SYSTEM');
       await syncReplacementCaseOnOrderCompletion(order);
+      await markAssignmentTerminal(order.id, { delivered: true });
 
       await prisma.routingHistory.create({
         data: {

@@ -5,6 +5,7 @@ const {
   reverseInventoryForRefund, syncReplacementCaseOnOrderCompletion
 } = require('./order-helpers');
 const { asyncHandler, AppError } = require('../middleware/error.middleware');
+const { markAssignmentTerminal } = require('./tahirSheet.controller');
 
 const updateDeliveryStatus = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
@@ -57,6 +58,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
     await prisma.deliveryAttempt.create({ data: { orderId, attemptNumber: (order.noResponseCount || 0) + 1, status: 'DELIVERED', riderId: userId, riderName, notes: remarks || 'Order delivered successfully' } });
     await calculateAndRecordRevenue(updatedOrder);
     await syncReplacementCaseOnOrderCompletion(updatedOrder);
+    await markAssignmentTerminal(orderId, { delivered: true });
     await createAuditLog(orderId, 'DELIVERED', remarks || 'Order delivered', userId);
     const io = req.app.get('io');
     io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
@@ -97,8 +99,9 @@ const refundOrder = asyncHandler(async (req, res) => {
   const { reason, note } = req.body;
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new AppError('Order not found', 404);
-  await prisma.order.update({ where: { id: orderId }, data: { refundStatus: 'REQUESTED', refundReason: reason || 'Not specified', refundNote: note || '', refundedAt: new Date(), refundedById: req.user.id, dispatchStatus: 'RETURNED', currentStage: 'RETURNED', status: 'RETURNED', updatedAt: new Date() } });
-  await createAuditLog(orderId, 'REFUND_REQUESTED', `Refund by ${req.user.name}. Reason: ${reason || 'N/A'}`, req.user.id);
+    await prisma.order.update({ where: { id: orderId }, data: { refundStatus: 'REQUESTED', refundReason: reason || 'Not specified', refundNote: note || '', refundedAt: new Date(), refundedById: req.user.id, dispatchStatus: 'RETURNED', currentStage: 'RETURNED', status: 'RETURNED', updatedAt: new Date() } });
+    await markAssignmentTerminal(orderId, { returned: true });
+    await createAuditLog(orderId, 'REFUND_REQUESTED', `Refund by ${req.user.name}. Reason: ${reason || 'N/A'}`, req.user.id);
   req.app.get('io').emit('order-updated', { orderId, createdById: order.createdById });
   await notify.create(req, { type: 'refund', moduleName: 'Orders', path: '/orders', role: 'ADMIN', title: 'Refund Requested', message: `Order #${order.orderNumber} refund requested`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Refund Requested', employeeName: req.user?.name }).catch(() => {});
   res.json({ message: 'Refund requested' });
