@@ -85,7 +85,7 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
     </style></head><body>`;
     doc.write(receiptStyle);
     if (includeInvoice) {
-      doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p>${sale.orderNumber ? `<p style="font-size:18px;font-weight:900;margin:6px 0;">Your Order #: ${sale.orderNumber}</p>` : ''}<p>${formatDateTime(sale.createdAt)}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+      doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#000;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p>${sale.orderNumber ? `<p style="font-size:18px;font-weight:900;margin:6px 0;">Your Order #: ${sale.orderNumber}</p>` : ''}<p>${formatDateTime(sale.createdAt)}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
       doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
       const exchangeItems = (sale.items || []).filter(i => i.isExchange);
       const newItems = (sale.items || []).filter(i => !i.isExchange);
@@ -108,22 +108,22 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
           const engraveAmt = item.engravingCharges || (item.nameEngrave ? 300 : 0);
           const logoAmt = item.logoCharges || (item.logoDesign ? 300 : 0);
           if (custParts.length > 0) {
-            doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(custAmt)})</div>`);
+            doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:2px;">${custParts.join(' + ')} (+${pf(custAmt)})</div>`);
           }
           if (engraveAmt > 0) {
-            doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Engraving (+${pf(engraveAmt)})</div>`);
+            doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Engraving (+${pf(engraveAmt)})</div>`);
           }
           if (logoAmt > 0) {
-            doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Logo Design (+${pf(logoAmt)})</div>`);
+            doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Logo Design (+${pf(logoAmt)})</div>`);
           }
           if (item.otherCharges > 0) {
-            doc.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
+            doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
           }
         }
         doc.write('</div>');
       });
       if (exchangeItems.length > 0) {
-        doc.write('<div style="margin-top:8px;padding-top:6px;border-top:2px solid #c00;"><p style="font-size:14px;font-weight:900;color:#c00;text-align:center;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Exchange / Returned Items</p>');
+        doc.write('<div style="margin-top:8px;padding-top:6px;border-top:2px solid #000;"><p style="font-size:14px;font-weight:900;color:#000;text-align:center;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Exchange / Returned Items</p>');
         exchangeItems.forEach(item => {
           const isUrd = isUrduReceipt();
           const name = item.productName || '';
@@ -131,18 +131,18 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
           doc.write('<div class="item">');
           doc.write(`<div class="item-name">${name}</div>`);
           if (variantParts.length > 0) doc.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
-          doc.write(`<div class="item-line" style="color:#c00;"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
+          doc.write(`<div class="item-line" style="color:#000;"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
           doc.write('</div>');
         });
         doc.write('</div>');
       }
       if (isFT) {
-        doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
+        doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#000;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
       } else {
         doc.write('</div><div class="section-label">SUMMARY</div>');
         const receiptExchangeCredit = (sale.items || []).filter(i => i.isExchange).reduce((s, i) => s + (i.lineTotal || 0), 0);
         doc.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
-        if (receiptExchangeCredit > 0) doc.write(`<tr><td style="color:#c00;font-weight:900;">Exchange Credit</td><td class="value" style="color:#c00;font-weight:900;">-${pf(receiptExchangeCredit)}</td></tr>`);
+        if (receiptExchangeCredit > 0) doc.write(`<tr><td style="color:#000;font-weight:900;">Exchange Credit</td><td class="value" style="color:#000;font-weight:900;">-${pf(receiptExchangeCredit)}</td></tr>`);
         if (sale.alterationCharges > 0) doc.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
         if (sale.deliveryCharges > 0) doc.write(`<tr><td>Delivery Charges</td><td class="value">${pf(sale.deliveryCharges)}</td></tr>`);
         const receiptCustTotal = (sale.items || []).reduce((s, i) => s + ((i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0)), 0);
@@ -411,7 +411,7 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
     td:last-child{text-align:right;font-weight:900;}
     .label{color:#666;font-size:10px;}
     .total-row td{border-top:2px solid #000;padding-top:6px;font-size:14px;font-weight:900;}
-    .zero{color:#059669;font-weight:900;}
+    .zero{color:#000;font-weight:900;}
     .footer{font-size:9px;color:#999;margin-top:12px;}
   </style></head><body>
     ${getPrintLogoHTML()}
@@ -433,7 +433,7 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
       <tr><td>Amount Paid Now</td><td>₨${(bp.amountPaidNow || 0).toLocaleString()}</td></tr>
       <tr class="total-row"><td>Current Outstanding</td><td class="${bp.outstandingBalanceAfterPayment <= 0 ? 'zero' : ''}">₨${(bp.outstandingBalanceAfterPayment || 0).toLocaleString()}</td></tr>
     </table>
-    ${bp.outstandingBalanceAfterPayment <= 0 ? '<p style="color:#059669;font-weight:900;font-size:14px;margin-top:10px;">✓ FULLY PAID</p>' : ''}
+    ${bp.outstandingBalanceAfterPayment <= 0 ? '<p style="color:#000;font-weight:900;font-size:14px;margin-top:10px;">✓ FULLY PAID</p>' : ''}
     <hr/>
     ${getPrintFooterHTML()}
   </body></html>`);

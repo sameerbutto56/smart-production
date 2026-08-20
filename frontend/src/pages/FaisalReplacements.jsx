@@ -74,6 +74,7 @@ const FaisalReplacements = ({ refreshKey }) => {
   const [showCreate, setShowCreate] = useState(false);
   const [specialNote, setSpecialNote] = useState('');
   const [returnReason, setReturnReason] = useState('');
+  const [orderType, setOrderType] = useState('STANDARD');
   const [newItems, setNewItems] = useState([newItemRow()]);
   const [creating, setCreating] = useState(false);
   const [overrideExisting, setOverrideExisting] = useState(false);
@@ -139,6 +140,7 @@ const FaisalReplacements = ({ refreshKey }) => {
     setEditingCase(c);
     setSpecialNote(c.specialNote || '');
     setReturnReason(c.returnReason || '');
+    setOrderType(c.orderType || 'STANDARD');
     setOverrideExisting(false);
 
     // Pre-fill replacement items from the case
@@ -191,6 +193,7 @@ const FaisalReplacements = ({ refreshKey }) => {
       // Update the case's special note and replacement items before sending
       await api.post(`/api/return-exchange/${editingCase.id}/send-to-store`, {
         replacementItems: validItems,
+        orderType,
         replacementSummary: {
           originalItems: parseItems(editingCase.originalProducts).map((item, i) => {
             const pd = item.productDetails || item;
@@ -326,6 +329,7 @@ const FaisalReplacements = ({ refreshKey }) => {
       const record = initRes.data;
       await api.post(`/api/return-exchange/${record.id}/send-to-store`, {
         replacementItems: validItems,
+        orderType,
         replacementSummary: buildSummary()
       });
       toast.success('Replacement order created and sent to Store');
@@ -791,7 +795,7 @@ const FaisalReplacements = ({ refreshKey }) => {
 
       {/* Create / Edit Modal */}
       {showCreate && (orderFound || editingCase) && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => { setShowCreate(false); setEditingCase(null); }}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => { setShowCreate(false); setEditingCase(null); setOrderType('STANDARD'); }}>
           <div className="theme-bg-subtle border-2 theme-border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="flex items-center justify-between">
@@ -804,7 +808,7 @@ const FaisalReplacements = ({ refreshKey }) => {
                   <p className="text-xs theme-text-muted">#{editingCase?.orderNumber || orderFound?.orderNumber || '...'} — {editingCase?.customerName || orderFound?.customerName || 'Loading...'}</p>
                 </div>
               </div>
-              <button onClick={() => { setShowCreate(false); setEditingCase(null); }} className="text-gray-500 hover:text-white font-black text-xl">&times;</button>
+              <button onClick={() => { setShowCreate(false); setEditingCase(null); setOrderType('STANDARD'); }} className="text-gray-500 hover:text-white font-black text-xl">&times;</button>
             </div>
 
             {/* Editing Banner */}
@@ -862,6 +866,15 @@ const FaisalReplacements = ({ refreshKey }) => {
                   <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} rows={2}
                     placeholder="Additional instructions for Store (optional)"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500 resize-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold theme-text-muted uppercase block mb-1">Order Type <span className="text-red-400">*</span></label>
+                  <select value={orderType} onChange={e => setOrderType(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                    <option value="STANDARD">Standard</option>
+                    <option value="LOGO">Logo</option>
+                    <option value="FULL_CUSTOM">Full Custom</option>
+                  </select>
                 </div>
               </div>
             </div>

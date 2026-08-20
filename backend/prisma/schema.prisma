@@ -951,6 +951,7 @@ model ReturnExchange {
   routedTo         String   @default("STORE") // STORE, FAISAL — where the case currently sits
   returnReason     String?
   specialNote      String?  // mandatory for REPLACEMENT — goes to Faisal
+  orderType        String?  // STANDARD, LOGO, CUSTOM — set by Faisal on replacement create/edit
   originalProducts Json?    // original order items snapshot
   replacementItems Json?    // replacement items (for REPLACEMENT type)
   deliveryAttempts Int      @default(0)

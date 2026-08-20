@@ -38,6 +38,21 @@ const createJournalEntry = async (req, res) => {
     if (!employeeName || !expenseTitle || !amount || amount <= 0) {
       return res.status(400).json({ message: 'Employee name, expense title, and positive amount are required' });
     }
+    // Duplicate guard: reject if same employee+title+amount within 5 seconds
+    const fiveSecondsAgo = new Date(Date.now() - 5000);
+    const recentDuplicate = await prisma.journalEntry.findFirst({
+      where: {
+        employeeName,
+        expenseTitle,
+        amount: parseFloat(amount),
+        outletName: outlet,
+        createdAt: { gte: fiveSecondsAgo }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (recentDuplicate) {
+      return res.status(409).json({ message: 'Duplicate entry detected. Please wait a moment before saving again.' });
+    }
     const entry = await prisma.journalEntry.create({
       data: { employeeName, outletName: outlet, expenseTitle, amount: parseFloat(amount), notes: notes || null }
     });

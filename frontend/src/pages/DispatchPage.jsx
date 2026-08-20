@@ -342,6 +342,24 @@ const DispatchPage = () => {
       const fpColor = isUrdu ? toUrduName(firstProduct.color) : firstProduct.color;
       doc.write(`<div style="padding:4px 6px;margin-bottom:4px"><p style="font-size:12px;font-weight:900;margin:0">${fpName}</p><p style="font-size:11px;margin:0">${[firstProduct.fabricType, fpColor, firstProduct.size, translateGender(firstProduct.gender, isUrdu)].filter(Boolean).join(' • ') || '—'}</p><p style="font-size:11px;font-weight:700;margin:2px 0 0">Qty: 1 | ₨${parseFloat(order.totalPrice || 0).toLocaleString()}</p></div>`);
     }
+    const productsSubtotal = allItems
+      ? allItems.reduce((sum, item) => sum + parseFloat(item.totalPrice || 0), 0)
+      : parseFloat(order.totalPrice || 0);
+    const deliveryCharges = parseFloat(order.deliveryCharges || 0);
+    const totalOrder = parseFloat(order.totalPrice || 0);
+    const advanceAmount = parseFloat(order.advanceAmount || 0);
+    const remaining = Math.max(0, totalOrder - advanceAmount);
+    const paymentStatus = advanceAmount > 0 ? (remaining <= 0 ? 'PAID' : 'PARTIALLY PAID') : (totalOrder > 0 ? 'PAID AT CHECKOUT' : '—');
+    const statusColor = remaining > 0 ? '#b45309' : '#16a34a';
+    doc.write(`<div style="font-size:12px;font-weight:900;text-transform:uppercase;margin:6px 0 2px;padding-bottom:2px;border-bottom:2px solid #000">Financial Summary</div>`);
+    doc.write(`<table>`);
+    doc.write(`<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Products Subtotal</td><td style="font-weight:700">₨${productsSubtotal.toLocaleString()}</td></tr>`);
+    if (deliveryCharges > 0) doc.write(`<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Delivery Charges</td><td style="font-weight:700">₨${deliveryCharges.toLocaleString()}</td></tr>`);
+    doc.write(`<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Total Order Amount</td><td style="font-weight:900;font-size:12px">₨${totalOrder.toLocaleString()}</td></tr>`);
+    if (advanceAmount > 0) doc.write(`<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Advance Payment</td><td style="font-weight:700">₨${advanceAmount.toLocaleString()}</td></tr>`);
+    doc.write(`<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Remaining Balance</td><td style="font-weight:900;color:${statusColor}">₨${remaining.toLocaleString()}</td></tr>`);
+    doc.write(`<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Payment Status</td><td><span style="display:inline-block;padding:2px 10px;border-radius:3px;color:#fff;font-weight:900;font-size:10px;background:${statusColor}">${paymentStatus}</span></td></tr>`);
+    doc.write(`</table>`);
     if (officerName) {
       doc.write(`<div style="margin-top:6px;border-top:2px solid #000;padding-top:4px;text-align:center">`);
       doc.write(`<p style="font-size:10px;font-weight:700;margin:0 0 1px">Dispatch Officer: ${officerName} | ${formatDateTime(new Date())}</p>`);

@@ -144,7 +144,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       .footer{text-align:center;font-size:14px;margin-top:10px;font-weight:bold;}
     </style></head><body>`;
     doc.write(style);
-    doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${formatDateTime(sale.createdAt)}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+    doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#000;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${formatDateTime(sale.createdAt)}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
@@ -164,22 +164,22 @@ const OutletInvoiceHistory = ({ outlet }) => {
         const engraveAmt = item.engravingCharges || (item.nameEngrave ? 300 : 0);
         const logoAmt = item.logoCharges || (item.logoDesign ? 300 : 0);
         if (custParts.length > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(custAmt)})</div>`);
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:2px;">${custParts.join(' + ')} (+${pf(custAmt)})</div>`);
         }
         if (engraveAmt > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Engraving (+${pf(engraveAmt)})</div>`);
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Engraving (+${pf(engraveAmt)})</div>`);
         }
         if (logoAmt > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:1px;">Logo Design (+${pf(logoAmt)})</div>`);
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Logo Design (+${pf(logoAmt)})</div>`);
         }
         if (item.otherCharges > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
         }
       }
       doc.write('</div>');
     });
     if (isFT) {
-      doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
+      doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#000;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
     } else {
       doc.write('</div><div class="section-label">SUMMARY</div>');
       doc.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);

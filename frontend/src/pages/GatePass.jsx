@@ -244,8 +244,15 @@ const GatePass = () => {
           </thead>
           <tbody>
             {assignments.map((a, i) => {
-              const pd = typeof a.productDetails === 'string' ? JSON.parse(a.productDetails || '[]') : (Array.isArray(a.productDetails) ? a.productDetails : []);
-              const prodNames = pd.map(p => (p.name || p.productName || p.productType || 'Item') + (p.quantity > 1 ? ` x${p.quantity}` : '')).join(', ') || '-';
+              const rawPd = typeof a.productDetails === 'string' ? JSON.parse(a.productDetails || '[]') : (Array.isArray(a.productDetails) ? a.productDetails : (a.productDetails && typeof a.productDetails === 'object' ? [a.productDetails] : []));
+              const prodNames = rawPd.map(entry => {
+                const p = entry?.productDetails || entry || {};
+                const name = p.name || p.productName || p.productType || entry.name || entry.productName || entry.productType || 'Item';
+                const color = p.color || entry.color;
+                const size = p.size || entry.size;
+                const qty = entry.quantity || p.quantity || 1;
+                return `${name}${color ? ' — ' + color : ''}${size ? ' (' + size + ')' : ''}${qty > 1 ? ' x' + qty : ''}`;
+              }).join(', ') || '-';
               return (
                 <tr key={a.id || i}>
                   <td>{i + 1}</td>

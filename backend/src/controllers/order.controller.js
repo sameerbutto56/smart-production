@@ -3157,6 +3157,22 @@ const getUnseenOrders = async (req, res) => {
     if (relevantStages.includes('STORE')) {
       whereClause.source = { not: 'REPLACEMENT' };
     }
+    // Exclude original orders that have an active replacement case — the replacement (REP-...)
+    // order is the real pipeline entry; the original should not appear alongside it. E.g.
+    // #49502 (original) + REP-49502 (replacement) both at LOGO_DESIGN would show twice;
+    // only REP-49502 should appear. Terminal cases (COMPLETED/CANCELLED/REPLACEMENT_COMPLETED)
+    // are excluded so completed replacements don't block the original from reappearing.
+    const activeReplaced = await prisma.returnExchange.findMany({
+      where: {
+        type: 'REPLACEMENT',
+        replacementOrderId: { not: null },
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REPLACEMENT_COMPLETED'] }
+      },
+      select: { orderId: true }
+    });
+    if (activeReplaced.length > 0) {
+      whereClause.id = { notIn: activeReplaced.map(r => r.orderId) };
+    }
     // Filter by outlet name for OUTLET role so each outlet only sees its own orders
     // Johar Town also sees Jail Road orders (auto-routing from Jail Road)
     if (userRole === 'OUTLET') {

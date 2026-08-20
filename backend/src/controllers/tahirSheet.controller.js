@@ -33,6 +33,8 @@ const getTahirSheet = async (req, res) => {
           assignmentDate: { lt: dayStart },
           // DB-level guard: exclude orders already marked terminal on the assignment record
           status: { notIn: FINAL_STATUSES },
+          deliveredAt: null,
+          returnedAt: null,
         },
         orderBy: { assignedAt: 'asc' },
       }),
@@ -76,7 +78,7 @@ const getTahirSheet = async (req, res) => {
       const dStatus = live.dispatchStatus || '';
       const delivered = stage === 'DELIVERED' || status === 'COMPLETED' || !!a.deliveredAt;
       const returned = stage === 'RETURNED' || status === 'RETURNED' || dStatus === 'RETURNED' || !!a.returnedAt;
-      const isFinal = FINAL_STATUSES.includes(status) || FINAL_STAGES.includes(stage);
+      const isFinal = FINAL_STATUSES.includes(status) || FINAL_STAGES.includes(stage) || !!a.deliveredAt || !!a.returnedAt;
       const assignedDate = a.assignmentDate ? new Date(a.assignmentDate).toISOString().split('T')[0] : date;
       const isToday = assignedDate === date;
       return {

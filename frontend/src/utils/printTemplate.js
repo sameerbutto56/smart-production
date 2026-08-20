@@ -7,7 +7,7 @@ export function getPrintLogoHTML() {
 }
 
 export function getPrintFooterHTML() {
-  return `<div class="print-footer" style="text-align:center;font-size:10px;color:#888;margin-top:15px;padding-top:6px;border-top:1px solid #ccc;">
+  return `<div class="print-footer" style="text-align:center;font-size:10px;color:#000;margin-top:15px;padding-top:6px;border-top:1px solid #ccc;">
     <p style="margin:0;">Software is developed by Sameer Butt</p>
   </div>`;
 }

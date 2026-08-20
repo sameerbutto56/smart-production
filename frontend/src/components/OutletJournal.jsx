@@ -25,13 +25,8 @@ const OutletJournal = ({ outlet }) => {
   const [customTitle, setCustomTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
-
-  // History
-  const [entries, setEntries] = useState([]);
-  const [entriesLoading, setEntriesLoading] = useState(false);
-
-  // Cash summary
-  const [cashSummary, setCashSummary] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const bcRef = useRef(null);
 
   useEffect(() => {
@@ -94,10 +89,12 @@ const OutletJournal = ({ outlet }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     const title = expenseTitle === 'Other' ? customTitle : expenseTitle;
     if (!title || !amount || parseFloat(amount) <= 0) {
       return toast.error('Please select an expense title and enter a valid amount');
     }
+    setSubmitting(true);
     try {
       await api.post('/api/journal', {
         employeeName: authenticatedEmployee,
@@ -121,6 +118,8 @@ const OutletJournal = ({ outlet }) => {
       } catch (_) {}
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save entry');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -243,9 +242,9 @@ const OutletJournal = ({ outlet }) => {
                   <span className="text-gray-700">|</span>
                   <span className="text-emerald-400">{authenticatedEmployee}</span>
                 </div>
-                <button type="submit"
-                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg">
-                  <FileText size={16} /> Save Entry
+                <button type="submit" disabled={submitting}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                  <FileText size={16} /> {submitting ? 'Saving...' : 'Save Entry'}
                 </button>
               </form>
             </div>

@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const { calculateDeadline } = require('../utils/deadline');
 const { classifyOrderItems } = require('./order-helpers');
@@ -378,9 +379,16 @@ const processByStore = async (req, res) => {
       return tx.returnExchange.findUnique({ where: { id } });
     });
 
+    if (action === 'restock' || action === 'deduct') {
+      try { cache.delPattern('pos:inventory:'); cache.delPattern('warehouse:'); cache.delPattern('products:'); } catch (e) { console.error('processByStore cache invalidation error:', e); }
+    }
+
     const io = req.app?.get('io');
     if (io) io.emit('order-updated', { orderId: record.orderId });
     if (io) io.emit('return-exchange-updated', { caseId: id });
+    if (io && (action === 'restock' || action === 'deduct')) {
+      io.emit('inventory-updated', { source: 'return-exchange-process', action, orderNumber: record.orderNumber });
+    }
 
     if (action === 'route_to_production') {
       await notify.create(req, { type: 'return_exchange', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION', title: 'New Return/Replacement in Production', message: `${record.type} for ${record.customerName || 'customer'} routed to Production`, orderId: record.orderId, customerName: record.customerName, action: '→ Production', employeeName: req.user?.name }).catch(() => {});
@@ -717,7 +725,7 @@ const getCaseHistory = async (req, res) => {
 const sendToStore = async (req, res) => {
   try {
     const { id } = req.params;
-    const { replacementItems, replacementSummary, notes } = req.body;
+    const { replacementItems, replacementSummary, notes, orderType } = req.body;
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
     if (record.type !== 'REPLACEMENT') return res.status(400).json({ message: 'Only replacement cases can be sent to Store' });
@@ -864,7 +872,7 @@ const sendToStore = async (req, res) => {
           city: originalOrder.city,
           createdById: req.user?.id || null,
           source: 'REPLACEMENT',
-          type: 'STANDARD',
+          type: orderType || 'STANDARD',
           priority: 'NORMAL',
           quantity: items.length,
           productDetails,
@@ -878,7 +886,7 @@ const sendToStore = async (req, res) => {
           status: 'IN_PROGRESS',
           placedBy: req.user?.name || 'Faisal',
           replacementCaseId: id,
-          instructionNotes: record.specialNote || record.returnReason || null
+          instructionNotes: record.specialNote || null
         }
       });
 
@@ -922,7 +930,8 @@ const sendToStore = async (req, res) => {
         replacementSummary: replacementSummary ? JSON.stringify(replacementSummary) : null,
         faisalApprovedBy: req.user?.name || 'Faisal',
         faisalApprovedAt: new Date(),
-        warehouseNotes: notes || record.warehouseNotes
+        warehouseNotes: notes || record.warehouseNotes,
+        orderType: orderType || record.orderType || 'STANDARD'
       };
       await tx.returnExchange.update({ where: { id }, data: caseData });
       return tx.returnExchange.findUnique({ where: { id } });
@@ -1064,8 +1073,11 @@ const restockOriginal = async (req, res) => {
       return tx.returnExchange.findUnique({ where: { id } });
     });
 
+    try { cache.delPattern('pos:inventory:'); cache.delPattern('warehouse:'); cache.delPattern('products:'); } catch (e) { console.error('restockOriginal cache invalidation error:', e); }
+
     const io = req.app?.get('io');
     if (io) io.emit('return-exchange-updated', { caseId: id });
+    if (io) io.emit('inventory-updated', { source: 'return-exchange-restock', action: 'restock-original', orderNumber: record.orderNumber });
 
     res.json(updated);
   } catch (error) {
