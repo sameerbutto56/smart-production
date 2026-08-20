@@ -130,6 +130,24 @@ const createReturnExchange = async (req, res) => {
       }
     }
 
+    // Prevent duplicate ACTIVE return cases for the same order.
+    if (type === 'RETURN') {
+      const activeReturns = await prisma.returnExchange.findMany({
+        where: {
+          orderId,
+          type: 'RETURN',
+          status: { notIn: ['COMPLETED', 'CANCELLED'] }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (activeReturns.length > 0) {
+        return res.status(409).json({
+          message: 'This order already has an active return case. Process the existing return instead of creating a new one.',
+          existingCase: activeReturns[0]
+        });
+      }
+    }
+
     // RETURN → Store takes over; REPLACEMENT → Faisal reviews first, then Store
     const routedTo = type === 'REPLACEMENT' ? 'FAISAL' : 'STORE';
     const initialStatus = type === 'REPLACEMENT' ? 'PENDING' : 'PENDING';
@@ -1278,7 +1296,13 @@ const getAllCases = async (req, res) => {
 
     const where = {};
     if (type) where.type = type;
-    if (status) where.status = status;
+    if (status) {
+      where.status = status;
+    } else {
+      // By default, exclude terminal statuses so completed/cancelled cases
+      // don't reappear in the active workflow views.
+      where.status = { notIn: ['COMPLETED', 'CANCELLED', 'REPLACEMENT_COMPLETED'] };
+    }
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
@@ -1640,9 +1664,11 @@ const searchReturns = async (req, res) => {
     const q = String(orderNumber).trim();
     const bareNumber = q.replace(/^#/, '');
 
+    const RETURN_TERMINAL = ['COMPLETED', 'CANCELLED'];
     const cases = await prisma.returnExchange.findMany({
       where: {
         type: 'RETURN',
+        status: { notIn: RETURN_TERMINAL },
         OR: [
           { orderNumber: { equals: q, mode: 'insensitive' } },
           { orderNumber: { endsWith: q, mode: 'insensitive' } },
