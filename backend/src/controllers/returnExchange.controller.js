@@ -1143,6 +1143,14 @@ const routeReplacement = async (req, res) => {
       return res.status(400).json({ message: `Invalid route. Valid destinations: ${REPLACEMENT_ROUTES.join(', ')}.` });
     }
 
+    // Production In split guard (same as requestStageCompletion / manualRouteOrder):
+    // a Store-stage replacement routing to PRODUCTION must land in PRODUCTION_ACCEPTANCE
+    // (Production In's stage) so it goes through the acceptance gate before Production Out
+    // works on it — never straight to PRODUCTION which bypasses Production In entirely.
+    if (nextStage === 'PRODUCTION') {
+      nextStage = 'PRODUCTION_ACCEPTANCE';
+    }
+
     const order = await prisma.order.findUnique({
       where: { id: record.replacementOrderId },
       include: { stages: { orderBy: { createdAt: 'asc' } } }

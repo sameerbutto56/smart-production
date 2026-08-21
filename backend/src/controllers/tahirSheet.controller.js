@@ -73,12 +73,13 @@ const getTahirSheet = async (req, res) => {
 
     const enriched = allAssignments.map(a => {
       const live = orderMap[a.orderId] || {};
+      const orderNotFound = !live.id;
       const stage = live.currentStage || a.currentStage;
       const status = live.status || a.status;
       const dStatus = live.dispatchStatus || '';
       const delivered = stage === 'DELIVERED' || status === 'COMPLETED' || !!a.deliveredAt;
       const returned = stage === 'RETURNED' || status === 'RETURNED' || dStatus === 'RETURNED' || !!a.returnedAt;
-      const isFinal = FINAL_STATUSES.includes(status) || FINAL_STAGES.includes(stage) || !!a.deliveredAt || !!a.returnedAt;
+      const isFinal = orderNotFound || FINAL_STATUSES.includes(status) || FINAL_STAGES.includes(stage) || !!a.deliveredAt || !!a.returnedAt;
       const assignedDate = a.assignmentDate ? new Date(a.assignmentDate).toISOString().split('T')[0] : date;
       const isToday = assignedDate === date;
       return {
@@ -100,9 +101,9 @@ const getTahirSheet = async (req, res) => {
     });
 
     // 5. Separate today vs carry-forward
-    //    Today: ALL today's assignments (including delivered/returned — they were part of today's work)
-    //    Carry-forward: ONLY genuinely incomplete orders from previous days (no delivered/returned/cancelled)
-    const todayOrders = enriched.filter(e => e.isToday);
+    //    Today: Only today's PENDING orders (exclude delivered/returned/completed/deleted)
+    //    Carry-forward: ONLY genuinely incomplete orders from previous days (no delivered/returned/cancelled/deleted)
+    const todayOrders = enriched.filter(e => e.isToday && !e.isFinal);
     const carryForwardOrders = enriched.filter(e => !e.isToday && !e.isFinal);
 
     const visibleOrders = [...todayOrders, ...carryForwardOrders];
