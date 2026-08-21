@@ -98,15 +98,14 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
   const navItems = [
     { name: 'Executive Dashboard', path: '/ceo-dashboard', icon: LayoutDashboard, roles: ['CEO'] },
-    { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS'] },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'] },
-    { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['SUPER_ADMIN', 'ADMIN', 'OUTLET', 'STORE'] },
-    { name: 'Analytics', path: '/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['OUTLET', 'STORE'] },
 
     // Operational roles links (hidden from Admin to keep it simplified)
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL'] },
