@@ -100,11 +100,19 @@ const getTahirSheet = async (req, res) => {
       };
     });
 
-    // 5. Separate today vs carry-forward
+    // 5. Filter to Enamels delivery only — exclude TCS, PostEx, Customer Pickup
+    const enamelsOnly = enriched.filter(e => {
+      const order = orderMap[e.orderId] || {};
+      return order.deliveryType === 'ENAMELS'
+        || order.currentStage === 'ENAMELS_DELIVERY'
+        || (e.deliveryBoyName || '').toLowerCase().includes('enamels');
+    });
+
+    // 6. Separate today vs carry-forward
     //    Today: Only today's PENDING orders (exclude delivered/returned/completed/deleted)
     //    Carry-forward: ONLY genuinely incomplete orders from previous days (no delivered/returned/cancelled/deleted)
-    const todayOrders = enriched.filter(e => e.isToday && !e.isFinal);
-    const carryForwardOrders = enriched.filter(e => !e.isToday && !e.isFinal);
+    const todayOrders = enamelsOnly.filter(e => e.isToday && !e.isFinal);
+    const carryForwardOrders = enamelsOnly.filter(e => !e.isToday && !e.isFinal);
 
     const visibleOrders = [...todayOrders, ...carryForwardOrders];
 
@@ -146,10 +154,10 @@ async function runBackfill(existingOrderIds) {
         createdAt: { gte: cutoff },
         // Never create assignment records for terminal orders
         status: { notIn: FINAL_STATUSES },
+        // Gate Pass is Enamels-only — only backfill Enamels delivery orders
         OR: [
-          { currentStage: { in: DELIVERY_STAGES } },
-          { deliveryType: { in: ['ENAMELS', 'TCS', 'POST_EX'] } },
-          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } },
+          { currentStage: 'ENAMELS_DELIVERY' },
+          { deliveryType: 'ENAMELS' },
         ],
       },
       select: {
