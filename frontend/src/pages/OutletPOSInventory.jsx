@@ -1324,7 +1324,7 @@ const ManagementInventory = () => {
 const OutletPOSInventory = () => {
   const { user } = useAuth();
   const role = String(user?.role || '').toUpperCase().trim();
-  const isManagement = ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(role);
+  const isManagement = role === 'STORE';
 
   return isManagement ? <ManagementInventory /> : <ViewOnlyInventory />;
 };
