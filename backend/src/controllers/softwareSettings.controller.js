@@ -192,6 +192,7 @@ const getPaymentChangeInvoices = async (req, res) => {
 
     const where = { outletName: outlet, faisalTake: { not: true } };
     const q = String(search || '').trim();
+    let bpBySaleId = new Map();
     if (q) {
       // Also match order-linked sales by Order invoiceNumber / orderNumber.
       const orderMatches = await prisma.order.findMany({
@@ -212,7 +213,6 @@ const getPaymentChangeInvoices = async (req, res) => {
         ...(bpMatches.length ? [{ id: { in: bpMatches.map(b => b.posSaleId) } }] : []),
       ];
       // Map posSaleId → matched BP receipt info so frontend can display the searched BP receipt
-      const bpBySaleId = new Map();
       bpMatches.forEach(b => { if (b.posSaleId) bpBySaleId.set(b.posSaleId, { id: b.id, receipt: b.receiptNumber, amount: b.amountPaidNow, method: b.paymentMethod, paidAt: b.paidAt }); });
     }
 
