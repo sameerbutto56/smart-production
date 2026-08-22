@@ -27,6 +27,9 @@ const OutletJournal = ({ outlet }) => {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [entries, setEntries] = useState([]);
+  const [entriesLoading, setEntriesLoading] = useState(false);
+  const [cashSummary, setCashSummary] = useState(null);
   const bcRef = useRef(null);
 
   useEffect(() => {

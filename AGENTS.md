@@ -504,9 +504,18 @@
 - **Verification**: `node --check` OK on controller; `node -e require` loads cleanly (19 exports); `npm run build` EXIT=0 (3176 modules); commit `55640be` pushed; deployed `dpl_D1PWqqLPKREBuSN2Yts2jChPvHCS` (`smart-production-v2-k6bkwk3yq-...`) + re-aliased `smart-production-v2.vercel.app`; live `GET /api/return-exchange/cases` 401 unauthenticated (function live + auth-guarded).
 
 ### In Progress
-- User verification of Financial Summary input fix (hard-refresh required)
-- User verification of Gate Pass dispatch-originated orders
-- User verification of return ghost case fix (hard-refresh may be needed)
+- User verification of Gate Pass Enamels-only filter (commit `b05a407` deployed, needs live count check)
+- User verification of replacement orders routing to PRODUCTION_ACCEPTANCE (commit `6191a86` deployed, 5 stuck orders repaired via `repair-replacement-production.js`)
+
+### Done This Session — Gate Pass Enamels-Only Filter (commit `b05a407`)
+- **Root cause**: `getTahirSheet` enrichment fetched ALL `DeliveryAssignment` records — no delivery type filter. `DeliveryAssignment` has no `deliveryType` field; only `deliveryBoyName` varies. The `runBackfill` also created records for TCS/PostEx/Customer Pickup orders.
+- **Fix** (`tahirSheet.controller.js`):
+  - New `enamelsOnly` array after enrichment (L103-109): filters using 3 criteria on the linked Order — `order.deliveryType === 'ENAMELS'`, `order.currentStage === 'ENAMELS_DELIVERY'`, or `deliveryBoyName` contains `'enamels'` (case-insensitive).
+  - `todayOrders` and `carryForwardOrders` now filter from `enamelsOnly` instead of `enriched`.
+  - Backfill restricted (L154-160): only creates assignments for `currentStage === 'ENAMELS_DELIVERY'` OR `deliveryType === 'ENAMELS'` — no more TCS/PostEx/Customer Pickup phantom records.
+- **Verification**: Frontend build 0 errors (`✓ 3176 modules`); `node -e require` LOAD OK on controller.
+- **Deploy**: Commit `b05a407` pushed to `origin/main`, Vercel auto-deploys.
+- **Live verification pending**: Gate Pass should show ~15 orders (12 today + 3 carry-forward) instead of 43.
 
 ### Blocked
 - (none)

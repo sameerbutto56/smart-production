@@ -230,7 +230,7 @@ const createEditRequest = async (req, res) => {
       });
     }
 
-    await notify.create(req, { type: 'edit_request', moduleName: 'Edit Request', path: '/edit-requests', role: 'ADMIN', title: 'Edit Request Submitted', message: message || `Order #${orderNumber} edit requested`, orderId, orderNumber, customerName: customerName, action: 'Edit Requested', employeeName: req.user?.name }).catch(() => {});
+    await notify.create(req, { type: 'edit_request', moduleName: 'Edit Request', path: '/edit-requests', role: 'ADMIN', title: 'Edit Request Submitted', message: `Order #${order.orderNumber || orderId.substring(0, 8)} edit requested`, orderId, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Edit Requested', employeeName: req.user?.name }).catch(() => {});
 
     res.status(201).json({ message: 'Edit request submitted', editRequest });
   } catch (error) {

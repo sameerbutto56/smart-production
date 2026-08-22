@@ -387,11 +387,14 @@ const SoftwareSettings = () => {
     if (!selectedInvoice) return;
     if (!newMethod) return toast.error('Select a payment method');
     if (newMethod === selectedInvoice.paymentMethod) {
-      return toast.error(`This invoice is already paid via ${METHOD_LABELS[newMethod]}`);
+      return toast.error(`This ${selectedInvoice._targetBP ? 'balance payment' : 'invoice'} is already paid via ${METHOD_LABELS[newMethod]}`);
     }
     setChanging(true);
     try {
-      const res = await api.post('/api/software-settings/payment-change', { saleId: selectedInvoice.id, newMethod });
+      const payload = selectedInvoice._targetBP
+        ? { balancePaymentId: selectedInvoice._targetBP.id, newMethod }
+        : { saleId: selectedInvoice.id, newMethod };
+      const res = await api.post('/api/software-settings/payment-change', payload);
       toast.success(res.data?.message || 'Payment method changed');
       const currentQuery = invoiceQuery;
       setSelectedInvoice(null);
@@ -605,11 +608,11 @@ const SoftwareSettings = () => {
                 </select>
               </div>
               <div className="flex flex-col gap-1.5 flex-1 min-w-[260px]">
-                <label className="text-xs font-bold text-gray-400">Search invoice — receipt #, order #, invoice #, customer, phone</label>
+                <label className="text-xs font-bold text-gray-400">Search invoice — receipt #, balance receipt #, order #, invoice #, customer, phone</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                   <input value={invoiceQuery} onChange={e => setInvoiceQuery(e.target.value)}
-                    placeholder="RCP-20260812-…, JT-…, INV-…, customer name or phone"
+                    placeholder="RCP-…, BP-…, JT-…, INV-…, customer name or phone"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-9 pr-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none" />
                   {invoiceLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-blue-500" size={16} />}
                 </div>
@@ -636,7 +639,16 @@ const SoftwareSettings = () => {
                   {invoiceResults.map(inv => (
                     <div key={inv.id} className="bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-black text-white">{inv.receiptNumber}</span>
+                        {inv.matchedBPReceipt ? (
+                          <>
+                            <span className="font-black text-blue-400">{inv.matchedBPReceipt.receipt}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-600/20 border border-blue-600/40 text-blue-300">BALANCE PAYMENT</span>
+                            <span className="text-gray-500 text-[11px]">→</span>
+                            <span className="font-black text-white">{inv.receiptNumber}</span>
+                          </>
+                        ) : (
+                          <span className="font-black text-white">{inv.receiptNumber}</span>
+                        )}
                         <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border ${METHOD_STYLES[inv.paymentMethod] || 'bg-gray-700 border-gray-600 text-gray-300'}`}>
                           {METHOD_LABELS[inv.paymentMethod] || inv.paymentMethod}
                         </span>
@@ -668,7 +680,23 @@ const SoftwareSettings = () => {
                           <p className="text-gray-400 text-[11px]">Cashier</p>
                           <p className="font-bold text-white">{inv.cashierName || '-'}</p>
                         </div>
-                        <button onClick={() => { setSelectedInvoice(inv); setNewMethod(inv.paymentMethod === 'CASH' ? 'ONLINE' : 'CASH'); }}
+                        {inv.balanceReceipts && inv.balanceReceipts.length > 0 && (
+                          <div className="w-full mt-1">
+                            <p className="text-gray-400 text-[11px]">Balance Payments</p>
+                            <div className="flex flex-wrap gap-1.5 mt-0.5">
+                              {inv.balanceReceipts.map((bp, i) => (
+                                <span key={i} className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-600/20 border border-blue-600/40 text-blue-300">
+                                  {bp.receipt} · {fmtMoney(bp.amount)} · {METHOD_LABELS[bp.method] || bp.method}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <button onClick={() => {
+                          const invWithBP = inv.matchedBPReceipt ? { ...inv, _targetBP: inv.matchedBPReceipt, paymentMethod: inv.matchedBPReceipt.method } : inv;
+                          setSelectedInvoice(invWithBP);
+                          setNewMethod(inv.matchedBPReceipt ? (inv.matchedBPReceipt.method === 'CASH' ? 'ONLINE' : 'CASH') : (inv.paymentMethod === 'CASH' ? 'ONLINE' : 'CASH'));
+                        }}
                           className="ml-auto flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs">
                           <ArrowLeftRight size={14} /> Change Method
                         </button>

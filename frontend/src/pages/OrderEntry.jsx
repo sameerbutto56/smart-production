@@ -541,7 +541,7 @@ const SmartOrderForm = () => {
                 </div>
                 <button onClick={() => { setIsCartOpen(false); fromVerification ? submitOrderEditRequest() : isEditMode ? submitOrderEditRequest() : handleCheckout(); }} disabled={loading || isSubmitting}
                   className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/40 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50">
-                  <CheckCircle2 size={16} /><span>{fromVerification ? 'Resubmit to Store' : isEditMode ? 'Submit Edit Request' : 'Checkout Order'}</span>
+                  <CheckCircle2 size={16} /><span>{loading || isSubmitting ? (useUrdu ? 'جمع کر رہا ہے...' : 'SUBMITTING...') : fromVerification ? (useUrdu ? 'اسٹور کو دوبارہ جمع کریں' : 'Resubmit to Store') : isEditMode ? (useUrdu ? 'ترمیم کی درخواست جمع کریں' : 'Submit Edit Request') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'Checkout Order')}</span>
                 </button>
               </motion.div>
             )}

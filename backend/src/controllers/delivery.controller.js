@@ -44,7 +44,14 @@ const getDeliveryOrders = async (req, res) => {
       where.AND = [{ OR: deliveryOrs }];
     }
     const dateFilter = parseDateRange(dateFrom, dateTo);
-    if (dateFilter) where.createdAt = dateFilter;
+    // Use assignment-date-based filtering: match when the order was assigned to
+    // the delivery boy, not when the order was created.  This aligns the Delivery
+    // Boy profile with the Admin EnamelsDeliveryCard for the same date range.
+    if (dateFilter) {
+      where.AND = [...(where.AND || []), {
+        orderAcceptances: { some: { assignedAt: dateFilter } }
+      }];
+    }
 
     const orders = await prisma.order.findMany({
       where,
@@ -976,15 +983,13 @@ const getDeliveryAnalytics = async (req, res) => {
     ];
 
     const where = { AND: [{ OR: identityOR }] };
+    // Use assignment-date-based filtering: the order's "day" is the date it was
+    // assigned to a delivery boy, not when the order was created / delivered /
+    // accepted / returned / last attempted.  This gives consistent date ranges
+    // across the Admin card and the Delivery Boy profile.
     if (dateFilter) {
       where.AND.push({
-        OR: [
-          { createdAt: dateFilter },
-          { deliveredAt: dateFilter },
-          { riderAcceptedAt: dateFilter },
-          { returnedAt: dateFilter },
-          { lastDeliveryAttempt: dateFilter }
-        ]
+        orderAcceptances: { some: { assignedAt: dateFilter } }
       });
     }
 
@@ -1142,11 +1147,14 @@ const getDeliveryAnalytics = async (req, res) => {
       if (!riderMap.has(rider)) riderMap.set(rider, { riderName: rider, totalEarnings: 0, totalPaid: 0, remainingPayable: 0, completedDeliveries: 0, perOrder: [] });
       const r = riderMap.get(rider);
       const amount = ch.amount || 200;
-      r.totalEarnings += amount;
-      if (ch.isPaid) r.totalPaid += amount;
-      if (e.primaryStatus === 'delivered') r.completedDeliveries += 1;
-      totalEarnings += amount;
-      if (ch.isPaid) totalEarningsPaid += amount;
+      // Rider earnings = Rs.200 × successfully Delivered orders only.
+      // Pending / Active / No Response / Returned orders do NOT earn.
+      if (e.primaryStatus === 'delivered') {
+        r.totalEarnings += amount;
+        totalEarnings += amount;
+        if (ch.isPaid) { r.totalPaid += amount; totalEarningsPaid += amount; }
+        r.completedDeliveries += 1;
+      }
       r.perOrder.push({
         orderId: e.id, orderNumber: e.orderNumber, customerName: e.customerName,
         amount, isPaid: ch.isPaid, paidAt: ch.paidAt, deliveredAt: e.timeline.deliveredAt

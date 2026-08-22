@@ -198,13 +198,22 @@ const getPaymentChangeInvoices = async (req, res) => {
         where: { OR: [{ invoiceNumber: { contains: q, mode: 'insensitive' } }, { orderNumber: { contains: q, mode: 'insensitive' } }] },
         select: { id: true },
       });
+      // Also match balance-payment receipt numbers (BP-…) and resolve to parent PosSale.
+      const bpMatches = await prisma.posBalancePayment.findMany({
+        where: { receiptNumber: { contains: q, mode: 'insensitive' } },
+        select: { id: true, posSaleId: true, receiptNumber: true, amountPaidNow: true, paymentMethod: true, paidAt: true },
+      });
       where.OR = [
         { receiptNumber: { contains: q, mode: 'insensitive' } },
         { orderNumber: { contains: q, mode: 'insensitive' } },
         { customerName: { contains: q, mode: 'insensitive' } },
         { customerPhone: { contains: q } },
         ...(orderMatches.length ? [{ orderId: { in: orderMatches.map(o => o.id) } }] : []),
+        ...(bpMatches.length ? [{ id: { in: bpMatches.map(b => b.posSaleId) } }] : []),
       ];
+      // Map posSaleId → matched BP receipt info so frontend can display the searched BP receipt
+      const bpBySaleId = new Map();
+      bpMatches.forEach(b => { if (b.posSaleId) bpBySaleId.set(b.posSaleId, { id: b.id, receipt: b.receiptNumber, amount: b.amountPaidNow, method: b.paymentMethod, paidAt: b.paidAt }); });
     }
 
     const sales = await prisma.posSale.findMany({
@@ -216,7 +225,7 @@ const getPaymentChangeInvoices = async (req, res) => {
         customerName: true, customerPhone: true, grandTotal: true, advanceAmount: true,
         cashAmount: true, onlineAmount: true, paymentMethod: true, createdAt: true,
         cashierName: true, refundedAt: true,
-        balancePayments: { select: { amountPaidNow: true } },
+        balancePayments: { select: { id: true, amountPaidNow: true, receiptNumber: true, paymentMethod: true, paidAt: true } },
       },
     });
 
@@ -232,7 +241,14 @@ const getPaymentChangeInvoices = async (req, res) => {
       const paid = fullyPaidAtCheckout ? s.grandTotal : (s.advanceAmount || 0) + s.balancePayments.reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
       const remaining = fullyPaidAtCheckout ? 0 : Math.max(0, s.grandTotal - paid);
       const { balancePayments, ...saleData } = s;
-      return { ...saleData, invoiceNumber: s.orderId ? (orderMap.get(s.orderId) || null) : null, paid, remaining };
+      const matchedBP = bpBySaleId.get(s.id) || null;
+      return {
+        ...saleData,
+        invoiceNumber: s.orderId ? (orderMap.get(s.orderId) || null) : null,
+        paid, remaining,
+        matchedBPReceipt: matchedBP,
+        balanceReceipts: balancePayments.map(bp => ({ id: bp.id, receipt: bp.receiptNumber, amount: bp.amountPaidNow, method: bp.paymentMethod, paidAt: bp.paidAt })),
+      };
     });
 
     res.json(result);
@@ -258,11 +274,87 @@ const getPaymentChangeHistory = async (req, res) => {
 
 const changePaymentMethod = async (req, res) => {
   try {
-    const { saleId, newMethod } = req.body || {};
-    if (!saleId) return res.status(400).json({ message: 'saleId is required' });
+    const { saleId, balancePaymentId, newMethod } = req.body || {};
     if (!PURE_METHODS.includes(newMethod)) {
       return res.status(400).json({ message: 'newMethod must be one of: Cash, Online, Card' });
     }
+
+    // ── Balance Payment mode: change only the BP receipt's method ──
+    if (balancePaymentId) {
+      const bp = await prisma.posBalancePayment.findUnique({
+        where: { id: balancePaymentId },
+        select: {
+          id: true, receiptNumber: true, posSaleId: true, amountPaidNow: true,
+          paymentMethod: true, paidAt: true, cashierName: true,
+        },
+      });
+      if (!bp) return res.status(404).json({ message: 'Balance payment not found' });
+      if (bp.paymentMethod === newMethod) {
+        return res.status(400).json({ message: `This balance payment is already via ${METHOD_LABELS[newMethod] || newMethod}` });
+      }
+
+      const sale = await prisma.posSale.findUnique({
+        where: { id: bp.posSaleId },
+        select: { id: true, receiptNumber: true, orderNumber: true, orderId: true, customerName: true, outletName: true, createdAt: true },
+      });
+
+      const previousMethod = bp.paymentMethod;
+      const amountMoved = bp.amountPaidNow || 0;
+
+      let invoiceNumber = null;
+      if (sale?.orderId) {
+        const order = await prisma.order.findUnique({ where: { id: sale.orderId }, select: { invoiceNumber: true } });
+        invoiceNumber = order?.invoiceNumber || null;
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const u = await tx.posBalancePayment.update({
+          where: { id: balancePaymentId },
+          data: { paymentMethod: newMethod },
+          select: { id: true, receiptNumber: true, paymentMethod: true, amountPaidNow: true },
+        });
+        await tx.paymentMethodChangeLog.create({
+          data: {
+            outletName: sale?.outletName || '',
+            saleId: bp.posSaleId,
+            receiptNumber: bp.receiptNumber,
+            orderNumber: sale?.orderNumber || null,
+            invoiceNumber,
+            customerName: sale?.customerName || null,
+            grandTotal: amountMoved,
+            amountMoved,
+            previousMethod,
+            newMethod,
+            changedBy: req.user?.id || '',
+            changedByName: req.user?.name || null,
+          },
+        });
+        return u;
+      }, { timeout: 30000 });
+
+      try {
+        cache.delPattern('pos:dashboard:');
+        cache.delPattern('pos:sales:');
+        cache.delPattern('pos:summary:');
+        cache.delPattern('outlet:analytics:');
+      } catch (cacheErr) {
+        console.error('[paymentChange] cache invalidation error:', cacheErr.message);
+      }
+
+      if (req.app.get('io') && sale) {
+        req.app.get('io').emit('inventory-updated', { source: 'payment-change', outletName: sale.outletName, saleId: bp.posSaleId });
+      }
+
+      return res.json({
+        ok: true,
+        message: `Balance payment ${METHOD_LABELS[previousMethod] || previousMethod} → ${METHOD_LABELS[newMethod]} for ${bp.receiptNumber}`,
+        updated,
+        scope: 'balancePayment',
+      });
+    }
+
+    // ── Standard mode: change the parent PosSale's method ──
+    if (!saleId) return res.status(400).json({ message: 'saleId or balancePaymentId is required' });
 
     const sale = await prisma.posSale.findUnique({
       where: { id: saleId },
@@ -279,9 +371,6 @@ const changePaymentMethod = async (req, res) => {
     }
 
     const previousMethod = sale.paymentMethod;
-    // The amount that actually moved between method buckets = the revenue counted for this
-    // sale (advance>0 → min(advance, grandTotal); otherwise full grandTotal) — matches
-    // posUnified / computeSalesSummary so dashboards and registers stay consistent.
     const amountMoved = sale.advanceAmount > 0 ? Math.min(sale.advanceAmount, sale.grandTotal) : sale.grandTotal;
 
     let invoiceNumber = null;
@@ -315,8 +404,6 @@ const changePaymentMethod = async (req, res) => {
       return u;
     }, { timeout: 30000 });
 
-    // Invalidate all POS financial caches so every reader (History, Dashboard, Outlet
-    // Detailed, Summary) reflects the new method on its next fetch.
     try {
       cache.delPattern('pos:dashboard:');
       cache.delPattern('pos:sales:');
@@ -326,8 +413,6 @@ const changePaymentMethod = async (req, res) => {
       console.error('[paymentChange] cache invalidation error:', cacheErr.message);
     }
 
-    // Keep closed Register (Close Book) history consistent: recompute the stored summary
-    // of every CLOSED session whose business day contains this invoice's sale date.
     try {
       const saleDate = new Date(sale.createdAt);
       const sessions = await prisma.posBookSession.findMany({
@@ -354,6 +439,7 @@ const changePaymentMethod = async (req, res) => {
       ok: true,
       message: `Payment method changed from ${METHOD_LABELS[previousMethod] || previousMethod} to ${METHOD_LABELS[newMethod]} for ${sale.receiptNumber}`,
       updated,
+      scope: 'sale',
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to change payment method', error: error.message });

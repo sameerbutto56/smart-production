@@ -10,7 +10,11 @@ import { STATUS_BADGE, STATUS_LABEL, STAT_COLORS } from '../utils/deliveryStatus
 const C = STAT_COLORS;
 
 /* ─── Carry-forward helpers ─── */
+/* Carry On = any unresolved order (Pending/Active/No Response) still active
+   for next day; NOT Delivered, Completed, Cancelled, or Final Return. */
+const CARRY_FORWARD_TERMINAL = ['delivered', 'returned', 'cancelled'];
 const isCarryForwardOrder = (order) => {
+  if (CARRY_FORWARD_TERMINAL.includes(order?.primaryStatus)) return false;
   const raw = order?.timeline?.assignedAt;
   if (!raw) return false;
   const d = new Date(raw);

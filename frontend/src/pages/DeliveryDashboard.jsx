@@ -25,16 +25,21 @@ import { classifyDeliveryTab } from '../utils/deliveryStatusUtils';
 const MAX_ATTEMPTS = 3;
 
 /* ─── Carry-forward helpers ─── */
-const getAssignedDate = (order) => {
-  const raw = order?.orderAcceptances?.[0]?.assignedAt || order?.createdAt;
-  return raw ? new Date(raw) : null;
-};
-const isCarryForward = (order) => {
-  const d = getAssignedDate(order);
-  if (!d) return false;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return d < today;
-};
+  const getAssignedDate = (order) => {
+    const raw = order?.orderAcceptances?.[0]?.assignedAt;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return isNaN(d) ? null : d;
+  };
+
+  const isCarryForward = (order) => {
+    if (order.currentStage === 'DELIVERED' || order.status === 'COMPLETED') return false;
+    if (order.currentStage === 'DELIVERED' || order.status === 'RETURNED') return false;
+    const d = getAssignedDate(order);
+    if (!d) return false;
+    const today = new Date(); today.setHours(0,0,0,0);
+    return d < today;
+  };
 
 /* ─── multiple online inputs ─── */
 const MultipleOnlineInputs = ({ entries, setEntries }) => {

@@ -57,12 +57,19 @@ const ReturnExchangePage = () => {
   }, []);
 
   const handleAcceptReturn = async () => {
-    if (!returnCase) return;
     setAccepting(true);
     try {
-      await api.post(`/api/return-exchange/${returnCase.id}/accept-return`);
-      toast.success('Return accepted! You can now Return or Re-Dispatch the order.');
-      setReturnCase(prev => ({ ...prev, status: 'ACCEPTED', acceptedBy: user?.name, acceptedAt: new Date().toISOString() }));
+      if (returnCase && returnCase.id) {
+        // Existing case (delivery boy returned → PENDING case) — accept it
+        const res = await api.post(`/api/return-exchange/${returnCase.id}/accept-return`);
+        toast.success('Return accepted! You can now Return, Replace, or Re-Dispatch.');
+        setReturnCase(prev => ({ ...prev, status: 'ACCEPTED', acceptedBy: user?.name, acceptedAt: res.data.acceptedAt || new Date().toISOString() }));
+      } else if (orderData && orderData.id) {
+        // Fresh order (no existing case) — create ACCEPTED case directly
+        const res = await api.post('/api/return-exchange/new/accept-return', { orderId: orderData.id });
+        toast.success('Return accepted! You can now Return, Replace, or Re-Dispatch.');
+        setReturnCase({ id: res.data.caseId, status: 'ACCEPTED', orderId: orderData.id, orderNumber: orderData.orderNumber, customerName: orderData.customerName, originalProducts: orderData.productDetails, acceptedBy: user?.name, acceptedAt: res.data.acceptedAt || new Date().toISOString() });
+      }
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to accept return'); }
     setAccepting(false);
   };
@@ -87,7 +94,8 @@ const ReturnExchangePage = () => {
 
   const isPending = returnCase && returnCase.status === 'PENDING';
   const isAccepted = returnCase && returnCase.status === 'ACCEPTED';
-  const canShowActions = isAccepted || (!returnCase && orderData);
+  const sentToStore = returnCase && returnCase.status === 'PENDING' && returnCase.routedTo === 'STORE';
+  const canShowActions = isAccepted && !sentToStore;
 
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-6">
@@ -132,16 +140,16 @@ const ReturnExchangePage = () => {
             </div>
 
             {/* No Results */}
-            {!loading && searchQuery && !returnCase && (
+            {!loading && searchQuery && !returnCase && !orderData && (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400 font-bold">Order not found in Returns</p>
-                <p className="text-xs text-gray-600 mt-1">This order is not currently in the Returns workflow</p>
+                <p className="text-gray-400 font-bold">Order not found</p>
+                <p className="text-xs text-gray-600 mt-1">No order matches this search. Check the order number, invoice, or phone.</p>
               </div>
             )}
 
             {/* Pending Acceptance Banner */}
-            {isPending && (
+            {isPending && !sentToStore && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5 space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-amber-500/20 rounded-lg"><Clock size={20} className="text-amber-400" /></div>
@@ -154,6 +162,41 @@ const ReturnExchangePage = () => {
                   <span>Returned by: <span className="text-white font-bold">{returnCase.deliveryReturnedBy || 'Unknown'}</span></span>
                   {returnCase.deliveryReturnedAt && <span>at {fmtDateTime(returnCase.deliveryReturnedAt)}</span>}
                   {returnCase.returnReason && <span>Reason: <span className="text-amber-400">{returnCase.returnReason}</span></span>}
+                </div>
+                <button onClick={handleAcceptReturn} disabled={accepting}
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  <PackageCheck size={16} />
+                  {accepting ? 'Accepting...' : 'Accept Return'}
+                </button>
+              </div>
+            )}
+
+            {/* Already Sent to Store — Return Processed */}
+            {sentToStore && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/20 rounded-lg"><CheckCircle size={20} className="text-blue-400" /></div>
+                  <div>
+                    <h3 className="text-sm font-black text-blue-400">Return Already Sent to Store</h3>
+                    <p className="text-xs text-gray-400">This return has been processed and sent to Store. It cannot be re-accepted or re-processed.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[10px] text-gray-400">
+                  {returnCase.returnReason && <span>Reason: <span className="text-blue-400">{returnCase.returnReason}</span></span>}
+                  {returnCase.warehouseNotes && <span>Notes: <span className="text-gray-300">{returnCase.warehouseNotes}</span></span>}
+                </div>
+              </div>
+            )}
+
+            {/* Fresh Order — Accept Return (no existing case) */}
+            {!returnCase && orderData && !isPending && !isAccepted && !accepting && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/20 rounded-lg"><Clock size={20} className="text-amber-400" /></div>
+                  <div>
+                    <h3 className="text-sm font-black text-amber-400">Accept Return First</h3>
+                    <p className="text-xs text-gray-400">Accept this return before choosing Return, Replace, or Re-Dispatch.</p>
+                  </div>
                 </div>
                 <button onClick={handleAcceptReturn} disabled={accepting}
                   className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2">
@@ -178,7 +221,7 @@ const ReturnExchangePage = () => {
             {orderData && (
               <OrderDetails order={orderData} activeAction={activeAction} setActiveAction={setActiveAction}
                 parseProducts={parseProducts} fmtCurrency={fmtCurrency} fmtDate={fmtDate} fmtDateTime={fmtDateTime}
-                user={user} onRefresh={lookupOrder} STAGE_MAP={STAGE_MAP} canShowActions={canShowActions} />
+                user={user} onRefresh={lookupOrder} STAGE_MAP={STAGE_MAP} canShowActions={canShowActions} returnCase={returnCase} />
             )}
 
             {/* Return Case Info (when no order data but case found) */}
@@ -220,11 +263,7 @@ const ReturnExchangePage = () => {
               </div>
             )}
 
-            {/* Action Forms */}
-            {activeAction === 'return' && returnCase && orderData && <ReturnForm order={orderData} returnCase={returnCase} user={user} onRefresh={lookupOrder} parseProducts={parseProducts} />}
-            {activeAction === 'replace' && orderData && <ReplaceForm order={orderData} user={user} onRefresh={lookupOrder} parseProducts={parseProducts} />}
-            {activeAction === 'noresponse' && orderData && <NoResponseForm order={orderData} user={user} onRefresh={lookupOrder} />}
-            {activeAction === 'redispatch' && returnCase && <ReDispatchForm orderId={returnCase.orderId} order={orderData} user={user} onRefresh={lookupOrder} />}
+            {/* Action Forms — rendered inside OrderDetails only (no duplicate here) */}
           </>
         )}
       </div>
@@ -232,7 +271,7 @@ const ReturnExchangePage = () => {
   );
 };
 
-const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmtCurrency, fmtDate, fmtDateTime, user, onRefresh, STAGE_MAP, canShowActions }) => {
+const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmtCurrency, fmtDate, fmtDateTime, user, onRefresh, STAGE_MAP, canShowActions, returnCase }) => {
   const products = parseProducts(order.productDetails);
   const isDelivered = order.stages?.some(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status === 'COMPLETED') || order.currentStage === 'DELIVERED';
   const isReturned = order.status === 'RETURNED' || order.refundStatus === 'REQUESTED';
@@ -339,7 +378,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
       )}
 
       {/* Action Forms */}
-      {activeAction === 'return' && <ReturnForm order={order} user={user} onRefresh={onRefresh} parseProducts={parseProducts} />}
+      {activeAction === 'return' && <ReturnForm order={order} returnCase={returnCase} user={user} onRefresh={onRefresh} parseProducts={parseProducts} />}
       {activeAction === 'replace' && <ReplaceForm order={order} user={user} onRefresh={onRefresh} parseProducts={parseProducts} />}
       {activeAction === 'noresponse' && <NoResponseForm order={order} user={user} onRefresh={onRefresh} />}
       {activeAction === 'redispatch' && <ReDispatchForm orderId={order.id} order={order} user={user} onRefresh={onRefresh} />}
@@ -366,7 +405,7 @@ const OrderDetails = ({ order, activeAction, setActiveAction, parseProducts, fmt
   );
 };
 
-const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
+const ReturnForm = ({ order, returnCase, user, onRefresh, parseProducts }) => {
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const products = parseProducts(order.productDetails);
@@ -374,11 +413,20 @@ const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await api.post('/api/return-exchange/initiate', {
-        orderId: order.id, type: 'RETURN', returnReason: reason,
-        notes: `Return initiated by ${user?.name || 'Inventory View'}`
-      });
-      toast.success('Return sent to Store for processing!');
+      if (returnCase && returnCase.id) {
+        // Existing ACCEPTED case — route to Store with reason (does not create duplicate)
+        await api.post(`/api/return-exchange/${returnCase.id}/send-return-to-store`, {
+          returnReason: reason, notes: `Return sent by ${user?.name || 'Inventory View'}`
+        });
+        toast.success('Return sent to Store for processing!');
+      } else {
+        // Fallback — should not happen (must accept first), but handle gracefully
+        await api.post('/api/return-exchange/initiate', {
+          orderId: order.id, type: 'RETURN', returnReason: reason,
+          notes: `Return initiated by ${user?.name || 'Inventory View'}`
+        });
+        toast.success('Return sent to Store for processing!');
+      }
       setReason(''); onRefresh();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
     setSubmitting(false);
@@ -386,7 +434,7 @@ const ReturnForm = ({ order, user, onRefresh, parseProducts }) => {
 
   return (
     <div className="bg-gray-800 rounded-xl p-5 border border-red-500/30 space-y-4">
-      <h3 className="text-sm font-black text-red-400 flex items-center gap-2"><RotateCcw size={16} /> Initiate Return</h3>
+      <h3 className="text-sm font-black text-red-400 flex items-center gap-2"><RotateCcw size={16} /> Send Return to Store</h3>
       <p className="text-xs text-gray-400">Items to be returned to Store (removed from Warehouse):</p>
       <div className="space-y-1">
         {products.map((item, i) => {

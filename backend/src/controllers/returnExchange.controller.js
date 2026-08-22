@@ -1641,16 +1641,69 @@ const redispatchOrder = async (req, res) => {
 const acceptReturn = async (req, res) => {
   try {
     const { id } = req.params;
-    const caseRecord = await prisma.returnExchange.findUnique({ where: { id } });
-    if (!caseRecord) return res.status(404).json({ message: 'Return case not found' });
-    if (caseRecord.type !== 'RETURN') return res.status(400).json({ message: 'Only RETURN cases can be accepted' });
-    if (caseRecord.status !== 'PENDING') return res.status(400).json({ message: `Case is already ${caseRecord.status} — cannot accept` });
-
+    const { orderId } = req.body;
     const now = new Date();
-    await prisma.returnExchange.update({
-      where: { id },
+
+    // Case 1: Existing case record (delivery boy returned → PENDING case exists)
+    if (id && id !== 'new') {
+      const caseRecord = await prisma.returnExchange.findUnique({ where: { id } });
+      if (!caseRecord) return res.status(404).json({ message: 'Return case not found' });
+      if (caseRecord.type !== 'RETURN') return res.status(400).json({ message: 'Only RETURN cases can be accepted' });
+      if (caseRecord.status !== 'PENDING') return res.status(400).json({ message: `Case is already ${caseRecord.status} — cannot accept` });
+      // Block re-acceptance if the case was already sent to Store (routedTo changed from INVENTORY_VIEW to STORE)
+      if (caseRecord.routedTo === 'STORE') return res.status(400).json({ message: 'This return has already been sent to Store and cannot be re-accepted.' });
+
+      const updated = await prisma.returnExchange.update({
+        where: { id },
+        data: {
+          status: 'ACCEPTED',
+          acceptedBy: req.user?.name || 'Inventory View',
+          acceptedById: req.user?.id || null,
+          acceptedAt: now
+        }
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          orderId: caseRecord.orderId,
+          action: 'RETURN_ACCEPTED_BY_INVENTORY',
+          details: `Return accepted by ${req.user?.name || 'Inventory View'}. Delivery returned by ${caseRecord.deliveryReturnedBy || 'Unknown'} at ${caseRecord.deliveryReturnedAt ? new Date(caseRecord.deliveryReturnedAt).toLocaleString() : 'N/A'}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+
+      const io = req.app?.get('io');
+      if (io) io.emit('return-exchange-updated', { caseId: id, orderId: caseRecord.orderId });
+
+      return res.json({ message: 'Return accepted successfully', status: 'ACCEPTED', acceptedAt: now, caseId: id });
+    }
+
+    // Case 2: Fresh order (no existing case) — create an ACCEPTED case directly
+    if (!orderId) return res.status(400).json({ message: 'orderId is required for new acceptance' });
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Block if an active return case already exists
+    const existing = await prisma.returnExchange.findFirst({
+      where: { orderId, type: 'RETURN', status: { notIn: ['COMPLETED', 'CANCELLED'] } }
+    });
+    if (existing) return res.status(409).json({ message: 'This order already has an active return case.', existingCase: existing });
+
+    const record = await prisma.returnExchange.create({
       data: {
+        orderId,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        type: 'RETURN',
         status: 'ACCEPTED',
+        routedTo: 'INVENTORY_VIEW',
+        originalProducts: order.productDetails,
+        deliveryAttempts: order.noResponseCount || 0,
+        nextDeliveryDate: order.nextDeliveryDate,
+        handledBy: req.user?.name || null,
+        handledById: req.user?.id || null,
         acceptedBy: req.user?.name || 'Inventory View',
         acceptedById: req.user?.id || null,
         acceptedAt: now
@@ -1659,20 +1712,78 @@ const acceptReturn = async (req, res) => {
 
     await prisma.auditLog.create({
       data: {
-        orderId: caseRecord.orderId,
+        orderId,
         action: 'RETURN_ACCEPTED_BY_INVENTORY',
-        details: `Return accepted by ${req.user?.name || 'Inventory View'}. Delivery returned by ${caseRecord.deliveryReturnedBy || 'Unknown'} at ${caseRecord.deliveryReturnedAt ? new Date(caseRecord.deliveryReturnedAt).toLocaleString() : 'N/A'}.`,
+        details: `Return accepted by ${req.user?.name || 'Inventory View'} for order ${order.orderNumber}. Awaiting return reason.`,
         performedBy: req.user?.id || 'SYSTEM'
       }
     });
 
     const io = req.app?.get('io');
-    if (io) io.emit('return-exchange-updated', { caseId: id, orderId: caseRecord.orderId });
+    if (io) io.emit('return-exchange-updated', { caseId: record.id, orderId });
 
-    res.json({ message: 'Return accepted successfully', status: 'ACCEPTED', acceptedAt: now });
+    return res.json({ message: 'Return accepted successfully', status: 'ACCEPTED', acceptedAt: now, caseId: record.id });
   } catch (error) {
     console.error('Error accepting return:', error);
     res.status(500).json({ message: 'Failed to accept return', error: error.message });
+  }
+};
+
+// POST /api/return-exchange/:id/send-return-to-store — route an ACCEPTED return to Store with a reason
+const sendReturnToStore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { returnReason, notes } = req.body;
+    if (!returnReason || !returnReason.trim()) return res.status(400).json({ message: 'Return reason is required' });
+
+    const caseRecord = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!caseRecord) return res.status(404).json({ message: 'Return case not found' });
+    if (caseRecord.type !== 'RETURN') return res.status(400).json({ message: 'Only RETURN cases can be sent to Store' });
+    if (caseRecord.status !== 'ACCEPTED') return res.status(400).json({ message: `Case must be ACCEPTED to send to Store (current: ${caseRecord.status})` });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const rec = await tx.returnExchange.update({
+        where: { id },
+        data: {
+          status: 'PENDING',
+          routedTo: 'STORE',
+          returnReason: returnReason.trim(),
+          warehouseNotes: notes || null
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          orderId: caseRecord.orderId,
+          action: 'RETURN_SENT_TO_STORE',
+          details: `Return sent to Store by ${req.user?.name || 'Inventory View'}. Reason: ${returnReason.trim()}. ${notes || ''}`.trim(),
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+
+      return rec;
+    });
+
+    await notify.create(req, {
+      type: 'return_exchange',
+      moduleName: 'Returns',
+      path: '/returns',
+      role: 'STORE',
+      title: 'New Return Request',
+      message: `Return request for ${caseRecord.customerName || 'customer'} — ${caseRecord.orderNumber || ''}`,
+      orderId: caseRecord.orderId,
+      customerName: caseRecord.customerName,
+      action: 'Return Requested',
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id, orderId: caseRecord.orderId });
+
+    res.json({ message: 'Return sent to Store for processing', case: updated });
+  } catch (error) {
+    console.error('Error sending return to store:', error);
+    res.status(500).json({ message: 'Failed to send return to Store', error: error.message });
   }
 };
 
@@ -1765,4 +1876,4 @@ const searchReturns = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns };
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore };

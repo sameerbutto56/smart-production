@@ -9,6 +9,20 @@ const XLSX = require('xlsx');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
 
+// In-memory dedup guard: tracks recently created order numbers to prevent
+// double-submit race conditions where two concurrent requests both pass the
+// findFirst check before either inserts. The window is 15 seconds — long enough
+// to catch rapid double-clicks/retries, short enough to not block legitimate
+// sequential orders with the same number (which the DB @unique catches anyway).
+const _recentOrders = new Map(); // orderNumber → createdAt timestamp
+const DEDUP_WINDOW_MS = 15 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, ts] of _recentOrders) {
+    if (now - ts > DEDUP_WINDOW_MS) _recentOrders.delete(key);
+  }
+}, 30 * 1000);
+
 // Escalation auto-log scan is slow (sequential auditLog.findFirst with a `contains`
 // full-text scan per overdue stage). Run it at most once per 5 minutes per instance,
 // and skip it entirely for delivery queries — the delivery dashboard has its own
@@ -305,6 +319,13 @@ const createOrder = async (req, res) => {
       }
     }
 
+    // In-memory dedup: reject if this exact orderNumber was created within the last
+    // DEDUP_WINDOW_MS (catches rapid double-submits that slip past the findFirst TOCTOU
+    // window before the DB @unique constraint fires).
+    if (orderNumber && _recentOrders.has(orderNumber)) {
+      return res.status(409).json({ message: 'This order is being processed. Please wait a moment before trying again.' });
+    }
+
     // Check if advance payment is required for FULL_CUSTOM
     const initialStatus = 'PENDING';
 
@@ -461,6 +482,9 @@ const createOrder = async (req, res) => {
         status: initialStatus
       }
     });
+
+    // Stamp the dedup map so rapid double-submits are rejected
+    if (orderNumber) _recentOrders.set(orderNumber, Date.now());
 
     // Initial stage is Faisal's review after Order Entry
     await prisma.orderStage.create({
@@ -2042,9 +2066,10 @@ const bulkRouteOrders = async (req, res) => {
         const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
         if (!order) { errors.push({ orderId, error: 'Order not found' }); continue; }
 
-        const currentStage = order.stages.find(s =>
+        const activeStages = order.stages.filter(s =>
           ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
         );
+        const currentStage = activeStages.find(s => s.stageName === order.currentStage) || activeStages[0];
 
         if (currentStage && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
           const validation = validateStageTransition(currentStage.stageName, destinationStage, order.type);
@@ -2906,10 +2931,15 @@ const manualRouteOrder = async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Complete current active stage
-    const currentStage = order.stages.find(s =>
+    // Complete current active stage — prefer the stage matching order.currentStage
+    // (the authoritative field) over the first active row, which may be a stale
+    // duplicate from an earlier routing glitch (e.g. PRODUCTION PENDING alongside
+    // PRODUCTION_ACCEPTANCE PENDING).  Without this, find() picks whichever
+    // duplicate comes first, causing "Invalid transition from X to X" errors.
+    const activeStages = order.stages.filter(s =>
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
+    const currentStage = activeStages.find(s => s.stageName === order.currentStage) || activeStages[0];
 
     // Production In split guard: routing a STORE / STORE_RECEIVE or Logo stage to PRODUCTION
     // must land in PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted
@@ -3000,11 +3030,13 @@ const manualRouteOrder = async (req, res) => {
       }).catch(() => {});
     }
 
-    // In/Out production handoff: when Production In accepts a PRODUCTION_ACCEPTANCE
-    // order into PRODUCTION, auto-assign it to every PRODUCTION_OUT user (seenTask at
-    // PRODUCTION) so it lands in their Assigned/Accepted list immediately. Production
-    // In's stage mapping excludes PRODUCTION, so the order never reappears for them.
-    if (req.user.role === 'PRODUCTION_IN' && destinationStage === 'PRODUCTION') {
+    // In/Out production handoff: when an order is routed to PRODUCTION, auto-assign
+    // it to every PRODUCTION_OUT user (seenTask at PRODUCTION) so it lands in their
+    // Assigned/Accepted list immediately. Without this, orders routed by Admin or other
+    // non-PRODUCTION_IN roles would be invisible to Production Out (their Unseen tab is
+    // hidden and they have no seenTask). Covers: Production In Accept, Admin Re-route,
+    // bulk-route, and any other routing path into PRODUCTION.
+    if (destinationStage === 'PRODUCTION') {
       const outUsers = await prisma.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } });
       if (outUsers.length > 0) {
         await prisma.seenTask.createMany({
@@ -3023,8 +3055,8 @@ const manualRouteOrder = async (req, res) => {
     if (order?.customerName && order?.orderNumber) {
       await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
     }
-    if (req.user.role === 'PRODUCTION_IN' && destinationStage === 'PRODUCTION' && order?.customerName && order?.orderNumber) {
-      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} accepted by Production In — now assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
+    if (destinationStage === 'PRODUCTION' && order?.customerName && order?.orderNumber) {
+      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} routed to Production — assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
     }
 
     // Record delivery assignment when routing to Enamels Delivery Boy
@@ -3415,6 +3447,11 @@ const getTrackingStatus = (order) => {
   if (!order.goForVerification) return order.currentStage || 'ORDER_ENTRY';
   if (order.verifiedAt) return order.currentStage;
   if (order.verificationReturnedAt) return 'RETURNED_FROM_VERIFICATION';
+  // If the order has progressed past ORDER_ENTRY (e.g. admin routed directly to
+  // PRODUCTION, bypassing verification), show the real stage instead of "VERIFICATION".
+  // goForVerification only overrides display when the order is still at ORDER_ENTRY
+  // or has never left the verification pipeline.
+  if (order.currentStage && order.currentStage !== 'ORDER_ENTRY') return order.currentStage;
   return 'VERIFICATION';
 };
 

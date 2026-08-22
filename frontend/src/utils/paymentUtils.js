@@ -2,9 +2,10 @@
  * Shared payment/COD calculation utility.
  * Single source of truth for remaining balance and COD amount across all modules.
  *
- * Formula:
- *   remainingBalance = max(0, totalPrice − advanceAmount − sum(balancePayments))
- *   codAmount        = isPaid ? 0 : remainingBalance
+ * Formula (mirrors backend getDeliveryAnalytics):
+ *   deliveryCollected = sum(deliveryPayments: cashAmount + onlineAmount)
+ *   remainingBalance  = max(0, totalPrice − advanceAmount − deliveryCollected)
+ *   codAmount         = isPaid ? 0 : remainingBalance
  */
 
 export const isPaidOrder = (order) =>
@@ -13,9 +14,13 @@ export const isPaidOrder = (order) =>
 export const isBalanceOrder = (order) =>
   order?.paymentStatus === 'BALANCE' && !isPaidOrder(order);
 
+export const getDeliveryCollected = (order) =>
+  (order?.deliveryPayments || []).reduce((sum, p) => sum + (p.cashAmount || 0) + (p.onlineAmount || 0), 0);
+
 export const getRemainingBalance = (order) => {
   if (isPaidOrder(order)) return 0;
-  return Math.max(0, (order?.totalPrice || 0) - parseFloat(order?.advanceAmount || 0));
+  const deliveryPaid = getDeliveryCollected(order);
+  return Math.max(0, (order?.totalPrice || 0) - parseFloat(order?.advanceAmount || 0) - deliveryPaid);
 };
 
 export const getCodAmount = (order) => getRemainingBalance(order);

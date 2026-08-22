@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Package, User, Ruler, Scissors, Star, AlertTriangle, MessageSquare } from 'lucide-react';
+import { Package, User, Ruler, Scissors, Star, AlertTriangle, MessageSquare, Plus, Trash2 } from 'lucide-react';
 
 const Field = ({ label, oldVal, newVal, editable, type, options, onChange, placeholder }) => {
   const isChanged = String(oldVal || '').trim() !== String(newVal ?? oldVal ?? '').trim();
@@ -133,6 +133,24 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
       items[idx] = { ...items[idx], sizeData: sd };
       return { ...prev, items };
     });
+  };
+
+  const addNewItem = () => {
+    setEdited(prev => ({
+      ...prev,
+      items: [...prev.items, {
+        productType: '', fabricType: '', color: '', size: '', gender: 'Male',
+        quantity: 1, totalPrice: 0, sleeveLength: '', shirtLength: '',
+        matchingCap: false, matchingCapQty: 0,
+        logoCharges: 0, namePrintingCharges: 0, customizationPrice: 0, capCharges: 0,
+        nameSpelling: '', nameColor: '', logoColor: '', logoPlacement: '',
+        designNotes: '', designReference: '', sizeData: {}, femaleOptions: {}
+      }]
+    }));
+  };
+
+  const removeItem = (idx) => {
+    setEdited(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== idx) }));
   };
 
   const diffCount = useMemo(() => {
@@ -286,11 +304,16 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
         const isAdded = idx >= originalItems.length;
         return (
           <div key={idx} className="glass rounded-[2rem] border theme-border overflow-hidden">
-            <div className="bg-emerald-500/5 px-6 py-4 border-b border-gray-800 flex items-center gap-2">
+              <div className="bg-emerald-500/5 px-6 py-4 border-b border-gray-800 flex items-center gap-2">
               <Package size={14} className="text-emerald-400" />
               <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400">
                 Product {idx + 1}{isAdded ? ' (New)' : ''} — {item.productType || 'Unnamed'}
               </span>
+              {isAdded && (
+                <button type="button" onClick={() => removeItem(idx)} className="ml-auto flex items-center gap-1 px-3 py-1 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-black uppercase hover:bg-red-500/20 transition-all">
+                  <Trash2 size={10} /> Remove
+                </button>
+              )}
             </div>
             <div className="p-6">
               {/* Product Details */}
@@ -363,6 +386,12 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
           </div>
         );
       })}
+
+      {/* Add Product Button */}
+      <button type="button" onClick={addNewItem}
+        className="w-full py-4 border-2 border-dashed border-emerald-500/30 rounded-2xl text-emerald-400 text-xs font-black uppercase tracking-widest hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2">
+        <Plus size={16} /> Add More Product
+      </button>
 
       {/* Engraving */}
       <div className="glass rounded-[2rem] border theme-border overflow-hidden">

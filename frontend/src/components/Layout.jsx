@@ -117,6 +117,8 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Inventory Audit', path: '/audit', icon: ClipboardCheck, roles: ['STORE', 'STORE_EMPLOYEE'] },
     { name: 'Returns', path: '/returns', icon: RotateCcw, roles: ['STORE'] },
     { name: 'Replacements', path: '/store-replacements', icon: ArrowRightLeft, roles: ['STORE'] },
+    { name: 'Order Tracker', path: '/store-order-tracker', icon: SearchCheck, roles: ['STORE'] },
+    { name: 'Orders', path: '/store-orders', icon: ClipboardList, roles: ['STORE'] },
     { name: 'Audit Review', path: '/audit-review', icon: ClipboardCheck, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Cancellation Requests', path: '/order-cancellations', icon: PackageX, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
@@ -163,6 +165,12 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
       if (item.name === 'In Dispatch') {
         const n = String(user?.name || '').toLowerCase();
         return n.includes('johar') || user?.name?.includes('1');
+      }
+      // Gate Pass — not for Jail Road
+      if (item.name === 'Gate Pass') {
+        const n = String(user?.name || '').toLowerCase();
+        const isJailRoad = n.includes('2') || n.includes('jail');
+        return !isJailRoad;
       }
       return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch', 'Gate Pass'].includes(item.name);
     }
