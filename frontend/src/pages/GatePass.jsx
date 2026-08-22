@@ -122,14 +122,6 @@ const GatePass = () => {
             </div>
           )) : <span className="text-gray-400">-</span>}
         </td>
-        <td className="px-4 py-3">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-${statusColor}-100 text-${statusColor}-700`}>
-            {a.delivered && <CheckCircle2 className="w-3 h-3 mr-1" />}
-            {a.returned && <XCircle className="w-3 h-3 mr-1" />}
-            {!a.delivered && !a.returned && <Clock className="w-3 h-3 mr-1" />}
-            {statusLabel}
-          </span>
-        </td>
         <td className="px-4 py-3 text-xs whitespace-nowrap">
           {type === 'carryForward' ? (
             <div>
@@ -239,7 +231,6 @@ const GatePass = () => {
               <th>Phone</th>
               <th>Address</th>
               <th>Products (Qty)</th>
-              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -261,9 +252,6 @@ const GatePass = () => {
                   <td>{a.customerPhone || '-'}</td>
                   <td>{(a.address || '') + (a.city ? ', ' + a.city : '')}</td>
                   <td style={{ maxWidth: 250, fontSize: 10 }}>{prodNames}</td>
-                  <td className={a.delivered ? 'status-delivered' : a.returned ? 'status-returned' : 'status-pending'}>
-                    {a.delivered ? 'DELIVERED' : a.returned ? 'RETURNED' : 'PENDING'}
-                  </td>
                 </tr>
               );
             })}
@@ -419,14 +407,13 @@ const GatePass = () => {
                           <th className="px-4 py-2.5">Phone</th>
                           <th className="px-4 py-2.5">Address</th>
                           <th className="px-4 py-2.5">Products</th>
-                          <th className="px-4 py-2.5">Status</th>
                           <th className="px-4 py-2.5">Assigned</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {todayOrders.length > 0 && (
                           <tr>
-                            <td colSpan={8} className="px-4 py-2 bg-indigo-50 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                            <td colSpan={7} className="px-4 py-2 bg-indigo-50 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
                               Today's Assigned ({todayOrders.length})
                             </td>
                           </tr>
@@ -435,7 +422,7 @@ const GatePass = () => {
 
                         {carryForwardOrders.length > 0 && (
                           <tr>
-                            <td colSpan={8} className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                            <td colSpan={7} className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-700 uppercase tracking-wide">
                               Carry Forward — Pending from Previous Days ({carryForwardOrders.length})
                             </td>
                           </tr>
