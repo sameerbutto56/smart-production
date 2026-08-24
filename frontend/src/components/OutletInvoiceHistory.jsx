@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { getPrintFooterHTML } from '../utils/printTemplate';
+import { printBalanceReceipt } from '../utils/POSPrint';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -54,6 +55,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [showPayHistory, setShowPayHistory] = useState(false);
   const [payHistory, setPayHistory] = useState([]);
   const [payHistoryLoading, setPayHistoryLoading] = useState(false);
+  const [payHistorySale, setPayHistorySale] = useState(null);
 
   const fetchSales = useCallback(async () => {
     setLoading(true);
@@ -331,6 +333,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
   /* ─── Payment History ─── */
   const openPayHistory = async (sale) => {
     setShowPayHistory(true);
+    setPayHistorySale(sale);
     setPayHistoryLoading(true);
     try {
       const res = await api.get(`/api/pos/balance-invoices/${sale.id}/history`);
@@ -873,15 +876,22 @@ const OutletInvoiceHistory = ({ outlet }) => {
                   {payHistory.map((ph, i) => (
                     <div key={i} className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-xs">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-emerald-400">{formatCurrency(ph.amountPaidNow || ph.amount)}</span>
+                        <span className="font-bold text-cyan-400">{ph.receiptNumber || `Payment #${i + 1}`}</span>
                         <span className="text-[10px] text-gray-500">{formatDateTime(ph.paidAt || ph.createdAt)}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                        <span>Method: {ph.paymentMethod || 'CASH'}</span>
-                        {ph.remaining > 0 && <span className="text-amber-400">Rem: {formatCurrency(ph.remaining)}</span>}
-                        {ph.remaining <= 0 && <span className="text-emerald-400">Fully Paid</span>}
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-emerald-400">{formatCurrency(ph.amountPaidNow || ph.amount)}</span>
+                        <span className="text-[10px] text-gray-500">{ph.paymentMethod || 'CASH'}</span>
                       </div>
-                      {ph.notes && <p className="text-[10px] text-gray-600 mt-1">Note: {ph.notes}</p>}
+                      <div className="flex items-center gap-3 text-[10px] text-gray-500 mb-1">
+                        {ph.remainingBalanceBeforePayment > 0 && <span>Before: {formatCurrency(ph.remainingBalanceBeforePayment)}</span>}
+                        {ph.outstandingBalanceAfterPayment > 0 && <span className="text-amber-400">Remaining: {formatCurrency(ph.outstandingBalanceAfterPayment)}</span>}
+                        {ph.outstandingBalanceAfterPayment <= 0 && <span className="text-emerald-400 font-bold">✓ FULLY PAID</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        {ph.cashierName && <span className="text-[10px] text-gray-600">Cashier: {ph.cashierName}</span>}
+                        <button onClick={() => printBalanceReceipt(ph, payHistorySale)} className="text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 px-2 py-1 rounded-lg text-[10px] font-bold"><Printer size={10} className="inline mr-0.5" />Print</button>
+                      </div>
                     </div>
                   ))}
               </div>

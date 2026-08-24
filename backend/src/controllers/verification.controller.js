@@ -36,7 +36,7 @@ const getPendingVerifications = async (req, res) => {
 const getVerificationHistory = async (req, res) => {
   try {
     const { search, page = 1, limit = 50, dateFrom, dateTo } = req.query;
-    const where = { goForVerification: true, verifiedAt: { not: null } };
+    const where = { verifiedAt: { not: null } };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },

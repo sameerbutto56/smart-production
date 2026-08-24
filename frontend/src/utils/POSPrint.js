@@ -386,6 +386,15 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
 export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) {
   if (!lastBalancePayment) return;
   const bp = lastBalancePayment;
+  const sale = selectedBalanceInvoice || bp.posSale || {};
+  const customerName = sale.customerName || 'N/A';
+  const customerPhone = sale.customerPhone || '';
+  const originalInvoiceDate = sale.createdAt || '';
+  const originalInvoiceReceipt = sale.receiptNumber || bp.originalInvoiceNumber || '';
+  const statusPaid = (bp.outstandingBalanceAfterPayment || 0) <= 0.01;
+  const methodLabel = bp.paymentMethod === 'CASH_ONLINE'
+    ? `Cash + Online (${formatCurrency(bp.cashAmount || 0)} + ${formatCurrency(bp.onlineAmount || 0)})`
+    : (bp.paymentMethod || 'CASH');
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.left = '0';
@@ -393,47 +402,56 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
   iframe.style.width = '0';
   iframe.style.height = '0';
   iframe.style.border = 'none';
-  iframe.title = 'Balance Receipt Print';
+  iframe.title = 'Balance Clearance Receipt';
   document.body.appendChild(iframe);
   const doc = iframe.contentWindow.document;
   doc.open();
-  doc.write(`<html><head><title>Balance Receipt</title><style>
+  doc.write(`<html><head><title>Balance Clearance Receipt</title><style>
     @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
     @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
     @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
     @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNaskhArabic-Bold.ttf') format('truetype'); }
     body{font-family:'Noto Naskh Arabic','Courier New',monospace;margin:0;padding:16px;font-size:14px;text-align:center;width:300px;background:#fff;color:#000;}
     h2{font-size:18px;font-weight:900;margin:0 0 4px;color:#000;text-transform:uppercase;}
+    h3{font-size:14px;font-weight:700;margin:0 0 2px;color:#333;}
     .sub{font-size:10px;color:#666;margin-bottom:12px;}
     hr{border:1px dashed #ccc;margin:10px 0;}
     table{width:100%;font-size:12px;border-collapse:collapse;}
     td{padding:4px 2px;text-align:left;}
     td:last-child{text-align:right;font-weight:900;}
     .label{color:#666;font-size:10px;}
+    .section-label{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:1px;font-weight:700;text-align:left;padding-top:8px;}
     .total-row td{border-top:2px solid #000;padding-top:6px;font-size:14px;font-weight:900;}
-    .zero{color:#000;font-weight:900;}
+    .zero{color:#16a34a;font-weight:900;}
+    .status-badge{display:inline-block;padding:4px 12px;font-size:12px;font-weight:900;border-radius:4px;margin-top:10px;}
+    .status-paid{background:#dcfce7;color:#16a34a;border:1px solid #16a34a;}
+    .status-partial{background:#fef3c7;color:#d97706;border:1px solid #d97706;}
     .footer{font-size:9px;color:#999;margin-top:12px;}
   </style></head><body>
     ${getPrintLogoHTML()}
-    <h2>Remaining Balance Payment</h2>
+    <h2>Balance Clearance Invoice</h2>
     <p class="sub">Payment Receipt</p>
     <hr/>
     <table>
-      <tr><td class="label">Receipt #</td><td>${bp.receiptNumber}</td></tr>
-      <tr><td class="label">Original Invoice</td><td>${bp.originalInvoiceNumber}</td></tr>
-      <tr><td class="label">Customer</td><td>${selectedBalanceInvoice?.customerName || 'N/A'}</td></tr>
-      <tr><td class="label">Date</td><td>${formatDateTime(bp.paidAt || new Date())}</td></tr>
-      <tr><td class="label">Cashier</td><td>${bp.cashierName || 'Cashier'}</td></tr>
+      <tr><td class="label">Clearance Receipt #</td><td>${bp.receiptNumber || 'N/A'}</td></tr>
+      <tr><td class="label">Original Invoice #</td><td>${originalInvoiceReceipt || bp.originalInvoiceNumber || 'N/A'}</td></tr>
+      ${customerName !== 'N/A' ? `<tr><td class="label">Customer</td><td>${customerName}</td></tr>` : ''}
+      ${customerPhone ? `<tr><td class="label">Phone</td><td>${customerPhone}</td></tr>` : ''}
+      ${originalInvoiceDate ? `<tr><td class="label">Original Invoice Date</td><td>${formatDateTime(originalInvoiceDate)}</td></tr>` : ''}
+      <tr><td class="label">Clearance Date</td><td>${formatDateTime(bp.paidAt || new Date())}</td></tr>
+      <tr><td class="label">Cashier</td><td>${bp.cashierName || 'N/A'}</td></tr>
     </table>
     <hr/>
+    <p class="section-label">Payment Summary</p>
     <table>
-      <tr><td>Original Invoice Total</td><td>₨${(bp.originalInvoiceTotal || 0).toLocaleString()}</td></tr>
-      <tr><td>Previously Paid</td><td>₨${(bp.previouslyPaidAmount || 0).toLocaleString()}</td></tr>
-      <tr><td>Remaining Balance</td><td>₨${(bp.remainingBalanceBeforePayment || 0).toLocaleString()}</td></tr>
-      <tr><td>Amount Paid Now</td><td>₨${(bp.amountPaidNow || 0).toLocaleString()}</td></tr>
-      <tr class="total-row"><td>Current Outstanding</td><td class="${bp.outstandingBalanceAfterPayment <= 0 ? 'zero' : ''}">₨${(bp.outstandingBalanceAfterPayment || 0).toLocaleString()}</td></tr>
+      <tr><td>Original Invoice Total</td><td>${formatCurrency(bp.originalInvoiceTotal)}</td></tr>
+      <tr><td>Previously Paid / Advance</td><td>${formatCurrency(bp.previouslyPaidAmount)}</td></tr>
+      <tr><td>Previous Outstanding Balance</td><td>${formatCurrency(bp.remainingBalanceBeforePayment)}</td></tr>
+      <tr><td>Amount Paid Today</td><td>${formatCurrency(bp.amountPaidNow)}</td></tr>
+      <tr><td>Payment Method</td><td style="font-size:11px;">${methodLabel}</td></tr>
+      <tr class="total-row"><td>Remaining Balance</td><td class="${statusPaid ? 'zero' : ''}">${formatCurrency(bp.outstandingBalanceAfterPayment)}</td></tr>
     </table>
-    ${bp.outstandingBalanceAfterPayment <= 0 ? '<p style="color:#000;font-weight:900;font-size:14px;margin-top:10px;">✓ FULLY PAID</p>' : ''}
+    <div class="status-badge ${statusPaid ? 'status-paid' : 'status-partial'}">${statusPaid ? '✓ PAID — BALANCE CLEARED' : 'PARTIAL — BALANCE REMAINING'}</div>
     <hr/>
     ${getPrintFooterHTML()}
   </body></html>`);

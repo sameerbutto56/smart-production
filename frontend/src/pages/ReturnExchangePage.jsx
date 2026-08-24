@@ -96,6 +96,7 @@ const ReturnExchangePage = () => {
   const isAccepted = returnCase && returnCase.status === 'ACCEPTED';
   const sentToStore = returnCase && returnCase.status === 'PENDING' && returnCase.routedTo === 'STORE';
   const canShowActions = isAccepted && !sentToStore;
+  const hasCompletedReturn = orderData?.returnExchangeCases?.some(c => c.type === 'RETURN' && ['COMPLETED', 'CANCELLED'].includes(c.status));
 
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-6">
@@ -188,8 +189,8 @@ const ReturnExchangePage = () => {
               </div>
             )}
 
-            {/* Fresh Order — Accept Return (no existing case) */}
-            {!returnCase && orderData && !isPending && !isAccepted && !accepting && (
+            {/* Fresh Order — Accept Return (no existing case, no completed return) */}
+            {!returnCase && orderData && !isPending && !isAccepted && !accepting && !hasCompletedReturn && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5 space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-amber-500/20 rounded-lg"><Clock size={20} className="text-amber-400" /></div>
@@ -203,6 +204,19 @@ const ReturnExchangePage = () => {
                   <PackageCheck size={16} />
                   {accepting ? 'Accepting...' : 'Accept Return'}
                 </button>
+              </div>
+            )}
+
+            {/* Return Already Processed — previous return case completed/cancelled */}
+            {!returnCase && orderData && !isPending && !isAccepted && !accepting && hasCompletedReturn && (
+              <div className="bg-gray-500/10 border border-gray-500/30 rounded-xl p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gray-500/20 rounded-lg"><CheckCircle size={20} className="text-gray-400" /></div>
+                  <div>
+                    <h3 className="text-sm font-black text-gray-400">Return Already Processed</h3>
+                    <p className="text-xs text-gray-500">This order's return has already been completed. No further return actions are available.</p>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -287,9 +287,20 @@ const rerouteOrder = async (req, res) => {
         });
       }
 
+      // Clear verification state when admin manually reroutes — the manual override
+      // takes precedence over any verification workflow the order was in.
+      const verificationClear = {};
+      if (order.goForVerification) {
+        verificationClear.goForVerification = false;
+      }
+      if (order.verificationReturnedAt && destinationStage !== 'ORDER_ENTRY') {
+        verificationClear.verificationReturnedAt = null;
+        verificationClear.verificationReturnNote = null;
+      }
+
       await tx.order.update({
         where: { id: orderId },
-        data: { currentStage: destinationStage, status: 'PENDING' }
+        data: { currentStage: destinationStage, status: 'PENDING', ...verificationClear }
       });
 
       const recipientUsers = await tx.user.findMany({

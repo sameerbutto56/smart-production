@@ -48,16 +48,24 @@ const VerificationPage = () => {
 
   useEffect(() => { activeTab === 'pending' ? fetchPending() : fetchHistory(); }, [activeTab, fetchPending, fetchHistory]);
 
-  // Remove cancelled orders from the pending queue in real-time when Admin approves a cancellation.
+  // Remove orders from the pending queue in real-time when verified, cancelled, or rerouted.
   useEffect(() => {
     const handleOrderUpdated = (payload) => {
       if (payload && (payload.cancelled || payload.order?.status === 'CANCELLED' || payload.order?.currentStage === 'CANCELLED')) {
         if (activeTab === 'pending') fetchPending();
       }
     };
+    const handleOrderVerified = () => {
+      if (activeTab === 'pending') fetchPending();
+      if (activeTab === 'history') fetchHistory();
+    };
     socket.on('order-updated', handleOrderUpdated);
-    return () => socket.off('order-updated', handleOrderUpdated);
-  }, [activeTab, fetchPending]);
+    socket.on('order-verified', handleOrderVerified);
+    return () => {
+      socket.off('order-updated', handleOrderUpdated);
+      socket.off('order-verified', handleOrderVerified);
+    };
+  }, [activeTab, fetchPending, fetchHistory]);
 
   const handleVerify = async () => {
     if (!verifyModal) return;
@@ -89,6 +97,20 @@ const VerificationPage = () => {
       fetchPending();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to return order'); }
     setSubmitting(false);
+  };
+
+  const handleMarkPending = async (orderId) => {
+    try {
+      await api.post(`/api/verification/${orderId}/pending`);
+      toast.success('Order marked as pending verification');
+      fetchPending();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to mark pending'); }
+  };
+
+  const getVerificationArrivalTime = (order) => {
+    const stages = order.stages || [];
+    const orderEntry = stages.find(s => s.stageName === 'ORDER_ENTRY');
+    return orderEntry?.createdAt || order.createdAt;
   };
 
   const parseProducts = (pd) => {
@@ -289,6 +311,9 @@ const VerificationPage = () => {
                             {activeTab === 'history' && order.verifiedByName && <span className="text-xs text-emerald-400 ml-2">Verified by {order.verifiedByName}</span>}
                           </p>
                           <p className="text-xs text-gray-400">{order.customerName} • {order.customerPhone || 'No phone'}</p>
+                          {activeTab === 'pending' && (
+                            <p className="text-[10px] text-amber-400/80 mt-0.5">Arrived: {formatDateTime(getVerificationArrivalTime(order))}</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-4">

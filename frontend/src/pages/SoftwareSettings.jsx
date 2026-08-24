@@ -847,18 +847,39 @@ const SoftwareSettings = () => {
       )}
 
       {/* ── Change method modal ── */}
-      {selectedInvoice && (
+      {selectedInvoice && (() => {
+        const isBP = !!selectedInvoice._targetBP;
+        const bp = selectedInvoice._targetBP;
+        return (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-16 pb-10 overflow-y-auto" onClick={() => setSelectedInvoice(null)}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-black text-white flex items-center gap-2 mb-1"><ArrowLeftRight className="text-amber-400" /> Change Payment Method</h3>
-            <p className="text-sm text-gray-400 mb-4">{selectedInvoice.receiptNumber} · {selectedInvoice.outletName}</p>
+            {isBP ? (
+              <p className="text-sm mb-4">
+                <span className="font-black text-blue-400">{bp.receipt}</span>
+                <span className="px-1.5 py-0.5 ml-1.5 rounded text-[9px] font-bold bg-blue-600/20 border border-blue-600/40 text-blue-300">BALANCE PAYMENT</span>
+                <span className="text-gray-500 mx-1.5">→</span>
+                <span className="text-gray-400">{selectedInvoice.receiptNumber} · {selectedInvoice.outletName}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400 mb-4">{selectedInvoice.receiptNumber} · {selectedInvoice.outletName}</p>
+            )}
             <div className="space-y-2 bg-gray-800/60 border border-gray-700 rounded-xl p-3 text-sm mb-4">
               <div className="flex justify-between"><span className="text-gray-400">Customer</span><span className="font-bold text-white">{selectedInvoice.customerName || '-'}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Order / Invoice</span><span className="font-bold text-white">{selectedInvoice.orderNumber || '-'}{selectedInvoice.invoiceNumber ? ` · ${selectedInvoice.invoiceNumber}` : ''}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Total</span><span className="font-bold text-white">{fmtMoney(selectedInvoice.grandTotal)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Paid / Balance</span><span className="font-bold text-white">{fmtMoney(selectedInvoice.paid)} / {fmtMoney(selectedInvoice.remaining)}</span></div>
+              {isBP ? (
+                <>
+                  <div className="flex justify-between"><span className="text-gray-400">Balance Payment Amount</span><span className="font-bold text-blue-400">{fmtMoney(bp.amount)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Parent Invoice Total</span><span className="font-bold text-white">{fmtMoney(selectedInvoice.grandTotal)}</span></div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between"><span className="text-gray-400">Total</span><span className="font-bold text-white">{fmtMoney(selectedInvoice.grandTotal)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Paid / Balance</span><span className="font-bold text-white">{fmtMoney(selectedInvoice.paid)} / {fmtMoney(selectedInvoice.remaining)}</span></div>
+                </>
+              )}
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">Current Method</span>
+                <span className="text-gray-400">{isBP ? 'Balance Payment Method' : 'Current Method'}</span>
                 <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border ${METHOD_STYLES[selectedInvoice.paymentMethod] || 'bg-gray-700 border-gray-600 text-gray-300'}`}>
                   {METHOD_LABELS[selectedInvoice.paymentMethod] || selectedInvoice.paymentMethod}
                 </span>
@@ -876,10 +897,16 @@ const SoftwareSettings = () => {
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-gray-500 mb-4">
-              The full paid amount ({(fmtMoney(selectedInvoice.paid))}) will be counted under {METHOD_LABELS[newMethod]}.
-              {selectedInvoice.paymentMethod === 'CASH_ONLINE' && ' The existing Cash+Online split will be reset — the whole amount moves to the method above.'}
-            </p>
+            {isBP ? (
+              <p className="text-[11px] text-blue-400/80 mb-4">
+                Only the balance payment <span className="font-bold">{bp.receipt}</span> ({fmtMoney(bp.amount)}) will be changed from {METHOD_LABELS[bp.method]} → {METHOD_LABELS[newMethod]}. The parent invoice <span className="font-bold">{selectedInvoice.receiptNumber}</span> is not affected.
+              </p>
+            ) : (
+              <p className="text-[11px] text-gray-500 mb-4">
+                The full paid amount ({(fmtMoney(selectedInvoice.paid))}) will be counted under {METHOD_LABELS[newMethod]}.
+                {selectedInvoice.paymentMethod === 'CASH_ONLINE' && ' The existing Cash+Online split will be reset — the whole amount moves to the method above.'}
+              </p>
+            )}
             <div className="flex gap-2">
               <button onClick={handleChangeSubmit} disabled={changing || newMethod === selectedInvoice.paymentMethod}
                 className="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-2 rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2">
@@ -889,7 +916,8 @@ const SoftwareSettings = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══════════════ SYSTEM PAUSE TAB ═══════════════ */}
       {activeTab === 'system' && (
