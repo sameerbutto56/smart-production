@@ -507,6 +507,16 @@
 - User verification of Gate Pass Enamels-only filter (commit `b05a407` deployed, needs live count check)
 - User verification of replacement orders routing to PRODUCTION_ACCEPTANCE (commit `6191a86` deployed, 5 stuck orders repaired via `repair-replacement-production.js`)
 
+### Done This Session — PostEx Courier Integration + PostEx Returns Tab (commit `40e20b4`)
+- **PostEx schema**: Added `PostExShipment` and `PostExStatusLog` models to `schema.prisma`; added `postexShipments PostExShipment[]` relation on `Order` model with proper back-relation (`@relation(fields: [orderId], references: [id], onDelete: Cascade)`). `npx prisma validate` OK; `npx prisma db push` synced; Prisma Client v6.19.3 regenerated.
+- **PostEx backend** (`postex.service.js`, `postex.controller.js`, `postex.routes.js`): Feature flag via `POSTEX_CONFIG` SystemSetting (OFF/TEST/LIVE); `buildShipmentPayload`, `mapStatus`, `getIntegrationMode`; CRUD endpoints: `POST/GET /shipments/:orderId`, `GET /shipment/:id`, `PUT /shipment/:id/cancel`, `POST /shipment/:id/track`; webhook `POST /webhook`; admin `GET /all`; returns `GET /returns` (enriches RETURN cases with PostEx shipment info); routes mounted at `/api/postex` in `app.js`.
+- **PostEx auto-shipment creation**: Non-blocking in `bookCourier` (`dispatch.controller.js`) and `dispatchFromProfile` (`dispatch-profile.controller.js`) — after `recordAssignment`, if `deliveryType === 'POST_EX'`, calls `postexService.createPostExShipment()` without blocking the response.
+- **PostEx dispatch modal note** (`DispatchPage.jsx`): Indigo info box when PostEx selected: "PostEx shipment will be created automatically. Tracking updates will be received via webhook." + LIVE/TEST mode indicator using `postexMode` state fetched from `GET /api/postex/config`.
+- **PostEx shipment badges on active cards** (`DispatchPage.jsx`): Shows indigo PostEx tracking number badge + color-coded status badge + destination city for orders with `deliveryType === 'POST_EX'`. Backend query now includes `postexShipments` in both `dispatch.controller.js` and `dispatch-profile.controller.js` selects.
+- **PostExIntegrationPanel.jsx**: Full 3-sub-tab config panel (Feature Flag, Shipment Defaults, Webhook) wired into SoftwareSettings as a new "PostEx Integration" tab.
+- **PostEx Returns tab** (`ReturnExchangePage.jsx`): Third tab "PostEx Returns" alongside Order Lookup + All Cases; fetches from `GET /api/postex/returns`; shows incoming PostEx return cases enriched with shipment info (tracking number, status, amount, destination city); filter by status; stats row.
+- **Verification**: `npm run build` EXIT=0; committed `40e20b4` pushed; deployed `dpl_72J7Y1GmrU6ZapUJiyp8Piqcfi7J` (`smart-production-v2-5235109mb-...`) + re-aliased `smart-production-v2.vercel.app`.
+
 ### Done This Session — Gate Pass Enamels-Only Filter (commit `b05a407`)
 - **Root cause**: `getTahirSheet` enrichment fetched ALL `DeliveryAssignment` records — no delivery type filter. `DeliveryAssignment` has no `deliveryType` field; only `deliveryBoyName` varies. The `runBackfill` also created records for TCS/PostEx/Customer Pickup orders.
 - **Fix** (`tahirSheet.controller.js`):
