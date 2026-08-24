@@ -1073,7 +1073,8 @@ const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const showMeas = sections.measurements !== false;
   const showEngraving = sections.engraving !== false;
-  const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+  const PRICE_VISIBLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'SOFTWARE_SETTINGS', 'FAISAL', 'INVENTORY_VIEW', 'DISPATCH', 'DELIVERY_BOY'];
+  const showPrice = PRICE_VISIBLE_ROLES.includes(userRole);
 
   const _slLower = (v) => v ? v.toLowerCase() : '';
   const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
@@ -1602,7 +1603,7 @@ export function printDispatchSheet(order) {
   const isMultiItem = allItems && allItems.length > 0;
 
   if (isMultiItem) {
-    win.document.write(`<table><thead><tr><th>#</th><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
+    win.document.write(`<table><thead><tr><th>#</th><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th>${showPrice ? '<th style="text-align:right">Price</th>' : ''}</tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
       const p = getItemProduct(item);
       const slVal = p.sleeveLength ? ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : null;
@@ -1613,52 +1614,66 @@ export function printDispatchSheet(order) {
       win.document.write(`<td style="font-weight:700">${pu(p.productType || p.name || '—')}</td>`);
       win.document.write(`<td>${[vu(p.fabricType), vu(p.color), p.size, genDisplay(p.gender)].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
-      win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
+      if (showPrice) win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
       win.document.write(`</tr>`);
     });
     win.document.write(`</tbody></table>`);
   } else {
-    win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
+    win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th>${showPrice ? '<th style="text-align:right">Price</th>' : ''}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name || '—')}</td>`);
     win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
-    win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
+    if (showPrice) win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── FINANCIAL SUMMARY ───
-  win.document.write(`<div class="section-title" style="font-size:24px;margin-top:8px">Financial Summary</div>`);
-  win.document.write(`<div style="border:2px solid #ccc;border-radius:8px;padding:10px 14px">`);
-  win.document.write(summaryRow('Total Price', currency(order.totalPrice)));
-  if (parseFloat(order.deliveryCharges || 0) > 0) {
-    win.document.write(summaryRow('Delivery Charges', currency(order.deliveryCharges)));
-  }
-  if (parseFloat(order.discount || 0) > 0) {
-    win.document.write(summaryRow('Discount', `-${currency(order.discount)}`));
-  }
-  if (parseFloat(order.advanceAmount || 0) > 0) {
-    win.document.write(summaryRow('Advance Received', `-${currency(order.advanceAmount)}`));
-  }
-  win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
-  win.document.write(`<span style="font-weight:900">Grand Total</span>`);
-  win.document.write(`<span style="font-weight:900">${currency(order.totalPrice)}</span>`);
-  win.document.write(`</div>`);
-  if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓ — No COD Due</div>`);
-  } else if (order.paymentStatus === 'BALANCE') {
-    const bal = Math.max(0, parseFloat(order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:20px;font-weight:900;color:#d97706">BALANCE: ${currency(bal)} — Partial Payment Remaining</div>`);
-  } else if (parseFloat(order.advanceAmount || 0) > 0) {
-    const codAmt = Math.max(0, parseFloat(order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-    win.document.write(`<div style="margin-top:8px;padding:6px 10px;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:18px">`);
-    win.document.write(`<div style="display:flex;justify-content:space-between;font-weight:700;color:#d97706"><span>Advance Received:</span><span>${currency(order.advanceAmount)}</span></div>`);
-    win.document.write(`<div style="display:flex;justify-content:space-between;font-weight:900;color:#dc2626;font-size:22px;margin-top:4px;padding-top:4px;border-top:2px solid #d9770640"><span>Remaining Balance (COD):</span><span>${currency(codAmt)}</span></div>`);
+  // ─── FINANCIAL SUMMARY (price-visible roles only) ───
+  if (showPrice) {
+    const fs = (() => { try { return typeof order.financialSummary === 'string' ? JSON.parse(order.financialSummary) : order.financialSummary; } catch { return null; } })();
+    const productPrice = fs?.productPrice != null ? parseFloat(fs.productPrice) : (allItems ? allItems.reduce((s, item) => s + parseFloat(item.totalPrice || 0), 0) : parseFloat(order.totalPrice || 0));
+    const logoCh = fs?.logoCharges != null ? parseFloat(fs.logoCharges) : 0;
+    const nameCh = fs?.namePrinting != null ? parseFloat(fs.namePrinting) : 0;
+    const custCh = fs?.customization != null ? parseFloat(fs.customization) : 0;
+    const capCh = fs?.cap != null ? parseFloat(fs.cap) : 0;
+    const delivCh = fs?.delivery != null ? parseFloat(fs.delivery) : parseFloat(order.deliveryCharges || 0);
+    const discCh = fs?.discount != null ? parseFloat(fs.discount) : parseFloat(order.discount || 0);
+    const totalOrd = fs?.total != null ? parseFloat(fs.total) : parseFloat(order.totalPrice || 0);
+    const advPay = parseFloat(order.advanceAmount || 0);
+    win.document.write(`<div class="section-title" style="font-size:24px;margin-top:8px">Financial Summary</div>`);
+    win.document.write(`<div style="border:2px solid #ccc;border-radius:8px;padding:10px 14px">`);
+    win.document.write(summaryRow('Product Price', currency(productPrice)));
+    if (logoCh > 0) win.document.write(summaryRow('Logo Charges', currency(logoCh)));
+    if (nameCh > 0) win.document.write(summaryRow('Name Printing', currency(nameCh)));
+    if (custCh > 0) win.document.write(summaryRow('Customization', currency(custCh)));
+    if (capCh > 0) win.document.write(summaryRow('Cap Charges', currency(capCh)));
+    if (delivCh > 0) win.document.write(summaryRow('Delivery Charges', currency(delivCh)));
+    if (discCh > 0) win.document.write(summaryRow('Discount', `-${currency(discCh)}`));
+    win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
+    win.document.write(`<span style="font-weight:900">Grand Total</span>`);
+    win.document.write(`<span style="font-weight:900">${currency(totalOrd)}</span>`);
     win.document.write(`</div>`);
-  } else {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626">CASH ON DELIVERY: ${currency(order.totalPrice)}</div>`);
+    if (advPay > 0) {
+      win.document.write(summaryRow('Advance Received', currency(advPay)));
+      const remaining = Math.max(0, totalOrd - advPay);
+      win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
+      win.document.write(`<span style="font-weight:900">Remaining Balance</span>`);
+      win.document.write(`<span style="font-weight:900;color:#dc2626">${currency(remaining)}</span>`);
+      win.document.write(`</div>`);
+    }
+    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
+      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓ — No COD Due</div>`);
+    } else if (order.paymentStatus === 'BALANCE') {
+      const bal = Math.max(0, totalOrd - advPay);
+      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:20px;font-weight:900;color:#d97706">BALANCE: ${currency(bal)} — Partial Payment Remaining</div>`);
+    } else if (advPay > 0) {
+      const codAmt = Math.max(0, totalOrd - advPay);
+      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:20px;font-weight:900;color:#d97706">COD: ${currency(codAmt)}</div>`);
+    } else if (totalOrd > 0) {
+      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626">CASH ON DELIVERY: ${currency(totalOrd)}</div>`);
+    }
+    win.document.write(`</div>`);
   }
-  win.document.write(`</div>`);
 
   // ─── DISPATCH METHOD ───
   if (order.deliveryMethod) {

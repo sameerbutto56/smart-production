@@ -230,19 +230,27 @@ const VerificationPage = () => {
   );
 
   const renderFinancialSummary = (order) => {
-    const productPrice = parseFloat(order.totalPrice) || 0;
-    const delivery = parseFloat(order.deliveryCharges) || 0;
-    const total = productPrice;
+    const fs = (() => { try { return typeof order.financialSummary === 'string' ? JSON.parse(order.financialSummary) : order.financialSummary; } catch { return null; } })();
     const advance = parseFloat(order.advanceAmount) || 0;
+    const total = fs?.total != null ? parseFloat(fs.total) : (parseFloat(order.totalPrice) || 0);
+    const productPrice = fs?.productPrice != null ? parseFloat(fs.productPrice) : total;
+    const delivery = fs?.delivery != null ? parseFloat(fs.delivery) : (parseFloat(order.deliveryCharges) || 0);
+    const discount = fs?.discount != null ? parseFloat(fs.discount) : 0;
+    const logo = fs?.logoCharges != null ? parseFloat(fs.logoCharges) : (parseFloat(order.logoCharges) || 0);
+    const namePrinting = fs?.namePrinting != null ? parseFloat(fs.namePrinting) : (parseFloat(order.namePrintingCharges) || 0);
+    const customization = fs?.customization != null ? parseFloat(fs.customization) : (parseFloat(order.customizationPrice) || 0);
+    const cap = fs?.cap != null ? parseFloat(fs.cap) : 0;
     return (
       <div className="bg-gray-900 rounded-xl p-4">
         <h4 className="text-xs font-black text-gray-400 uppercase mb-3 flex items-center gap-1"><DollarSign size={12} /> Financial Summary</h4>
         <div className="space-y-1.5 text-xs">
           <div className="flex justify-between"><span className="text-gray-400">Product Price</span><span className="font-bold text-white">{formatCurrency(productPrice)}</span></div>
-          <div className="flex justify-between"><span className="text-gray-400">Delivery Charges</span><span className="font-bold text-white">{formatCurrency(delivery)}</span></div>
-          {order.logoCharges > 0 && <div className="flex justify-between"><span className="text-gray-400">Logo Charges</span><span className="font-bold text-white">{formatCurrency(order.logoCharges)}</span></div>}
-          {order.namePrintingCharges > 0 && <div className="flex justify-between"><span className="text-gray-400">Name Printing</span><span className="font-bold text-white">{formatCurrency(order.namePrintingCharges)}</span></div>}
-          {order.customizationPrice > 0 && <div className="flex justify-between"><span className="text-gray-400">Customization</span><span className="font-bold text-white">{formatCurrency(order.customizationPrice)}</span></div>}
+          {logo > 0 && <div className="flex justify-between"><span className="text-gray-400">Logo Charges</span><span className="font-bold text-white">{formatCurrency(logo)}</span></div>}
+          {namePrinting > 0 && <div className="flex justify-between"><span className="text-gray-400">Name Printing</span><span className="font-bold text-white">{formatCurrency(namePrinting)}</span></div>}
+          {customization > 0 && <div className="flex justify-between"><span className="text-gray-400">Customization</span><span className="font-bold text-white">{formatCurrency(customization)}</span></div>}
+          {cap > 0 && <div className="flex justify-between"><span className="text-gray-400">Cap Charges</span><span className="font-bold text-white">{formatCurrency(cap)}</span></div>}
+          {delivery > 0 && <div className="flex justify-between"><span className="text-gray-400">Delivery</span><span className="font-bold text-white">{formatCurrency(delivery)}</span></div>}
+          {discount > 0 && <div className="flex justify-between"><span className="text-gray-400">Discount</span><span className="font-bold text-emerald-400">-{formatCurrency(discount)}</span></div>}
           <div className="flex justify-between border-t border-gray-700 pt-2 mt-2"><span className="text-white font-black">Total Order Amount</span><span className="font-black text-amber-400">{formatCurrency(total)}</span></div>
           <div className="flex justify-between"><span className="text-emerald-400 font-bold">Advance Payment Received</span><span className="font-bold text-emerald-400">{formatCurrency(advance)}</span></div>
           <div className="flex justify-between border-t border-gray-700 pt-2 mt-2"><span className="text-orange-400 font-black">Remaining Balance</span><span className="font-black text-orange-400">{formatCurrency(Math.max(0, total - advance))}</span></div>

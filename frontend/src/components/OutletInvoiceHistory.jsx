@@ -3,7 +3,7 @@ import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { getPrintFooterHTML } from '../utils/printTemplate';
-import { printBalanceReceipt } from '../utils/POSPrint';
+import { printBalanceReceipt, printBalanceGatePass } from '../utils/POSPrint';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -282,53 +282,8 @@ const OutletInvoiceHistory = ({ outlet }) => {
     }
   };
 
-  const printBalanceReceipt = () => {
-    if (!lastPayment) return;
-    const bp = lastPayment;
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '-9999px';
-    iframe.style.bottom = '-9999px';
-    iframe.style.width = '80mm';
-    iframe.style.height = '0';
-    iframe.title = 'Balance Receipt';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.write(`<html><head><title>Balance Receipt</title><style>
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/NotoNaskhArabic-Regular.ttf')format('truetype');}
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/NotoNaskhArabic-Medium.ttf')format('truetype');}
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/NotoNaskhArabic-SemiBold.ttf')format('truetype');}
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/NotoNaskhArabic-Bold.ttf')format('truetype');}
-      body{font-family:'Noto Naskh Arabic','Courier New',monospace;margin:0;padding:16px;font-size:14px;text-align:center;width:300px;background:#fff;color:#000;}
-      h2{font-size:18px;font-weight:900;margin:0 0 4px;color:#000;text-transform:uppercase;}
-      .sub{font-size:10px;color:#666;margin-bottom:12px;}
-      hr{border:1px dashed #ccc;margin:10px 0;}
-      table{width:100%;font-size:12px;border-collapse:collapse;}
-      td{padding:4px 2px;text-align:left;}
-      td:last-child{text-align:right;font-weight:900;}
-      .label{color:#666;font-size:10px;}
-      .total-row td{border-top:2px solid #000;padding-top:6px;font-size:14px;font-weight:900;}
-      .zero{color:#059669;font-weight:900;}
-    </style></head><body>`);
-    doc.write('<h2>BALANCE PAYMENT</h2>');
-    doc.write(`<p class="sub">Receipt &mdash; ${formatDateTime(new Date())}</p><hr>`);
-    doc.write('<table>');
-    doc.write(`<tr><td class="label">Original Invoice</td><td>${bp.posSale?.receiptNumber || bp.receiptNumber || ''}</td></tr>`);
-    doc.write(`<tr><td class="label">Customer</td><td>${bp.posSale?.customerName || bp.customerName || ''}</td></tr>`);
-    doc.write(`<tr><td class="label">Original Total</td><td>${formatCurrency(bp.posSale?.grandTotal || bp.grandTotal || 0)}</td></tr>`);
-    doc.write(`<tr><td class="label">Total Paid</td><td>${formatCurrency(bp.totalPaid || (bp.posSale?.grandTotal || 0))}</td></tr>`);
-    doc.write(`<tr class="total-row"><td>Amount Paid Now</td><td>${formatCurrency(bp.amountPaidNow || bp.amount || 0)}</td></tr>`);
-    doc.write(`<tr><td class="label">Remaining</td><td class="${(bp.remaining || 0) <= 0 ? 'zero' : ''}">${(bp.remaining || 0) <= 0 ? 'FULLY PAID' : formatCurrency(bp.remaining)}</td></tr>`);
-    doc.write(`<tr><td class="label">Payment Method</td><td>${bp.paymentMethod || 'CASH'}</td></tr>`);
-    doc.write('</table><hr>');
-    doc.write(getPrintFooterHTML());
-    doc.write('</body></html>');
-    doc.close();
-    setTimeout(() => {
-      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
-      setTimeout(() => { if (iframe.parentNode) document.body.removeChild(iframe); }, 1000);
-    }, 300);
-  };
+  /* Balance receipt/gate-pass printing now uses the shared printers in utils/POSPrint.js
+     (the previous local zero-arg printBalanceReceipt shadowed the import and ignored its arguments). */
 
   /* ─── Payment History ─── */
   const openPayHistory = async (sale) => {
@@ -844,18 +799,18 @@ const OutletInvoiceHistory = ({ outlet }) => {
               <p className="text-[10px] text-gray-500 mt-1">Balance payment recorded — status updated automatically</p>
             </div>
             <div className="text-xs bg-gray-950 p-3 rounded-xl space-y-1.5">
-              <p className="flex justify-between"><span className="text-gray-500">Amount</span><span className="font-bold text-emerald-400">{formatCurrency(lastPayment.amount)}</span></p>
-              <p className="flex justify-between"><span className="text-gray-500">Remaining</span><span className="font-bold text-white">{formatCurrency(lastPayment.remaining)}</span></p>
-              {lastPayment.remaining <= 0 && <p className="text-[10px] text-emerald-400 font-bold text-center mt-1">✓ Fully Paid — Invoice moved to Paid</p>}
+              <p className="flex justify-between"><span className="text-gray-500">Amount</span><span className="font-bold text-emerald-400">{formatCurrency(lastPayment.amountPaidNow ?? lastPayment.amount)}</span></p>
+              <p className="flex justify-between"><span className="text-gray-500">Remaining</span><span className="font-bold text-white">{formatCurrency(lastPayment.outstandingBalanceAfterPayment ?? lastPayment.remaining)}</span></p>
+              {(lastPayment.outstandingBalanceAfterPayment ?? lastPayment.remaining ?? 0) <= 0.01 && <p className="text-[10px] text-emerald-400 font-bold text-center mt-1">✓ Fully Paid — Invoice moved to Paid</p>}
               <p className="flex justify-between"><span className="text-gray-500">Method</span><span className="font-bold text-white">{lastPayment.paymentMethod || 'CASH'}</span></p>
               <p className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-bold text-white">{formatDateTime(lastPayment.paidAt || lastPayment.createdAt)}</span></p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => { printBalanceReceipt(); }}
+              <button onClick={() => printBalanceReceipt(lastPayment, selectedInvoice)}
                 className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2">
-                <Printer size={14} /> Print Receipt
+                <Printer size={14} /> Receipt
               </button>
-              <button onClick={() => { setShowReceipt(false); setLastPayment(null); }}
+              <button onClick={() => printBalanceGatePass(lastPayment, selectedInvoice)} className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold flex items-center justify-center gap-2"><Printer size={14} /> Gate Pass</button><button onClick={() => { setShowReceipt(false); setLastPayment(null); }}
                 className="flex-1 px-4 py-2.5 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700">Close</button>
             </div>
           </div>
@@ -890,7 +845,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                       </div>
                       <div className="flex items-center justify-between mt-1">
                         {ph.cashierName && <span className="text-[10px] text-gray-600">Cashier: {ph.cashierName}</span>}
-                        <button onClick={() => printBalanceReceipt(ph, payHistorySale)} className="text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 px-2 py-1 rounded-lg text-[10px] font-bold"><Printer size={10} className="inline mr-0.5" />Print</button>
+                        <div className="flex items-center gap-1"><button onClick={() => printBalanceReceipt(ph, payHistorySale)} className="text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 px-2 py-1 rounded-lg text-[10px] font-bold"><Printer size={10} className="inline mr-0.5" />Receipt</button><button onClick={() => printBalanceGatePass(ph, payHistorySale)} className="text-amber-400 hover:text-amber-300 bg-amber-500/10 px-2 py-1 rounded-lg text-[10px] font-bold"><Printer size={10} className="inline mr-0.5" />Gate Pass</button></div>
                       </div>
                     </div>
                   ))}

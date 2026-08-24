@@ -461,3 +461,99 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
     setTimeout(() => { document.body.removeChild(iframe); }, 1000);
   }, 500);
 }
+
+// Thermal gate pass for a balance clearance payment — documents the payment and
+// authorizes/document goods release status (FULLY PAID vs PARTIAL) at the gate.
+export function printBalanceGatePass(lastBalancePayment, selectedBalanceInvoice) {
+  if (!lastBalancePayment) return;
+  const bp = lastBalancePayment;
+  const sale = selectedBalanceInvoice || bp.posSale || {};
+  const customerName = sale.customerName || 'N/A';
+  const customerPhone = sale.customerPhone || '';
+  const originalInvoiceReceipt = sale.receiptNumber || bp.originalInvoiceNumber || '';
+  const amountPaidNow = bp.amountPaidNow ?? bp.amount ?? 0;
+  const outstandingAfter = bp.outstandingBalanceAfterPayment ?? bp.remaining ?? 0;
+  const statusPaid = outstandingAfter <= 0.01;
+  const methodLabel = bp.paymentMethod === 'CASH_ONLINE'
+    ? `Cash + Online (${formatCurrency(bp.cashAmount || 0)} + ${formatCurrency(bp.onlineAmount || 0)})`
+    : formatPaymentMethod(bp.paymentMethod || 'CASH');
+  const items = Array.isArray(sale.items) ? sale.items : [];
+  const totalQty = items.reduce((s, i) => s + (i.quantity || 0), 0);
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '0';
+  iframe.style.top = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  iframe.title = 'Balance Clearance Gate Pass';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`<html><head><title>Balance Clearance Gate Pass</title><style>
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNaskhArabic-Bold.ttf') format('truetype'); }
+    body{font-family:'Noto Naskh Arabic','Courier New',monospace;margin:0;padding:16px;font-size:14px;text-align:center;width:300px;background:#fff;color:#000;}
+    .gp-box{background:#ffd700;border:2px solid #000;border-radius:4px;padding:8px 4px;margin-bottom:10px;}
+    .gp-box h2{font-size:20px;font-weight:900;margin:0;text-transform:uppercase;letter-spacing:1px;color:#000;}
+    .gp-box .sub{font-size:10px;font-weight:900;color:#000;margin-top:2px;}
+    hr{border:1px dashed #999;margin:10px 0;}
+    table{width:100%;font-size:12px;border-collapse:collapse;}
+    td{padding:4px 2px;text-align:left;}
+    td:last-child{text-align:right;font-weight:900;}
+    .label{color:#555;font-size:10px;font-weight:700;}
+    .section-label{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:1px;font-weight:900;text-align:left;padding-top:8px;}
+    .total-row td{border-top:2px solid #000;padding-top:6px;font-size:14px;font-weight:900;}
+    .zero{color:#16a34a;font-weight:900;}
+    .status-badge{display:inline-block;padding:5px 14px;font-size:13px;font-weight:900;border-radius:4px;margin-top:12px;border:2px solid;}
+    .status-paid{background:#dcfce7;color:#16a34a;border-color:#16a34a;}
+    .status-partial{background:#fef3c7;color:#d97706;border-color:#d97706;}
+    .sig{margin-top:18px;display:flex;justify-content:space-between;align-items:flex-end;font-size:10px;font-weight:700;color:#333;width:100%;}
+    .sig .line{border-top:1px solid #000;padding-top:3px;min-width:110px;text-align:center;}
+    .footer{font-size:9px;color:#999;margin-top:12px;}
+  </style></head><body>
+    ${getPrintLogoHTML()}
+    <div class="gp-box">
+      <h2>Gate Pass</h2>
+      <p class="sub">BALANCE CLEARANCE &mdash; ${statusPaid ? 'FULLY PAID' : 'PARTIAL PAYMENT'}</p>
+    </div>
+    <table>
+      <tr><td class="label">Original Invoice #</td><td>${originalInvoiceReceipt || 'N/A'}</td></tr>
+      <tr><td class="label">Clearance Receipt #</td><td>${bp.receiptNumber || 'N/A'}</td></tr>
+      ${customerName !== 'N/A' ? `<tr><td class="label">Customer</td><td>${customerName}</td></tr>` : ''}
+      ${customerPhone ? `<tr><td class="label">Phone</td><td>${customerPhone}</td></tr>` : ''}
+      ${sale.orderNumber ? `<tr><td class="label">Order #</td><td>${sale.orderNumber}</td></tr>` : ''}
+      <tr><td class="label">Date / Time</td><td>${formatDateTime(bp.paidAt || new Date())}</td></tr>
+    </table>
+    <hr/>
+    <p class="section-label">Payment Summary</p>
+    <table>
+      <tr><td>Total Invoice Amount</td><td>${formatCurrency(bp.originalInvoiceTotal ?? sale.grandTotal)}</td></tr>
+      <tr><td>Previously Paid / Advance</td><td>${formatCurrency(bp.previouslyPaidAmount || 0)}</td></tr>
+      <tr><td>Paid This Transaction</td><td>${formatCurrency(amountPaidNow)}</td></tr>
+      <tr><td>Payment Method</td><td style="font-size:11px;">${methodLabel}</td></tr>
+      <tr class="total-row"><td>Remaining Balance</td><td class="${statusPaid ? 'zero' : ''}">${formatCurrency(outstandingAfter)}</td></tr>
+    </table>
+    ${items.length > 0 ? `<hr/><p class="section-label">Goods (${totalQty} item${totalQty === 1 ? '' : 's'})</p><table>
+      ${items.map(i => {
+        const isUrd = isUrduReceipt();
+        const variantParts = [isUrd ? toUrduName(i.color) : i.color, i.size].filter(Boolean);
+        return `<tr><td style="text-align:left;"><div style="font-weight:900;">${i.productName || ''}</div>${variantParts.length ? `<div class="label">${variantParts.join(' / ')}</div>` : ''}</td><td>x${i.quantity || 1}</td></tr>`;
+      }).join('')}
+    </table>` : ''}
+    <div class="status-badge ${statusPaid ? 'status-paid' : 'status-partial'}">${statusPaid ? '&#10003; BALANCE CLEARED' : 'PARTIAL &mdash; BALANCE REMAINS'}</div>
+    <div class="sig">
+      <div style="text-align:left;">Cashier:<br/><span style="font-size:12px;font-weight:900;">${bp.cashierName || '&mdash;'}</span></div>
+      <div class="line">Authorised Signature</div>
+    </div>
+    <hr/>
+    ${getPrintFooterHTML()}
+  </body></html>`);
+  doc.close();
+  setTimeout(() => {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
+    setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+  }, 500);
+}

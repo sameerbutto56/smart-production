@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { usePOS } from '../context/POSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
-import { formatCurrency, formatPaymentMethod, printBalanceReceipt } from '../utils/POSPrint';
+import { formatCurrency, formatPaymentMethod, printBalanceReceipt, printBalanceGatePass } from '../utils/POSPrint';
 import { formatDateTime } from '../utils/dateTime';
 import api from '../services/api';
 import { Clock, ShoppingCart, BarChart3, Search, Download, Printer, RotateCcw, FileText, CreditCard } from 'lucide-react';
@@ -277,7 +277,8 @@ const POSHistory = () => {
                     {bp.originalInvoiceTotal > 0 && (
                       <span className="text-[10px] mr-1">Invoice: {formatCurrency(bp.originalInvoiceTotal)} | Paid: {formatCurrency((bp.previouslyPaidAmount || 0) + bp.amountPaidNow)}</span>
                     )}
-                    <button onClick={() => printBalanceReceipt(bp, bp.posSale)} className="text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Print</button>
+                    <button onClick={() => printBalanceReceipt(bp, bp.posSale)} className="text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Print Invoice</button>
+                    <button onClick={() => printBalanceGatePass(bp, bp.posSale)} className="text-amber-400 hover:text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Gate Pass</button>
                   </div>
                 </div>
               </div>

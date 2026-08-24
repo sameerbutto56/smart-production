@@ -60,6 +60,8 @@ const AllOrders = () => {
   const { user } = useAuth();
   const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
   const isReadOnly = user?.role === 'FAISAL';
+  const PRICE_VISIBLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'SOFTWARE_SETTINGS', 'FAISAL', 'INVENTORY_VIEW', 'DISPATCH', 'DELIVERY_BOY'];
+  const showPrice = PRICE_VISIBLE_ROLES.includes(user?.role);
   const { data: orders = [], loading, refresh } = useCache('orders:all', {
     fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []),
     ttl: 60 * 1000,
@@ -1377,7 +1379,7 @@ const AllOrders = () => {
                               <th className="pb-3">Size & Gender</th>
                               <th className="pb-3 text-center">Qty</th>
                               <th className="pb-3 text-center">Stock</th>
-                              <th className="pb-3 text-right pr-4">Price</th>
+                              {showPrice && <th className="pb-3 text-right pr-4">Price</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -1528,7 +1530,7 @@ const AllOrders = () => {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
+                                  {showPrice && <td className="py-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>}
                                 </tr>
                               );
                             })}
@@ -1552,7 +1554,7 @@ const AllOrders = () => {
                         ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
                         ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
                         ...(product?.additionalProductRef ? [{ label: 'Additional Reference', val: product.additionalProductRef }] : []),
-                        { label: 'Payment', val: isPaidOrder(selectedOrder) ? 'PAID' : getRemainingBalance(selectedOrder) > 0 ? 'COD' : 'COD' },
+                        ...(showPrice ? [{ label: 'Payment', val: isPaidOrder(selectedOrder) ? 'PAID' : getRemainingBalance(selectedOrder) > 0 ? 'COD' : 'COD' }] : []),
                         { label: 'Stock', val: 'toggle' }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">

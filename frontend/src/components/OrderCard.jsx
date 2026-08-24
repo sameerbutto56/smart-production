@@ -22,7 +22,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const currentStage = stageFromDb || (order.currentStage ? { stageName: order.currentStage, status: 'PENDING', id: null } : null) || order.stages?.[0];
 
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'].includes(userRole);
-  const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+  const PRICE_VISIBLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'SOFTWARE_SETTINGS', 'FAISAL', 'INVENTORY_VIEW', 'DISPATCH', 'DELIVERY_BOY'];
+  const showPrice = PRICE_VISIBLE_ROLES.includes(userRole);
   const priceDisplay = (v) => showPrice ? `₨${(v || 0).toLocaleString()}` : '★ ★ ★';
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
@@ -2589,10 +2590,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
                             ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
                             ...(product?.additionalProductRef ? [{ label: 'Additional Ref', val: product.additionalProductRef }] : []),
-                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
-                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
-                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) ? [{ label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' }] : []),
-                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) ? [{ label: 'Payment', val: order.paymentStatus }] : [])
+                            ...(showPrice && order.logoCharges > 0 ? [{ label: 'Logo Charge', val: `₨${order.logoCharges}` }] : []),
+                            ...(showPrice && order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: `₨${order.namePrintingCharges}` }] : []),
+                            ...(showPrice ? [{ label: 'Customization Charge', val: `₨${order.customizationPrice || 0}` }] : []),
+                            ...(showPrice ? [{ label: 'Payment', val: order.paymentStatus }] : [])
                           ].filter(i => i.val).map((item, i) => (
                             <tr key={i} className="border-b border-gray-800/30 hover:bg-gray-900/20">
                               <td className="py-3 px-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">{item.label}</td>
