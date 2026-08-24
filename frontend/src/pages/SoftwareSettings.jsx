@@ -512,24 +512,27 @@ const SoftwareSettings = () => {
   ];
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <Users className="text-blue-400" /> Software Settings
-          </h1>
-          <p className="text-sm text-gray-400 mt-1">Manage employee logins and correct POS payment methods.</p>
-        </div>
-        <div className="flex items-center gap-2 bg-gray-900 border-2 border-gray-700 rounded-xl p-1">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-black text-white flex items-center gap-2">
+          <Users className="text-blue-400" /> Software Settings
+        </h1>
+        <p className="text-sm text-gray-400 mt-1">Manage employee logins and correct POS payment methods.</p>
+      </div>
+
+      <div className="flex gap-4 min-h-[calc(100vh-10rem)]">
+        {/* ── Sidebar Navbar ── */}
+        <nav className="w-56 flex-shrink-0 bg-gray-900 border-2 border-gray-700 rounded-2xl p-2 flex flex-col gap-1">
           {tabs.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === t.key ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all text-left ${activeTab === t.key ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
               {t.icon} {t.label}
             </button>
           ))}
-        </div>
-      </div>
+        </nav>
 
+        {/* ── Content Area ── */}
+        <div className="flex-1 min-w-0 space-y-6">
       {/* ═══════════════ EMPLOYEE MANAGEMENT TAB ═══════════════ */}
       {activeTab === 'employees' && (
         <>
@@ -1520,6 +1523,8 @@ const SoftwareSettings = () => {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 };

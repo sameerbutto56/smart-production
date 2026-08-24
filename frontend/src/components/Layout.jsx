@@ -53,7 +53,6 @@ import socket from '../socket';
 import useDemandNotification from '../hooks/useDemandNotification';
 import { getTimerState, fmtWorkingDuration } from '../utils/workingHours';
 import toast from 'react-hot-toast';
-import SystemPauseControl from './SystemPauseControl';
 import ProfileEmployeeGate from './ProfileEmployeeGate';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -609,7 +608,6 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <SystemPauseControl />
             {user?.role === 'FAISAL' && (
               <button
                 onClick={handleFaisalLogout}
