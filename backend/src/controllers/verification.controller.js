@@ -7,7 +7,7 @@ const getPendingVerifications = async (req, res) => {
     const { search, page = 1, limit = 50 } = req.query;
     // Exclude terminal states so cancelled/completed orders leave the active verification
     // queue immediately (Admin-approved cancellations keep goForVerification true).
-    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: null, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED', 'REJECTED'] } };
+    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: null, currentStage: 'ORDER_ENTRY', status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED', 'REJECTED'] } };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
@@ -340,6 +340,8 @@ const resubmitFromVerification = async (req, res) => {
     // Clear the verification return flag so it won't show in returned list
     payload.verificationReturnedAt = null;
     payload.verificationReturnNote = null;
+    // Mark verification cycle complete — order is going directly to Store
+    payload.goForVerification = false;
 
     await prisma.$transaction(async (tx) => {
       // 1. Update order data
