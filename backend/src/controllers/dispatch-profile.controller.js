@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const { recordAssignment } = require('./tahirSheet.controller');
+const postexService = require('../services/postex.service');
 
 const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
@@ -63,7 +64,8 @@ const getDispatchProfileOrders = async (req, res) => {
         orderBy: { createdAt: 'asc' },
         select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true }
       },
-      createdBy: { select: { name: true, role: true } }
+      createdBy: { select: { name: true, role: true } },
+      postexShipments: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, trackingNumber: true, shipmentNumber: true, status: true, integrationMode: true, totalAmount: true, codAmount: true, destinationCity: true, errorMessage: true, bookedAt: true, deliveredAt: true } }
     };
 
     const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
@@ -391,6 +393,16 @@ const dispatchFromProfile = async (req, res) => {
     if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
 
     recordAssignment({ orderId, deliveryBoyName: dispatchMethod, routedBy: employeeName, outletName: order.outletName }).catch(() => {});
+
+    // ── PostEx shipment creation ──
+    if (dispatchMethod === 'POST_EX') {
+      postexService.createPostExShipment({
+        orderId,
+        userId: req.user?.id,
+        userName: employeeName,
+        notes: `Dispatched via ${employeeName} (PostEx). Tracking: ${trackingUrl || 'N/A'}`
+      }).catch(err => console.error('PostEx shipment creation failed (non-blocking):', err.message));
+    }
 
     res.json({ message: `Order dispatched via ${dispatchMethod} by ${employeeName}` });
   } catch (error) {

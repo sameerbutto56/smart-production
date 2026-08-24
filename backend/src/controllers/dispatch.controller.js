@@ -3,6 +3,7 @@ const { calculateDeadline } = require('../utils/deadline');
 const notify = require('../utils/notify');
 const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
+const postexService = require('../services/postex.service');
 
 const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
@@ -232,6 +233,22 @@ const bookCourier = async (req, res) => {
 
     recordAssignment({ orderId, deliveryBoyName: courierName, routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
 
+    // ── PostEx shipment creation (when courier is PostEx and integration is active) ──
+    if (mappedDeliveryType === 'POST_EX') {
+      postexService.createPostExShipment({
+        orderId,
+        userId: req.user?.id,
+        userName: req.user?.name,
+        notes: `Courier booked via Dispatch. Tracking: ${trackingNumber || 'N/A'}`
+      }).then(result => {
+        if (result?.shipmentNumber) {
+          console.log(`PostEx shipment created for order ${order.orderNumber}: ${result.shipmentNumber}`);
+        }
+      }).catch(err => {
+        console.error('PostEx shipment creation failed (non-blocking):', err.message);
+      });
+    }
+
     await notify.create(req, { type: 'delivery_task', moduleName: 'Deliveries', path: '/delivery', role: 'DELIVERY_BOY', title: 'New Delivery', message: `Order #${order.orderNumber} booked with courier`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Courier Booked', employeeName: req.user?.name }).catch(() => {});
 
     res.json({ message: `Courier booked: ${courierName}`, trackingNumber });
@@ -426,7 +443,8 @@ const getDispatchDashboard = async (req, res) => {
         createdAt: true, updatedAt: true, deliveredAt: true, returnedAt: true,
         riderAcceptedAt: true, noResponseCount: true,
         stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true } },
-        createdBy: { select: { name: true, role: true } }
+        createdBy: { select: { name: true, role: true } },
+        postexShipments: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, trackingNumber: true, shipmentNumber: true, status: true, integrationMode: true, totalAmount: true, codAmount: true, destinationCity: true, errorMessage: true, bookedAt: true, deliveredAt: true } }
       },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });

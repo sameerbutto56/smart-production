@@ -63,6 +63,7 @@ const DispatchPage = () => {
     api.get('/api/outlet-orders/employees?outlet=Dispatch&profile=DISPATCH')
       .then(res => { if (mounted) setDispatchEmployees(res.data?.employees || []); })
       .catch(() => { if (mounted) setDispatchEmployees([]); });
+    api.get('/api/postex/config').then(r => { if (mounted) setPostexMode(r.data?.mode || 'OFF'); }).catch(() => {});
     return () => { mounted = false; };
   }, []);
 
@@ -88,6 +89,7 @@ const DispatchPage = () => {
   const [acceptLoading, setAcceptLoading] = useState(null);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [stats, setStats] = useState(null);
+  const [postexMode, setPostexMode] = useState('OFF');
   const queueRefreshRef = useRef(null);
 
   const [data, setData] = useState({ unseen: [], seen: [], active: [], allOrders: [], counts: { unseen: 0, seen: 0, active: 0 } });
@@ -638,12 +640,30 @@ const DispatchPage = () => {
                         <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>{order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'ONLINE' : order.source}</span>
                         {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
                         {order.forwardedBy === 'Khawar' && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">FORWARDED BY KHAWAR</span>}
+                        {order.deliveryType === 'POST_EX' && (
+                          <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                            PostEx {order.postexShipments?.[0]?.trackingNumber ? `• ${order.postexShipments[0].trackingNumber}` : ''}
+                          </span>
+                        )}
+                        {order.deliveryType === 'POST_EX' && order.postexShipments?.[0]?.status && (
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            ['DELIVERED'].includes(order.postexShipments[0].status) ? 'bg-emerald-500/20 text-emerald-400' :
+                            ['RETURNED', 'RETURN_IN_TRANSIT', 'FAILED_DELIVERY'].includes(order.postexShipments[0].status) ? 'bg-red-500/20 text-red-400' :
+                            ['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'PICKED_UP'].includes(order.postexShipments[0].status) ? 'bg-amber-500/20 text-amber-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            PostEx: {order.postexShipments[0].status.replace(/_/g, ' ')}
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
                         <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                         {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
                         <span className="flex items-center gap-1"><Clock size={12} />{formatDateOnly(order.createdAt)}</span>
+                        {order.deliveryType === 'POST_EX' && order.postexShipments?.[0]?.destinationCity && (
+                          <span className="flex items-center gap-1 text-indigo-400"><MapPin size={12} />{order.postexShipments[0].destinationCity}</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -770,6 +790,12 @@ const DispatchPage = () => {
                     <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-black"
                       placeholder="Enter tracking URL or number..." />
+                  </div>
+                )}
+                {selectedOption?.id === 'POST_EX' && (
+                  <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 text-xs font-bold text-indigo-300">
+                    PostEx shipment will be created automatically. Tracking updates will be received via webhook.
+                    {postexMode !== 'LIVE' && <span className="text-amber-400 ml-1">(Integration is {postexMode} — no real API call)</span>}
                   </div>
                 )}
                 {selectedOption?.id === 'CUSTOMER_TAKEAWAY' && (

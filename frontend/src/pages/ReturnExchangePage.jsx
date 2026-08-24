@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck } from 'lucide-react';
+import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
@@ -17,6 +17,9 @@ const ReturnExchangePage = () => {
   const [casesLoading, setCasesLoading] = useState(false);
   const [caseSearchQuery, setCaseSearchQuery] = useState('');
   const [accepting, setAccepting] = useState(false);
+  const [postexReturns, setPostexReturns] = useState([]);
+  const [postexReturnsLoading, setPostexReturnsLoading] = useState(false);
+  const [postexReturnStats, setPostexReturnStats] = useState([]);
 
   const lookupOrder = useCallback(async () => {
     if (!searchQuery.trim()) return toast.error('Enter order number, invoice #, customer name, or phone');
@@ -54,6 +57,16 @@ const ReturnExchangePage = () => {
       setCases(res.data.cases || []);
     } catch { setCases([]); }
     setCasesLoading(false);
+  }, []);
+
+  const fetchPostExReturns = useCallback(async () => {
+    setPostexReturnsLoading(true);
+    try {
+      const res = await api.get('/api/postex/returns');
+      setPostexReturns(res.data.cases || []);
+      setPostexReturnStats(res.data.stats || []);
+    } catch { setPostexReturns([]); setPostexReturnStats([]); }
+    setPostexReturnsLoading(false);
   }, []);
 
   const handleAcceptReturn = async () => {
@@ -117,12 +130,17 @@ const ReturnExchangePage = () => {
           <button onClick={() => { setActiveView('cases'); fetchCases(''); }} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeView === 'cases' ? 'bg-rose-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
             <div className="flex items-center gap-2"><History size={16} /> All Cases</div>
           </button>
+          <button onClick={() => { setActiveView('postex'); fetchPostExReturns(); }} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeView === 'postex' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+            <div className="flex items-center gap-2"><Truck size={16} /> PostEx Returns</div>
+          </button>
         </div>
 
         {activeView === 'cases' ? (
           <AllCasesView cases={cases} loading={casesLoading} fmtDate={fmtDate} fmtDateTime={fmtDateTime}
             searchQuery={caseSearchQuery} setSearchQuery={setCaseSearchQuery} onSearch={handleCaseSearch}
             onRefresh={() => fetchCases(caseSearchQuery)} />
+        ) : activeView === 'postex' ? (
+          <PostExReturnsView cases={postexReturns} loading={postexReturnsLoading} stats={postexReturnStats} fmtDate={fmtDate} fmtDateTime={fmtDateTime} parseProducts={parseProducts} fmtCurrency={fmtCurrency} onRefresh={fetchPostExReturns} />
         ) : (
           <>
             {/* Search */}
@@ -760,6 +778,107 @@ const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime, searchQuery, setSe
               {c.deliveryReturnedBy && <p className="text-[10px] text-gray-500">Returned by: {c.deliveryReturnedBy} at {fmtDateTime(c.deliveryReturnedAt)}</p>}
               {c.acceptedBy && <p className="text-[10px] text-emerald-400">Accepted by: {c.acceptedBy} at {fmtDateTime(c.acceptedAt)}</p>}
               {c.warehouseApprovedBy && <p className="text-[10px] text-emerald-400">Approved by: {c.warehouseApprovedBy} on {fmtDateTime(c.warehouseApprovedAt)}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PostExReturnsView = ({ cases, loading, stats, fmtDate, fmtDateTime, parseProducts, fmtCurrency, onRefresh }) => {
+  const [filterStatus, setFilterStatus] = useState('');
+  const filtered = cases.filter(c => !filterStatus || c.status === filterStatus);
+
+  const statusCounts = (stats || []).reduce((acc, s) => { acc[s.status] = s._count; return acc; }, {});
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-black text-indigo-400 flex items-center gap-2"><Truck size={16} /> PostEx Incoming Returns</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Return cases from PostEx courier deliveries (auto-created via webhook)</p>
+        </div>
+        <button onClick={onRefresh} className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-xs font-bold transition-all">
+          <RefreshCw size={14} />
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+        {[
+          { label: 'Total', value: filtered.length, color: 'text-white' },
+          { label: 'Pending', value: statusCounts['PENDING'] || 0, color: 'text-orange-400' },
+          { label: 'Accepted', value: statusCounts['ACCEPTED'] || 0, color: 'text-emerald-400' },
+          { label: 'Store', value: statusCounts['PENDING'] && statusCounts['ACCEPTED'] ? '—' : '—', color: 'text-blue-400' },
+          { label: 'Completed', value: statusCounts['COMPLETED'] || 0, color: 'text-emerald-300' }
+        ].map(s => (
+          <div key={s.label} className="bg-gray-800 rounded-lg p-3 text-center">
+            <p className={`text-lg font-black ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-gray-500 uppercase">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter */}
+      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+        className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white outline-none">
+        <option value="">All Statuses</option>
+        <option value="PENDING">Pending</option>
+        <option value="ACCEPTED">Accepted</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="CANCELLED">Cancelled</option>
+      </select>
+
+      {loading ? (
+        <div className="text-center text-gray-400 py-8">Loading PostEx returns...</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <Truck className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">No PostEx returns found</p>
+          <p className="text-xs text-gray-600 mt-1">Incoming returns from PostEx will appear here automatically</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(c => (
+            <div key={c.id} className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-indigo-500/30 transition-all">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-red-500/20 text-red-400">RETURN</span>
+                    <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                      c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
+                      c.status === 'ACCEPTED' ? 'bg-blue-500/20 text-blue-400' :
+                      c.status === 'PENDING' ? 'bg-orange-500/20 text-orange-400' :
+                      'bg-gray-700 text-gray-400'
+                    }`}>{c.status.replace(/_/g, ' ')}</span>
+                    <span className="text-xs font-black text-white">{c.orderNumber || 'N/A'}</span>
+                    <span className="text-xs text-gray-400">{c.customerName}</span>
+                    {c.order?.deliveryType === 'POST_EX' && (
+                      <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">PostEx</span>
+                    )}
+                  </div>
+                  {c.returnReason && <p className="text-[10px] text-gray-500">Reason: {c.returnReason}</p>}
+                  {c.handledBy && <p className="text-[10px] text-gray-500">Handled by: {c.handledBy}</p>}
+                  {c.deliveryReturnedBy && <p className="text-[10px] text-gray-500">Returned by: {c.deliveryReturnedBy} at {fmtDateTime(c.deliveryReturnedAt)}</p>}
+
+                  {/* PostEx shipment info */}
+                  {c.postexShipment && (
+                    <div className="mt-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-2 text-[10px] space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-indigo-400">PostEx Shipment</span>
+                        {c.postexShipment.trackingNumber && <span className="text-gray-300 font-mono">{c.postexShipment.trackingNumber}</span>}
+                      </div>
+                      <div className="flex gap-3 text-gray-400">
+                        {c.postexShipment.status && <span>Status: <span className="text-white font-bold">{c.postexShipment.status.replace(/_/g, ' ')}</span></span>}
+                        {c.postexShipment.totalAmount && <span>Amount: <span className="text-amber-400">{fmtCurrency(c.postexShipment.totalAmount)}</span></span>}
+                        {c.postexShipment.destinationCity && <span>City: <span className="text-white">{c.postexShipment.destinationCity}</span></span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <span className="text-[10px] text-gray-500 whitespace-nowrap">{fmtDateTime(c.createdAt)}</span>
+              </div>
             </div>
           ))}
         </div>

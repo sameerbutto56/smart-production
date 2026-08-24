@@ -173,6 +173,7 @@ model Order {
   cancelledByName String?
   cancellationReason String?
    cancellationRequests OrderCancellationRequest[] @relation("OrderCancellationRequests")
+   postexShipments PostExShipment[]
    // Adjusted financial breakdown (set when user overrides calculated amounts in Financial Summary)
    financialSummary Json?   // { productPrice, logoCharges, namePrinting, customization, cap, delivery, discount, total }
 }
@@ -1577,4 +1578,87 @@ model DeliveryAssignment {
   @@index([assignmentDate])
   @@index([deliveryBoyName])
   @@index([orderId])
+}
+
+// ─── PostEx Courier Integration ────────────────────────────────────────────
+// Stores every PostEx shipment booked against an order (multiple shipments
+// possible for re-dispatch). Status logs track the full lifecycle per shipment.
+
+model PostExShipment {
+  id                String   @id @default(uuid())
+  orderId           String
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderNumber       String?
+  shipmentNumber    String?  // PostEx shipment reference (assigned on creation)
+  trackingNumber    String?  // PostEx tracking number
+  referenceNumber   String?  // our internal reference sent to PostEx
+
+  // Customer details snapshot (copied from order at booking time)
+  customerName      String?
+  customerPhone     String?
+  address           String?
+  city              String?
+
+  // Parcel details
+  productDetails    Json?    // snapshot of order items
+  totalAmount       Float    @default(0) // COD / final amount sent to PostEx
+  codAmount         Float    @default(0) // cash to collect on delivery
+  paymentMethod     String?  // COD, PREPAID, etc.
+  parcelWeight      Float?   // in kg
+  parcelDescription String?
+
+  // Delivery target
+  destinationCity   String?
+  destinationOutlet String?
+  specialInstructions String?
+
+  // Status
+  status            String   @default("CREATED")
+  // CREATED, BOOKED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED,
+  // FAILED_DELIVERY, RETURNED, RETURN_IN_TRANSIT, RETURN_RECEIVED, CANCELLED
+
+  // Timestamps from PostEx
+  bookedAt          DateTime?
+  pickedUpAt        DateTime?
+  inTransitAt        DateTime?
+  outForDeliveryAt  DateTime?
+  deliveredAt       DateTime?
+  returnedAt        DateTime?
+  returnReceivedAt  DateTime?
+
+  // Metadata
+  integrationMode   String   @default("OFF") // OFF, TEST, LIVE
+  dispatchedBy      String?  // user who booked the shipment
+  dispatchedById    String?
+  dispatchMethod    String?  // TCS, POST_EX, ENAMELS
+  notes             String?
+  errorMessage      String?  // last API error if any
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  logs              PostExStatusLog[]
+
+  @@index([orderId])
+  @@index([orderNumber])
+  @@index([trackingNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderId, status])
+}
+
+model PostExStatusLog {
+  id              String   @id @default(uuid())
+  shipmentId      String
+  shipment        PostExShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  previousStatus  String?
+  newStatus       String
+  postexRawStatus String?  // raw status string from PostEx API / webhook
+  postexRawPayload Json?   // full webhook payload for debugging
+  changedAt       DateTime @default(now())
+  changedBy       String?  // 'system' for webhooks, user name for manual
+  notes           String?
+
+  @@index([shipmentId])
+  @@index([changedAt])
 }

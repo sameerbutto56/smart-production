@@ -3,9 +3,10 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useSystemPause } from '../context/SystemPauseContext';
-import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation } from 'lucide-react';
+import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation, Truck } from 'lucide-react';
 import OrderTrackPanel from '../components/OrderTrackPanel';
 import OrderControlPanel from '../components/OrderControlPanel';
+import PostExIntegrationPanel from '../components/PostExIntegrationPanel';
 
 const PROFILE_LABELS = {
   POS: 'POS',
@@ -506,6 +507,7 @@ const SoftwareSettings = () => {
     { key: 'sessions', label: 'Profile Login History', icon: <History size={16} /> },
     { key: 'order-track', label: 'Order Tracking', icon: <MapPin size={16} /> },
     { key: 'order-control', label: 'Order Control', icon: <Navigation size={16} /> },
+    { key: 'postex', label: 'PostEx Integration', icon: <Truck size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
 
@@ -1358,6 +1360,9 @@ const SoftwareSettings = () => {
       {activeTab === 'order-track' && <OrderTrackPanel />}
 
       {activeTab === 'order-control' && <OrderControlPanel />}
+
+      {/* ═══════════════ POSTEX INTEGRATION TAB ═══════════════ */}
+      {activeTab === 'postex' && <PostExIntegrationPanel />}
 
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-16 pb-10 overflow-y-auto" onClick={() => setShowCreate(false)}>
