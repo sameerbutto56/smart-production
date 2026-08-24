@@ -180,6 +180,15 @@ const createReturnExchange = async (req, res) => {
       });
     }
 
+    // When creating a REPLACEMENT, close any existing ACCEPTED RETURN case
+    // so the Return & Exchange page does not keep showing action buttons.
+    if (type === 'REPLACEMENT') {
+      await prisma.returnExchange.updateMany({
+        where: { orderId, type: 'RETURN', status: 'ACCEPTED' },
+        data: { status: 'COMPLETED', handledBy: req.user?.name || null }
+      });
+    }
+
     await prisma.auditLog.create({
       data: {
         orderId,
@@ -1610,6 +1619,13 @@ const redispatchOrder = async (req, res) => {
       await tx.seenTask.deleteMany({
         where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: 'DISPATCH' }
       }).catch(() => {});
+
+      // Close any ACCEPTED return case so the Return & Exchange page
+      // does not keep showing action buttons after re-dispatch.
+      await tx.returnExchange.updateMany({
+        where: { orderId: order.id, type: 'RETURN', status: 'ACCEPTED' },
+        data: { status: 'COMPLETED', handledBy: req.user?.name || 'Inventory View' }
+      });
     }, { timeout: 30000 });
 
     // Create notifications for dispatchers
