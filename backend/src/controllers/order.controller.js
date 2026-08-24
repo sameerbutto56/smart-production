@@ -4448,7 +4448,8 @@ const trackOrder = async (req, res) => {
     const bareNumber = query.replace(/^#/, '');
     const orderInclude = {
       stages: { orderBy: { createdAt: 'asc' } },
-      createdBy: { select: { id: true, name: true } }
+      createdBy: { select: { id: true, name: true } },
+      postexShipments: { orderBy: { createdAt: 'desc' }, include: { logs: { orderBy: { createdAt: 'asc' }, take: 5 } } }
     };
 
     // Step 1: Exact orderNumber match (with # prefix tolerance)

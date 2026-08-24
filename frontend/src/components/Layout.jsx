@@ -119,6 +119,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Order Tracker', path: '/store-order-tracker', icon: SearchCheck, roles: ['STORE'] },
     { name: 'Orders', path: '/store-orders', icon: ClipboardList, roles: ['STORE'] },
     { name: 'Audit Review', path: '/audit-review', icon: ClipboardCheck, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'PostEx Dashboard', path: '/postex-dashboard', icon: Truck, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Cancellation Requests', path: '/order-cancellations', icon: PackageX, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },

@@ -3,7 +3,8 @@ const { authenticate } = require('../middleware/auth.middleware');
 const { authorize } = require('../middleware/auth.middleware');
 const {
   getConfig, setConfig, createShipment, getShipments, getShipment,
-  cancelShipment, trackShipment, handleWebhook, getAllShipments, getIncomingReturns
+  cancelShipment, trackShipment, handleWebhook, getAllShipments, getIncomingReturns,
+  getDashboardStats, syncStatuses, trackShipmentLive
 } = require('../controllers/postex.controller');
 
 const router = express.Router();
@@ -33,6 +34,12 @@ router.post('/shipment/:id/track', authenticate, trackShipment);
 // ─── Admin / Inventory View ────────────────────────────────────────────────
 // GET  /api/postex/all          — all shipments (admin)
 // GET  /api/postex/returns      — incoming returns (inventory view)
+// GET  /api/postex/dashboard-stats — dashboard stats (admin)
+// POST /api/postex/sync-statuses   — poll active shipments (admin)
+// GET  /api/postex/track-live/:trackingNumber — structured tracking timeline
+router.get('/dashboard-stats', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getDashboardStats);
+router.post('/sync-statuses', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), syncStatuses);
+router.get('/track-live/:trackingNumber', authenticate, trackShipmentLive);
 router.get('/all', authenticate, getAllShipments);
 router.get('/returns', authenticate, getIncomingReturns);
 

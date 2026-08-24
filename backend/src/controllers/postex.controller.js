@@ -398,6 +398,214 @@ const getAllShipments = async (req, res) => {
   }
 };
 
+// ─── Dashboard Stats ───────────────────────────────────────────────────────
+
+const getDashboardStats = async (req, res) => {
+  try {
+    const [stats, totalShipments, recentShipments, config] = await Promise.all([
+      prisma.postExShipment.groupBy({ by: ['status'], _count: true, _sum: { totalAmount: true, codAmount: true } }),
+      prisma.postExShipment.count(),
+      prisma.postExShipment.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: {
+          id: true, orderNumber: true, trackingNumber: true, shipmentNumber: true,
+          customerName: true, city: true, status: true, totalAmount: true, codAmount: true,
+          integrationMode: true, createdAt: true, dispatchedBy: true,
+          deliveredAt: true, pickedUpAt: true, inTransitAt: true, outForDeliveryAt: true, returnedAt: true
+        }
+      }),
+      postexService.getConfig()
+    ]);
+
+    const statusCounts = {};
+    let totalRevenue = 0;
+    let totalCOD = 0;
+    let deliveredCount = 0;
+    let inTransitCount = 0;
+    let pendingCount = 0;
+    let returnedCount = 0;
+    let failedCount = 0;
+
+    stats.forEach(s => {
+      statusCounts[s.status] = s._count;
+      totalRevenue += s._sum.totalAmount || 0;
+      totalCOD += s._sum.codAmount || 0;
+      if (s.status === 'DELIVERED') deliveredCount = s._count;
+      else if (['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'PICKED_UP'].includes(s.status)) inTransitCount += s._count;
+      else if (['CREATED', 'BOOKED'].includes(s.status)) pendingCount += s._count;
+      else if (['RETURNED', 'RETURN_IN_TRANSIT', 'RETURN_RECEIVED'].includes(s.status)) returnedCount += s._count;
+      else if (s.status === 'FAILED_DELIVERY') failedCount = s._count;
+    });
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayCount = await prisma.postExShipment.count({ where: { createdAt: { gte: todayStart } } });
+
+    res.json({
+      config,
+      overview: {
+        totalShipments,
+        todayShipments: todayCount,
+        deliveredCount,
+        inTransitCount,
+        pendingCount,
+        returnedCount,
+        failedCount,
+        cancelledCount: statusCounts['CANCELLED'] || 0,
+        totalRevenue,
+        totalCOD,
+        deliveryRate: totalShipments > 0 ? ((deliveredCount / totalShipments) * 100).toFixed(1) : 0,
+        returnRate: totalShipments > 0 ? ((returnedCount / totalShipments) * 100).toFixed(1) : 0
+      },
+      statusBreakdown: statusCounts,
+      recentShipments
+    });
+  } catch (err) {
+    console.error('POSTEX_DASHBOARD_STATS_ERROR', err.message, err.stack);
+    res.status(500).json({ message: 'Failed to fetch PostEx dashboard stats.' });
+  }
+};
+
+// ─── Status Sync (poll active shipments via PostEx API) ────────────────────
+
+const syncStatuses = async (req, res) => {
+  try {
+    const activeShipments = await prisma.postExShipment.findMany({
+      where: { status: { notIn: ['DELIVERED', 'RETURN_RECEIVED', 'CANCELLED'] } },
+      select: { id: true, trackingNumber: true, status: true, orderNumber: true }
+    });
+
+    if (activeShipments.length === 0) {
+      return res.json({ message: 'No active shipments to sync.', synced: 0, updated: 0 });
+    }
+
+    let updated = 0;
+    const results = [];
+
+    for (const shipment of activeShipments) {
+      if (!shipment.trackingNumber) continue;
+      try {
+        const result = await postexService.trackPostExShipment(shipment.trackingNumber);
+        if (!result.success || !result.data) continue;
+
+        const rawData = result.data;
+        const rawStatus = rawData.status || rawData.currentStatus || rawData.Status || rawData.data?.status;
+        const newStatus = postexService.mapPostExStatus(rawStatus);
+
+        if (newStatus === shipment.status) continue;
+
+        const timestampUpdates = {};
+        const now = new Date();
+        if (newStatus === 'PICKED_UP') timestampUpdates.pickedUpAt = now;
+        if (newStatus === 'IN_TRANSIT') timestampUpdates.inTransitAt = now;
+        if (newStatus === 'OUT_FOR_DELIVERY') timestampUpdates.outForDeliveryAt = now;
+        if (newStatus === 'DELIVERED') timestampUpdates.deliveredAt = now;
+        if (newStatus === 'RETURNED') timestampUpdates.returnedAt = now;
+        if (newStatus === 'RETURN_RECEIVED') timestampUpdates.returnReceivedAt = now;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.postExShipment.update({
+            where: { id: shipment.id },
+            data: { status: newStatus, ...timestampUpdates }
+          });
+          await tx.postExStatusLog.create({
+            data: {
+              shipmentId: shipment.id,
+              previousStatus: shipment.status,
+              newStatus,
+              postexRawStatus: rawStatus,
+              postexRawPayload: rawData,
+              changedBy: req.user?.name || 'system',
+              notes: `Poll sync: ${rawStatus}`
+            }
+          });
+        });
+
+        updated++;
+        results.push({ trackingNumber: shipment.trackingNumber, orderNumber: shipment.orderNumber, from: shipment.status, to: newStatus });
+      } catch (trackErr) {
+        console.error('POSTEX_SYNC_TRACK_ERROR', shipment.trackingNumber, trackErr.message);
+      }
+    }
+
+    const io = req.app?.get('io');
+    if (io && updated > 0) io.emit('postex-shipment-updated', { synced: updated });
+
+    res.json({ message: `Synced ${activeShipments.length} shipments. ${updated} updated.`, synced: activeShipments.length, updated, results });
+  } catch (err) {
+    console.error('POSTEX_SYNC_STATUSES_ERROR', err.message, err.stack);
+    res.status(500).json({ message: 'Failed to sync PostEx statuses.' });
+  }
+};
+
+// ─── Enhanced Track (structured timeline for frontend) ─────────────────────
+
+const trackShipmentLive = async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    if (!trackingNumber) return res.status(400).json({ message: 'Tracking number required.' });
+
+    const shipment = await prisma.postExShipment.findFirst({
+      where: { trackingNumber },
+      include: { logs: { orderBy: { changedAt: 'asc' } } }
+    });
+
+    const liveResult = await postexService.trackPostExShipment(trackingNumber);
+
+    const timeline = [];
+
+    if (shipment) {
+      if (shipment.pickedUpAt) timeline.push({ status: 'PICKED_UP', label: 'Picked Up', timestamp: shipment.pickedUpAt, icon: 'package-check' });
+      if (shipment.inTransitAt) timeline.push({ status: 'IN_TRANSIT', label: 'In Transit', timestamp: shipment.inTransitAt, icon: 'truck' });
+      if (shipment.outForDeliveryAt) timeline.push({ status: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', timestamp: shipment.outForDeliveryAt, icon: 'map-pin' });
+      if (shipment.deliveredAt) timeline.push({ status: 'DELIVERED', label: 'Delivered', timestamp: shipment.deliveredAt, icon: 'check-circle' });
+      if (shipment.returnedAt) timeline.push({ status: 'RETURNED', label: 'Returned', timestamp: shipment.returnedAt, icon: 'rotate-ccw' });
+      if (shipment.returnReceivedAt) timeline.push({ status: 'RETURN_RECEIVED', label: 'Return Received', timestamp: shipment.returnReceivedAt, icon: 'package' });
+    }
+
+    if (liveResult.data) {
+      const apiTimeline = liveResult.data.timeline || liveResult.data.events || liveResult.data.data?.timeline || [];
+      if (Array.isArray(apiTimeline)) {
+        apiTimeline.forEach(evt => {
+          const mappedStatus = postexService.mapPostExStatus(evt.status || evt.currentStatus);
+          const exists = timeline.find(t => t.status === mappedStatus);
+          if (!exists) {
+            timeline.push({
+              status: mappedStatus,
+              label: evt.description || evt.label || mappedStatus.replace(/_/g, ' '),
+              timestamp: evt.timestamp || evt.date || evt.datetime || null,
+              location: evt.location || evt.city || null,
+              icon: null,
+              source: 'postex'
+            });
+          }
+        });
+      }
+    }
+
+    timeline.sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
+
+    res.json({
+      trackingNumber,
+      currentStatus: shipment?.status || liveResult.data?.status || 'UNKNOWN',
+      shipment: shipment ? {
+        id: shipment.id, orderNumber: shipment.orderNumber, status: shipment.status,
+        customerName: shipment.customerName, city: shipment.city,
+        totalAmount: shipment.totalAmount, codAmount: shipment.codAmount,
+        createdAt: shipment.createdAt, dispatchedBy: shipment.dispatchedBy
+      } : null,
+      timeline,
+      liveData: liveResult.data || null,
+      isLive: liveResult.success && !liveResult.simulated,
+      mode: liveResult.mode || 'UNKNOWN'
+    });
+  } catch (err) {
+    console.error('POSTEX_TRACK_LIVE_ERROR', err.message, err.stack);
+    res.status(500).json({ message: 'Failed to track shipment.' });
+  }
+};
+
 // ─── Incoming Returns (for Inventory View) ─────────────────────────────────
 
 const getIncomingReturns = async (req, res) => {
@@ -469,5 +677,8 @@ module.exports = {
   trackShipment,
   handleWebhook,
   getAllShipments,
-  getIncomingReturns
+  getIncomingReturns,
+  getDashboardStats,
+  syncStatuses,
+  trackShipmentLive
 };

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, ArrowRightLeft, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck, AlertCircle, PackageX, FileText, Phone } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, ArrowRightLeft, CheckCircle2, Play, AlertTriangle, Truck, MapPin, ShieldCheck, AlertCircle, PackageX, FileText, Phone, PackageCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
@@ -114,6 +114,8 @@ const OrderTrack = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [searchResults, setSearchResults] = useState(null);
+  const [postexTracking, setPostexTracking] = useState(null);
+  const [postexLoading, setPostexLoading] = useState(false);
   const navigate = useNavigate();
 
   const loadOrder = async (query, resetLinked = true) => {
@@ -121,7 +123,7 @@ const OrderTrack = () => {
     const clean = String(query).trim();
     setLoading(true); setError('');
     setOrderNumber(clean);
-    if (resetLinked) { setOrder(null); setTimeline([]); setLinkedOriginal(null); setLinkedReplacement(null); setSearchResults(null); }
+    if (resetLinked) { setOrder(null); setTimeline([]); setLinkedOriginal(null); setLinkedReplacement(null); setSearchResults(null); setPostexTracking(null); }
     try {
       const res = await api.get(`/api/orders/track/${encodeURIComponent(clean)}`);
       // Multiple matches (phone/name search) — show results list
@@ -140,6 +142,25 @@ const OrderTrack = () => {
         const tlRes = await api.get(`/api/orders/${res.data.id}/timeline`);
         setTimeline(tlRes.data?.flatEntries || tlRes.data || []);
       } catch { } finally { setTimelineLoading(false); }
+
+      // Fetch PostEx live tracking if order has PostEx shipments
+      const shipments = res.data.postexShipments;
+      if (shipments && shipments.length > 0) {
+        const active = shipments.find(s => !['DELIVERED', 'CANCELLED', 'RETURNED', 'FAILED'].includes(s.status));
+        const target = active || shipments[0];
+        if (target?.trackingNumber) {
+          setPostexLoading(true);
+          try {
+            const pxRes = await api.get(`/api/postex/track-live/${encodeURIComponent(target.trackingNumber)}`);
+            setPostexTracking({ ...pxRes.data, shipments });
+          } catch { setPostexTracking({ shipments, isLive: false, error: true }); }
+          finally { setPostexLoading(false); }
+        } else {
+          setPostexTracking({ shipments, isLive: false });
+        }
+      } else {
+        setPostexTracking(null);
+      }
     } catch (e) {
       setError(e.response?.status === 404 ? 'Order not found' : 'Error fetching order');
     } finally { setLoading(false); }
@@ -367,6 +388,84 @@ const OrderTrack = () => {
               })}
             </div>
           </div>
+
+          {/* PostEx Shipment Tracking (inline) */}
+          {postexTracking && postexTracking.shipments && postexTracking.shipments.length > 0 && (
+            <div className="bg-gradient-to-r from-amber-950/30 to-orange-950/30 rounded-2xl border border-amber-500/30 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Truck size={14} className="text-amber-400" />
+                  <p className="text-xs font-black text-amber-400 uppercase tracking-widest">PostEx Courier Tracking</p>
+                  {postexLoading && <RefreshCcw size={11} className="text-amber-400 animate-spin" />}
+                  {postexTracking.isLive && <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">LIVE</span>}
+                </div>
+                <span className="text-[10px] text-gray-500 font-bold">{postexTracking.shipments.length} shipment{postexTracking.shipments.length > 1 ? 's' : ''}</span>
+              </div>
+
+              {/* Shipment badges */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                {postexTracking.shipments.map((s, i) => {
+                  const statusColors = {
+                    DELIVERED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+                    IN_TRANSIT: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
+                    OUT_FOR_DELIVERY: 'bg-purple-500/20 text-purple-400 border-purple-500/40',
+                    PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+                    CANCELLED: 'bg-red-500/20 text-red-400 border-red-500/40',
+                    RETURNED: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
+                    FAILED: 'bg-red-500/20 text-red-400 border-red-500/40',
+                  };
+                  return (
+                    <div key={s.id || i} className="bg-gray-900/70 border border-gray-700/50 rounded-xl px-3 py-2 flex items-center gap-2">
+                      <PackageCheck size={12} className="text-amber-400" />
+                      <div>
+                        <p className="text-[10px] text-gray-400 font-bold">
+                          {s.trackingNumber || s.shipmentNumber || `Shipment #${i + 1}`}
+                        </p>
+                        <p className={`text-[9px] font-black ${statusColors[s.status] || 'text-gray-400'} px-1.5 py-0.5 rounded inline-block mt-0.5`}>
+                          {s.status?.replace(/_/g, ' ') || 'UNKNOWN'}
+                        </p>
+                      </div>
+                      {s.destinationCity && <span className="text-[9px] text-gray-500 font-bold">→ {s.destinationCity}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Live timeline */}
+              {postexTracking.timeline && postexTracking.timeline.length > 0 && (
+                <div className="relative mt-3">
+                  <p className="text-[10px] font-black text-amber-400/60 uppercase tracking-widest mb-2">Tracking Timeline</p>
+                  {postexTracking.timeline.map((evt, idx) => {
+                    const isLast = idx === postexTracking.timeline.length - 1;
+                    const dotColor = isLast ? 'bg-amber-400 ring-4 ring-amber-400/20' : 'bg-gray-600';
+                    return (
+                      <div key={idx} className="flex gap-3">
+                        <div className="flex flex-col items-center shrink-0">
+                          <div className={`w-2.5 h-2.5 rounded-full ${dotColor} mt-1.5`} />
+                          {!isLast && <div className="w-0.5 flex-1 border-l-2 border-dashed border-gray-700 min-h-[12px] opacity-40" />}
+                        </div>
+                        <div className={`flex-1 pb-2 ${isLast ? 'text-white' : 'text-gray-400'}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-black ${isLast ? 'text-amber-400' : 'text-gray-300'}`}>{evt.status}</span>
+                            {isLast && <span className="text-[8px] font-black px-1 py-0.5 rounded bg-amber-500/20 text-amber-400">● CURRENT</span>}
+                          </div>
+                          {evt.location && <p className="text-[10px] text-gray-500 font-bold mt-0.5 flex items-center gap-1"><MapPin size={9} /> {evt.location}</p>}
+                          {evt.timestamp && <p className="text-[10px] text-gray-500 font-bold mt-0.5">{formatDate(evt.timestamp)} {formatTime(evt.timestamp)}</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {postexTracking.error && (
+                <p className="text-[10px] text-gray-500 font-bold mt-2 italic">Live tracking unavailable — showing recorded shipment data only.</p>
+              )}
+              {!postexTracking.timeline && !postexTracking.error && (
+                <p className="text-[10px] text-gray-500 font-bold mt-2 italic">Tracking data will appear once the shipment is picked up by PostEx.</p>
+              )}
+            </div>
+          )}
 
           {/* Complete Timeline */}
           <div className="bg-gray-900/60 rounded-2xl border border-gray-800/50 p-4">

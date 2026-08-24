@@ -724,6 +724,7 @@ const AdminDashboard = () => {
               { id: 'customer_feedback', label: 'Customer Feedback', desc: 'QR feedback system, customer ratings, satisfaction analytics & feedback management', icon: MessageSquare, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', glow: 'hover:shadow-yellow-500/20' },
               { id: 'order_performance', label: 'Order Performance', desc: 'Department-wise operational counts — Faisal, Store, Logo, Production, Dispatch & Delivery', icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', glow: 'hover:shadow-blue-500/20' },
               { id: 'audit', label: 'Inventory Audit', desc: 'Approve/reject stock audits — auto-applies physical inventory adjustments & adjustment logs', icon: ClipboardCheck, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', path: '/audit-review' },
+              { id: 'postex', label: 'PostEx Courier', desc: 'Courier shipment tracking, delivery analytics, COD collection & status sync', icon: Truck, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20', path: '/postex-dashboard' },
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
