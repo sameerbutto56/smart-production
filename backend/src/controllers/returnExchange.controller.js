@@ -1833,7 +1833,13 @@ const searchReturns = async (req, res) => {
     if (orderIds.length) {
       const orders = await prisma.order.findMany({
         where: { id: { in: orderIds } },
-        select: { id: true, orderNumber: true, customerName: true, customerPhone: true, totalPrice: true, productDetails: true, status: true, currentStage: true }
+        select: {
+          id: true, orderNumber: true, customerName: true, customerPhone: true, totalPrice: true, productDetails: true, status: true, currentStage: true,
+          returnExchangeCases: {
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, type: true, status: true, routedTo: true, orderNumber: true, createdAt: true, handledBy: true, replacementOrderId: true }
+          }
+        }
       });
       orderMap = Object.fromEntries(orders.map(o => [o.id, o]));
     }
