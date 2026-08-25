@@ -981,6 +981,9 @@ model ReturnExchange {
   originalRestocked Boolean  @default(false)   // returned goods added back to inventory
   originalRestockedAt DateTime?
   originalRestockedBy String?
+  // Per-product acceptance + restock tracking (partial processing)
+  acceptedProducts  Json?   // [{idx, name, color, size, quantity, acceptedQty, acceptedBy, acceptedAt}]
+  restockedProducts Json?   // [{idx, name, color, size, quantity, restockedQty, restockedBy, restockedAt}]
   replacementCompleted Boolean  @default(false)
   replacementCompletedAt DateTime?
   replacementCompletedBy String?

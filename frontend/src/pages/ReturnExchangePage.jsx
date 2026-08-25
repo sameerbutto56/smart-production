@@ -1,18 +1,19 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck, Truck } from 'lucide-react';
+import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck, Truck, Inbox } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const ReturnExchangePage = () => {
   const { user } = useAuth();
+  const isInventoryView = user?.role === 'INVENTORY_VIEW' || user?.role === 'STORE' || user?.role === 'STORE_EMPLOYEE';
   const [searchQuery, setSearchQuery] = useState('');
   const [returnCase, setReturnCase] = useState(null);
   const [orderData, setOrderData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeAction, setActiveAction] = useState(null);
-  const [activeView, setActiveView] = useState('lookup');
+  const [activeView, setActiveView] = useState(isInventoryView ? 'incoming' : 'lookup');
   const [cases, setCases] = useState([]);
   const [casesLoading, setCasesLoading] = useState(false);
   const [caseSearchQuery, setCaseSearchQuery] = useState('');
@@ -20,6 +21,33 @@ const ReturnExchangePage = () => {
   const [postexReturns, setPostexReturns] = useState([]);
   const [postexReturnsLoading, setPostexReturnsLoading] = useState(false);
   const [postexReturnStats, setPostexReturnStats] = useState([]);
+  const [incomingReturns, setIncomingReturns] = useState([]);
+  const [incomingReturnsLoading, setIncomingReturnsLoading] = useState(false);
+  const [incomingReturnsStats, setIncomingReturnsStats] = useState(null);
+  const [incomingFilterStatus, setIncomingFilterStatus] = useState('');
+  const [incomingFilterSource, setIncomingFilterSource] = useState('');
+  const [incomingSearchQuery, setIncomingSearchQuery] = useState('');
+
+  const fetchIncomingReturns = useCallback(async (search, status, source) => {
+    setIncomingReturnsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: '200' });
+      if (search && search.trim()) params.set('search', search.trim());
+      if (status) params.set('status', status);
+      if (source) params.set('source', source);
+      const res = await api.get(`/api/return-exchange/incoming-returns?${params}`);
+      setIncomingReturns(res.data.cases || []);
+      setIncomingReturnsStats(res.data.stats || null);
+    } catch (err) { setIncomingReturns([]); setIncomingReturnsStats(null); }
+    setIncomingReturnsLoading(false);
+  }, []);
+
+  // Auto-fetch incoming returns when tab is selected
+  useEffect(() => {
+    if (activeView === 'incoming') {
+      fetchIncomingReturns(incomingSearchQuery, incomingFilterStatus, incomingFilterSource);
+    }
+  }, [activeView, incomingFilterStatus, incomingFilterSource]);
 
   const lookupOrder = useCallback(async () => {
     if (!searchQuery.trim()) return toast.error('Enter order number, invoice #, customer name, or phone');
@@ -123,7 +151,10 @@ const ReturnExchangePage = () => {
         </div>
 
         {/* View Tabs */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => { setActiveView('incoming'); fetchIncomingReturns(incomingSearchQuery, incomingFilterStatus, incomingFilterSource); }} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeView === 'incoming' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+            <div className="flex items-center gap-2"><Inbox size={16} /> Incoming Returns</div>
+          </button>
           <button onClick={() => setActiveView('lookup')} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeView === 'lookup' ? 'bg-rose-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
             <div className="flex items-center gap-2"><Search size={16} /> Order Lookup</div>
           </button>
@@ -141,6 +172,34 @@ const ReturnExchangePage = () => {
             onRefresh={() => fetchCases(caseSearchQuery)} />
         ) : activeView === 'postex' ? (
           <PostExReturnsView cases={postexReturns} loading={postexReturnsLoading} stats={postexReturnStats} fmtDate={fmtDate} fmtDateTime={fmtDateTime} parseProducts={parseProducts} fmtCurrency={fmtCurrency} onRefresh={fetchPostExReturns} />
+        ) : activeView === 'incoming' ? (
+          <IncomingReturnsView
+            cases={incomingReturns}
+            loading={incomingReturnsLoading}
+            stats={incomingReturnsStats}
+            searchQuery={incomingSearchQuery}
+            setSearchQuery={setIncomingSearchQuery}
+            filterStatus={incomingFilterStatus}
+            setFilterStatus={setIncomingFilterStatus}
+            filterSource={incomingFilterSource}
+            setFilterSource={setIncomingFilterSource}
+            onSearch={() => fetchIncomingReturns(incomingSearchQuery, incomingFilterStatus, incomingFilterSource)}
+            onRefresh={() => fetchIncomingReturns(incomingSearchQuery, incomingFilterStatus, incomingFilterSource)}
+            onClearFilters={() => { setIncomingFilterStatus(''); setIncomingFilterSource(''); setIncomingSearchQuery(''); fetchIncomingReturns('', '', ''); }}
+            fmtDate={fmtDate}
+            fmtDateTime={fmtDateTime}
+            fmtCurrency={fmtCurrency}
+            parseProducts={parseProducts}
+            user={user}
+            setActiveView={setActiveView}
+            onSearchReturn={lookupOrder}
+            searchQueryMain={searchQuery}
+            setSearchQueryMain={setSearchQuery}
+            setLoadingMain={setLoading}
+            setReturnCase={setReturnCase}
+            setOrderData={setOrderData}
+            setActiveAction={setActiveAction}
+          />
         ) : (
           <>
             {/* Search */}
@@ -780,6 +839,221 @@ const AllCasesView = ({ cases, loading, fmtDate, fmtDateTime, searchQuery, setSe
               {c.warehouseApprovedBy && <p className="text-[10px] text-emerald-400">Approved by: {c.warehouseApprovedBy} on {fmtDateTime(c.warehouseApprovedAt)}</p>}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SOURCE_COLORS = {
+  PostEx: 'bg-indigo-600', 'Delivery Boy': 'bg-amber-600', 'Enamels Delivery': 'bg-orange-600',
+  TCS: 'bg-blue-600', POST_EX: 'bg-indigo-600', Online: 'bg-emerald-600',
+  Outlet: 'bg-purple-600', Replacement: 'bg-rose-600', 'Inventory View': 'bg-cyan-600', Manual: 'bg-gray-600'
+};
+const STATUS_BADGES = {
+  PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  ACCEPTED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  FAISAL_APPROVED: 'bg-green-500/20 text-green-400 border-green-500/30',
+  IN_PRODUCTION: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  COMPLETED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  CANCELLED: 'bg-red-500/20 text-red-400 border-red-500/30'
+};
+
+const IncomingReturnsView = ({
+  cases, loading, stats, searchQuery, setSearchQuery, filterStatus, setFilterStatus,
+  filterSource, setFilterSource, onSearch, onRefresh, onClearFilters,
+  fmtDate, fmtDateTime, fmtCurrency, parseProducts, user,
+  setActiveView, onSearchReturn, searchQueryMain, setSearchQueryMain,
+  setLoadingMain, setReturnCase, setOrderData, setActiveAction
+}) => {
+  const [expandedId, setExpandedId] = useState(null);
+  const sources = stats?.sources ? Object.entries(stats.sources).sort((a, b) => b[1] - a[1]) : [];
+
+  const openInLookup = (c) => {
+    setSearchQueryMain(c.orderNumber || c.order?.orderNumber || '');
+    setActiveView('lookup');
+    setLoadingMain(true);
+    setReturnCase(c);
+    setOrderData(c.order || null);
+    setActiveAction(null);
+    api.get(`/api/return-exchange/returns/search?orderNumber=${encodeURIComponent(c.orderNumber || c.order?.orderNumber || '')}`)
+      .then(res => { setReturnCase(res.data.returnCase || c); setOrderData(res.data.order || c.order); })
+      .catch(() => {})
+      .finally(() => setLoadingMain(false));
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center"><Inbox className="text-emerald-400" size={20} /></div>
+          <div>
+            <h2 className="text-white font-black text-lg">Incoming Returns</h2>
+            <p className="text-gray-400 text-[11px]">Auto-populated from all return sources</p>
+          </div>
+        </div>
+        <button onClick={onRefresh} className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"><RefreshCw size={16} /></button>
+      </div>
+
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700"><div className="text-gray-400 text-[10px] font-bold uppercase">Total</div><div className="text-white font-black text-2xl">{stats.total}</div></div>
+          <div className="bg-yellow-500/10 rounded-xl p-3 border border-yellow-500/20"><div className="text-yellow-400 text-[10px] font-bold uppercase">Pending</div><div className="text-yellow-400 font-black text-2xl">{stats.pending}</div></div>
+          <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20"><div className="text-blue-400 text-[10px] font-bold uppercase">Accepted</div><div className="text-blue-400 font-black text-2xl">{stats.accepted}</div></div>
+          <div className="bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20"><div className="text-emerald-400 text-[10px] font-bold uppercase">Sent to Store</div><div className="text-emerald-400 font-black text-2xl">{stats.sentToStore}</div></div>
+        </div>
+      )}
+
+      {/* Source Chips */}
+      {sources.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {sources.map(([src, count]) => (
+            <button key={src} onClick={() => setFilterSource(filterSource === src ? '' : src)}
+              className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${filterSource === src ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500'}`}>
+              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${SOURCE_COLORS[src] || 'bg-gray-500'}`}></span>
+              {src} ({count})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Search + Filters */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && onSearch()}
+            placeholder="Search by order #, customer name, or phone..."
+            className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white font-bold text-sm outline-none focus:border-emerald-500" />
+        </div>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+          className="px-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm font-bold outline-none">
+          <option value="">All Status</option>
+          <option value="PENDING">Pending</option>
+          <option value="ACCEPTED">Accepted</option>
+          <option value="FAISAL_APPROVED">Faisal Approved</option>
+          <option value="IN_PRODUCTION">In Production</option>
+        </select>
+        <button onClick={onSearch} className="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all">Search</button>
+        {(filterStatus || filterSource || searchQuery) && (
+          <button onClick={onClearFilters} className="px-3 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold rounded-xl text-sm transition-all flex items-center gap-1"><X size={14} /> Clear</button>
+        )}
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="text-center py-16">
+          <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-gray-400 font-bold text-sm">Loading incoming returns...</p>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && cases.length === 0 && (
+        <div className="text-center py-16">
+          <Inbox className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <h3 className="text-white font-black text-xl mb-2">No Incoming Returns</h3>
+          <p className="text-gray-400 text-sm">No return orders from any source are currently pending.</p>
+          {(filterStatus || filterSource || searchQuery) && (
+            <button onClick={onClearFilters} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-500 transition-all">Clear Filters</button>
+          )}
+        </div>
+      )}
+
+      {/* Cases List */}
+      {!loading && cases.length > 0 && (
+        <div className="space-y-2">
+          {cases.map(c => {
+            const isExpanded = expandedId === c.id;
+            const products = parseProducts(c.originalProducts || c.order?.productDetails);
+            const src = c._returnSource || 'Manual';
+            const srcColor = SOURCE_COLORS[src] || 'bg-gray-600';
+            const stBadge = STATUS_BADGES[c.status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+            return (
+              <div key={c.id} className="bg-gray-800/80 rounded-xl border border-gray-700 hover:border-gray-500 transition-all">
+                <div className="p-3 flex items-center gap-3 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : c.id)}>
+                  <div className={`w-8 h-8 rounded-lg ${srcColor} flex items-center justify-center flex-shrink-0`}>
+                    {src === 'PostEx' ? <Truck size={14} className="text-white" /> : <Package size={14} className="text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white font-black text-sm">{c.orderNumber || c.order?.orderNumber || 'N/A'}</span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${stBadge}`}>{c.status}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: SOURCE_COLORS[src] || '#6b7280' }}>{src}</span>
+                      {c.postexShipment?.trackingNumber && <span className="text-[10px] text-indigo-400 font-mono">{c.postexShipment.trackingNumber}</span>}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-gray-400 text-[11px]">{c.customerName || c.order?.customerName || '-'}</span>
+                      <span className="text-gray-500 text-[11px]">{c.customerPhone || c.order?.customerPhone || ''}</span>
+                      <span className="text-gray-500 text-[11px]">{products.length} item{products.length !== 1 ? 's' : ''} ({c._totalQty || 0} qty)</span>
+                      {c._orderTotal > 0 && <span className="text-emerald-400 text-[11px] font-bold">{fmtCurrency(c._orderTotal)}</span>}
+                    </div>
+                    {c.returnReason && <p className="text-gray-500 text-[10px] mt-1 truncate">{c.returnReason}</p>}
+                  </div>
+                  <span className="text-[10px] text-gray-500 whitespace-nowrap">{fmtDateTime(c.createdAt)}</span>
+                  <ArrowRight size={14} className={`text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                </div>
+
+                {/* Expanded Details */}
+                {isExpanded && (
+                  <div className="px-4 pb-3 border-t border-gray-700/50 pt-3 space-y-3">
+                    {/* Products */}
+                    {products.length > 0 && (
+                      <div className="space-y-1">
+                        <h4 className="text-gray-400 text-[10px] font-bold uppercase">Products</h4>
+                        {products.map((p, i) => (
+                          <div key={i} className="flex items-center gap-3 bg-gray-900/50 rounded-lg px-3 py-2">
+                            <span className="text-gray-500 text-[10px] font-bold">#{i + 1}</span>
+                            <span className="text-white text-xs font-bold flex-1">{p.name || p.productType || 'Product'}</span>
+                            {p.color && <span className="text-gray-400 text-[10px]">{p.color}</span>}
+                            {p.size && <span className="text-gray-400 text-[10px]">{p.size}</span>}
+                            <span className="text-gray-400 text-[10px]">x{p.quantity || 1}</span>
+                            {p.unitPrice > 0 && <span className="text-emerald-400 text-[10px] font-bold">{fmtCurrency(p.unitPrice)}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Return Details */}
+                    <div className="grid grid-cols-2 gap-3 text-[11px]">
+                      <div className="space-y-1">
+                        <div className="text-gray-500">Return Reason: <span className="text-gray-300 font-bold">{c.returnReason || 'Not specified'}</span></div>
+                        <div className="text-gray-500">Return Type: <span className="text-gray-300 font-bold">{c.type}</span></div>
+                        <div className="text-gray-500">Routed To: <span className="text-gray-300 font-bold">{c.routedTo || 'Store'}</span></div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-gray-500">Order Source: <span className="text-gray-300 font-bold">{c.order?.source || 'N/A'}</span></div>
+                        <div className="text-gray-500">Delivery Type: <span className="text-gray-300 font-bold">{c.order?.deliveryType || 'N/A'}</span></div>
+                        <div className="text-gray-500">Warehouse Notes: <span className="text-gray-300 font-bold">{c.warehouseNotes || 'None'}</span></div>
+                      </div>
+                    </div>
+
+                    {/* PostEx Shipment */}
+                    {c.postexShipment && (
+                      <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-2 text-[10px] space-y-0.5">
+                        <div className="flex items-center gap-2"><span className="font-bold text-indigo-400">PostEx Shipment</span>
+                          <span className="text-gray-300 font-mono">{c.postexShipment.trackingNumber}</span></div>
+                        <div className="flex gap-3 text-gray-400">
+                          <span>Status: <span className="text-white font-bold">{(c.postexShipment.status || '').replace(/_/g, ' ')}</span></span>
+                          {c.postexShipment.totalAmount > 0 && <span>Amount: <span className="text-amber-400">{fmtCurrency(c.postexShipment.totalAmount)}</span></span>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Button */}
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={(e) => { e.stopPropagation(); openInLookup(c); }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-2">
+                        <Search size={12} /> View in Order Lookup
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

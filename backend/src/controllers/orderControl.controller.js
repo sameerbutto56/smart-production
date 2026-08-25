@@ -360,4 +360,247 @@ const rerouteOrder = async (req, res) => {
   }
 };
 
-module.exports = { locateOrder, rerouteOrder };
+// GET /api/order-control/phase-history/:query — full chronological phase history for any order.
+const getPhaseHistory = async (req, res) => {
+  try {
+    const query = (req.params.query || '').trim();
+    if (!query) return res.status(400).json({ message: 'Order number, invoice number, or customer name is required' });
+
+    // Find the order (same resolution as locateOrder).
+    let order = await findOrderWithHistory({ orderNumber: query });
+    if (!order) order = await findOrderWithHistory({ invoiceNumber: query });
+    if (!order) {
+      const matches = await prisma.order.findMany({
+        where: { OR: [
+          { orderNumber: { contains: query } },
+          { invoiceNumber: { contains: query } },
+          { customerName: { contains: query, mode: 'insensitive' } },
+          { customerPhone: { contains: query } }
+        ] },
+        include: ORDER_INCLUDES,
+        orderBy: { createdAt: 'desc' },
+        take: 5
+      });
+      if (!matches.length) return res.status(404).json({ message: 'Order not found' });
+      order = matches[0];
+      order.routingHistory = await prisma.routingHistory.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'asc' } });
+    }
+
+    // Fetch all stage history (every stage record for this order).
+    const allStages = await prisma.orderStage.findMany({
+      where: { orderId: order.id },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Build unified chronological timeline.
+    const entries = [];
+
+    // Stage events: created (PENDING), accepted (IN_PROGRESS), completed, rejected.
+    for (const st of allStages) {
+      entries.push({
+        ts: st.createdAt,
+        type: 'phase_start',
+        phase: st.stageName,
+        phaseLabel: STAGE_LABELS[st.stageName] || st.stageName,
+        label: `${STAGE_LABELS[st.stageName] || st.stageName} — Task Created`,
+        details: `Status: ${st.status}`,
+        profiles: STAGE_ROLES[st.stageName] || [],
+        deadlineAt: st.deadlineAt,
+        status: st.status
+      });
+      if (st.startedAt && st.startedAt.getTime() !== st.createdAt.getTime()) {
+        entries.push({
+          ts: st.startedAt,
+          type: 'phase_accepted',
+          phase: st.stageName,
+          phaseLabel: STAGE_LABELS[st.stageName] || st.stageName,
+          label: `${STAGE_LABELS[st.stageName] || st.stageName} — Accepted / In Progress`,
+          details: null,
+          status: 'IN_PROGRESS'
+        });
+      }
+      if (st.completedAt) {
+        entries.push({
+          ts: st.completedAt,
+          type: 'phase_complete',
+          phase: st.stageName,
+          phaseLabel: STAGE_LABELS[st.stageName] || st.stageName,
+          label: `${STAGE_LABELS[st.stageName] || st.stageName} — Completed`,
+          details: st.rejectionReason || st.returnReason || null,
+          status: 'COMPLETED'
+        });
+      }
+      if (st.rejectionReason && !st.completedAt) {
+        entries.push({
+          ts: st.updatedAt,
+          type: 'phase_rejected',
+          phase: st.stageName,
+          phaseLabel: STAGE_LABELS[st.stageName] || st.stageName,
+          label: `${STAGE_LABELS[st.stageName] || st.stageName} — Rejected`,
+          details: st.rejectionReason,
+          status: 'REJECTED'
+        });
+      }
+    }
+
+    // Routing events.
+    for (const rh of order.routingHistory || []) {
+      entries.push({
+        ts: rh.createdAt,
+        type: 'route',
+        phase: rh.newStage,
+        phaseLabel: STAGE_LABELS[rh.newStage] || rh.newStage,
+        label: `Routed: ${rh.previousStage} → ${rh.newStage}`,
+        from: rh.previousStage,
+        to: rh.newStage,
+        details: rh.remarks || null,
+        status: 'ROUTED',
+        sentByUserId: rh.sentByUserId
+      });
+    }
+
+    // Audit events.
+    for (const al of order.auditLogs || []) {
+      // Map audit action to a phase context.
+      let phase = null;
+      for (const [stage, label] of Object.entries(STAGE_LABELS)) {
+        if (al.action?.includes(stage) || al.details?.includes(stage)) {
+          phase = stage;
+          break;
+        }
+      }
+      // Phase derivation from action keywords.
+      if (!phase) {
+        if (al.action?.includes('STORE')) phase = 'STORE';
+        else if (al.action?.includes('LOGO') || al.action?.includes('DESIGN')) phase = 'LOGO_DESIGN';
+        else if (al.action?.includes('PRODUCTION')) phase = 'PRODUCTION';
+        else if (al.action?.includes('DISPATCH')) phase = 'DISPATCH';
+        else if (al.action?.includes('DELIVERY') || al.action?.includes('DELIVERED')) phase = 'OUT_FOR_DELIVERY';
+        else if (al.action?.includes('VERIFICATION') || al.action?.includes('VERIFIED')) phase = 'VERIFICATION';
+        else if (al.action?.includes('CANCEL')) phase = 'CANCELLED';
+        else if (al.action?.includes('RETURN')) phase = 'RETURN';
+        else if (al.action?.includes('OUTLET')) phase = 'ORDER_ENTRY';
+        else if (al.action?.includes('REPLACEMENT')) phase = 'REPLACEMENT';
+      }
+      entries.push({
+        ts: al.timestamp,
+        type: 'audit',
+        phase,
+        phaseLabel: phase ? (STAGE_LABELS[phase] || phase) : 'System',
+        label: al.action?.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) || 'System Event',
+        details: al.details || null,
+        status: al.action?.includes('RETURN') ? 'RETURN' : al.action?.includes('CANCEL') ? 'CANCELLED' : null
+      });
+    }
+
+    // Special order-level events.
+    if (order.goForVerification && order.verifiedAt) {
+      entries.push({ ts: order.verifiedAt, type: 'verification', phase: 'VERIFICATION', phaseLabel: 'Verification', label: 'Order Verified', details: order.verificationNote || null, status: 'VERIFIED' });
+    }
+    if (order.verificationReturnedAt) {
+      entries.push({ ts: order.verificationReturnedAt, type: 'verification_return', phase: 'VERIFICATION', phaseLabel: 'Verification', label: 'Returned from Verification for Correction', details: order.verificationReturnNote || null, status: 'RETURNED' });
+    }
+    if (order.cancelledAt) {
+      entries.push({ ts: order.cancelledAt, type: 'cancellation', phase: 'CANCELLED', phaseLabel: 'Cancelled', label: 'Order Cancelled', details: order.cancellationReason || null, status: 'CANCELLED', actor: order.cancelledByName || null });
+    }
+    if (order.deliveredAt) {
+      entries.push({ ts: order.deliveredAt, type: 'delivered', phase: 'DELIVERED', phaseLabel: 'Delivered', label: 'Order Delivered', details: null, status: 'DELIVERED' });
+    }
+
+    // Sort chronologically.
+    entries.sort((a, b) => new Date(a.ts) - new Date(b.ts));
+
+    // Resolve actor names in one batch.
+    const userIds = [...new Set(entries.map(e => e.sentByUserId).filter(Boolean))];
+    let userMap = {};
+    if (userIds.length) {
+      try {
+        const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } });
+        userMap = Object.fromEntries(users.map(u => [u.id, u.name]));
+      } catch (e) { console.error('[orderControl] user resolution failed:', e.message); }
+    }
+
+    // Clean up internal fields and add actor names.
+    const cleanEntries = entries.map(e => {
+      const clean = { ...e };
+      if (clean.sentByUserId) { clean.actor = userMap[clean.sentByUserId] || null; delete clean.sentByUserId; }
+      delete clean.profiles; // don't leak role internals to frontend
+      return clean;
+    });
+
+    // Build phase summary: each distinct phase with entry/exit times.
+    const phases = [];
+    const stagePhases = allStages.map(st => ({
+      name: st.stageName,
+      label: STAGE_LABELS[st.stageName] || st.stageName,
+      enteredAt: st.createdAt,
+      acceptedAt: st.startedAt,
+      completedAt: st.completedAt,
+      deadlineAt: st.deadlineAt,
+      status: st.status,
+      returnReason: st.returnReason || null,
+      rejectionReason: st.rejectionReason || null
+    }));
+
+    // Add verification as a virtual phase.
+    if (order.goForVerification || order.verifiedAt || order.verificationReturnedAt) {
+      stagePhases.push({
+        name: 'VERIFICATION',
+        label: 'Verification',
+        enteredAt: order.createdAt,
+        acceptedAt: order.verifiedAt,
+        completedAt: order.verifiedAt,
+        deadlineAt: null,
+        status: order.verifiedAt ? 'COMPLETED' : order.verificationReturnedAt ? 'RETURNED' : 'PENDING',
+        returnReason: order.verificationReturnNote || null,
+        rejectionReason: null
+      });
+    }
+
+    // Mark the current active phase.
+    const currentPhase = order.currentStage;
+    const trackingStatus = getTrackingStatus(order);
+
+    // Build response.
+    res.json({
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        invoiceNumber: order.invoiceNumber,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        status: order.status,
+        currentStage: order.currentStage,
+        trackingStatus,
+        type: order.type,
+        source: order.source,
+        priority: order.priority,
+        totalPrice: order.totalPrice,
+        createdAt: order.createdAt,
+        deliveredAt: order.deliveredAt,
+        cancelledAt: order.cancelledAt,
+        createdBy: order.createdBy?.name || null,
+        replacementCaseId: order.replacementCaseId || null,
+        outletName: order.outletName || null
+      },
+      phaseSummary: stagePhases,
+      timeline: cleanEntries,
+      stats: {
+        totalPhases: stagePhases.length,
+        totalEvents: cleanEntries.length,
+        totalRoutingEvents: cleanEntries.filter(e => e.type === 'route').length,
+        totalAuditEvents: cleanEntries.filter(e => e.type === 'audit').length,
+        firstEvent: cleanEntries.length ? cleanEntries[0].ts : null,
+        lastEvent: cleanEntries.length ? cleanEntries[cleanEntries.length - 1].ts : null,
+        durationMs: cleanEntries.length >= 2
+          ? new Date(cleanEntries[cleanEntries.length - 1].ts) - new Date(cleanEntries[0].ts)
+          : 0
+      }
+    });
+  } catch (error) {
+    console.error('[orderControl] getPhaseHistory error:', error.message);
+    res.status(500).json({ message: 'Error loading phase history' });
+  }
+};
+
+module.exports = { locateOrder, rerouteOrder, getPhaseHistory };

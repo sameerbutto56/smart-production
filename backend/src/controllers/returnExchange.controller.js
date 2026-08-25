@@ -1134,6 +1134,228 @@ const updateStatus = async (req, res) => {
   }
 };
 
+// ─── Per-product acceptance + restock (partial processing) ────────────────────
+// Parse the original products list from a case record.
+const parseOriginalProducts = (record) => {
+  const raw = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
+  return Array.isArray(raw) ? raw : [];
+};
+
+// Compute the acceptedProducts array (or [] if none yet).
+const parseAcceptedProducts = (record) => {
+  if (!record.acceptedProducts) return [];
+  const raw = typeof record.acceptedProducts === 'string' ? JSON.parse(record.acceptedProducts) : record.acceptedProducts;
+  return Array.isArray(raw) ? raw : [];
+};
+
+// Compute the restockedProducts array (or [] if none yet).
+const parseRestockedProducts = (record) => {
+  if (!record.restockedProducts) return [];
+  const raw = typeof record.restockedProducts === 'string' ? JSON.parse(record.restockedProducts) : record.restockedProducts;
+  return Array.isArray(raw) ? raw : [];
+};
+
+// Derive the case-level status from per-product acceptance + restock state.
+const deriveCaseStatus = (originals, accepted, restocked) => {
+  if (!originals.length) return undefined;
+  const totalQty = originals.reduce((s, p) => s + (p.quantity || 1), 0);
+  const acceptedQty = accepted.reduce((s, p) => s + (p.acceptedQty || 0), 0);
+  const restockedQty = restocked.reduce((s, p) => s + (p.restockedQty || 0), 0);
+  const acceptedCount = accepted.length;
+  const restockedCount = restocked.length;
+
+  // All products fully restocked → completed
+  if (restockedQty >= totalQty && acceptedQty >= totalQty) return 'REPLACEMENT_COMPLETED';
+  // All products received (even partially) and some restocked
+  if (acceptedQty >= totalQty && restockedCount > 0) return 'PARTIALLY_RESTOCKED';
+  // Some products received but not all
+  if (acceptedCount > 0 && acceptedQty < totalQty) return 'PARTIALLY_RECEIVED';
+  // All products received but none restocked yet
+  if (acceptedQty >= totalQty) return 'ACCEPTED';
+  // Some received
+  if (acceptedCount > 0) return 'PARTIALLY_RECEIVED';
+  return undefined; // no change
+};
+
+// POST /api/return-exchange/:id/accept-product
+// Accept a single product by index with quantity received.
+// Body: { idx: Number, acceptedQty: Number }
+const acceptProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { idx, acceptedQty } = req.body;
+    if (idx === undefined || !Number.isInteger(idx) || idx < 0) return res.status(400).json({ message: 'Valid product index (idx) is required' });
+    if (acceptedQty === undefined || acceptedQty < 0) return res.status(400).json({ message: 'acceptedQty must be >= 0' });
+
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    if (!record.storeAcceptedAt && !record.acceptedProducts) return res.status(400).json({ message: 'Case must be accepted by the Store first' });
+
+    const originals = parseOriginalProducts(record);
+    if (idx >= originals.length) return res.status(400).json({ message: `Product index ${idx} out of range (0..${originals.length - 1})` });
+
+    const product = originals[idx];
+    const maxQty = product.quantity || 1;
+    if (acceptedQty > maxQty) return res.status(400).json({ message: `acceptedQty (${acceptedQty}) exceeds ordered quantity (${maxQty})` });
+
+    const accepted = parseAcceptedProducts(record);
+    const entry = {
+      idx,
+      name: product.name || product.productDetails?.name || product.productType || 'Product',
+      color: product.color || product.productDetails?.color || '',
+      size: product.size || product.productDetails?.size || '',
+      quantity: maxQty,
+      acceptedQty,
+      acceptedBy: req.user?.name || 'Store',
+      acceptedById: req.user?.id || null,
+      acceptedAt: new Date().toISOString()
+    };
+
+    // Upsert: replace existing entry for same idx
+    const filtered = accepted.filter(a => a.idx !== idx);
+    if (acceptedQty > 0) filtered.push(entry);
+    filtered.sort((a, b) => a.idx - b.idx);
+
+    const newStatus = deriveCaseStatus(originals, filtered, parseRestockedProducts(record));
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.returnExchange.update({
+        where: { id },
+        data: {
+          acceptedProducts: filtered,
+          ...(record.storeAcceptedAt ? {} : {
+            status: 'ACCEPTED',
+            storeAcceptedBy: req.user?.name || 'Store',
+            storeAcceptedById: req.user?.id || null,
+            storeAcceptedAt: new Date()
+          }),
+          ...(newStatus ? { status: newStatus } : {})
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'RETURN_PRODUCT_ACCEPTED',
+          details: `${entry.name} (${entry.color || 'any'} ${entry.size || 'any'}) idx=${idx}: ${acceptedQty}/${maxQty} accepted by ${req.user?.name || 'Store'}. Case: ${record.orderNumber || ''}. Performed: ${new Date().toLocaleString()}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error accepting product:', error);
+    res.status(500).json({ message: 'Failed to accept product', error: error.message });
+  }
+};
+
+// POST /api/return-exchange/:id/restock-product
+// Restock a single accepted product by index.
+// Body: { idx: Number, restockedQty: Number }
+const restockProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { idx, restockedQty } = req.body;
+    if (idx === undefined || !Number.isInteger(idx) || idx < 0) return res.status(400).json({ message: 'Valid product index (idx) is required' });
+    if (restockedQty === undefined || restockedQty < 0) return res.status(400).json({ message: 'restockedQty must be >= 0' });
+
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+
+    const originals = parseOriginalProducts(record);
+    if (idx >= originals.length) return res.status(400).json({ message: `Product index ${idx} out of range` });
+
+    const accepted = parseAcceptedProducts(record);
+    const acceptedEntry = accepted.find(a => a.idx === idx);
+    if (!acceptedEntry) return res.status(400).json({ message: 'Product must be accepted before restocking' });
+    if (restockedQty > acceptedEntry.acceptedQty) return res.status(400).json({ message: `restockedQty (${restockedQty}) exceeds acceptedQty (${acceptedEntry.acceptedQty})` });
+
+    const product = originals[idx];
+    const pd = product.productDetails || product;
+    const name = pd.name || pd.productType || '';
+
+    if (restockedQty > 0 && name) {
+      const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+      for (const inv of invItems) {
+        const variants = inv.variants || [];
+        const color = pd.color || '';
+        const size = pd.size || '';
+        const updatedVariants = variants.map(v => {
+          const colorMatch = color ? v.color === color : true;
+          const sizeMatch = size ? v.size === size : true;
+          if (colorMatch && sizeMatch) {
+            return { ...v, stock: (v.stock || 0) + restockedQty };
+          }
+          return v;
+        });
+        const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+        await prisma.inventoryItem.update({
+          where: { id: inv.id },
+          data: { variants: updatedVariants, stock: newTotal }
+        });
+      }
+    }
+
+    const restocked = parseRestockedProducts(record);
+    const restockEntry = {
+      idx,
+      name: acceptedEntry.name,
+      color: acceptedEntry.color,
+      size: acceptedEntry.size,
+      quantity: acceptedEntry.quantity,
+      acceptedQty: acceptedEntry.acceptedQty,
+      restockedQty,
+      restockedBy: req.user?.name || 'Store',
+      restockedById: req.user?.id || null,
+      restockedAt: new Date().toISOString()
+    };
+    const filteredRestocked = restocked.filter(r => r.idx !== idx);
+    if (restockedQty > 0) filteredRestocked.push(restockEntry);
+    filteredRestocked.sort((a, b) => a.idx - b.idx);
+
+    const newStatus = deriveCaseStatus(originals, accepted, filteredRestocked);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.returnExchange.update({
+        where: { id },
+        data: {
+          restockedProducts: filteredRestocked,
+          originalRestocked: filteredRestocked.length > 0,
+          originalRestockedAt: filteredRestocked.length > 0 ? new Date() : record.originalRestockedAt,
+          originalRestockedBy: filteredRestocked.length > 0 ? (req.user?.name || 'Store') : record.originalRestockedBy,
+          ...(newStatus ? { status: newStatus } : {})
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'RETURN_PRODUCT_RESTOCKED',
+          details: `${restockEntry.name} (${restockEntry.color || 'any'} ${restockEntry.size || 'any'}) idx=${idx}: ${restockedQty}/${restockEntry.acceptedQty} restocked by ${req.user?.name || 'Store'}. Case: ${record.orderNumber || ''}. Performed: ${new Date().toLocaleString()}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    try { cache.delPattern('pos:inventory:'); cache.delPattern('warehouse:'); cache.delPattern('products:'); } catch (e) { console.error('restockProduct cache error:', e); }
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+    if (io) io.emit('inventory-updated', { source: 'return-exchange-restock-product', action: 'restock-product', orderNumber: record.orderNumber });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error restocking product:', error);
+    res.status(500).json({ message: 'Failed to restock product', error: error.message });
+  }
+};
+
 // Route the replacement order out of the Store stage to its next phase.
 // Per-product availability ticks decide which new replacement items deduct from
 // inventory (In Stock) vs flow to Production/Logo (Not Available). The case
@@ -1141,13 +1363,18 @@ const updateStatus = async (req, res) => {
 const routeReplacement = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nextStage, productAvailability, notes } = req.body;
+    let { nextStage, productAvailability, notes } = req.body;
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
     if (record.type !== 'REPLACEMENT') return res.status(400).json({ message: 'Only replacement cases can be routed' });
     if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
     if (!record.storeAcceptedAt) return res.status(400).json({ message: 'This replacement must be accepted by the Store first' });
     if (!record.replacementOrderId) return res.status(400).json({ message: 'Replacement order has not been created yet' });
+    // Validate per-product acceptance: at least 1 product must be accepted before routing
+    const accepted = parseAcceptedProducts(record);
+    if (accepted.length === 0 || accepted.every(a => (a.acceptedQty || 0) <= 0)) {
+      return res.status(400).json({ message: 'At least one product must be accepted before routing' });
+    }
     if (!nextStage || !REPLACEMENT_ROUTES.includes(nextStage)) {
       return res.status(400).json({ message: `Invalid route. Valid destinations: ${REPLACEMENT_ROUTES.join(', ')}.` });
     }
@@ -1898,4 +2125,151 @@ const searchReturns = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore };
+// GET /api/return-exchange/incoming-returns — centralized auto-populated list of ALL incoming
+// RETURN cases from every source (PostEx webhook, Delivery Boy, Dispatch, Online, Outlet).
+// Designed for Inventory View's Return & Exchange section as the primary view.
+const getIncomingReturns = async (req, res) => {
+  try {
+    const { status, search, source, page = 1, limit = 100 } = req.query;
+
+    const where = { type: 'RETURN' };
+
+    if (status) {
+      where.status = status;
+    } else {
+      where.status = { notIn: ['COMPLETED', 'CANCELLED'] };
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { orderNumber: { contains: q, mode: 'insensitive' } },
+        { customerName: { contains: q, mode: 'insensitive' } },
+        { customerPhone: { contains: q } }
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [cases, total] = await Promise.all([
+      prisma.returnExchange.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit)
+      }),
+      prisma.returnExchange.count({ where })
+    ]);
+
+    // Batch-fetch linked orders for enrichment
+    const orderIds = [...new Set(cases.map(c => c.orderId))];
+    let orderMap = {};
+    if (orderIds.length) {
+      const orders = await prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        select: {
+          id: true, orderNumber: true, customerName: true, customerPhone: true,
+          totalPrice: true, productDetails: true, status: true, currentStage: true,
+          deliveryType: true, deliveryMethod: true, outletName: true, source: true,
+          createdAt: true, deliveredAt: true
+        }
+      });
+      orderMap = Object.fromEntries(orders.map(o => [o.id, o]));
+    }
+
+    // Batch-fetch PostEx shipments for RETURN cases
+    const returnIds = cases.map(c => c.id);
+    let shipmentMap = {};
+    if (returnIds.length) {
+      try {
+        const shipments = await prisma.postExShipment.findMany({
+          where: { orderId: { in: orderIds } },
+          select: { id: true, orderId: true, trackingNumber: true, status: true, totalAmount: true, destinationCity: true },
+          orderBy: { createdAt: 'desc' }
+        });
+        for (const s of shipments) {
+          if (!shipmentMap[s.orderId]) shipmentMap[s.orderId] = s;
+        }
+      } catch {}
+    }
+
+    // Enrich and detect source
+    const enriched = cases.map(c => {
+      const order = orderMap[c.orderId] || null;
+      const shipment = shipmentMap[c.orderId] || null;
+
+      // Detect return source from multiple signals
+      let returnSource = 'Manual';
+      if (shipment) {
+        returnSource = 'PostEx';
+      } else if (c.deliveryReturnedBy) {
+        returnSource = 'Delivery Boy';
+      } else if (order?.deliveryType === 'ENAMELS' || order?.deliveryMethod === 'Enamels Delivery') {
+        returnSource = 'Enamels Delivery';
+      } else if (order?.deliveryType === 'TCS' || order?.deliveryType === 'POST_EX') {
+        returnSource = order.deliveryType;
+      } else if (order?.source === 'ONLINE ORDER' || order?.source === 'ONLINE') {
+        returnSource = 'Online';
+      } else if (order?.source === 'OUTLET') {
+        returnSource = 'Outlet';
+      } else if (order?.source === 'REPLACEMENT') {
+        returnSource = 'Replacement';
+      } else if (c.handledBy) {
+        returnSource = 'Inventory View';
+      }
+
+      // Build product summary from original products
+      const pd = c.originalProducts || order?.productDetails || [];
+      let items = [];
+      try {
+        const raw = typeof pd === 'string' ? JSON.parse(pd) : pd;
+        items = Array.isArray(raw) ? raw : [];
+      } catch { items = []; }
+      const totalQty = items.reduce((sum, it) => sum + (it.quantity || 1), 0);
+      const productNames = items.map(it => {
+        const inner = it.productDetails || it;
+        return inner.name || inner.productType || 'Product';
+      });
+
+      return {
+        ...c,
+        order,
+        postexShipment: shipment || null,
+        _returnSource: returnSource,
+        _totalQty: totalQty,
+        _productNames: productNames,
+        _productCount: items.length,
+        _orderTotal: order?.totalPrice || 0
+      };
+    });
+
+    // Client-side source filter (after enrichment since source is derived)
+    const filtered = source
+      ? enriched.filter(c => c._returnSource.toLowerCase() === source.toLowerCase())
+      : enriched;
+
+    // Aggregate stats
+    const stats = {
+      total: filtered.length,
+      pending: filtered.filter(c => c.status === 'PENDING').length,
+      accepted: filtered.filter(c => c.status === 'ACCEPTED').length,
+      sentToStore: filtered.filter(c => c.routedTo === 'STORE' && c.status === 'PENDING').length,
+      sources: {}
+    };
+    for (const c of filtered) {
+      stats.sources[c._returnSource] = (stats.sources[c._returnSource] || 0) + 1;
+    }
+
+    res.json({
+      cases: filtered,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      stats
+    });
+  } catch (error) {
+    console.error('Error fetching incoming returns:', error);
+    res.status(500).json({ message: 'Failed to fetch incoming returns', error: error.message });
+  }
+};
+
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct };
