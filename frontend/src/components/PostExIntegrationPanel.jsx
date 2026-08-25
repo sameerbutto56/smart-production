@@ -17,6 +17,7 @@ const PostExIntegrationPanel = () => {
   const [apiKey, setApiKey] = useState('');
   const [senderName, setSenderName] = useState('');
   const [senderPhone, setSenderPhone] = useState('');
+  const [endpoint, setEndpoint] = useState('');
   const [shipments, setShipments] = useState([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(false);
   const [returns, setReturns] = useState([]);
@@ -32,6 +33,7 @@ const PostExIntegrationPanel = () => {
       setApiKey(c.credentials?.apiKey || '');
       setSenderName(c.credentials?.senderName || '');
       setSenderPhone(c.credentials?.senderPhone || '');
+      setEndpoint(c.credentials?.endpoint || '');
     } catch (err) {
       console.error('Failed to fetch PostEx config:', err);
     }
@@ -73,6 +75,7 @@ const PostExIntegrationPanel = () => {
         apiKey: apiKey.trim() || undefined,
         senderName: senderName.trim() || undefined,
         senderPhone: senderPhone.trim() || undefined,
+        endpoint: endpoint.trim() || undefined,
       };
       const res = await api.put('/api/postex/config', { mode, credentials });
       setConfig(res.data);
@@ -192,6 +195,13 @@ const PostExIntegrationPanel = () => {
                   <input value={senderPhone} onChange={e => setSenderPhone(e.target.value)}
                     placeholder="e.g. 03001234567"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-indigo-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 mb-1 block">API Endpoint URL</label>
+                  <input value={endpoint} onChange={e => setEndpoint(e.target.value)}
+                    placeholder="e.g. https://api.postex.pk/api/v1"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-indigo-500 outline-none" />
+                  <p className="text-[11px] text-gray-500 mt-1">Leave blank to use default PostEx API endpoint.</p>
                 </div>
               </div>
               {mode === 'LIVE' && (

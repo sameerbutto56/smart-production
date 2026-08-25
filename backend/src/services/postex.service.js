@@ -55,6 +55,12 @@ async function getConfig() {
     isTest: mode === 'TEST',
     isOff: mode === 'OFF',
     hasCredentials: Boolean(_apiCredentials),
+    credentials: _apiCredentials ? {
+      apiKey: _apiCredentials.apiKey || '',
+      senderName: _apiCredentials.senderName || '',
+      senderPhone: _apiCredentials.senderPhone || '',
+      endpoint: _apiCredentials.endpoint || ''
+    } : null,
     configuredAt: _modeLoadedAt ? new Date(_modeLoadedAt).toISOString() : null
   };
 }

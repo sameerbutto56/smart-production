@@ -15,12 +15,19 @@ const getConfig = async (req, res) => {
 
 const setConfig = async (req, res) => {
   try {
-    const { mode, apiKey, senderName, senderPhone, endpoint } = req.body;
-    const credentials = (apiKey || senderName || senderPhone || endpoint) ? {
-      apiKey: apiKey || undefined,
-      senderName: senderName || undefined,
-      senderPhone: senderPhone || undefined,
-      endpoint: endpoint || undefined
+    const { mode, credentials: credsBody, apiKey, senderName, senderPhone, endpoint } = req.body;
+    // Support both nested { credentials: { apiKey, ... } } and flat { apiKey, ... }
+    const c = credsBody || {};
+    const finalApiKey = apiKey || c.apiKey;
+    const finalSenderName = senderName || c.senderName;
+    const finalSenderPhone = senderPhone || c.senderPhone;
+    const finalEndpoint = endpoint || c.endpoint;
+
+    const credentials = (finalApiKey || finalSenderName || finalSenderPhone || finalEndpoint) ? {
+      apiKey: finalApiKey || undefined,
+      senderName: finalSenderName || undefined,
+      senderPhone: finalSenderPhone || undefined,
+      endpoint: finalEndpoint || undefined
     } : undefined;
 
     const result = await postexService.setIntegrationMode(mode, credentials);
