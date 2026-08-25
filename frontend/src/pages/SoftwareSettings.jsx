@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -87,7 +88,9 @@ const DEFAULT_DELAY_CONFIG = {
 const SoftwareSettings = () => {
   const { user } = useAuth();
   const { paused: systemPaused, info: pauseInfo, profiles: pauseProfiles, profileDefs: pauseProfileDefs, history: pauseHistory, refresh: refreshPauseState, fetchHistory: fetchPauseHistory, saveProfiles: savePauseProfiles } = useSystemPause();
-  const [activeTab, setActiveTab] = useState('employees');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'employees';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [pauseProfilesSel, setPauseProfilesSel] = useState([]);
   const [pauseProfilesBusy, setPauseProfilesBusy] = useState(false);
 
