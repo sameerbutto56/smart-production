@@ -317,6 +317,26 @@ const createOrder = async (req, res) => {
         }
         return res.status(400).json({ message: `Order Number ${orderNumber} is already in use. Please use a unique number.` });
       }
+
+      // Order range validation: only for manually entered order numbers (Faisal/Online Order Entry)
+      try {
+        const rangeSetting = await prisma.systemSetting.findUnique({ where: { key: 'ORDER_RANGE_CONFIG' } });
+        if (rangeSetting && rangeSetting.value) {
+          const rangeConfig = JSON.parse(rangeSetting.value);
+          if (rangeConfig.enabled && rangeConfig.startNumber && rangeConfig.endNumber) {
+            const bare = parseInt(String(orderNumber).replace(/^#/, ''), 10);
+            const start = parseInt(String(rangeConfig.startNumber).replace(/^#/, ''), 10);
+            const end = parseInt(String(rangeConfig.endNumber).replace(/^#/, ''), 10);
+            if (!isNaN(bare) && !isNaN(start) && !isNaN(end)) {
+              if (bare < start || bare > end) {
+                return res.status(400).json({ message: `This order number is outside the currently configured order range. New orders can only be created within the allowed range (${rangeConfig.startNumber} to ${rangeConfig.endNumber}).` });
+              }
+            }
+          }
+        }
+      } catch (rangeErr) {
+        // Range check is best-effort — never block order creation if the check fails
+      }
     }
 
     // In-memory dedup: reject if this exact orderNumber was created within the last

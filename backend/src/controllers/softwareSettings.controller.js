@@ -493,4 +493,49 @@ const updateDelayConfig = async (req, res) => {
   }
 };
 
-module.exports = { getAllEmployees, createEmployee, updateEmployee, resetPassword, verifyEmployee, getPaymentChangeOutlets, getPaymentChangeInvoices, getPaymentChangeHistory, changePaymentMethod, getDelayConfig, updateDelayConfig, DEFAULT_DELAY_CONFIG, PROFILE_OPTIONS };
+const getOrderRange = async (req, res) => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'ORDER_RANGE_CONFIG' } });
+    let config = { enabled: false, startNumber: '', endNumber: '' };
+    if (setting && setting.value) {
+      try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) {}
+    }
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch order range configuration', error: error.message });
+  }
+};
+
+const updateOrderRange = async (req, res) => {
+  try {
+    const { enabled, startNumber, endNumber } = req.body;
+    if (enabled && (startNumber === '' || endNumber === '')) {
+      return res.status(400).json({ message: 'Both start and end numbers are required when range is enabled.' });
+    }
+    if (enabled) {
+      const start = parseInt(String(startNumber).replace(/^#/, ''), 10);
+      const end = parseInt(String(endNumber).replace(/^#/, ''), 10);
+      if (isNaN(start) || isNaN(end) || start <= 0 || end <= 0) {
+        return res.status(400).json({ message: 'Start and end numbers must be positive integers.' });
+      }
+      if (start > end) {
+        return res.status(400).json({ message: 'Start number must be less than or equal to end number.' });
+      }
+    }
+    const config = {
+      enabled: Boolean(enabled),
+      startNumber: enabled ? String(startNumber).replace(/^#/, '') : '',
+      endNumber: enabled ? String(endNumber).replace(/^#/, '') : '',
+    };
+    await prisma.systemSetting.upsert({
+      where: { key: 'ORDER_RANGE_CONFIG' },
+      update: { value: JSON.stringify(config) },
+      create: { key: 'ORDER_RANGE_CONFIG', value: JSON.stringify(config) },
+    });
+    res.json({ ok: true, message: 'Order range configuration saved successfully', config });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to save order range configuration', error: error.message });
+  }
+};
+
+module.exports = { getAllEmployees, createEmployee, updateEmployee, resetPassword, verifyEmployee, getPaymentChangeOutlets, getPaymentChangeInvoices, getPaymentChangeHistory, changePaymentMethod, getDelayConfig, updateDelayConfig, getOrderRange, updateOrderRange, DEFAULT_DELAY_CONFIG, PROFILE_OPTIONS };

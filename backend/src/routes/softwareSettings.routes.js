@@ -12,6 +12,8 @@ const {
   changePaymentMethod,
   getDelayConfig,
   updateDelayConfig,
+  getOrderRange,
+  updateOrderRange,
 } = require('../controllers/softwareSettings.controller');
 
 const router = express.Router();
@@ -34,5 +36,9 @@ router.post('/payment-change', authenticate, authorize('SOFTWARE_SETTINGS'), cha
 // Delay threshold configuration — read: any authenticated user; write: SOFTWARE_SETTINGS only
 router.get('/delay-config', authenticate, getDelayConfig);
 router.post('/delay-config', authenticate, authorize('SOFTWARE_SETTINGS'), updateDelayConfig);
+
+// Order range configuration — read: any authenticated user; write: SOFTWARE_SETTINGS only
+router.get('/order-range', authenticate, getOrderRange);
+router.post('/order-range', authenticate, authorize('SOFTWARE_SETTINGS'), updateOrderRange);
 
 module.exports = router;

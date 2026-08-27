@@ -767,6 +767,28 @@ export const OrderEntryProvider = ({ children }) => {
     }
     setIsSubmitting(true); setLoading(true); setError('');
     try {
+      // Client-side order range validation (non-edit, manual order number only)
+      const submittedOrderNumber = String(formData.orderNumber || cartItems[0]?.orderNumber || '').trim();
+      if (!isEditMode && submittedOrderNumber) {
+        try {
+          const rangeRes = await api.get('/api/software-settings/order-range');
+          const rc = rangeRes.data;
+          if (rc && rc.enabled && rc.startNumber && rc.endNumber) {
+            const bare = parseInt(String(submittedOrderNumber).replace(/^#/, ''), 10);
+            const start = parseInt(String(rc.startNumber), 10);
+            const end = parseInt(String(rc.endNumber), 10);
+            if (!isNaN(bare) && !isNaN(start) && !isNaN(end) && (bare < start || bare > end)) {
+              const errMsg = `This order number is outside the currently configured order range. New orders can only be created within the allowed range (${rc.startNumber} to ${rc.endNumber}).`;
+              setError(errMsg);
+              setIsSubmitting(false); setLoading(false);
+              return;
+            }
+          }
+        } catch (rangeErr) {
+          // Range check is best-effort — never block on network error
+        }
+      }
+
       const finalItems = cartItems.map(item => ({
         productDetails: item.productDetails, customization: item.customization || {}, sizeData: item.sizeData || {},
         quantity: parseInt(item.quantity) || 1, totalPrice: parseFloat(item.totalPrice) || 0,
