@@ -248,6 +248,22 @@ export default function OrderPerformanceCard({ activeTab }) {
                     );
                   })}
                 </div>
+                {/* Per-employee breakdown for Faisal Order Entry */}
+                {d.key === 'faisal' && deptData.byEmployee && Object.keys(deptData.byEmployee).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-blue-500/20">
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">By Employee</span>
+                    <div className="mt-1.5 space-y-1">
+                      {Object.entries(deptData.byEmployee)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([name, cnt]) => (
+                          <div key={name} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-blue-500/5 border border-blue-500/10">
+                            <span className="text-[11px] font-bold text-blue-300">{name}</span>
+                            <span className="text-sm font-black text-white">{cnt}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             );
           })}

@@ -4600,9 +4600,18 @@ const getOrderPerformance = async (req, res) => {
     const dateFrom = from ? new Date(from) : new Date('2000-01-01');
     const dateTo = to ? (to.includes('T') ? new Date((new Date(to)).getTime() - 1) : new Date(to + 'T23:59:59.999Z')) : new Date('2100-01-01');
 
-    // Faisal: only new orders created by Faisal-role users within date range
-    const faisalEntered = await prisma.order.count({
-      where: { createdAt: { gte: dateFrom, lte: dateTo }, createdBy: { role: 'FAISAL' } }
+    // Faisal: only new orders created by Faisal-role users within date range.
+    // Split the total by the actual employee who placed each order (placedBy from the
+    // Faisal employee gate) so the shared "Faisal" login isn't inflated by other staff.
+    const faisalOrders = await prisma.order.findMany({
+      where: { createdAt: { gte: dateFrom, lte: dateTo }, createdBy: { role: 'FAISAL' } },
+      select: { placedBy: true }
+    });
+    const faisalEntered = faisalOrders.length;
+    const byEmployee = {};
+    faisalOrders.forEach(o => {
+      const name = (o.placedBy || '').trim();
+      if (name) byEmployee[name] = (byEmployee[name] || 0) + 1;
     });
 
     // Helper: count DISTINCT orders that have a stage record matching criteria
@@ -4695,7 +4704,7 @@ const getOrderPerformance = async (req, res) => {
     ]);
 
     res.json({
-      faisal: { entered: faisalEntered },
+      faisal: { entered: faisalEntered, byEmployee },
       verification: { verified: verificationVerified, pendingVerification: verificationPendingCount, returned: verificationReturned },
       store: { accepted: storeAccepted, sentForward: storeSentForward, pending: storePending },
       logo: { accepted: logoAccepted, sentForward: logoSentForward, pending: logoPending },
