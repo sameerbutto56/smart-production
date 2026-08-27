@@ -3,6 +3,7 @@ import api from '../services/api';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSystemPause } from '../context/SystemPauseContext';
+import SystemPauseControl from './SystemPauseControl';
 import {
   LayoutDashboard, 
   Package, 
@@ -633,6 +634,7 @@ const Layout = () => {
                 <LogOut size={14} />
               </button>
             )}
+            <SystemPauseControl />
             <div className="relative" ref={bellRef}>
               <button
                 onClick={() => setBellOpen(o => !o)}

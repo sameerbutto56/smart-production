@@ -22,10 +22,12 @@ const {
   getMyDeposits,
   getAllDeposits,
   approveDeposit,
-  rejectDeposit
+  rejectDeposit,
+  getCashLedger
 } = require('../controllers/delivery.controller');
 
 router.get('/analytics', auth, getDeliveryAnalytics);
+router.get('/cash-ledger', auth, getCashLedger);
 router.get('/orders', auth, getDeliveryOrders);
 
 // Delivery deposits

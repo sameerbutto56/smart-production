@@ -1151,7 +1151,7 @@ const AllOrders = () => {
                       )}
                       {delay && (
                         <div className="text-[10px] font-bold text-red-400/90 mt-0.5">
-                          ⏳ {fmtDuration(delay.delayDuration)} overdue · In stage since {formatDateOnly(delay.phaseStart)} {formatTimeOnly(delay.phaseStart)}
+                           ⏳ {fmtDuration(delay.delayDuration)} overdue · In stage since {formatDateOnly(delay.phaseEnteredAt)} {formatTimeOnly(delay.phaseEnteredAt)}
                         </div>
                       )}
                     </td>
@@ -1354,7 +1354,7 @@ const AllOrders = () => {
                         </div>
                         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
                           <p className="text-red-400/70 font-black uppercase tracking-widest text-[9px]">In Phase</p>
-                          <p className="font-black text-red-300">{fmtDuration(d.phaseElapsed)}</p>
+                           <p className="font-black text-red-300">{fmtDuration(d.phaseWorkingMs)}</p>
                         </div>
                         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
                           <p className="text-red-400/70 font-black uppercase tracking-widest text-[9px]">Total Time</p>

@@ -800,13 +800,13 @@ const getOrdersExport = async (req, res) => {
 
     // 3. Same dataset the Orders screen filters in memory:
     //    active orders (500) + most recent 100 completed/history orders.
+    //    stages include required by getDelayInfo (finds active stage via order.stages);
+    //    auditLogs removed — never used by the row builder or delay map.
     const include = {
       stages: {
         orderBy: { createdAt: 'desc' },
         select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true }
       },
-      auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
-      createdBy: { select: { name: true } }
     };
     const [activeOrders, completedOrders] = await prisma.$transaction([
       prisma.order.findMany({
@@ -885,20 +885,15 @@ const getOrdersExport = async (req, res) => {
       }
     }
 
-    // 6. Build one Excel row per product element, mirroring the screens' normalizeProduct()
-    //    (OrderCard) and `item.productDetails || item` unwrapping (AllOrders). productDetails
-    //    has three shapes across creation flows:
-    //      - ecommerce/web:   [{ productDetails: {…}, quantity, customization, … }, …]
-    //      - outlet:          [{ name, productType, color, size, quantity, … }, …]
-    //      - legacy single:   a bare product object (or a wrapper object with productDetails)
-    //    Each element emits exactly one row; a 3-product order exports 3 rows; a missing or
-    //    empty productDetails emits a single blank-product row (order-level info intact).
+    // 6. Build one Excel row per order (not per product). All products in an order
+    //    are combined into newline-separated lists in the Product/Qty/Size/Color columns.
     const rows = [];
     const val = (d) => {
       if (d === null || d === undefined) return '';
       if (typeof d === 'object') { try { return JSON.stringify(d); } catch { return ''; } }
       return String(d);
     };
+    const join = (arr, sep) => arr.filter(Boolean).join(sep || ', ');
     orders.forEach((o) => {
       const d = delayMap[o.id];
       let raw = o.productDetails;
@@ -906,32 +901,40 @@ const getOrdersExport = async (req, res) => {
         try { raw = JSON.parse(raw); } catch { raw = null; }
       }
       const elements = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? [raw] : []);
-      const productRows = elements.length ? elements : [{}];
-      productRows.forEach((entry) => {
-        const wrapped = entry && typeof entry === 'object' && entry.productDetails && typeof entry.productDetails === 'object';
-        const inner = wrapped ? entry.productDetails : (entry || {});
-        const qty = wrapped
-          ? (entry.quantity ?? inner.quantity ?? 1)
-          : (inner.quantity ?? 1);
-        rows.push({
-          'Order Number': val(o.orderNumber),
-          'Order Date': o.createdAt ? new Date(o.createdAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : '',
-          'Customer Name': val(o.customerName),
-          'Customer Phone': val(o.customerPhone),
-          'Product Name': val(inner.productName || inner.name || inner.productType || ''),
-          'Product Details': val(inner.productType || inner.fabricType || ''),
-          'Quantity': val(qty),
-          'Size': val(inner.size || ''),
-          'Color': val(inner.color || ''),
-          'Customizations': val(wrapped ? (entry.customization ?? inner.customization ?? '') : (inner.customization || '')),
-          'Base Product Amount': o.baseProductAmount || '',
-          'Discount': o.discountAmount || '',
-          'Total Price': o.totalPrice || '',
-          'Current Order Status': val(o.status),
-          'Delay Type': d ? d.reason : '',
-          'Delay Stage': d ? d.stageLabel : '',
-          'Delay Duration': d ? fmtDuration(d.delayDuration) : ''
+      const names = [], details = [], qtys = [], sizes = [], colors = [], custs = [];
+      if (elements.length) {
+        elements.forEach((entry) => {
+          const wrapped = entry && typeof entry === 'object' && entry.productDetails && typeof entry.productDetails === 'object';
+          const inner = wrapped ? entry.productDetails : (entry || {});
+          const qty = wrapped
+            ? (entry.quantity ?? inner.quantity ?? 1)
+            : (inner.quantity ?? 1);
+          names.push(val(inner.productName || inner.name || inner.productType || ''));
+          details.push(val(inner.productType || inner.fabricType || ''));
+          qtys.push(String(qty));
+          sizes.push(val(inner.size || ''));
+          colors.push(val(inner.color || ''));
+          custs.push(val(wrapped ? (entry.customization ?? inner.customization ?? '') : (inner.customization || '')));
         });
+      }
+      rows.push({
+        'Order Number': val(o.orderNumber),
+        'Order Date': o.createdAt ? new Date(o.createdAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : '',
+        'Customer Name': val(o.customerName),
+        'Customer Phone': val(o.customerPhone),
+        'Product Name': join(names, ', '),
+        'Product Details': join(details, ', '),
+        'Quantity': join(qtys, ', '),
+        'Size': join(sizes, ', '),
+        'Color': join(colors, ', '),
+        'Customizations': join(custs, ', '),
+        'Base Product Amount': o.baseProductAmount || '',
+        'Discount': o.discountAmount || '',
+        'Total Price': o.totalPrice || '',
+        'Current Order Status': val(o.status),
+        'Delay Type': d ? d.reason : '',
+        'Delay Stage': d ? d.stageLabel : '',
+        'Delay Duration': d ? fmtDuration(d.delayDuration) : ''
       });
     });
 
@@ -4449,7 +4452,7 @@ const trackOrder = async (req, res) => {
     const orderInclude = {
       stages: { orderBy: { createdAt: 'asc' } },
       createdBy: { select: { id: true, name: true } },
-      postexShipments: { orderBy: { createdAt: 'desc' }, include: { logs: { orderBy: { createdAt: 'asc' }, take: 5 } } }
+      postexShipments: { orderBy: { createdAt: 'desc' }, include: { logs: { orderBy: { changedAt: 'asc' }, take: 5 } } }
     };
 
     // Step 1: Exact orderNumber match (with # prefix tolerance)

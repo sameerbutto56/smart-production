@@ -14,14 +14,17 @@ import {
 } from 'lucide-react';
 import socket from '../socket';
 import { useLanguage } from '../context/LanguageContext';
+import { useSystemPause } from '../context/SystemPauseContext';
 import { PageLoader } from '../components/LoadingSpinner';
 import useCache from '../hooks/useCache';
 import api from '../services/api';
 import { formatTimeOnly, formatDateOnly } from '../utils/dateTime';
+import { computeActiveWorkingMs } from '../utils/delayUtils';
 
 const ProgressChart = () => {
   const { t, LanguageToggle } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
 
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -72,12 +75,16 @@ const ProgressChart = () => {
     return () => clearInterval(clock);
   }, []);
 
-  const urgentOrders = orders.filter(o => {
-    if (o.status === 'COMPLETED' || o.status === 'OUT_FOR_DELIVERY') return false;
-    const deadline = new Date(o.stages?.[0]?.deadlineAt).getTime();
-    const diff = deadline - Date.now();
-    return diff < 7200000; // Increased to 2 hours for big screen visibility
-  }).sort((a, b) => new Date(a.stages?.[0]?.deadlineAt) - new Date(b.stages?.[0]?.deadlineAt));
+  const urgentOrders = useMemo(() => {
+    const now = Date.now();
+    return orders.filter(o => {
+      if (o.status === 'COMPLETED' || o.status === 'OUT_FOR_DELIVERY') return false;
+      const deadline = new Date(o.stages?.[0]?.deadlineAt).getTime();
+      if (!deadline) return false;
+      const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
+      return remaining < 7200000; // 2 hours working time remaining
+    }).sort((a, b) => new Date(a.stages?.[0]?.deadlineAt) - new Date(b.stages?.[0]?.deadlineAt));
+  }, [orders, pausePeriods, pauseProfile]);
 
   if (progressLoading) return <PageLoader text="Loading Production Chart..." />;
 
@@ -236,7 +243,11 @@ const ProgressChart = () => {
                   </div>
                   <div className="text-xs font-black font-mono text-red-500 flex items-center gap-1">
                     <Clock size={10} />
-                    {Math.max(0, Math.floor((new Date(order.stages?.[0]?.deadlineAt).getTime() - Date.now()) / 60000))}m
+                    {(() => {
+                      const deadline = new Date(order.stages?.[0]?.deadlineAt).getTime();
+                      const remaining = computeActiveWorkingMs(Date.now(), deadline, pausePeriods, pauseProfile);
+                      return `${Math.max(0, Math.floor(remaining / 60000))}m`;
+                    })()}
                   </div>
                 </div>
               ))}

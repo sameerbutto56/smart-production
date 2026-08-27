@@ -95,7 +95,7 @@ export const OrderEntryProvider = ({ children }) => {
   const urlFromVerification = rawFromVerification === 'true';
   const urlEditOrderId = (rawEditOrderId && rawEditOrderId !== 'undefined' && rawEditOrderId !== 'null') ? rawEditOrderId : null;
   const urlEdit = urlParams.get('edit') === '1';
-  console.log('[OrderEntryContext] URL params:', { rawFromVerification, rawEditOrderId, urlFromVerification, urlEditOrderId, urlEdit, href: window.location.href });
+  // console.log('[OrderEntryContext] URL params:', { rawFromVerification, rawEditOrderId, urlFromVerification, urlEditOrderId, urlEdit, href: window.location.href });
 
   const [activeTab, setActiveTab] = useState('basic');
   const [inventory, setInventory] = useState([]);
@@ -387,8 +387,8 @@ export const OrderEntryProvider = ({ children }) => {
   }, [isEditMode, resetFormData]);
 
   const fetchOrderByNumber = useCallback(async (optionalNumber) => {
-    const query = (optionalNumber ?? editOrderNumber) || '';
-    if (!query.trim()) { setEditOrderError('Please enter an order number'); return; }
+    const query = String(optionalNumber ?? editOrderNumber ?? '').trim();
+    if (!query) { setEditOrderError('Please enter an order number'); return; }
     setEditOrderLoading(true);
     setEditOrderError('');
     setEditOrderData(null);
@@ -397,8 +397,8 @@ export const OrderEntryProvider = ({ children }) => {
       const response = await api.get('/api/orders', { params: { limit: 'all' } });
       const orders = Array.isArray(response.data) ? response.data : [];
       found = orders.find(o =>
-        o.orderNumber?.toLowerCase() === query.trim().toLowerCase() ||
-        o.id?.toLowerCase() === query.trim().toLowerCase()
+        o.orderNumber?.toLowerCase() === query.toLowerCase() ||
+        o.id?.toLowerCase() === query.toLowerCase()
       );
       if (found) {
         const userRole = user?.role;
@@ -502,7 +502,7 @@ export const OrderEntryProvider = ({ children }) => {
           else if (name.includes('2') || name.toLowerCase().includes('jail')) mySource = 'JAIL ROAD BRANCH';
           else if (name.includes('3') || name.toLowerCase().includes('abbottabad')) mySource = 'ABBOTTABAD BRANCH';
         }
-        const delRes = await api.get('/api/orders/deleted-check', { params: { number: query.trim(), source: mySource || undefined } });
+        const delRes = await api.get('/api/orders/deleted-check', { params: { number: query, source: mySource || undefined } });
         if (delRes.data) {
           setEditOrderData(null);
           setEditOrderError(`This order (${delRes.data.orderNumber || editOrderNumber.trim()}) was deleted by Admin on ${formatDateOnly(delRes.data.deletedAt)}. No changes can be made.`);

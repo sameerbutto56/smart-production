@@ -1115,7 +1115,23 @@ const getDeliveryAnalytics = async (req, res) => {
 
     if (riderName) enriched = enriched.filter(e => e.riderName && e.riderName.toLowerCase().includes(riderName.toLowerCase()));
 
-    // Order statistics (10 buckets)
+    // Approved deposits reduce cash-in-hand — fetch BEFORE stats so totalDeposited is in scope
+    const riderNames = riders.length > 0 ? riders : [...new Set(enriched.map(e => e.riderName).filter(Boolean))];
+    const depositWhere = { status: 'APPROVED', deliveryBoy: { in: riderNames.length > 0 ? riderNames : ['__none__'] } };
+    if (dateFilter) depositWhere.createdAt = dateFilter;
+    const approvedDeposits = await prisma.deliveryDeposit.findMany({
+      where: depositWhere,
+      select: { deliveryBoy: true, cashAmount: true, totalAmount: true, createdAt: true }
+    }).catch(() => []);
+    const totalDeposited = approvedDeposits.reduce((s, d) => s + (d.cashAmount || d.totalAmount || 0), 0);
+    // Per-rider deposit totals for per-rider breakdown
+    const depositsByRider = {};
+    for (const d of approvedDeposits) {
+      depositsByRider[d.deliveryBoy] = (depositsByRider[d.deliveryBoy] || 0) + (d.cashAmount || d.totalAmount || 0);
+    }
+
+    // Order statistics — cashCollected net of approved deposits
+    const grossCash = enriched.reduce((s, e) => s + e.cashCollected, 0);
     const stats = {
       totalAssigned: enriched.length,
       accepted: enriched.filter(e => e.accepted).length,
@@ -1133,8 +1149,11 @@ const getDeliveryAnalytics = async (req, res) => {
       totalCOD: enriched.filter(e => !e.isPaid).reduce((s, e) => s + e.outstanding, 0),
       totalPaidAmount: enriched.filter(e => e.isPaid).reduce((s, e) => s + (e.totalCollected || e.totalPrice), 0),
       outstandingCollection: enriched.reduce((s, e) => s + e.outstanding, 0),
-      cashCollected: enriched.reduce((s, e) => s + e.cashCollected, 0),
-      onlinePrepaid: enriched.reduce((s, e) => s + e.onlineCollected, 0)
+      cashBeforeDeposits: grossCash,
+      totalDeposited,
+      cashCollected: Math.max(0, grossCash - totalDeposited),
+      onlinePrepaid: enriched.reduce((s, e) => s + e.onlineCollected, 0),
+      overallOutstanding: enriched.reduce((s, e) => s + e.outstanding, 0)
     };
 
     // Earnings from actual DeliveryCharge records (per order → per rider)
@@ -1160,7 +1179,11 @@ const getDeliveryAnalytics = async (req, res) => {
         amount, isPaid: ch.isPaid, paidAt: ch.paidAt, deliveredAt: e.timeline.deliveredAt
       });
     }
-    const perRider = [...riderMap.values()].map(r => ({ ...r, remainingPayable: Math.max(0, r.totalEarnings - r.totalPaid) }))
+    const perRider = [...riderMap.values()].map(r => ({
+      ...r,
+      deposited: depositsByRider[r.riderName] || 0,
+      remainingPayable: Math.max(0, r.totalEarnings - r.totalPaid)
+    }))
       .sort((a, b) => b.totalEarnings - a.totalEarnings);
 
     res.json({
@@ -1173,6 +1196,7 @@ const getDeliveryAnalytics = async (req, res) => {
         completedDeliveries: stats.delivered,
         perRider
       },
+      deposits: { totalDeposited, byRider: depositsByRider },
       riders
     });
   } catch (error) {
@@ -1183,26 +1207,27 @@ const getDeliveryAnalytics = async (req, res) => {
 
 // ─── Delivery Deposit (Cash to Admin) ────────────────────────────────────────
 
-// POST /api/delivery/deposits — delivery boy submits a cash-to-admin deposit
+// POST /api/delivery/deposits — delivery boy submits a cash-to-admin deposit (cash only)
 const submitDeposit = async (req, res) => {
   try {
     const deliveryBoy = req.user?.name;
     if (!deliveryBoy) return res.status(401).json({ message: 'User not found' });
 
-    const { cashAmount, onlineAmount, reference, notes } = req.body;
+    const { cashAmount, bankRef, depositDate, notes } = req.body;
     const cash = parseFloat(cashAmount) || 0;
-    const online = parseFloat(onlineAmount) || 0;
-    const total = cash + online;
 
-    if (total <= 0) return res.status(400).json({ message: 'Total amount must be greater than 0' });
+    if (cash <= 0) return res.status(400).json({ message: 'Cash amount must be greater than 0' });
+    if (!bankRef || !String(bankRef).trim()) return res.status(400).json({ message: 'Bank Reference Number is required' });
 
     const deposit = await prisma.deliveryDeposit.create({
       data: {
         deliveryBoy,
         cashAmount: cash,
-        onlineAmount: online,
-        totalAmount: total,
-        reference: reference?.trim() || null,
+        onlineAmount: 0,
+        totalAmount: cash,
+        bankRef: String(bankRef).trim(),
+        depositDate: depositDate ? new Date(depositDate) : new Date(),
+        reference: String(bankRef).trim(),
         notes: notes?.trim() || null,
         status: 'PENDING',
         createdBy: deliveryBoy,
@@ -1212,11 +1237,11 @@ const submitDeposit = async (req, res) => {
     await notify.create(req, {
       type: 'delivery_deposit', moduleName: 'Deliveries', path: '/delivery', role: 'ADMIN',
       title: 'New Delivery Deposit',
-      message: `${deliveryBoy} submitted ₨${total.toLocaleString()} deposit (Cash: ₨${cash.toLocaleString()}, Online: ₨${online.toLocaleString()})`,
+      message: `${deliveryBoy} submitted ₨${cash.toLocaleString()} cash deposit (Ref: ${bankRef})`,
       action: 'Delivery Deposit', employeeName: deliveryBoy,
     }).catch(() => {});
 
-    res.status(201).json({ message: 'Deposit submitted for review', deposit });
+    res.status(201).json({ message: 'Deposit submitted for admin approval', deposit });
   } catch (error) {
     console.error('submitDeposit error:', error);
     res.status(500).json({ message: 'Failed to submit deposit', error: error.message });
@@ -1341,6 +1366,124 @@ const rejectDeposit = async (req, res) => {
   }
 };
 
+// GET /api/delivery/cash-ledger — daily carry-forward cash ledger
+// Formula: Opening Cash + Cash Collected (that day) − Approved Deposits (that day) = Closing Cash
+// Today's Closing = Tomorrow's Opening. Deposits keyed to depositDate (not approval date).
+const getCashLedger = async (req, res) => {
+  try {
+    const { deliveryBoy, dateFrom, dateTo } = req.query;
+    const rider = deliveryBoy || req.user?.name;
+    if (!rider) return res.status(400).json({ message: 'deliveryBoy is required' });
+
+    // Default date range: last 30 days if not specified
+    const end = dateTo ? new Date(dateTo + 'T23:59:59.999') : new Date();
+    const start = dateFrom ? new Date(dateFrom) : new Date(end.getTime() - 30 * 86400000);
+    start.setHours(0, 0, 0, 0);
+
+    // Fetch all cash payments collected by this rider in the range
+    const payments = await prisma.deliveryPayment.findMany({
+      where: {
+        collectedBy: rider,
+        collectedAt: { gte: start, lte: end }
+      },
+      select: { cashAmount: true, onlineAmount: true, paymentMethod: true, collectedAt: true }
+    });
+
+    // Fetch ALL approved deposits for this rider (not just the range) — needed for
+    // accurate carry-forward: deposits before the range affect the opening balance.
+    const allApprovedDeposits = await prisma.deliveryDeposit.findMany({
+      where: { deliveryBoy: rider, status: 'APPROVED' },
+      select: { cashAmount: true, depositDate: true, totalAmount: true, createdAt: true }
+    }).catch(() => []);
+
+    // Group payments by date (YYYY-MM-DD)
+    const cashByDate = {};
+    for (const p of payments) {
+      if (p.paymentMethod === 'CASH' || p.paymentMethod === 'CASH_ONLINE') {
+        const key = new Date(p.collectedAt).toISOString().split('T')[0];
+        cashByDate[key] = (cashByDate[key] || 0) + (p.cashAmount || 0);
+      }
+    }
+
+    // Group approved deposits by depositDate (YYYY-MM-DD)
+    // Use depositDate (the intended date) not createdAt (when admin approved)
+    const depositsByDate = {};
+    let totalDepositedAllTime = 0;
+    for (const d of allApprovedDeposits) {
+      totalDepositedAllTime += (d.cashAmount || d.totalAmount || 0);
+      const dateKey = d.depositDate ? new Date(d.depositDate).toISOString().split('T')[0]
+        : new Date(d.createdAt).toISOString().split('T')[0];
+      depositsByDate[dateKey] = (depositsByDate[dateKey] || 0) + (d.cashAmount || d.totalAmount || 0);
+    }
+
+    // Compute carry-forward: opening = sum of all cash − deposits BEFORE the range start
+    let openingCash = 0;
+    for (const [dateStr, amt] of Object.entries(cashByDate)) {
+      if (dateStr < start.toISOString().split('T')[0]) openingCash += amt;
+    }
+    for (const [dateStr, amt] of Object.entries(depositsByDate)) {
+      if (dateStr < start.toISOString().split('T')[0]) openingCash -= amt;
+    }
+    openingCash = Math.max(0, openingCash);
+
+    // Build day-by-day ledger within range
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    const ledger = [];
+    let carryForward = openingCash;
+
+    const current = new Date(start);
+    while (current <= end) {
+      const dayStr = current.toISOString().split('T')[0];
+      const collected = cashByDate[dayStr] || 0;
+      const deposited = depositsByDate[dayStr] || 0;
+      const closing = Math.max(0, carryForward + collected - deposited);
+
+      ledger.push({
+        date: dayStr,
+        openingCash: carryForward,
+        cashCollected: collected,
+        deposits: deposited,
+        closingCash: closing,
+        net: collected - deposited
+      });
+
+      carryForward = closing;
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Today's closing is the current balance
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayEntry = ledger.find(e => e.date === todayStr);
+    const currentBalance = todayEntry ? todayEntry.closingCash : carryForward;
+
+    // Pending deposits (not yet approved) that will affect future balances
+    const pendingDeposits = await prisma.deliveryDeposit.findMany({
+      where: { deliveryBoy: rider, status: 'PENDING' },
+      select: { id: true, cashAmount: true, depositDate: true, totalAmount: true, bankRef: true, notes: true, createdAt: true }
+    }).catch(() => []);
+
+    res.json({
+      deliveryBoy: rider,
+      openingCash,
+      currentBalance,
+      totalDepositedAllTime,
+      pendingDepositsTotal: pendingDeposits.reduce((s, d) => s + (d.cashAmount || d.totalAmount || 0), 0),
+      pendingDeposits,
+      ledger,
+      summary: {
+        totalCashCollected: ledger.reduce((s, e) => s + e.cashCollected, 0),
+        totalDeposited: ledger.reduce((s, e) => s + e.deposits, 0),
+        netChange: ledger.reduce((s, e) => s + e.net, 0),
+        daysInRange: ledger.length
+      }
+    });
+  } catch (error) {
+    console.error('getCashLedger error:', error);
+    res.status(500).json({ message: 'Failed to fetch cash ledger', error: error.message });
+  }
+};
+
 module.exports = {
   getDeliveryOrders,
   acceptDelivery,
@@ -1363,5 +1506,6 @@ module.exports = {
   getMyDeposits,
   getAllDeposits,
   approveDeposit,
-  rejectDeposit
+  rejectDeposit,
+  getCashLedger
 };

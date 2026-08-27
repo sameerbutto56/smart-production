@@ -286,7 +286,7 @@ const SmartOrderForm = () => {
                     className="w-full theme-input rounded-[1.5rem] py-5 pl-16 pr-6 border-amber-500/20 focus:border-amber-400 text-lg font-black tracking-wider shadow-inner text-amber-400 placeholder-amber-500/30" />
                 </div>
               </div>
-              <button type="button" disabled={editOrderLoading} onClick={fetchOrderByNumber}
+              <button type="button" disabled={editOrderLoading} onClick={() => fetchOrderByNumber()}
                 className="px-8 py-5 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-[1.5rem] hover:bg-amber-400 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 min-w-[150px] active:scale-95">
                 {editOrderLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
                 {useUrdu ? 'آرڈر تلاش کریں' : 'Fetch Order'}

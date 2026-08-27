@@ -74,18 +74,21 @@ const StoreReplacements = ({ refreshKey }) => {
   const fetchCases = useCallback(async () => {
     setLoading(true);
     try {
-      const [pendingRes, acceptedRes, completedRes] = await Promise.all([
-        api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', status: 'FAISAL_APPROVED', limit: 100 } }),
-        api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', status: 'ACCEPTED', limit: 100 } }),
-        api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', status: 'REPLACEMENT_COMPLETED', limit: 50 } })
-      ]);
-      const list = [...(pendingRes.data.cases || []), ...(acceptedRes.data.cases || []), ...(completedRes.data.cases || [])].filter(c => {
+      // Single fetch — backend defaults to excluding terminal statuses (COMPLETED/CANCELLED/REPLACEMENT_COMPLETED).
+      // This ensures ALL intermediate states (PARTIALLY_RECEIVED, PARTIALLY_RESTOCKED, ACCEPTED, FAISAL_APPROVED)
+      // are returned so cases never disappear between Accept → Restock → Route.
+      const res = await api.get('/api/return-exchange/cases', { params: { type: 'REPLACEMENT', limit: 200 } });
+      const list = (res.data.cases || []).filter(c => {
         if (c.routedTo !== 'STORE') return false;
         if (['REPLACEMENT_COMPLETED', 'COMPLETED', 'CANCELLED'].includes(c.status)) return true;
         if (c.status === 'FAISAL_APPROVED') {
           return !c.replacementOrderInfo || c.replacementOrderInfo.currentStage === 'STORE';
         }
         if (['ACCEPTED', 'PARTIALLY_RECEIVED', 'PARTIALLY_RESTOCKED'].includes(c.status)) return true;
+        // Show in-flight routed cases only while their replacement order is still at STORE
+        if (['IN_PRODUCTION', 'DISPATCH_READY'].includes(c.status)) {
+          return c.replacementOrderInfo && c.replacementOrderInfo.currentStage === 'STORE';
+        }
         return false;
       });
       setCases(list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));

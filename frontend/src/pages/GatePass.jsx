@@ -69,6 +69,14 @@ const GatePass = () => {
   const isToday = selectedDate === today();
   const hasRecords = availableDates.includes(selectedDate);
 
+  const computeUnits = (a) => {
+    const rawPd = typeof a.productDetails === 'string' ? JSON.parse(a.productDetails || '[]') : (Array.isArray(a.productDetails) ? a.productDetails : (a.productDetails && typeof a.productDetails === 'object' ? [a.productDetails] : []));
+    return rawPd.reduce((sum, entry) => {
+      const p = entry?.productDetails || entry || {};
+      return sum + (entry.quantity || p.quantity || 1);
+    }, 0);
+  };
+
   const assignments = (data?.assignments || []).filter(a => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -81,6 +89,7 @@ const GatePass = () => {
   });
 
   const summary = data?.summary || { total: 0, delivered: 0, pending: 0, returned: 0, carryForward: 0, todayAssigned: 0 };
+  const totalUnits = assignments.reduce((s, a) => s + computeUnits(a), 0);
 
   const todayOrders = assignments.filter(a => a.isToday);
   const carryForwardOrders = assignments.filter(a => !a.isToday);
@@ -122,6 +131,7 @@ const GatePass = () => {
             </div>
           )) : <span className="text-gray-400">-</span>}
         </td>
+        <td className="px-4 py-3 text-center font-semibold text-gray-700">{computeUnits(a)}</td>
         <td className="px-4 py-3 text-xs whitespace-nowrap">
           {type === 'carryForward' ? (
             <div>
@@ -213,11 +223,12 @@ const GatePass = () => {
           <h2>Date: {selectedDate}</h2>
         </div>
         <div className="meta">
-          <span>Total Orders: {summary.total} (Today: {summary.todayAssigned}, Carry Forward: {summary.carryForward})</span>
+          <span>Total Orders: {summary.total} | Total Units: {totalUnits} (Today: {summary.todayAssigned}, Carry Forward: {summary.carryForward})</span>
           <span>Generated: {new Date().toLocaleString()}</span>
         </div>
         <div className="stats">
           <div className="stat"><div className="label">Total</div><div className="value">{summary.total}</div></div>
+          <div className="stat"><div className="label">Total Units</div><div className="value">{totalUnits}</div></div>
           <div className="stat"><div className="label">Delivered</div><div className="value">{summary.delivered}</div></div>
           <div className="stat"><div className="label">Pending</div><div className="value">{summary.pending}</div></div>
           <div className="stat"><div className="label">Returned</div><div className="value">{summary.returned}</div></div>
@@ -231,6 +242,7 @@ const GatePass = () => {
               <th>Phone</th>
               <th>Address</th>
               <th>Products (Qty)</th>
+              <th>Units</th>
             </tr>
           </thead>
           <tbody>
@@ -244,6 +256,10 @@ const GatePass = () => {
                 const qty = entry.quantity || p.quantity || 1;
                 return `${name}${color ? ' — ' + color : ''}${size ? ' (' + size + ')' : ''}${qty > 1 ? ' x' + qty : ''}`;
               }).join(', ') || '-';
+              const unitsForPrint = rawPd.reduce((sum, entry) => {
+                const p = entry?.productDetails || entry || {};
+                return sum + (entry.quantity || p.quantity || 1);
+              }, 0);
               return (
                 <tr key={a.id || i}>
                   <td>{i + 1}</td>
@@ -252,6 +268,7 @@ const GatePass = () => {
                   <td>{a.customerPhone || '-'}</td>
                   <td>{(a.address || '') + (a.city ? ', ' + a.city : '')}</td>
                   <td style={{ maxWidth: 250, fontSize: 10 }}>{prodNames}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{unitsForPrint}</td>
                 </tr>
               );
             })}
@@ -378,8 +395,9 @@ const GatePass = () => {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
                   <StatCard icon={<Package className="w-5 h-5" />} label="Total" value={summary.total} color="blue" />
+                  <StatCard icon={<Package className="w-5 h-5" />} label="Total Units" value={totalUnits} color="violet" />
                   <StatCard icon={<Clock className="w-5 h-5" />} label="Today Assigned" value={summary.todayAssigned} color="indigo" />
                   <StatCard icon={<Truck className="w-5 h-5" />} label="Carry Forward" value={summary.carryForward} color="amber" />
                   <StatCard icon={<CheckCircle2 className="w-5 h-5" />} label="Delivered" value={summary.delivered} color="emerald" />
@@ -407,13 +425,14 @@ const GatePass = () => {
                           <th className="px-4 py-2.5">Phone</th>
                           <th className="px-4 py-2.5">Address</th>
                           <th className="px-4 py-2.5">Products</th>
+                          <th className="px-4 py-2.5 text-center">Units</th>
                           <th className="px-4 py-2.5">Assigned</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {todayOrders.length > 0 && (
                           <tr>
-                            <td colSpan={7} className="px-4 py-2 bg-indigo-50 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                            <td colSpan={8} className="px-4 py-2 bg-indigo-50 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
                               Today's Assigned ({todayOrders.length})
                             </td>
                           </tr>
@@ -422,7 +441,7 @@ const GatePass = () => {
 
                         {carryForwardOrders.length > 0 && (
                           <tr>
-                            <td colSpan={7} className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                            <td colSpan={8} className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-700 uppercase tracking-wide">
                               Carry Forward — Pending from Previous Days ({carryForwardOrders.length})
                             </td>
                           </tr>

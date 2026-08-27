@@ -12,11 +12,13 @@ import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTim
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import { computeWorkingMs, fmtWorkingDuration, getTimerState, isWorkingTime } from '../utils/workingHours';
-import { getAllowedHours, STAGE_CONFIG_MAP } from '../utils/delayUtils';
+import { getAllowedHours, STAGE_CONFIG_MAP, computeActiveWorkingMs } from '../utils/delayUtils';
+import { useSystemPause } from '../context/SystemPauseContext';
 import toast from 'react-hot-toast';
 
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
+  const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
   const [localInventoryAdded, setLocalInventoryAdded] = useState(false);
   const stageFromDb = order.stages?.find(s => s.stageName === order.currentStage);
   const currentStage = stageFromDb || (order.currentStage ? { stageName: order.currentStage, status: 'PENDING', id: null } : null) || order.stages?.[0];
@@ -187,14 +189,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       if (timerState.status === 'stopped_evening' || timerState.status === 'stopped_sunday' || timerState.status === 'stopped_morning') {
         // Still show the delay status if already delayed
         const deadline = new Date(currentStage.deadlineAt).getTime();
-        const remaining = computeWorkingMs(now, deadline);
+        const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
         if (remaining > 0) {
           setTimeLeft(fmtWorkingDuration(remaining));
           setUrgencyColor('text-blue-400');
           setIsDelayed(false);
           setDeadlineStatus('PAUSED');
         } else {
-          const delayed = computeWorkingMs(deadline, now);
+          const delayed = computeActiveWorkingMs(deadline, now, pausePeriods, pauseProfile);
           setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)}`);
           setUrgencyColor('text-red-500 font-black animate-pulse');
           setIsDelayed(true);
@@ -206,13 +208,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       // Warning state (6:50 PM – 7:00 PM)
       if (timerState.status === 'warning') {
         const deadline = new Date(currentStage.deadlineAt).getTime();
-        const remaining = computeWorkingMs(now, deadline);
+        const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
         if (remaining > 0) {
           setTimeLeft(`${fmtWorkingDuration(remaining)} ⏸`);
           setUrgencyColor('text-amber-400 font-bold');
           setDeadlineStatus('APPROACHING');
         } else {
-          const delayed = computeWorkingMs(deadline, now);
+          const delayed = computeActiveWorkingMs(deadline, now, pausePeriods, pauseProfile);
           setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)} ⏸`);
           setUrgencyColor('text-red-500 font-black animate-pulse');
           setIsDelayed(true);
@@ -223,10 +225,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
       // Timer running — use working-hours computation
       const deadline = new Date(currentStage.deadlineAt).getTime();
-      const remaining = computeWorkingMs(now, deadline);
+      const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
 
       if (remaining <= 0) {
-        const delayed = computeWorkingMs(deadline, now);
+        const delayed = computeActiveWorkingMs(deadline, now, pausePeriods, pauseProfile);
         setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)}`);
         setUrgencyColor('text-red-500 font-black animate-pulse');
         setIsDelayed(true);
@@ -244,7 +246,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     }, 5000); // 5-second tick (working-hours countdown is less volatile than wall-clock)
 
     return () => clearInterval(timer);
-  }, [currentStage]);
+  }, [currentStage, pausePeriods, pauseProfile]);
 
   useEffect(() => {
     if (!showTimelineModal || !order?.id) return;

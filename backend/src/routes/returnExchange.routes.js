@@ -1,17 +1,19 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth.middleware');
-const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct } = require('../controllers/returnExchange.controller');
+const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns } = require('../controllers/returnExchange.controller');
 
 const router = express.Router();
 
 router.get('/lookup/:query', authenticate, lookupOrder);
 router.get('/track/:query', authenticate, trackReplacement);
 router.get('/incoming-returns', authenticate, getIncomingReturns);
+router.get('/completed-returns', authenticate, getCompletedReturns);
 router.get('/cases', authenticate, getAllCases);
 router.get('/history/:orderId', authenticate, getCaseHistory);
 router.get('/returns/search', authenticate, searchReturns);
 router.post('/initiate', authenticate, createReturnExchange);
 router.post('/check-stock', authenticate, checkStockAvailability);
+router.post('/bulk-complete-stale', authenticate, bulkCompleteStaleReturns);
 router.post('/:orderId/reschedule', authenticate, rescheduleDelivery);
 router.post('/:id/approve', authenticate, approveWarehouse);
 router.post('/:id/faisal-approve', authenticate, approveFaisal);

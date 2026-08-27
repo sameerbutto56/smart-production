@@ -1,4 +1,6 @@
 const prisma = require('../prisma');
+const { computeWorkingMs } = require('../utils/workingHours');
+const { activeElapsedMs } = require('../utils/systemPause');
 
 const getDateRange = (range) => {
   const now = new Date();
@@ -231,7 +233,13 @@ const getReturnAnalytics = async (range) => {
 const getDelayMonitoring = async () => {
   const now = new Date();
 
-  // All overdue stages
+  let pausePeriods = [];
+  try {
+    const { getSystemState } = require('../utils/systemPause');
+    const state = await getSystemState();
+    pausePeriods = Array.isArray(state.periods) ? state.periods : [];
+  } catch { pausePeriods = []; }
+
   const overdueStages = await prisma.orderStage.findMany({
     where: {
       deadlineAt: { lt: now, not: null },
@@ -246,8 +254,12 @@ const getDelayMonitoring = async () => {
   const delayedOrders = new Map();
   for (const stage of overdueStages) {
     if (!delayedOrders.has(stage.orderId)) {
-      const durationMs = now.getTime() - new Date(stage.deadlineAt).getTime();
-      const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+      const deadlineMs = new Date(stage.deadlineAt).getTime();
+      const stageCreatedMs = new Date(stage.createdAt || stage.deadlineAt).getTime();
+      const rawMs = Math.max(0, now.getTime() - deadlineMs);
+      const workingMs = computeWorkingMs(deadlineMs, now.getTime());
+      const activeMs = activeElapsedMs(deadlineMs, now.getTime(), pausePeriods);
+      const durationHours = Math.floor(activeMs / (1000 * 60 * 60));
       delayedOrders.set(stage.orderId, {
         orderId: stage.orderId,
         orderNumber: stage.order?.orderNumber || 'N/A',

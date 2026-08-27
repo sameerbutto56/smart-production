@@ -13,6 +13,8 @@ const WHITELIST_PREFIXES = [
   '/api/auth',          // login/logout/refresh — Admin must be able to sign back in to resume
   '/api/system',        // pause/resume/state/history/profile-config endpoints themselves
   '/api/feedback',      // public QR customer feedback form (not an internal operation)
+  '/api/notifications', // mark-read / unread-counts — harmless housekeeping, must not 423 during pause
+  '/api/return-exchange/bulk-complete-stale', // background housekeeping — marks stale RETURN cases completed, not a business mutation
 ];
 
 const decodeUser = (req) => {

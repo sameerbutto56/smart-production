@@ -611,8 +611,9 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     { label: 'Paid Amount', value: stats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
     { label: '# COD Orders', value: stats.codOrderCount || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     { label: '# Paid Orders', value: stats.paidOrderCount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    { label: 'Cash Collected', value: stats.cashCollected || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: 'Cash Collected', value: stats.cashCollected || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (stats.totalDeposited || 0) > 0 ? `₨${stats.totalDeposited.toLocaleString()} deposited` : undefined },
     { label: 'Online / Prepaid', value: stats.onlinePrepaid || 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+    { label: 'Outstanding', value: stats.overallOutstanding || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
   ];
 
   const selectClass = "bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-[10px] font-bold theme-text-primary focus:outline-none focus:border-emerald-500 cursor-pointer";
@@ -720,6 +721,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
                 className={`${c.bg} rounded-2xl p-3 border ${c.border} text-center transition-all ${card.filterKey ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''}`}>
                 <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
                 <p className={`text-xl font-black ${c.text}`}>{card.value || 0}</p>
+                {card.sub && <p className="text-[8px] font-bold text-amber-400 mt-0.5">{card.sub}</p>}
                 {card.filterKey && <p className="text-[8px] font-bold text-gray-600 mt-0.5 uppercase">Click to view</p>}
               </div>
             );
@@ -907,20 +909,18 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
                   </div>
                   <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-[10px] font-black uppercase border border-amber-500/30">Pending Review</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="grid grid-cols-2 gap-2 mb-3">
                   <div className="bg-emerald-500/10 rounded-lg p-2 text-center">
                     <p className="text-[9px] text-emerald-400 font-black uppercase">Cash</p>
                     <p className="text-sm font-black text-emerald-400">₨{(d.cashAmount || 0).toLocaleString()}</p>
-                  </div>
-                  <div className="bg-blue-500/10 rounded-lg p-2 text-center">
-                    <p className="text-[9px] text-blue-400 font-black uppercase">Online</p>
-                    <p className="text-sm font-black text-blue-400">₨{(d.onlineAmount || 0).toLocaleString()}</p>
                   </div>
                   <div className="bg-purple-500/10 rounded-lg p-2 text-center">
                     <p className="text-[9px] text-purple-400 font-black uppercase">Total</p>
                     <p className="text-sm font-black text-purple-400">₨{(d.totalAmount || 0).toLocaleString()}</p>
                   </div>
                 </div>
+                {d.bankRef && <p className="text-[10px] text-gray-400 font-bold mb-1">Bank Ref: {d.bankRef}</p>}
+                {d.depositDate && <p className="text-[10px] text-gray-500 font-bold mb-1">Deposit Date: {new Date(d.depositDate).toLocaleDateString()}</p>}
                 {d.reference && <p className="text-[10px] text-gray-400 font-bold mb-1">Ref: {d.reference}</p>}
                 {d.notes && <p className="text-[10px] text-gray-500 font-bold mb-2">Notes: {d.notes}</p>}
                 {rejectTarget === d.id ? (

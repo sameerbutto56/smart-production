@@ -134,7 +134,7 @@ export const getAllowedHours = (stageName, delayConfig = null) => {
  * Compute working milliseconds with system-pause awareness.
  * Subtracts pause overlaps from the working-hours total.
  */
-const computeActiveWorkingMs = (startMs, endMs, pausePeriods = null, profileKey = null) => {
+export const computeActiveWorkingMs = (startMs, endMs, pausePeriods = null, profileKey = null) => {
   let workingMs = computeWorkingMs(startMs, endMs);
   if (!Array.isArray(pausePeriods) || pausePeriods.length === 0) return workingMs;
   const now = endMs;

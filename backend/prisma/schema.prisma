@@ -1398,6 +1398,8 @@ model DeliveryDeposit {
   onlineAmount    Float    @default(0)
   totalAmount     Float
   reference       String?
+  bankRef         String?
+  depositDate     DateTime?
   notes           String?
   status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
   reviewedBy      String?

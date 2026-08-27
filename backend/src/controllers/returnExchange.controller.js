@@ -147,6 +147,18 @@ const createReturnExchange = async (req, res) => {
           existingCase: activeReturns[0]
         });
       }
+
+      // Also block if a COMPLETED return already exists for this order
+      const completedReturn = await prisma.returnExchange.findFirst({
+        where: { orderId, type: 'RETURN', status: 'COMPLETED' },
+        orderBy: { updatedAt: 'desc' }
+      });
+      if (completedReturn) {
+        return res.status(409).json({
+          message: 'Return Already Completed — this order has already been returned and the return workflow has been completed.',
+          existingCase: completedReturn
+        });
+      }
     }
 
     // RETURN → Store takes over; REPLACEMENT → Faisal reviews first, then Store
@@ -2039,6 +2051,8 @@ const searchReturns = async (req, res) => {
     const bareNumber = q.replace(/^#/, '');
 
     const RETURN_TERMINAL = ['COMPLETED', 'CANCELLED'];
+
+    // Search active (non-terminal) cases first
     const cases = await prisma.returnExchange.findMany({
       where: {
         type: 'RETURN',
@@ -2054,8 +2068,28 @@ const searchReturns = async (req, res) => {
       take: 20
     });
 
+    // Also search for COMPLETED return cases so frontend can show "Return Already Completed"
+    let completedCases = [];
+    if (cases.length === 0) {
+      completedCases = await prisma.returnExchange.findMany({
+        where: {
+          type: 'RETURN',
+          status: { in: RETURN_TERMINAL },
+          OR: [
+            { orderNumber: { equals: q, mode: 'insensitive' } },
+            { orderNumber: { endsWith: q, mode: 'insensitive' } },
+            { customerName: { contains: q, mode: 'insensitive' } },
+            { customerPhone: { contains: q } }
+          ]
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 5
+      });
+    }
+
     // Enrich with order data
-    const orderIds = [...new Set(cases.map(c => c.orderId))];
+    const allCaseIds = [...cases.map(c => c.id), ...completedCases.map(c => c.id)];
+    const orderIds = [...new Set([...cases.map(c => c.orderId), ...completedCases.map(c => c.orderId)].filter(Boolean))];
     let orderMap = {};
     if (orderIds.length) {
       const orders = await prisma.order.findMany({
@@ -2064,7 +2098,7 @@ const searchReturns = async (req, res) => {
           id: true, orderNumber: true, customerName: true, customerPhone: true, totalPrice: true, productDetails: true, status: true, currentStage: true,
           returnExchangeCases: {
             orderBy: { createdAt: 'desc' },
-            select: { id: true, type: true, status: true, routedTo: true, orderNumber: true, createdAt: true, handledBy: true, replacementOrderId: true }
+            select: { id: true, type: true, status: true, routedTo: true, orderNumber: true, createdAt: true, handledBy: true, replacementOrderId: true, updatedAt: true }
           }
         }
       });
@@ -2076,10 +2110,14 @@ const searchReturns = async (req, res) => {
       order: orderMap[c.orderId] || null
     }));
 
-    // Fallback: if no existing return cases, search the Order table directly
-    // so the user can see the order and initiate a return
+    const completedResults = completedCases.map(c => ({
+      ...c,
+      order: orderMap[c.orderId] || null
+    }));
+
+    // Fallback: if no existing return cases (active or completed), search the Order table directly
     let foundOrder = null;
-    if (results.length === 0) {
+    if (results.length === 0 && completedResults.length === 0) {
       const orderInclude = {
         stages: { orderBy: { createdAt: 'asc' } },
         deliveryAttempts: { orderBy: { attemptNumber: 'desc' } },
@@ -2118,7 +2156,7 @@ const searchReturns = async (req, res) => {
       }
     }
 
-    res.json({ cases: results, total: results.length, order: foundOrder });
+    res.json({ cases: results, completedCases: completedResults, total: results.length, order: foundOrder });
   } catch (error) {
     console.error('Error searching returns:', error);
     res.status(500).json({ message: 'Failed to search returns', error: error.message });
@@ -2272,4 +2310,116 @@ const getIncomingReturns = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct };
+// POST /api/return-exchange/bulk-complete-stale — mark old/stale PENDING RETURN cases as COMPLETED
+// Cases qualify when: handledBy is set (already processed) OR linked order is CANCELLED
+const bulkCompleteStaleReturns = async (req, res) => {
+  try {
+    // Only ADMIN/INVENTORY_VIEW can run this
+    const role = req.user?.role;
+    if (!['SUPER_ADMIN', 'ADMIN', 'INVENTORY_VIEW'].includes(role)) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // 1) Find all non-terminal RETURN cases
+    const staleCases = await prisma.returnExchange.findMany({
+      where: { type: 'RETURN', status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      select: { id: true, orderId: true, status: true, handledBy: true, createdAt: true }
+    });
+
+    if (!staleCases.length) return res.json({ message: 'No pending cases found', completed: 0 });
+
+    // 2) Batch-fetch linked orders to check CANCELLED status
+    const orderIds = [...new Set(staleCases.map(c => c.orderId).filter(Boolean))];
+    let cancelledOrderIds = new Set();
+    if (orderIds.length) {
+      const cancelledOrders = await prisma.order.findMany({
+        where: { id: { in: orderIds }, status: 'CANCELLED' },
+        select: { id: true }
+      });
+      cancelledOrderIds = new Set(cancelledOrders.map(o => o.id));
+    }
+
+    // 3) Identify cases to complete: handledBy set OR order CANCELLED
+    const toComplete = staleCases.filter(c => c.handledBy || cancelledOrderIds.has(c.orderId));
+
+    if (!toComplete.length) {
+      return res.json({ message: 'No stale cases to complete', completed: 0, totalPending: staleCases.length });
+    }
+
+    // 4) Bulk-update to COMPLETED
+    const ids = toComplete.map(c => c.id);
+    const now = new Date().toISOString();
+    await prisma.returnExchange.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'COMPLETED' }
+    });
+
+    // 5) Emit socket event
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { action: 'bulk-complete', count: ids.length });
+
+    res.json({
+      message: `${ids.length} stale return case(s) marked as COMPLETED`,
+      completed: ids.length,
+      totalPending: staleCases.length,
+      remaining: staleCases.length - ids.length
+    });
+  } catch (error) {
+    console.error('Error in bulkCompleteStaleReturns:', error);
+    res.status(500).json({ message: 'Failed to complete stale returns', error: error.message });
+  }
+};
+
+// GET /api/return-exchange/completed-returns — return history of completed RETURN cases
+const getCompletedReturns = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 100 } = req.query;
+
+    const where = { type: 'RETURN', status: { in: ['COMPLETED', 'CANCELLED'] } };
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { orderNumber: { contains: q, mode: 'insensitive' } },
+        { customerName: { contains: q, mode: 'insensitive' } },
+        { customerPhone: { contains: q } }
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [cases, total] = await Promise.all([
+      prisma.returnExchange.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: parseInt(limit)
+      }),
+      prisma.returnExchange.count({ where })
+    ]);
+
+    // Enrich with order data
+    const orderIds = [...new Set(cases.map(c => c.orderId).filter(Boolean))];
+    let orderMap = {};
+    if (orderIds.length) {
+      const orders = await prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        select: { id: true, orderNumber: true, customerName: true, customerPhone: true, totalPrice: true, status: true }
+      });
+      orderMap = Object.fromEntries(orders.map(o => [o.id, o]));
+    }
+
+    const enriched = cases.map(c => ({ ...c, order: orderMap[c.orderId] || null }));
+
+    res.json({
+      cases: enriched,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (error) {
+    console.error('Error fetching completed returns:', error);
+    res.status(500).json({ message: 'Failed to fetch completed returns', error: error.message });
+  }
+};
+
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns };

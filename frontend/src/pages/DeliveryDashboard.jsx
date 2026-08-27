@@ -778,8 +778,8 @@ const DepositPanel = () => {
   const { user } = useAuth();
   const [showSubmit, setShowSubmit] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
-  const [onlineAmount, setOnlineAmount] = useState('');
-  const [reference, setReference] = useState('');
+  const [bankRef, setBankRef] = useState('');
+  const [depositDate, setDepositDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [myDeposits, setMyDeposits] = useState([]);
@@ -802,20 +802,19 @@ const DepositPanel = () => {
   useEffect(() => { fetchDeposits(); }, [fetchDeposits]);
 
   const totalApprovedCash = myDeposits.filter(d => d.status === 'APPROVED').reduce((s, d) => s + (d.cashAmount || 0), 0);
-  const totalApprovedOnline = myDeposits.filter(d => d.status === 'APPROVED').reduce((s, d) => s + (d.onlineAmount || 0), 0);
   const pendingCount = myDeposits.filter(d => d.status === 'PENDING').length;
   const approvedCount = myDeposits.filter(d => d.status === 'APPROVED').length;
   const rejectedCount = myDeposits.filter(d => d.status === 'REJECTED').length;
 
   const handleSubmit = async () => {
     const cash = parseFloat(cashAmount) || 0;
-    const online = parseFloat(onlineAmount) || 0;
-    if (cash <= 0 && online <= 0) { toast.error('Enter at least one amount'); return; }
+    if (cash <= 0) { toast.error('Enter a valid cash amount'); return; }
+    if (!bankRef.trim()) { toast.error('Bank reference number is required'); return; }
     try {
       setSubmitting(true);
-      await api.post('/api/delivery/deposits', { cashAmount: cash, onlineAmount: online, reference: reference.trim() || undefined, notes: notes.trim() || undefined });
+      await api.post('/api/delivery/deposits', { cashAmount: cash, bankRef: bankRef.trim(), depositDate, notes: notes.trim() || undefined });
       toast.success('Deposit submitted for admin review!');
-      setCashAmount(''); setOnlineAmount(''); setReference(''); setNotes(''); setShowSubmit(false);
+      setCashAmount(''); setBankRef(''); setDepositDate(new Date().toISOString().split('T')[0]); setNotes(''); setShowSubmit(false);
       fetchDeposits();
     } catch (err) { toast.error(err?.response?.data?.message || 'Failed to submit deposit'); }
     finally { setSubmitting(false); }
@@ -848,7 +847,7 @@ const DepositPanel = () => {
         <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 text-center">
           <p className="text-[9px] text-emerald-400 font-black uppercase">Approved</p>
           <p className="text-lg font-black text-emerald-400">{approvedCount}</p>
-          <p className="text-[9px] text-gray-500 font-bold">₨{totalApprovedCash.toLocaleString()} cash · ₨{totalApprovedOnline.toLocaleString()} online</p>
+          <p className="text-[9px] text-gray-500 font-bold">₨{totalApprovedCash.toLocaleString()} cash deposited</p>
         </div>
         <div className="bg-amber-500/10 rounded-xl p-2.5 border border-amber-500/20 text-center">
           <p className="text-[9px] text-amber-400 font-black uppercase">Pending</p>
@@ -868,19 +867,19 @@ const DepositPanel = () => {
               <p className="text-xs font-black text-emerald-400 uppercase tracking-widest">Submit Deposit</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Cash Amount</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Cash Amount *</label>
                   <input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Rs 0"
                     className="w-full px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm font-bold text-white outline-none focus:border-emerald-500" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Online Amount</label>
-                  <input type="number" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} placeholder="Rs 0"
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Deposit Date *</label>
+                  <input type="date" value={depositDate} onChange={e => setDepositDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm font-bold text-white outline-none focus:border-emerald-500" />
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Reference (optional)</label>
-                <input type="text" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. Bank transfer ref"
+                <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Bank Reference # *</label>
+                <input type="text" value={bankRef} onChange={e => setBankRef(e.target.value)} placeholder="e.g. Bank transfer ref"
                   className="w-full px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm font-bold text-white outline-none focus:border-emerald-500" />
               </div>
               <div>
@@ -923,21 +922,18 @@ const DepositPanel = () => {
                   <span className="text-[10px] text-gray-500 font-bold">{formatDateTime(d.createdAt)}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="bg-emerald-500/10 rounded-lg p-2 text-center">
                   <p className="text-[9px] text-emerald-400 font-black uppercase">Cash</p>
                   <p className="text-sm font-black text-emerald-400">₨{(d.cashAmount || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-blue-500/10 rounded-lg p-2 text-center">
-                  <p className="text-[9px] text-blue-400 font-black uppercase">Online</p>
-                  <p className="text-sm font-black text-blue-400">₨{(d.onlineAmount || 0).toLocaleString()}</p>
                 </div>
                 <div className="bg-purple-500/10 rounded-lg p-2 text-center">
                   <p className="text-[9px] text-purple-400 font-black uppercase">Total</p>
                   <p className="text-sm font-black text-purple-400">₨{(d.totalAmount || 0).toLocaleString()}</p>
                 </div>
               </div>
-              {d.reference && <p className="text-[10px] text-gray-400 font-bold mt-1.5">Ref: {d.reference}</p>}
+              {d.bankRef && <p className="text-[10px] text-gray-400 font-bold mt-1.5">Bank Ref: {d.bankRef}</p>}
+              {d.depositDate && <p className="text-[10px] text-gray-500 font-bold mt-0.5">Deposit Date: {new Date(d.depositDate).toLocaleDateString()}</p>}
               {d.notes && <p className="text-[10px] text-gray-500 font-bold mt-0.5">{d.notes}</p>}
               {d.status === 'REJECTED' && d.rejectionReason && (
                 <p className="text-[10px] text-red-400 font-bold mt-1">Rejected: {d.rejectionReason}</p>
@@ -945,6 +941,109 @@ const DepositPanel = () => {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+};
+
+/* ─── Cash Ledger Panel ─── */
+const CashLedgerPanel = ({ refresh }) => {
+  const [ledger, setLedger] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0];
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const fetchLedger = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = `?dateFrom=${dateFrom}&dateTo=${dateTo}`;
+      const res = await api.get(`/api/delivery/cash-ledger${params}`);
+      setLedger(res.data);
+    } catch (err) {
+      console.error('Ledger fetch error:', err?.response?.data || err.message);
+      toast.error('Failed to load cash ledger');
+    }
+    setLoading(false);
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => { fetchLedger(); }, [fetchLedger]);
+
+  if (loading) return <LoadingSpinner text="Loading cash ledger..." />;
+  if (!ledger) return null;
+
+  const { openingCash, currentBalance, totalDepositedAllTime, pendingDepositsTotal, pendingDeposits, ledger: days = [], summary } = ledger;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+          <Wallet size={16} /> Cash Ledger
+        </h3>
+        <div className="flex gap-2">
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="px-2 py-1 rounded-lg bg-gray-900 border border-gray-700 text-[10px] font-bold text-white outline-none" />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="px-2 py-1 rounded-lg bg-gray-900 border border-gray-700 text-[10px] font-bold text-white outline-none" />
+        </div>
+      </div>
+
+      {/* Balance cards */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 text-center">
+          <p className="text-[9px] text-emerald-400 font-black uppercase">Opening Cash</p>
+          <p className="text-lg font-black text-emerald-400">₨{openingCash.toLocaleString()}</p>
+        </div>
+        <div className="bg-blue-500/10 rounded-xl p-2.5 border border-blue-500/20 text-center">
+          <p className="text-[9px] text-blue-400 font-black uppercase">Total Deposited</p>
+          <p className="text-lg font-black text-blue-400">₨{totalDepositedAllTime.toLocaleString()}</p>
+        </div>
+        <div className={`rounded-xl p-2.5 border text-center ${currentBalance > 0 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-gray-800/60 border-gray-700/50'}`}>
+          <p className={`text-[9px] font-black uppercase ${currentBalance > 0 ? 'text-amber-400' : 'text-gray-500'}`}>Outstanding</p>
+          <p className={`text-lg font-black ${currentBalance > 0 ? 'text-amber-400' : 'text-gray-500'}`}>₨{currentBalance.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {pendingDepositsTotal > 0 && (
+        <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
+          <p className="text-[10px] text-amber-400 font-black uppercase">Pending Deposits (not yet deducted)</p>
+          <p className="text-sm font-black text-amber-400">₨{pendingDepositsTotal.toLocaleString()} from {pendingDeposits?.length || 0} deposit(s)</p>
+        </div>
+      )}
+
+      {/* Daily ledger table */}
+      {days.length > 0 ? (
+        <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 overflow-hidden">
+          <div className="px-3 py-2 bg-gray-900/60 border-b border-gray-700/50 grid grid-cols-5 gap-2 text-[9px] font-black text-gray-500 uppercase tracking-widest">
+            <span>Date</span>
+            <span className="text-right">Cash In</span>
+            <span className="text-right">Deposited</span>
+            <span className="text-right">Net</span>
+            <span className="text-right">Closing</span>
+          </div>
+          {days.map((day, i) => (
+            <div key={day.date} className="px-3 py-2 border-b border-gray-800/30 grid grid-cols-5 gap-2 text-xs font-bold">
+              <span className="text-gray-300">
+                {formatDateOnly(day.date)}
+                {i === days.length - 1 && <span className="text-[8px] text-blue-400 ml-1 font-black">TODAY</span>}
+              </span>
+              <span className="text-right text-emerald-400">₨{day.cashCollected.toLocaleString()}</span>
+              <span className="text-right text-red-400">-₨{day.deposits.toLocaleString()}</span>
+              <span className={`text-right ${day.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{day.net >= 0 ? '+' : ''}₨{day.net.toLocaleString()}</span>
+              <span className={`text-right font-black ${day.closingCash > 0 ? 'text-amber-400' : 'text-gray-500'}`}>₨{day.closingCash.toLocaleString()}</span>
+            </div>
+          ))}
+          <div className="px-3 py-2 bg-gray-900/60 grid grid-cols-5 gap-2 text-xs font-black text-white">
+            <span>Total</span>
+            <span className="text-right text-emerald-400">₨{summary.totalCashCollected.toLocaleString()}</span>
+            <span className="text-right text-red-400">-₨{summary.totalDeposited.toLocaleString()}</span>
+            <span className={`text-right ${summary.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{summary.net >= 0 ? '+' : ''}₨{summary.net.toLocaleString()}</span>
+            <span />
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-10 text-gray-600 text-sm font-bold">No ledger entries for this period.</div>
       )}
     </div>
   );
@@ -964,7 +1063,9 @@ const DeliveryDashboard = () => {
   const [paymentMethods, setPaymentMethods] = useState({});
   const [halfPayments, setHalfPayments] = useState({});
   const [multiOnlineEntries, setMultiOnlineEntries] = useState({});
-  const [view, setView] = useState('orders'); // orders, charges, cod, performance
+  const [view, setView] = useState('orders'); // orders, charges, cod, performance, ledger
+  const [approvedDeposits, setApprovedDeposits] = useState(0);
+  const [ledgerOutstanding, setLedgerOutstanding] = useState(null);
 
   const dt = user?.name?.toLowerCase().includes('enamels') ? 'ENAMELS' : '';
   const cacheKey = `orders:delivery:${dt || 'default'}:v3`;
@@ -993,6 +1094,40 @@ const DeliveryDashboard = () => {
       socket.off('stage-accepted', debouncedRefresh);
     };
   }, [refresh]);
+
+  // Fetch approved deposits to subtract from cash collected
+  useEffect(() => {
+    if (!user?.name) return;
+    let cancelled = false;
+    const fetchDeposits = async () => {
+      try {
+        const res = await api.get(`/api/delivery/deposits/my`);
+        if (cancelled) return;
+        const total = (res.data?.deposits || [])
+          .filter(d => d.status === 'APPROVED')
+          .reduce((s, d) => s + (d.cashAmount || d.totalAmount || 0), 0);
+        setApprovedDeposits(total);
+      } catch { /* ignore — deposit panel handles its own fetch */ }
+    };
+    fetchDeposits();
+    return () => { cancelled = true; };
+  }, [user?.name, refresh]);
+
+  // Fetch cash ledger outstanding for bottom bar + payment summary
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLedger = async () => {
+      try {
+        const d = new Date(); d.setDate(d.getDate() - 90);
+        const params = `?dateFrom=${d.toISOString().split('T')[0]}&dateTo=${new Date().toISOString().split('T')[0]}`;
+        const res = await api.get(`/api/delivery/cash-ledger${params}`);
+        if (cancelled) return;
+        setLedgerOutstanding(res.data?.currentBalance || 0);
+      } catch { /* ledger panel handles its own errors */ }
+    };
+    fetchLedger();
+    return () => { cancelled = true; };
+  }, [user?.name, refresh]);
 
   const handleAccept = async (orderId) => {
     try {
@@ -1112,7 +1247,7 @@ const DeliveryDashboard = () => {
       codCollected += orderCollected;
     }
 
-    return { totalDeliveries, cashCollected, onlineCollected, cardCollected, cashOnlineCash, cashOnlineOnline, codCollected };
+    return { totalDeliveries, cashCollected: Math.max(0, cashCollected - approvedDeposits), cashCollectedGross: cashCollected, onlineCollected, cardCollected, cashOnlineCash, cashOnlineOnline, codCollected };
   })();
 
   return (
@@ -1144,6 +1279,7 @@ const DeliveryDashboard = () => {
           { key: 'orders', label: 'Orders', icon: Truck },
           { key: 'charges', label: 'Charges', icon: DollarSign },
           { key: 'cod', label: 'COD', icon: Wallet },
+          { key: 'ledger', label: 'Ledger', icon: ListOrdered },
           { key: 'deposits', label: 'Deposits', icon: Building2 },
           { key: 'performance', label: 'Stats', icon: BarChart3 },
         ].map(v => (
@@ -1205,6 +1341,9 @@ const DeliveryDashboard = () => {
               <div className="bg-gray-800/60 rounded-xl p-2.5 border border-emerald-500/20">
                 <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest">Cash Collected</p>
                 <p className="text-lg font-black text-emerald-400">₨{paymentSummary.cashCollected.toLocaleString()}</p>
+                {approvedDeposits > 0 && (
+                  <p className="text-[9px] text-amber-400 font-bold">Deposited: -₨{approvedDeposits.toLocaleString()}</p>
+                )}
               </div>
               <div className="bg-gray-800/60 rounded-xl p-2.5 border border-blue-500/20">
                 <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Online Collected</p>
@@ -1224,6 +1363,12 @@ const DeliveryDashboard = () => {
                 <p className="text-[9px] text-orange-400 font-black uppercase tracking-widest">COD Collected</p>
                 <p className="text-lg font-black text-orange-400">₨{paymentSummary.codCollected.toLocaleString()}</p>
               </div>
+              {ledgerOutstanding != null && (
+                <div className="bg-gray-800/60 rounded-xl p-2.5 border border-amber-500/20">
+                  <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Outstanding</p>
+                  <p className="text-lg font-black text-amber-400">₨{ledgerOutstanding.toLocaleString()}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1306,6 +1451,9 @@ const DeliveryDashboard = () => {
       {/* COD Collection View */}
       {view === 'cod' && <CODCollectionPanel refresh={refresh} />}
 
+      {/* Cash Ledger View */}
+      {view === 'ledger' && <CashLedgerPanel refresh={refresh} />}
+
       {/* Deposits View */}
       {view === 'deposits' && <DepositPanel />}
 
@@ -1322,12 +1470,13 @@ const DeliveryDashboard = () => {
             </div>
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-center">
-              <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
-              <p className="text-lg font-black text-emerald-400">₨{completed.reduce((s, o) => {
+              <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Outstanding</p>
+              <p className="text-lg font-black text-amber-400">₨{(ledgerOutstanding != null ? ledgerOutstanding : Math.max(0, completed.reduce((s, o) => {
                 const dps = o.deliveryPayments;
                 if (dps && dps.length > 0) return s + dps.reduce((ds, dp) => ds + (dp.cashAmount || 0) + (dp.onlineAmount || 0), 0);
                 return s + Math.max(0, Number(o.totalPrice || 0) - Number(o.advanceAmount || 0));
-              }, 0).toLocaleString()}</p>
+              }, 0) - approvedDeposits)).toLocaleString()}</p>
+              {approvedDeposits > 0 && <p className="text-[9px] text-emerald-400 font-bold">₨{approvedDeposits.toLocaleString()} deposited</p>}
             </div>
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-right">

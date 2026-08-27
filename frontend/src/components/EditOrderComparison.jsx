@@ -110,6 +110,7 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
         logoPlacement: cust.logoPlacement || '',
         designNotes: cust.designNotes || '',
         designReference: cust.designReference || '',
+        measurementSpecialNote: pd.measurementSpecialNote || '',
         sizeData: typeof sd === 'object' ? sd : {},
         femaleOptions: pd.femaleOptions || {}
       };
@@ -144,7 +145,7 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
         matchingCap: false, matchingCapQty: 0,
         logoCharges: 0, namePrintingCharges: 0, customizationPrice: 0, capCharges: 0,
         nameSpelling: '', nameColor: '', logoColor: '', logoPlacement: '',
-        designNotes: '', designReference: '', sizeData: {}, femaleOptions: {}
+        designNotes: '', designReference: '', measurementSpecialNote: '', sizeData: {}, femaleOptions: {}
       }]
     }));
   };
@@ -171,7 +172,7 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
       const origSd = typeof (orig.sizeData || {}) === 'object' ? (orig.sizeData || {}) : {};
       const edit = edited.items[i] || {};
       const editSd = edit.sizeData || {};
-      const itemFields = ['productType', 'fabricType', 'color', 'size', 'gender', 'quantity', 'totalPrice', 'sleeveLength', 'shirtLength', 'matchingCapQty', 'logoCharges', 'namePrintingCharges', 'customizationPrice', 'capCharges', 'nameSpelling', 'logoDesign'];
+      const itemFields = ['productType', 'fabricType', 'color', 'size', 'gender', 'quantity', 'totalPrice', 'sleeveLength', 'shirtLength', 'matchingCapQty', 'logoCharges', 'namePrintingCharges', 'customizationPrice', 'capCharges', 'nameSpelling', 'logoDesign', 'measurementSpecialNote'];
       itemFields.forEach(f => {
         let ov, nv;
         if (['nameSpelling', 'logoDesign'].includes(f)) { ov = origCust[f]; nv = edit[f]; }
@@ -215,7 +216,8 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
         productType: item.productType, fabricType: item.fabricType, color: item.color, size: item.size,
         gender: item.gender, sleeveLength: item.sleeveLength, shirtLength: item.shirtLength,
         matchingCap: item.matchingCap, matchingCapQty: item.matchingCapQty,
-        femaleOptions: item.femaleOptions
+        femaleOptions: item.femaleOptions,
+        measurementSpecialNote: item.measurementSpecialNote || ''
       },
       customization: {
         nameSpelling: item.nameSpelling, nameColor: item.nameColor, logoColor: item.logoColor,
@@ -382,6 +384,13 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
                   </div>
                 </>
               ) : null}
+
+              {/* Per-Product Special Note */}
+              <SectionHeader title="Measurement Special Note" icon={MessageSquare} color="border-amber-500/30" />
+              <div className="mb-6">
+                <div><Field label="Special Note" oldVal={origPd.measurementSpecialNote} editable={false} /></div>
+                <div className="mt-2"><Field label="Special Note (Edit)" oldVal={origPd.measurementSpecialNote} newVal={item.measurementSpecialNote} editable type="textarea" placeholder="Any special measurement instructions for this product..." onChange={v => updateItem(idx, 'measurementSpecialNote', v)} /></div>
+              </div>
             </div>
           </div>
         );
