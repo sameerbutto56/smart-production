@@ -781,6 +781,12 @@ export const OrderEntryProvider = ({ children }) => {
               const errMsg = `This order number is outside the currently configured order range. New orders can only be created within the allowed range (${rc.startNumber} to ${rc.endNumber}).`;
               setError(errMsg);
               setIsSubmitting(false); setLoading(false);
+              // Log the blocked attempt for the Admin Wrong Attempts monitor.
+              try {
+                await api.post('/api/wrong-attempts/log', { orderNumber: submittedOrderNumber });
+              } catch (logErr) {
+                console.error('Wrong attempt log error:', logErr);
+              }
               return;
             }
           }

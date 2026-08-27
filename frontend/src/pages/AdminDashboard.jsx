@@ -45,7 +45,8 @@ import {
   Building,
   MessageSquare,
   ClipboardCheck,
-  LogIn
+  LogIn,
+  Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -148,6 +149,37 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => { fetchLoginSessions(); }, [fetchLoginSessions]);
+
+  // Wrong Order Number Attempt monitoring (Admin Dashboard card + timeline)
+  const [wrongStats, setWrongStats] = useState(null);
+  const [wrongLoading, setWrongLoading] = useState(false);
+  const [showWrongAttempts, setShowWrongAttempts] = useState(false);
+  const [wrongAttempts, setWrongAttempts] = useState([]);
+  const [wrongAttemptsLoading, setWrongAttemptsLoading] = useState(false);
+
+  const fetchWrongStats = useCallback(async () => {
+    setWrongLoading(true);
+    try {
+      const res = await api.get('/api/wrong-attempts/stats');
+      setWrongStats(res.data || null);
+    } catch (e) {
+      console.error('Error fetching wrong attempt stats:', e);
+    }
+    setWrongLoading(false);
+  }, []);
+
+  const fetchWrongAttempts = useCallback(async () => {
+    setWrongAttemptsLoading(true);
+    try {
+      const res = await api.get('/api/wrong-attempts');
+      setWrongAttempts(Array.isArray(res.data?.attempts) ? res.data.attempts : []);
+    } catch (e) {
+      console.error('Error fetching wrong attempts:', e);
+    }
+    setWrongAttemptsLoading(false);
+  }, []);
+
+  useEffect(() => { fetchWrongStats(); }, [fetchWrongStats]);
 
   const [filterStage, setFilterStage] = useState('ALL');
   const [storeSubTab, setStoreSubTab] = useState('unseen');
@@ -705,6 +737,121 @@ const AdminDashboard = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Wrong Order Number Attempt Monitoring — blocked invalid range entries */}
+          <div className="glass p-5 md:p-6 rounded-3xl border-2 border-red-500/30 shadow-lg shadow-red-500/5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-red-500/10">
+                  <Ban className="text-red-400" size={26} />
+                </div>
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Wrong Attempts</h2>
+                  <p className="text-xs font-bold theme-text-muted uppercase tracking-widest">Blocked invalid order numbers outside the allowed range</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {wrongLoading && <Loader2 size={16} className="animate-spin text-red-400" />}
+                <button
+                  onClick={fetchWrongStats}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-black uppercase tracking-widest transition-all"
+                >
+                  <RefreshCcw size={14} /> Refresh
+                </button>
+                <button
+                  onClick={() => { fetchWrongAttempts(); setShowWrongAttempts(true); }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-widest hover:bg-red-500 transition-all"
+                >
+                  View Wrong Attempts ({wrongStats?.total || 0}) <ArrowUpRight size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-center">
+                <div className="text-2xl font-black text-red-400">{wrongStats?.total ?? '—'}</div>
+                <div className="text-[10px] font-black uppercase tracking-widest theme-text-muted mt-0.5">Total Attempts</div>
+              </div>
+              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-center">
+                <div className="text-2xl font-black text-red-400">{wrongStats?.today ?? '—'}</div>
+                <div className="text-[10px] font-black uppercase tracking-widest theme-text-muted mt-0.5">Today</div>
+              </div>
+              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-center">
+                <div className="text-2xl font-black text-red-400">{wrongStats?.blockedCount ?? '—'}</div>
+                <div className="text-[10px] font-black uppercase tracking-widest theme-text-muted mt-0.5">Blocked Entries</div>
+              </div>
+              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-center">
+                <div className="text-xl font-black text-red-400 truncate">{wrongStats?.recent?.orderNumber ? `#${wrongStats.recent.orderNumber}` : '—'}</div>
+                <div className="text-[10px] font-black uppercase tracking-widest theme-text-muted mt-0.5">Recent Attempt</div>
+              </div>
+            </div>
+
+            {wrongStats?.recent ? (
+              <div className="mt-3 text-[10px] font-black uppercase tracking-widest theme-text-muted">
+                Last blocked at {new Date(wrongStats.recent.attemptedAt).toLocaleString()} · attempted {wrongStats.recent.orderNumber} from {wrongStats.recent.role || 'Unknown'} profile
+              </div>
+            ) : (
+              <div className="mt-3 flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
+                <CheckCircle size={16} /> No blocked attempts recorded
+              </div>
+            )}
+          </div>
+
+          {/* Wrong Attempts Timeline modal */}
+          {showWrongAttempts && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowWrongAttempts(false)}>
+              <div className="glass max-w-4xl w-full max-h-[85vh] overflow-hidden rounded-2xl border-2 border-red-500/30 flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b theme-border">
+                  <div>
+                    <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">Wrong Attempts Timeline</h3>
+                    <p className="text-[10px] font-bold theme-text-muted uppercase tracking-widest">Blocked invalid order numbers — {wrongStats?.total || 0} total · {wrongStats?.today || 0} today</p>
+                  </div>
+                  <button onClick={() => setShowWrongAttempts(false)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400"><X size={18} /></button>
+                </div>
+                <div className="flex items-center justify-between px-5 py-2 border-b theme-border">
+                  <span className="text-[10px] font-black uppercase tracking-widest theme-text-muted">At this time, this profile attempted to create this invalid order number.</span>
+                  <button onClick={fetchWrongAttempts} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-black uppercase tracking-widest">
+                    <RefreshCcw size={12} /> Refresh
+                  </button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-4">
+                  {wrongAttemptsLoading ? (
+                    <div className="flex items-center justify-center py-10 text-gray-400"><Loader2 size={20} className="animate-spin" /></div>
+                  ) : wrongAttempts.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <Ban size={32} className="text-emerald-400" />
+                      <p className="mt-2 text-emerald-400 text-xs font-black uppercase tracking-widest">No blocked attempts recorded</p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-gray-900">
+                        <tr className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          <th className="px-3 py-2">Time</th>
+                          <th className="px-3 py-2">Profile / User</th>
+                          <th className="px-3 py-2">Attempted Order</th>
+                          <th className="px-3 py-2">Allowed Range</th>
+                          <th className="px-3 py-2">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wrongAttempts.map((a) => (
+                          <tr key={a.id} className="border-t theme-border hover:bg-gray-800/20">
+                            <td className="px-3 py-2 theme-text-muted whitespace-nowrap">{new Date(a.attemptedAt).toLocaleString()}</td>
+                            <td className="px-3 py-2 font-bold theme-text-primary">{a.userName || 'Unknown'} <span className="text-[10px] text-gray-500">({a.role || 'N/A'})</span></td>
+                            <td className="px-3 py-2 text-red-400 font-black">#{a.orderNumber}</td>
+                            <td className="px-3 py-2 theme-text-muted">{a.allowedRange || '—'}</td>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest">Blocked</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </div>

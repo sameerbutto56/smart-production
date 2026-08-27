@@ -1667,3 +1667,24 @@ model PostExStatusLog {
   @@index([shipmentId])
   @@index([changedAt])
 }
+
+// Wrong Order Number Attempt Monitoring
+// Persisted record of every blocked attempt to create a NEW order with an
+// order number outside the currently configured order range. Logged only on
+// new-order creation (never on searching/opening/editing existing orders).
+model WrongOrderNumberAttempt {
+  id            String   @id @default(uuid())
+  orderNumber   String   // the attempted (out-of-range) order number
+  allowedRange  String   // human-readable "start to end" range at attempt time
+  userName      String?  // profile/user name of the person who attempted
+  userId        String?
+  role          String?  // profile/role of the person who attempted
+  attemptedAt   DateTime @default(now())
+  status        String   @default("Blocked") // Blocked
+  reason        String   @default("Order Number Outside Allowed Range")
+
+  @@index([attemptedAt])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([userId])
+}

@@ -329,6 +329,19 @@ const createOrder = async (req, res) => {
             const end = parseInt(String(rangeConfig.endNumber).replace(/^#/, ''), 10);
             if (!isNaN(bare) && !isNaN(start) && !isNaN(end)) {
               if (bare < start || bare > end) {
+                // Log the blocked attempt (server-side, authoritative) so direct
+                // API callers who bypass the client check still get recorded.
+                try {
+                  const { recordWrongAttempt } = require('./wrongAttempt.controller');
+                  await recordWrongAttempt({
+                    orderNumber: String(orderNumber),
+                    startNumber: rangeConfig.startNumber,
+                    endNumber: rangeConfig.endNumber,
+                    req,
+                  });
+                } catch (waErr) {
+                  console.error('Wrong attempt server log error:', waErr.message);
+                }
                 return res.status(400).json({ message: `This order number is outside the currently configured order range. New orders can only be created within the allowed range (${rangeConfig.startNumber} to ${rangeConfig.endNumber}).` });
               }
             }
