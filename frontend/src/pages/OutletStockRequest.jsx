@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import api from '../services/api';
 import {
     ShoppingCart, Package, Building2,
@@ -48,6 +48,7 @@ const OutletStockRequest = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [acceptingId, setAcceptingId] = useState(null);
+  const acceptingRef = useRef(false); // synchronous double-click guard
   const [requestNotes, setRequestNotes] = useState('');
   // Per-product selection state (size/color chosen by user, not from server)
   const [productSelections, setProductSelections] = useState({});
@@ -57,7 +58,9 @@ const OutletStockRequest = () => {
   };
 
   const acceptRequest = async (reqId) => {
+    if (acceptingRef.current) return; // synchronously block double-clicks in the same tick
     if (!window.confirm('Accept this approved request? Stock will be added to Outlet POS inventory.')) return;
+    acceptingRef.current = true;
     setAcceptingId(reqId);
     try {
       await api.put(`/api/demand/${reqId}/accept`, {});
@@ -67,6 +70,7 @@ const OutletStockRequest = () => {
       toast.error(error.response?.data?.message || 'Failed to accept request');
     }
     setAcceptingId(null);
+    acceptingRef.current = false;
   };
 
   // --- Inventory Visibility State ---

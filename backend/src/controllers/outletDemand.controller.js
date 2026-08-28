@@ -352,43 +352,43 @@ const acceptDemandRequest = async (req, res) => {
     if (existing.status !== 'APPROVED' && existing.status !== 'PARTIALLY_APPROVED') {
       return res.status(400).json({ message: `Cannot accept a ${existing.status.toLowerCase()} request. Only approved/partially approved requests can be accepted.` });
     }
-    if (existing.acceptedAt) {
-      return res.status(400).json({ message: 'Already accepted. Cannot accept again.' });
-    }
 
-    // Mark accepted immediately so the button won't re-trigger
-    await prisma.outletDemandRequest.update({
-      where: { id },
-      data: { acceptedAt: new Date(), acceptedById: req.user.id }
-    });
+    let results = [];
+    let transferNumber = existing.transferNumber;
+    let outletName = existing.outletName;
 
-    const io = req.app.get('io');
-    if (io) {
-      io.emit('demand:accepted', {
-        id,
-        outletName: existing.outletName,
-        transferNumber: existing.transferNumber,
-        status: existing.status
-      });
-    }
+    // Atomic accept: claim (acceptedAt null -> set) + outlet-inventory additions + audit
+    // log in ONE transaction, with an in-tx conditional re-check so two concurrent
+    // accepts (e.g. a double-click / simultaneous API calls) can NEVER both apply.
+    // Previously the acceptedAt guard + write happened first and the actual inventory
+    // additions ran asynchronously in setImmediate OUTSIDE the guard — so a double click
+    // could pass the guard twice and both background blocks would increment outlet POS
+    // stock twice. setImmediate also risked Vercel terminating the function (no guarantee
+    // background work after res.json() completes). 30s tx fits within maxDuration=60.
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Idempotency/claim: only one caller can flip acceptedAt null -> set.
+        const claim = await tx.outletDemandRequest.updateMany({
+          where: { id, acceptedAt: null },
+          data: { acceptedAt: new Date(), acceptedById: req.user.id }
+        });
+        if (claim.count === 0) {
+          const err = new Error('This demand has already been accepted.');
+          err.code = 'DEMAND_ALREADY_ACCEPTED';
+          throw err;
+        }
 
-    res.json({ message: 'Demand accepted. Processing items in background.' });
-
-    // Process items asynchronously (respond first to avoid 504 timeout)
-    setImmediate(async () => {
-      try {
         const items = typeof existing.items === 'string' ? JSON.parse(existing.items) : existing.items;
-        const results = [];
 
         for (const it of items) {
           if (!it.approvedQty || it.approvedQty <= 0) continue;
 
           let inv = null;
           if (it.inventoryItemId) {
-            inv = await prisma.inventoryItem.findUnique({ where: { id: it.inventoryItemId } });
+            inv = await tx.inventoryItem.findUnique({ where: { id: it.inventoryItemId } });
           }
           if (!inv) {
-            const invItems = await prisma.inventoryItem.findMany({
+            const invItems = await tx.inventoryItem.findMany({
               where: { name: { contains: it.productName, mode: 'insensitive' } }
             });
             inv = invItems[0] || null;
@@ -398,7 +398,7 @@ const acceptDemandRequest = async (req, res) => {
             continue;
           }
 
-          let oi = await prisma.outletInventory.findFirst({
+          let oi = await tx.outletInventory.findFirst({
             where: {
               outletName: existing.outletName,
               name: inv.name,
@@ -410,11 +410,11 @@ const acceptDemandRequest = async (req, res) => {
           if (!oi) {
             let bc = generateBarcode(inv.id, it.size, it.color);
             let a = 0;
-            while (await prisma.outletInventory.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
+            while (await tx.outletInventory.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
               a++;
               bc = generateBarcode(inv.id, it.size, it.color, a);
             }
-            await prisma.outletInventory.create({
+            await tx.outletInventory.create({
               data: {
                 outletName: existing.outletName,
                 name: inv.name,
@@ -429,7 +429,7 @@ const acceptDemandRequest = async (req, res) => {
               }
             });
           } else {
-            await prisma.outletInventory.update({
+            await tx.outletInventory.update({
               where: { id: oi.id },
               data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
             });
@@ -444,7 +444,7 @@ const acceptDemandRequest = async (req, res) => {
           });
         }
 
-        await prisma.auditLog.create({
+        await tx.auditLog.create({
           data: {
             orderId: null,
             action: 'DEMAND_REQUEST_ACCEPTED',
@@ -452,13 +452,36 @@ const acceptDemandRequest = async (req, res) => {
             performedBy: req.user.id
           }
         });
-
-        cache.delPattern('pos:');
-        console.log(`Demand ${id} background processing complete: ${results.length} items`);
-      } catch (bgErr) {
-        console.error('Background demand processing error:', bgErr);
+      }, { timeout: 30000 });
+    } catch (txErr) {
+      if (txErr.code === 'DEMAND_ALREADY_ACCEPTED') {
+        return res.status(409).json({ message: txErr.message });
       }
-    });
+      throw txErr;
+    }
+
+    // Cache + socket + notify stay outside the transaction (fail-soft).
+    try {
+      cache.delPattern('pos:');
+    } catch (cacheErr) {
+      console.error('Cache invalidation error after demand accept:', cacheErr);
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('demand:accepted', {
+        id,
+        outletName,
+        transferNumber,
+        status: existing.status
+      });
+      io.emit('inventory-updated', { source: 'demand-accept', demandId: id });
+    }
+
+    await notify.create(req, { type: 'demand', moduleName: 'Inventory View', path: '/outlet-requests', role: 'STORE', title: 'Demand Accepted', message: `Demand #${existing.transferNumber} accepted — ${results.length} items added to outlet inventory`, action: 'Demand Accepted', employeeName: req.user?.name }).catch(() => {});
+
+    console.log(`Demand ${id} accepted: ${results.length} items added to outlet inventory`);
+    res.json({ message: 'Demand accepted.', accepted: results.length, items: results });
   } catch (error) {
     res.status(500).json({ message: 'Error accepting demand request', error: error.message });
   }
