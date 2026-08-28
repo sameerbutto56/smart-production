@@ -6,7 +6,7 @@ const { recordAssignment } = require('./tahirSheet.controller');
 
 // Mirrors order.controller.js constants so the control panel resolves real workflow
 // structure instead of a plain status write.
-const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'ENAMELS_DELIVERY'];
+const validAllStages = ['ORDER_ENTRY', 'VERIFICATION', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'ENAMELS_DELIVERY'];
 
 const TERMINAL_STATUSES = ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'];
 const ACTIVE_STAGE_STATUSES = ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'];
@@ -14,6 +14,7 @@ const ACTIVE_STAGE_STATUSES = ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'];
 // Human queue label per stage (mirrors STAGE_LABELS).
 const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry',
+  VERIFICATION: 'Verification',
   STORE: 'Store',
   WORKERS: 'Production Workers',
   LOGO_DESIGN: 'Logo Design',
@@ -30,6 +31,7 @@ const STAGE_LABELS = {
 // Stage -> profile names that own the queue (mirrors getRolesForStage).
 const STAGE_ROLES = {
   ORDER_ENTRY: ['OUTLET', 'FAISAL'],
+  VERIFICATION: ['INVENTORY_VIEW'],
   STORE: ['STORE', 'STORE_EMPLOYEE'],
   WORKERS: ['PRODUCTION', 'PRODUCTION_OUT'],
   LOGO_DESIGN: ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
@@ -46,6 +48,7 @@ const STAGE_ROLES = {
 // Stage -> human-friendly profile label for the resolved queue.
 const STAGE_PROFILE_LABELS = {
   ORDER_ENTRY: 'Faisal / Outlet Order Entry',
+  VERIFICATION: 'Inventory View — Verification',
   STORE: 'Store Keeper / Store Employee',
   WORKERS: 'Production Out',
   LOGO_DESIGN: 'Logo Design',
@@ -60,7 +63,7 @@ const STAGE_PROFILE_LABELS = {
 };
 
 // Same manDestRoleMap convention used by manualRouteOrder for notifications.
-const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
+const manDestRoleMap = { 'VERIFICATION': 'INVENTORY_VIEW', 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
 
 const getTrackingStatus = (order) => {
   if (!order) return null;
@@ -72,7 +75,7 @@ const getTrackingStatus = (order) => {
 // Mirrors order.controller.js getStageDurations (DEADLINE_CONFIG + SLA multipliers).
 const getStageDurations = async (priority = 'NORMAL', db = prisma) => {
   let config = {
-    stageDurations: { STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, ENAMELS_DELIVERY: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    stageDurations: { STORE: 24, VERIFICATION: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, ENAMELS_DELIVERY: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
   try {
@@ -268,6 +271,13 @@ const rerouteOrder = async (req, res) => {
       destinationStage = 'PRODUCTION_ACCEPTANCE';
     }
 
+    // Verification is NOT an OrderStage — it is tracked on the Order via
+    // goForVerification / verifiedAt / verificationReturnedAt, and the pending
+    // verification queue (verification.controller.js getPendingVerifications)
+    // selects orders where currentStage === 'ORDER_ENTRY' && goForVerification &&
+    // !verifiedAt && !verificationReturnedAt && status notIn terminal list.
+    const isVerificationRoute = destinationStage === 'VERIFICATION';
+
     const result = await prisma.$transaction(async (tx) => {
       if (currentStage) {
         await tx.orderStage.updateMany({
@@ -276,31 +286,46 @@ const rerouteOrder = async (req, res) => {
         });
       }
 
-      const durations = await getStageDurations(order.priority, tx);
-      const existingDestStage = await tx.orderStage.findFirst({
-        where: { orderId, stageName: destinationStage, status: { in: ACTIVE_STAGE_STATUSES } }
-      });
-      if (!existingDestStage) {
-        const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
-        await tx.orderStage.create({
-          data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
-        });
+      // Clear verification state when admin manually re-routes away from the
+      // verification workflow — the manual override takes precedence.
+      let verificationClear = {};
+      if (isVerificationRoute) {
+        // Entering verification: keep the order at ORDER_ENTRY (the verification
+        // queue requires it), arm goForVerification, clear any stale verify/return marks.
+        verificationClear = {
+          goForVerification: true,
+          verifiedAt: null,
+          verificationReturnedAt: null,
+          verificationReturnNote: null
+        };
+      } else {
+        if (order.goForVerification) verificationClear.goForVerification = false;
+        if (order.verificationReturnedAt && destinationStage !== 'ORDER_ENTRY') {
+          verificationClear.verificationReturnedAt = null;
+          verificationClear.verificationReturnNote = null;
+        }
       }
 
-      // Clear verification state when admin manually reroutes — the manual override
-      // takes precedence over any verification workflow the order was in.
-      const verificationClear = {};
-      if (order.goForVerification) {
-        verificationClear.goForVerification = false;
-      }
-      if (order.verificationReturnedAt && destinationStage !== 'ORDER_ENTRY') {
-        verificationClear.verificationReturnedAt = null;
-        verificationClear.verificationReturnNote = null;
+      // The live stage name for the destination. Verification has no OrderStage,
+      // so the order's currentStage stays ORDER_ENTRY (the verification queue gate).
+      const liveStage = isVerificationRoute ? 'ORDER_ENTRY' : destinationStage;
+
+      if (!isVerificationRoute) {
+        const durations = await getStageDurations(order.priority, tx);
+        const existingDestStage = await tx.orderStage.findFirst({
+          where: { orderId, stageName: destinationStage, status: { in: ACTIVE_STAGE_STATUSES } }
+        });
+        if (!existingDestStage) {
+          const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+          await tx.orderStage.create({
+            data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+          });
+        }
       }
 
       await tx.order.update({
         where: { id: orderId },
-        data: { currentStage: destinationStage, status: 'PENDING', ...verificationClear }
+        data: { currentStage: liveStage, status: 'PENDING', ...verificationClear }
       });
 
       const recipientUsers = await tx.user.findMany({
@@ -338,8 +363,9 @@ const rerouteOrder = async (req, res) => {
     }
 
     const manRole = manDestRoleMap[destinationStage] || 'STORE';
+    const manPath = destinationStage === 'VERIFICATION' ? '/verification' : '/tasks';
     if (order?.customerName && order?.orderNumber) {
-      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Re-routed (Control)', message: `Order #${order.orderNumber} re-routed to ${destinationStage} by Admin. Reason: ${reason}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Re-routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
+      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: manPath, role: manRole, title: 'Order Re-routed (Control)', message: `Order #${order.orderNumber} re-routed to ${destinationStage} by Admin. Reason: ${reason}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Re-routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
     }
 
     const seenCount = await prisma.seenTask.count({ where: { orderId, stageName: destinationStage } });
