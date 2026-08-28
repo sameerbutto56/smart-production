@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const notify = require('../utils/notify');
+const { resolveMasterPrice } = require('../utils/priceSync');
 
 const generateTransferNumber = async () => {
   const d = new Date();
@@ -484,6 +485,9 @@ const acceptDemandRequest = async (req, res) => {
               size: it.size || null
             }
           });
+
+          const masterPrice = resolveMasterPrice(inv, it.color, it.size);
+
           if (!oi) {
             let bc = generateBarcode(inv.id, it.size, it.color);
             let a = 0;
@@ -501,14 +505,21 @@ const acceptDemandRequest = async (req, res) => {
                 fabric: inv.fabric || null,
                 barcode: bc,
                 stock: parseInt(it.approvedQty) || 0,
-                price: inv.price || 0,
+                price: masterPrice != null ? masterPrice : parseFloat(inv.price),
                 metadata: JSON.stringify({ sourceStoreItemId: inv.id })
               }
             });
           } else {
+            const updateData = { stock: { increment: parseInt(it.approvedQty) || 0 } };
+            // Backfill a broken/zero price from the warehouse master, never
+            // overwrite an already-valid price.
+            const currentPrice = parseFloat(oi.price);
+            if ((!Number.isNaN(currentPrice) && currentPrice > 0) === false && masterPrice != null) {
+              updateData.price = masterPrice;
+            }
             await tx.outletInventory.update({
               where: { id: oi.id },
-              data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
+              data: updateData
             });
           }
 

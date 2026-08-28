@@ -269,9 +269,23 @@ const updateVariantStock = async (req, res) => {
 const updateVariantPrice = async (req, res) => {
   try {
     const { price } = req.body;
+    const parsedPrice = price !== null && price !== '' ? parseFloat(price) : NaN;
+
+    const existing = await prisma.outletInventory.findUnique({ where: { id: req.params.id } });
+    if (existing) {
+      const curP = parseFloat(existing.price);
+      const hasValidCurrent = !Number.isNaN(curP) && curP > 0;
+      // Never let an outlet price edit accidentally zero/blank an outlet row that
+      // already holds a valid price — the Warehouse master is the price source.
+      if (hasValidCurrent && (Number.isNaN(parsedPrice) || parsedPrice <= 0)) {
+        return res.status(400).json({ message: 'Invalid price. Cannot clear an existing valid price — supply a positive amount.' });
+      }
+    }
+
+    const newPrice = !Number.isNaN(parsedPrice) ? parsedPrice : null;
     const item = await prisma.outletInventory.update({
       where: { id: req.params.id },
-      data: { price: price !== null && price !== '' ? parseFloat(price) : null }
+      data: { price: newPrice }
     });
     cache.delPattern(CACHE_KEY_PREFIX);
     res.json(item);

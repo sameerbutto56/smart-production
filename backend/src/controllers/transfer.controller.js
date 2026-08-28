@@ -3,6 +3,7 @@ const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const errorLogger = require('../utils/errorLogger');
 const { generateBarcode } = require('./pos.controller');
+const { resolveMasterPrice } = require('../utils/priceSync');
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 
@@ -455,16 +456,28 @@ const acceptTransfer = async (req, res) => {
           );
         }
         if (destOv) {
-          await tx.outletInventory.update({ where: { id: destOv.id }, data: { stock: { increment: qty } } });
+          const updData = { stock: { increment: qty } };
+          const masterPrice = resolveMasterPrice(srcItem, item.color, item.size);
+          const curP = parseFloat(destOv.price);
+          const hasValid = !Number.isNaN(curP) && curP > 0;
+          if (!hasValid && masterPrice != null) updData.price = masterPrice;
+          await tx.outletInventory.update({ where: { id: destOv.id }, data: updData });
         } else {
+          const masterPrice = resolveMasterPrice(srcItem, item.color, item.size);
+          const unitPrice = Number(item.unitPrice);
+          let price = null;
+          if (!Number.isNaN(unitPrice) && unitPrice > 0) price = unitPrice;
+          else if (masterPrice != null) price = masterPrice;
+          else if (srcItem && parseFloat(srcItem.price) > 0) price = parseFloat(srcItem.price);
+
           await tx.outletInventory.create({
             data: {
               name: item.productName, category: srcItem.category || null,
               outletName: transfer.toOutlet,
               color: item.color || null, size: item.size || null,
               fabric: srcItem.fabric || null, barcode: item.barcode,
-              stock: qty, price: item.unitPrice || srcItem.price || null,
-              metadata: JSON.stringify({ sourceInventoryItemId: srcItem.id })
+              stock: qty, price,
+              metadata: JSON.stringify({ sourceInventoryItemId: srcItem.id, sourceStoreItemId: srcItem.id })
             }
           });
         }

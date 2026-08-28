@@ -77,7 +77,8 @@ const addToInventory = async (req, res) => {
         if (existingIdx >= 0) {
           variants[existingIdx].stock = (variants[existingIdx].stock || 0) + qty;
         } else {
-          variants.push({ color: color || null, size: size || null, stock: qty, price: invItem.price || 0 });
+          const masterPrice = parseFloat(invItem.price);
+          variants.push({ color: color || null, size: size || null, stock: qty, price: !Number.isNaN(masterPrice) && masterPrice > 0 ? masterPrice : null });
         }
 
         const totalStock = (invItem.stock || 0) + qty;

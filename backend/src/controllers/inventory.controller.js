@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const xlsx = require('xlsx');
+const { syncPricesForWarehouseItem } = require('../utils/priceSync');
 
 const getInventory = async (req, res) => {
   try {
@@ -45,6 +46,12 @@ const createInventoryItem = async (req, res) => {
       }
     });
     
+    try {
+      await syncPricesForWarehouseItem(item.id);
+    } catch (syncErr) {
+      console.error('PRICE SYNC ERROR (createInventoryItem):', syncErr.message);
+    }
+    
     const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
     
@@ -80,6 +87,14 @@ const updateInventoryItem = async (req, res) => {
         variants: variants || null
       }
     });
+    
+    // Central price sync: Warehouse is the master — propagate the (possibly
+    // variant-resolved) price to every linked OutletInventory row. Price ONLY.
+    try {
+      await syncPricesForWarehouseItem(id);
+    } catch (syncErr) {
+      console.error('PRICE SYNC ERROR (updateInventoryItem):', syncErr.message);
+    }
     
     const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
