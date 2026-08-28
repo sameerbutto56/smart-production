@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
 import {
@@ -202,6 +202,8 @@ const WarehouseDashboard = () => {
   const [demandFilter, setDemandFilter] = useState('');
   const [demandApproveModal, setDemandApproveModal] = useState(null);
   const [demandApproveItems, setDemandApproveItems] = useState([]);
+  const [demandApproving, setDemandApproving] = useState(false);
+  const approvingRef = useRef(false); // synchronous double-click guard for Approve/Reject
 
   useEffect(() => {
     if (activeTab === 'allocation') {
@@ -336,6 +338,9 @@ const WarehouseDashboard = () => {
   };
 
   const handleDemandApprove = async (id, status, items) => {
+    if (approvingRef.current) return; // synchronously block double-clicks in the same tick
+    approvingRef.current = true;
+    setDemandApproving(true);
     try {
 
       await api.put(`/api/demand/${id}/approve`,
@@ -350,6 +355,9 @@ const WarehouseDashboard = () => {
       refreshActiveTab();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update demand');
+    } finally {
+      approvingRef.current = false;
+      setDemandApproving(false);
     }
   };
 
@@ -1640,7 +1648,8 @@ const WarehouseDashboard = () => {
                               <span>Partial</span>
                             </button>
                             <button onClick={() => handleDemandApprove(req.id, 'REJECTED', items)}
-                              className="px-5 py-2 bg-red-600/80 hover:bg-red-600 text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2">
+                              disabled={demandApproving}
+                              className="px-5 py-2 bg-red-600/80 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2">
                               <XCircle size={14} />
                               <span>Reject</span>
                             </button>
@@ -1727,9 +1736,10 @@ const WarehouseDashboard = () => {
                     const status = allApproved ? 'APPROVED' : someApproved ? 'PARTIALLY_APPROVED' : 'REJECTED';
                     handleDemandApprove(demandApproveModal.request.id, status, demandApproveItems);
                   }}
-                    className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center space-x-2">
+                    disabled={demandApproving}
+                    className="px-6 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center space-x-2">
                     <CheckCircle2 size={16} />
-                    <span>Confirm</span>
+                    <span>{demandApproving ? 'Processing…' : 'Confirm'}</span>
                   </button>
                 </div>
               </div>
