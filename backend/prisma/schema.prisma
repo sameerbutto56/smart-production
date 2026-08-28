@@ -602,6 +602,14 @@ model OutletDemandRequest {
   approvedById    String?
   acceptedAt      DateTime?
   acceptedById    String?
+  deliveryChannel String?
+  deliveryBoyName String?
+  dispatchedAt          DateTime?
+  dispatchedById        String?
+  deliveredAt           DateTime?
+  deliveredById         String?
+  deliveryBoyAcceptedAt DateTime?
+  deliveryBoyAcceptedById String?
 
   @@index([outletId])
   @@index([status])
@@ -825,6 +833,8 @@ model OutletTransfer {
   totalItems      Int      @default(0)
   pickupMethod    String?
   dispatchMethod  String?  // RIDER, CUSTOMER, COURIER
+  deliveryChannel String?  // NBD, SELF_DELIVERY (bypasses Dispatch profile)
+  deliveryBoyName String?  // NBD rider name when deliveryChannel = NBD
   notes           String?
   rejectionReason String?
   requestedById   String?
@@ -835,6 +845,8 @@ model OutletTransfer {
   rejectedAt      DateTime?
   dispatchedById  String?
   dispatchedAt    DateTime?
+  deliveredById   String?
+  deliveredAt     DateTime?
   completedById   String?
   completedAt     DateTime?
   createdAt       DateTime @default(now())

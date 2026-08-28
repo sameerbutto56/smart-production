@@ -125,6 +125,7 @@ const systemRoutes = require('./routes/system.routes');
 const deviceRoutes = require('./routes/device.routes');
 const orderControlRoutes = require('./routes/orderControl.routes');
 const wrongAttemptRoutes = require('./routes/wrongAttempt.routes');
+const deliveryTaskRoutes = require('./routes/deliveryTask.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);
@@ -151,6 +152,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/pos/book', posBookRoutes);
 app.use('/api/delivery', deliveryRoutes);
+app.use('/api/delivery-tasks', deliveryTaskRoutes);
 app.use('/api/warehouse', warehouseRoutes);
 app.use('/api/store-dashboard', storeDashboardRoutes);
 app.use('/api/online-dashboard', onlineDashboardRoutes);

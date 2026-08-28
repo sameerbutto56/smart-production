@@ -60,6 +60,11 @@ const OutletTransfers = () => {
 
   // Dispatch modal
   const [dispatchModal, setDispatchModal] = useState(null);
+  const [dispatchChannel, setDispatchChannel] = useState('NBD');
+  const [riderName, setRiderName] = useState('');
+  const [riders, setRiders] = useState([]);
+  const [riderSearch, setRiderSearch] = useState('');
+  const [acceptConfirm, setAcceptConfirm] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -89,6 +94,19 @@ const OutletTransfers = () => {
   }, [userOutlet]);
 
   useEffect(() => { if (tab === 'new' && userOutlet) fetchSourceInventory(); }, [tab, userOutlet, fetchSourceInventory]);
+
+  useEffect(() => {
+    if (!dispatchModal) return;
+    api.get('/api/outlet-orders/employees?profile=DELIVERY_BOY')
+      .then(res => { if (dispatchModal) setRiders(res.data?.employees || []); })
+      .catch(() => setRiders([]));
+  }, [dispatchModal]);
+
+  const filteredRiders = useMemo(() => {
+    const q = riderSearch.trim().toLowerCase();
+    if (!q) return riders;
+    return riders.filter(r => r.name.toLowerCase().includes(q));
+  }, [riders, riderSearch]);
 
   const filteredInventory = useMemo(() => {
     if (!searchTerm) return sourceInventory;
@@ -180,11 +198,22 @@ const OutletTransfers = () => {
   };
 
   const handleDispatch = async (id, method) => {
+    if (dispatchChannel === 'NBD' && !riderName) {
+      toast.error('Select a delivery boy for NBD');
+      return;
+    }
     setActionLoading(id);
     try {
-      await api.patch(`/api/transfers/${id}/dispatch`, { dispatchMethod: method });
+      await api.patch(`/api/transfers/${id}/dispatch`, {
+        dispatchMethod: method,
+        deliveryChannel: dispatchChannel,
+        deliveryBoyName: dispatchChannel === 'NBD' ? riderName : null,
+      });
       toast.success('Stock dispatched!');
       setDispatchModal(null);
+      setRiderName('');
+      setDispatchChannel('NBD');
+      setRiderSearch('');
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Dispatch failed');
@@ -196,6 +225,20 @@ const OutletTransfers = () => {
     try {
       await api.patch(`/api/transfers/${id}/accept`);
       toast.success('Stock accepted! Inventory updated.');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Accept failed');
+    } finally { setActionLoading(null); }
+  };
+
+  const handleAcceptConfirm = (t) => setAcceptConfirm(t);
+  const doAccept = async () => {
+    if (!acceptConfirm) return;
+    setActionLoading(acceptConfirm.id);
+    try {
+      await api.patch(`/api/transfers/${acceptConfirm.id}/accept`);
+      toast.success('Stock accepted! Inventory updated.');
+      setAcceptConfirm(null);
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Accept failed');
@@ -337,6 +380,12 @@ const OutletTransfers = () => {
                     <div className="text-left">
                       <p className="text-sm font-bold text-white">{t.transferNumber}</p>
                       <p className="text-[10px] text-gray-500">{t.fromOutlet} → {t.toOutlet}{t.type === 'OUTLET_WAREHOUSE' ? ' 🏭' : ''}</p>
+                      {t.deliveryChannel === 'NBD' && (
+                        <p className="text-[10px] text-blue-400 font-bold">🛵 NBD · {t.deliveryBoyName || 'Delivery Boy'}</p>
+                      )}
+                      {t.deliveryChannel === 'SELF_DELIVERY' && (
+                        <p className="text-[10px] text-purple-400 font-bold">🚗 Self Delivery</p>
+                      )}
                       <p className="text-[10px] text-gray-600">{formatDate(t.createdAt)}</p>
                     </div>
                   </div>
@@ -414,7 +463,7 @@ const OutletTransfers = () => {
 
                       {/* Destination actions: Accept DISPATCHED */}
                       {t.status === 'DISPATCHED' && isIncoming(t) && (
-                        <button onClick={() => handleAccept(t.id)} disabled={actionLoading === t.id}
+                        <button onClick={() => handleAcceptConfirm(t)} disabled={actionLoading === t.id}
                           className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg disabled:opacity-50">
                           {actionLoading === t.id ? 'Accepting...' : 'Receive & Accept'}
                         </button>
@@ -547,9 +596,41 @@ const OutletTransfers = () => {
       {/* Dispatch Modal */}
       {dispatchModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setDispatchModal(null)}>
-          <div className="bg-gray-900 border-2 border-blue-500/30 rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-gray-900 border-2 border-blue-500/30 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-black text-blue-400 mb-3">Dispatch {dispatchModal.transferNumber}</h3>
-            <p className="text-xs text-gray-400 mb-3">Select dispatch method:</p>
+
+            <p className="text-xs text-gray-400 mb-2">Delivery channel:</p>
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setDispatchChannel('NBD')}
+                className={`flex-1 py-2.5 rounded-xl border-2 text-xs font-black transition ${dispatchChannel === 'NBD' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
+                🛵 Enamels Delivery Boy (NBD)
+              </button>
+              <button onClick={() => setDispatchChannel('SELF_DELIVERY')}
+                className={`flex-1 py-2.5 rounded-xl border-2 text-xs font-black transition ${dispatchChannel === 'SELF_DELIVERY' ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
+                🚗 Self Delivery
+              </button>
+            </div>
+
+            {dispatchChannel === 'NBD' && (
+              <div className="mb-4">
+                <p className="text-xs text-gray-400 mb-2">Select delivery boy:</p>
+                <input value={riderSearch} onChange={e => setRiderSearch(e.target.value)}
+                  placeholder="Search rider..." className="w-full p-2 mb-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs" />
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {filteredRiders.length === 0 && (
+                    <p className="text-xs text-amber-400">No NBD riders available. Assign a DELIVERY_BOY employee first.</p>
+                  )}
+                  {filteredRiders.map(r => (
+                    <button key={r.id} onClick={() => setRiderName(r.name)}
+                      className={`w-full py-2 px-3 rounded-xl border text-left text-xs font-bold transition ${riderName === r.name ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+                      🛵 {r.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-400 mb-2">Select dispatch method:</p>
             <div className="space-y-2 mb-4">
               {DISPATCH_METHODS.map(m => (
                 <button key={m.value} onClick={() => handleDispatch(dispatchModal.id, m.value)}
@@ -560,6 +641,38 @@ const OutletTransfers = () => {
               ))}
             </div>
             <button onClick={() => setDispatchModal(null)} className="w-full py-2 rounded-xl bg-gray-800 text-gray-400 text-xs font-black">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Accept Confirm Modal */}
+      {acceptConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setAcceptConfirm(null)}>
+          <div className="bg-gray-900 border-2 border-emerald-500/30 rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-emerald-400 mb-3">Receive & Accept Transfer</h3>
+            <p className="text-xs text-gray-300 mb-1"><span className="text-gray-500">Transfer:</span> <span className="font-black text-white">{acceptConfirm.transferNumber}</span></p>
+            {acceptConfirm.deliveryChannel && (
+              <p className="text-xs text-gray-300 mb-1">
+                <span className="text-gray-500">Channel:</span>{' '}
+                <span className="font-bold text-blue-400">{acceptConfirm.deliveryChannel === 'NBD' ? '🛵 Enamels Delivery Boy' : '🚗 Self Delivery'}</span>
+                {acceptConfirm.deliveryChannel === 'NBD' && acceptConfirm.deliveryBoyName && (
+                  <> <span className="text-gray-500">·</span> <span className="font-bold text-white">{acceptConfirm.deliveryBoyName}</span></>
+                )}
+              </p>
+            )}
+            {acceptConfirm.dispatchedAt && (
+              <p className="text-xs text-gray-300 mb-3"><span className="text-gray-500">Dispatched:</span> <span className="font-bold text-white">{formatDate(acceptConfirm.dispatchedAt)}</span></p>
+            )}
+            <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300">
+              Accepting this transfer will add the dispatched stock to <span className="font-black">{acceptConfirm.toOutlet}</span> inventory. This action is final and idempotent (cannot double-add).
+            </div>
+            <div className="flex gap-2">
+              <button onClick={doAccept} disabled={actionLoading === acceptConfirm.id}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black disabled:opacity-50">
+                {actionLoading === acceptConfirm.id ? 'Accepting...' : 'Confirm Accept'}
+              </button>
+              <button onClick={() => setAcceptConfirm(null)} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-xs font-black">Cancel</button>
+            </div>
           </div>
         </div>
       )}

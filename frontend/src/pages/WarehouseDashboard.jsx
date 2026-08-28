@@ -204,6 +204,10 @@ const WarehouseDashboard = () => {
   const [demandApproveItems, setDemandApproveItems] = useState([]);
   const [demandApproving, setDemandApproving] = useState(false);
   const approvingRef = useRef(false); // synchronous double-click guard for Approve/Reject
+  const [demandDispatchModal, setDemandDispatchModal] = useState(null);
+  const [demandDispatchChannel, setDemandDispatchChannel] = useState('SELF_DELIVERY');
+  const [demandDispatching, setDemandDispatching] = useState(false);
+  const demandDispatchRef = useRef(false);
 
   useEffect(() => {
     if (activeTab === 'allocation') {
@@ -358,6 +362,36 @@ const WarehouseDashboard = () => {
     } finally {
       approvingRef.current = false;
       setDemandApproving(false);
+    }
+  };
+
+  const openDemandDispatch = async (req) => {
+    setDemandDispatchModal(req);
+    setDemandDispatchChannel('SELF_DELIVERY');
+  };
+
+  const handleDemandDispatch = async (id) => {
+    if (demandDispatchRef.current) return; // block double-clicks in same tick
+    demandDispatchRef.current = true;
+    setDemandDispatching(true);
+    try {
+      if (demandDispatchChannel !== 'ENAMELS' && demandDispatchChannel !== 'SELF_DELIVERY') {
+        toast.error('Select a delivery channel: Enamels Delivery Boy or Self Delivery.');
+        return;
+      }
+      await api.put(`/api/demand/${id}/dispatch`, {
+        deliveryChannel: demandDispatchChannel
+      });
+      toast.success('Demand dispatched — source inventory deducted, In Transit');
+      setDemandDispatchModal(null);
+      fetchDemands();
+      refreshInventory();
+      refreshActiveTab();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to dispatch demand');
+    } finally {
+      demandDispatchRef.current = false;
+      setDemandDispatching(false);
     }
   };
 
@@ -1628,6 +1662,35 @@ const WarehouseDashboard = () => {
                           </table>
                         </div>
 
+                        {/* Dispatch / In Transit */}
+                        {!isPending && (req.status === 'APPROVED' || req.status === 'PARTIALLY_APPROVED') && (
+                          <div className="mt-3 pt-3 border-t theme-border">
+                            {!req.dispatchedAt && !req.acceptedAt && !req.deliveredAt ? (
+                              <div className="flex justify-end">
+                                <button onClick={() => openDemandDispatch(req)}
+                                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2 active:scale-95">
+                                  <Truck size={14} />
+                                  <span>Dispatch / Send</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center space-x-2">
+                                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                                    {req.deliveryChannel === 'ENAMELS' ? 'Enamels Delivery Boy' : 'Self Delivery'}
+                                  </span>
+                                  {req.deliveryChannel === 'ENAMELS' && req.deliveryBoyName && (
+                                    <span className="text-xs theme-text-muted font-bold">{req.deliveryBoyName}</span>
+                                  )}
+                                </div>
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                                  🚚 In Transit — {formatDateTime(req.dispatchedAt)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Actions */}
                         {isPending && (
                           <div className="flex justify-end space-x-3 mt-3 pt-3 border-t theme-border">
@@ -1742,6 +1805,55 @@ const WarehouseDashboard = () => {
                     <span>{demandApproving ? 'Processing…' : 'Confirm'}</span>
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Demand Dispatch Modal */}
+      <AnimatePresence>
+        {demandDispatchModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md" onClick={() => setDemandDispatchModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+              <h2 className="text-xl font-black theme-text-primary mb-1 flex items-center space-x-2">
+                <Truck size={18} className="text-indigo-400" />
+                <span>Dispatch Demand</span>
+              </h2>
+              <p className="theme-text-secondary text-xs font-bold mb-6">
+                To {demandDispatchModal.outletName} — {demandDispatchModal.id.slice(0, 8)} · Source stock deducts on dispatch
+              </p>
+
+              {/* Delivery channel selector */}
+              <p className="text-xs font-black theme-text-muted uppercase tracking-wider mb-2">Delivery Method</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <button onClick={() => setDemandDispatchChannel('ENAMELS')}
+                  className={`p-3 rounded-xl border-2 text-left transition-all ${demandDispatchChannel === 'ENAMELS' ? 'border-indigo-500 bg-indigo-500/10' : 'border-theme-border theme-bg-subtle hover:border-gray-700'}`}>
+                  <span className="text-lg">🛵</span>
+                  <p className={`text-xs font-black mt-1 ${demandDispatchChannel === 'ENAMELS' ? 'text-indigo-400' : 'theme-text-primary'}`}>Enamels Delivery Boy</p>
+                  <p className="text-[10px] theme-text-muted font-semibold mt-0.5">Assign to Enamels delivery</p>
+                </button>
+                <button onClick={() => setDemandDispatchChannel('SELF_DELIVERY')}
+                  className={`p-3 rounded-xl border-2 text-left transition-all ${demandDispatchChannel === 'SELF_DELIVERY' ? 'border-indigo-500 bg-indigo-500/10' : 'border-theme-border theme-bg-subtle hover:border-gray-700'}`}>
+                  <span className="text-lg">🚗</span>
+                  <p className={`text-xs font-black mt-1 ${demandDispatchChannel === 'SELF_DELIVERY' ? 'text-indigo-400' : 'theme-text-primary'}`}>Self Delivery</p>
+                  <p className="text-[10px] theme-text-muted font-semibold mt-0.5">Sender delivers directly</p>
+                </button>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-2">
+                <button onClick={() => setDemandDispatchModal(null)}
+                  className="px-6 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">
+                  Cancel
+                </button>
+                <button onClick={() => handleDemandDispatch(demandDispatchModal.id)}
+                  disabled={demandDispatching}
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center space-x-2">
+                  <Truck size={16} />
+                  <span>{demandDispatching ? 'Dispatching...' : 'Dispatch & Deduct'}</span>
+                </button>
               </div>
             </motion.div>
           </div>

@@ -1411,7 +1411,7 @@ const getComeFromProduction = async (req, res) => {
 // selector regardless of which outlet the employee record lives at. Only POS and
 // OUTLET_ORDER_ENTRY stay outlet-scoped (per-branch cashiers), and the no-profile
 // call (My Tasks employee filter) keeps the default outlet behavior.
-const NON_OUTLET_PROFILES = ['FAISAL_PROFILE', 'DISPATCH', 'STORE', 'PRODUCTION', 'INVENTORY_VIEW'];
+const NON_OUTLET_PROFILES = ['FAISAL_PROFILE', 'DISPATCH', 'STORE', 'PRODUCTION', 'INVENTORY_VIEW', 'DELIVERY_BOY'];
 
 const getOutletEmployees = async (req, res) => {
   try {

@@ -142,8 +142,6 @@ const approveDemandRequest = async (req, res) => {
     // PENDING-only guard). The in-transaction PENDING re-check also closes the
     // race where two concurrent approvals both passed the outer guard.
     let updated;
-    let deductedCount = 0;
-    let deductedSummary = [];
 
     await prisma.$transaction(async (tx) => {
       const existingNow = await tx.outletDemandRequest.findUnique({ where: { id } });
@@ -158,26 +156,16 @@ const approveDemandRequest = async (req, res) => {
         data: updateData
       });
 
-      // Deduct approved quantities from live warehouse inventory immediately
-      // (APPROVED / PARTIALLY_APPROVED). Stock is taken out the moment the demand
-      // is approved so dashboard/reports always reflect actual available stock.
-      if (status !== 'REJECTED') {
-        for (const item of updated.items || []) {
-          const approvedQty = parseInt(item.approvedQty) || 0;
-          if (approvedQty <= 0) continue;
-          const deducted = await deductWarehouseStock(item.inventoryItemId, item.color, item.size, approvedQty, tx);
-          if (deducted > 0) {
-            deductedCount++;
-            deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
-          }
-        }
-      }
+      // Warehouse stock is NOT deducted here any more. Approval now only RESERVES
+      // the request (status APPROVED/APPROVED_PARTIAL). The actual warehouse
+      // deduction happens atomically at DISPATCH via dispatchDemand — approved but
+      // not-yet-dispatched demands hold their stock reserved.
 
       await tx.auditLog.create({
         data: {
           orderId: null,
           action: 'DEMAND_REQUEST_' + status,
-          details: `Demand request ${id} from ${existing.outletName} ${status.toLowerCase()} by ${req.user.name || req.user.id}${deductedCount ? ` | warehouse stock deducted: ${deductedSummary.join(', ')}` : ''}`,
+          details: `Demand request ${id} from ${existing.outletName} ${status.toLowerCase()} by ${req.user.name || req.user.id}${status !== 'REJECTED' ? ' | stock reserved until dispatch' : ''}`,
           performedBy: req.user.id
         }
       });
@@ -203,7 +191,6 @@ const approveDemandRequest = async (req, res) => {
         status: updated.status,
         storeNotes: updated.storeNotes
       });
-      if (deductedCount) io.emit('inventory-updated', { source: 'demand-approval', demandId: id });
     }
 
     await notify.create(req, { type: 'demand', moduleName: 'Outlet Requests', path: '/outlet-requests', role: 'OUTLET', title: 'Demand Updated', message: `Demand #${existing.transferNumber} ${status}`, action: `Demand ${status}`, employeeName: req.user?.name }).catch(() => {});
@@ -344,13 +331,103 @@ const deductWarehouseStock = async (inventoryItemId, color, size, qty, tx) => {
   return deductedQty;
 };
 
+const dispatchDemandRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deliveryChannel } = req.body;
+    const existing = await prisma.outletDemandRequest.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ message: 'Demand request not found' });
+    if (existing.status !== 'APPROVED' && existing.status !== 'PARTIALLY_APPROVED') {
+      return res.status(400).json({ message: `Cannot dispatch a ${existing.status.toLowerCase()} request. Only approved/partially approved requests can be dispatched.` });
+    }
+
+    const userRole = req.user?.role;
+    const isStaff = userRole === 'STORE' || userRole === 'STORE_EMPLOYEE' || ['ADMIN', 'SUPER_ADMIN'].includes(userRole);
+    if (!isStaff) return res.status(403).json({ message: 'Only the warehouse/store can dispatch a demand' });
+
+    // Only two dispatch channels exist now — Enamels Delivery Boy or Self Delivery.
+    // The legacy NBD rider/employee-selection step is removed entirely.
+    const channel = deliveryChannel || 'SELF_DELIVERY';
+    if (channel !== 'ENAMELS' && channel !== 'SELF_DELIVERY') {
+      return res.status(400).json({ message: 'Invalid delivery channel. Use ENAMELS or SELF_DELIVERY.' });
+    }
+    let deductedCount = 0;
+    let deductedSummary = [];
+
+    // Atomic dispatch: guard (only non-dispatched approved) + warehouse stock
+    // deduction + dispatch fields in ONE 30s transaction. A double-click can never
+    // deduct the warehouse twice — the in-tx re-check throws after the first dispatch.
+    await prisma.$transaction(async (tx) => {
+      const recheck = await tx.outletDemandRequest.findUnique({ where: { id } });
+      if (!recheck || (recheck.status !== 'APPROVED' && recheck.status !== 'PARTIALLY_APPROVED') || recheck.dispatchedAt) {
+        const err = new Error('This demand is no longer dispatchable.');
+        err.code = 'DEMAND_NOT_DISPATCHABLE';
+        throw err;
+      }
+
+      const items = typeof recheck.items === 'string' ? JSON.parse(recheck.items) : recheck.items;
+      for (const item of items || []) {
+        const approvedQty = parseInt(item.approvedQty) || 0;
+        if (approvedQty <= 0) continue;
+        const deducted = await deductWarehouseStock(item.inventoryItemId, item.color, item.size, approvedQty, tx);
+        if (deducted > 0) {
+          deductedCount++;
+          deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
+        }
+      }
+
+      await tx.outletDemandRequest.update({
+        where: { id },
+        data: {
+          dispatchedAt: new Date(),
+          dispatchedById: req.user.id,
+          deliveryChannel: channel,
+          deliveryBoyName: channel === 'ENAMELS' ? 'Enamels Delivery' : null
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          orderId: null,
+          action: 'DEMAND_REQUEST_DISPATCHED',
+          details: `Demand request ${id} (${recheck.transferNumber || ''}) dispatched by ${req.user.name || req.user.id} via ${channel}${deductedCount ? ` | warehouse stock deducted: ${deductedSummary.join(', ')}` : ''}`,
+          performedBy: req.user.id
+        }
+      });
+    }, { timeout: 30000 });
+
+    try {
+      cache.delPattern('pos:');
+      cache.delPattern('warehouse:');
+      cache.delPattern('products:');
+    } catch (cacheErr) {
+      console.error('Cache invalidation error after demand dispatch:', cacheErr);
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('demand:updated', { id, transferNumber: existing.transferNumber, status: 'DISPATCHED', outletName: existing.outletName });
+      io.emit('inventory-updated', { source: 'demand-dispatch', demandId: id });
+    }
+
+    await notify.create(req, { type: 'demand', moduleName: channel === 'ENAMELS' ? 'Delivery Boy' : 'Outlet Requests', path: channel === 'ENAMELS' ? '/delivery' : '/outlet-requests', role: channel === 'ENAMELS' ? 'DELIVERY_BOY' : 'OUTLET', title: 'Demand Dispatched', message: `Demand #${existing.transferNumber} dispatched via ${channel}`, action: 'Demand Dispatched', employeeName: req.user?.name }).catch(() => {});
+
+    res.json({ message: 'Demand dispatched.', deductedCount, deducted: deductedSummary });
+  } catch (error) {
+    if (error.code === 'DEMAND_NOT_DISPATCHABLE') {
+      return res.status(409).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error dispatching demand request', error: error.message });
+  }
+};
+
 const acceptDemandRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const existing = await prisma.outletDemandRequest.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: 'Demand request not found' });
-    if (existing.status !== 'APPROVED' && existing.status !== 'PARTIALLY_APPROVED') {
-      return res.status(400).json({ message: `Cannot accept a ${existing.status.toLowerCase()} request. Only approved/partially approved requests can be accepted.` });
+    if (existing.status !== 'APPROVED' && existing.status !== 'PARTIALLY_APPROVED' && existing.status !== 'DISPATCHED') {
+      return res.status(400).json({ message: `Cannot accept a ${existing.status.toLowerCase()} request. Only approved/partially approved/dispatched requests can be accepted.` });
     }
 
     let results = [];
@@ -424,7 +501,7 @@ const acceptDemandRequest = async (req, res) => {
                 fabric: inv.fabric || null,
                 barcode: bc,
                 stock: parseInt(it.approvedQty) || 0,
-                price: null,
+                price: inv.price || 0,
                 metadata: JSON.stringify({ sourceStoreItemId: inv.id })
               }
             });
@@ -487,4 +564,148 @@ const acceptDemandRequest = async (req, res) => {
   }
 };
 
-module.exports = { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, acceptDemandRequest, getInventoryForOutlet, getDemandStats };
+// ─── Enamels Delivery Boy — Demand deliveries ───────────────────────────────
+// The Demand (warehouse → outlet) dispatched via channel ENAMELS is surfaced to
+// the Enamels Delivery Boy profile as a Job Sheet-style list. The boy:
+//   accepts (deliveryBoyAcceptedAt claim) → delivers → marks delivered (deliveredAt)
+// then the receiving Outlet accepts on the Outlet Stock Request page → outlet
+// inventory is added (acceptDemandRequest). No re-deduction ever happens here —
+// warehouse stock was already deducted once at dispatch.
+
+const buildDemandJobSheet = (d) => {
+  let items = [];
+  try {
+    items = typeof d.items === 'string' ? JSON.parse(d.items) : (d.items || []);
+  } catch { items = []; }
+  const rows = (items || []).map((it) => ({
+    productName: it.productName,
+    color: it.color || null,
+    size: it.size || null,
+    quantity: parseInt(it.approvedQty != null ? it.approvedQty : it.quantity) || 0,
+    qtyRequested: parseInt(it.requestedQty) || 0,
+    units: parseInt(it.approvedQty != null ? it.approvedQty : it.quantity) || 0
+  }));
+  return {
+    id: d.id,
+    transferNumber: d.transferNumber,
+    outletName: d.outletName,
+    status: d.status,
+    deliveryChannel: d.deliveryChannel,
+    deliveryBoyName: d.deliveryBoyName,
+    dispatchedAt: d.dispatchedAt,
+    dispatchedById: d.dispatchedById,
+    deliveryBoyAcceptedAt: d.deliveryBoyAcceptedAt,
+    deliveredAt: d.deliveredAt,
+    acceptedAt: d.acceptedAt,
+    notes: d.notes,
+    storeNotes: d.storeNotes,
+    items: rows,
+    totalUnits: rows.reduce((s, r) => s + r.units, 0),
+    productCount: rows.length
+  };
+};
+
+// GET /api/demand/delivery-boy — all ENAMELS demands assigned to the boy, both
+// not-yet-accepted (actionable) and already accepted/delivered (history).
+const getMyDemandDeliveries = async (req, res) => {
+  try {
+    const demands = await prisma.outletDemandRequest.findMany({
+      where: {
+        deliveryChannel: 'ENAMELS',
+        dispatchedAt: { not: null },
+        acceptedAt: null
+      },
+      orderBy: [{ dispatchedAt: 'desc' }]
+    });
+    const deliveries = (demands || []).map(buildDemandJobSheet);
+    const actionable = deliveries.filter((d) => !d.deliveryBoyAcceptedAt);
+    const inTransit = deliveries.filter((d) => d.deliveryBoyAcceptedAt && !d.deliveredAt);
+    const delivered = deliveries.filter((d) => d.deliveredAt);
+    res.json({ deliveries, actionable, inTransit, delivered, total: deliveries.length });
+  } catch (error) {
+    res.status(500).json({ message: 'Error loading demand deliveries', error: error.message });
+  }
+};
+
+// PUT /api/demand/delivery-boy/:id/accept — boy accepts the assignment (idempotent).
+const acceptDemandDeliveryById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.outletDemandRequest.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ message: 'Demand not found' });
+    if (existing.deliveryChannel !== 'ENAMELS' || !existing.dispatchedAt || existing.acceptedAt) {
+      return res.status(400).json({ message: 'This demand is not an assignable Enamels delivery.' });
+    }
+    await prisma.$transaction(async (tx) => {
+      const claim = await tx.outletDemandRequest.updateMany({
+        where: { id, deliveryBoyAcceptedAt: null },
+        data: { deliveryBoyAcceptedAt: new Date(), deliveryBoyAcceptedById: req.user.id }
+      });
+      if (claim.count === 0) {
+        const err = new Error('This delivery has already been accepted.');
+        err.code = 'DEMAND_ALREADY_ACCEPTED_BY_BOY';
+        throw err;
+      }
+      await tx.auditLog.create({
+        data: {
+          orderId: null,
+          action: 'DEMAND_DELIVERY_ACCEPTED',
+          details: `Demand ${existing.transferNumber || id} delivery accepted by delivery boy ${req.user.name || req.user.id}`,
+          performedBy: req.user.id
+        }
+      });
+    }, { timeout: 30000 });
+    res.json({ message: 'Delivery accepted.' });
+  } catch (error) {
+    if (error.code === 'DEMAND_ALREADY_ACCEPTED_BY_BOY') {
+      return res.status(409).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error accepting delivery', error: error.message });
+  }
+};
+
+// PUT /api/demand/delivery-boy/:id/delivered — boy delivers; requires prior accept.
+const markDemandDeliveredByBoy = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.outletDemandRequest.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ message: 'Demand not found' });
+    if (existing.deliveryChannel !== 'ENAMELS' || !existing.dispatchedAt || existing.acceptedAt) {
+      return res.status(400).json({ message: 'This demand is not an active Enamels delivery.' });
+    }
+    if (!existing.deliveryBoyAcceptedAt) {
+      return res.status(400).json({ message: 'Accept the delivery before marking it delivered.' });
+    }
+    await prisma.$transaction(async (tx) => {
+      const claim = await tx.outletDemandRequest.updateMany({
+        where: { id, deliveredAt: null },
+        data: { deliveredAt: new Date(), deliveredById: req.user.id }
+      });
+      if (claim.count === 0) {
+        const err = new Error('This delivery has already been marked delivered.');
+        err.code = 'DEMAND_ALREADY_DELIVERED';
+        throw err;
+      }
+      await tx.auditLog.create({
+        data: {
+          orderId: null,
+          action: 'DEMAND_DELIVERY_BOY_DELIVERED',
+          details: `Demand ${existing.transferNumber || id} delivered by delivery boy ${req.user.name || req.user.id} — awaiting outlet accept`,
+          performedBy: req.user.id
+        }
+      });
+    }, { timeout: 30000 });
+
+    const io = req.app.get('io');
+    if (io) io.emit('demand:delivered', { id, transferNumber: existing.transferNumber, outletName: existing.outletName });
+
+    res.json({ message: 'Marked delivered. Awaiting outlet acceptance.' });
+  } catch (error) {
+    if (error.code === 'DEMAND_ALREADY_DELIVERED') {
+      return res.status(409).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error marking delivery', error: error.message });
+  }
+};
+
+module.exports = { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, dispatchDemandRequest, acceptDemandRequest, getInventoryForOutlet, getDemandStats, getMyDemandDeliveries, acceptDemandDeliveryById, markDemandDeliveredByBoy };

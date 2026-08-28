@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { PageLoader } from '../components/LoadingSpinner';
 import useCache from '../hooks/useCache';
-import { formatDateOnly } from '../utils/dateTime';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
 const OutletStockRequest = () => {
   const { user } = useAuth();
@@ -453,14 +453,42 @@ const OutletStockRequest = () => {
                                 <p className="text-xs theme-text-primary font-medium mt-0.5">{req.storeNotes}</p>
                               </div>
                             )}
-                            {/* Accept button for approved/partially approved requests */}
+                            {/* Delivery channel info */}
+                            {(req.deliveryChannel || req.dispatchedAt) && !req.acceptedAt && (
+                              <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center space-x-2">
+                                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
+                                    req.deliveryChannel === 'SELF_DELIVERY'
+                                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                      : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                                  }`}>
+                                    {req.deliveryChannel === 'SELF_DELIVERY' ? '🚗 Self Delivery' : '🛵 NBD Rider'}
+                                  </span>
+                                  {req.deliveryChannel === 'NBD' && req.deliveryBoyName && (
+                                    <span className="text-xs theme-text-muted font-bold">{req.deliveryBoyName}</span>
+                                  )}
+                                </div>
+                                {req.dispatchedAt && (
+                                  <span className="text-[10px] font-black uppercase text-amber-400">
+                                    🚚 In Transit — {formatDateTime(req.dispatchedAt)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {/* Accept button — available only after dispatch (In Transit) */}
                             {(req.status === 'APPROVED' || req.status === 'PARTIALLY_APPROVED') && !req.acceptedAt && (
                               <div className="mt-3 flex justify-end">
-                                <button onClick={() => acceptRequest(req.id)} disabled={acceptingId === req.id}
-                                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2 active:scale-95">
-                                  {acceptingId === req.id ? <RefreshCcw size={14} className="animate-spin" /> : <Download size={14} />}
-                                  <span>{acceptingId === req.id ? 'Accepting...' : 'Accept & Add to POS Stock'}</span>
-                                </button>
+                                {req.dispatchedAt ? (
+                                  <button onClick={() => acceptRequest(req.id)} disabled={acceptingId === req.id}
+                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2 active:scale-95">
+                                    {acceptingId === req.id ? <RefreshCcw size={14} className="animate-spin" /> : <Download size={14} />}
+                                    <span>{acceptingId === req.id ? 'Accepting...' : 'Accept & Add to POS Stock'}</span>
+                                  </button>
+                                ) : (
+                                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                                    Awaiting Dispatch — stock adds after warehouse dispatches
+                                  </span>
+                                )}
                               </div>
                             )}
                             {req.acceptedAt && (

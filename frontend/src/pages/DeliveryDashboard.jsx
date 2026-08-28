@@ -534,6 +534,172 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
   );
 };
 
+/* ─── Stock (NBD Delivery Tasks) Panel ─── */
+const DemandDeliveriesPanel = () => {
+  const [data, setData] = useState({ deliveries: [], actionable: [], inTransit: [], delivered: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null); // id being accepted/marked
+
+  const fetchDeliveries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/demand/delivery-boy');
+      setData(res.data || { deliveries: [], actionable: [], inTransit: [], delivered: [], total: 0 });
+    } catch { toast.error('Failed to load demand deliveries'); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchDeliveries(); }, [fetchDeliveries]);
+
+  const handleAccept = async (id) => {
+    setBusy(id);
+    try {
+      const res = await api.put(`/api/demand/delivery-boy/${id}/accept`);
+      toast.success(res.data.message || 'Assignment accepted');
+      await fetchDeliveries();
+    } catch { toast.error('Failed to accept — already accepted or no longer assignable'); }
+    setBusy(null);
+  };
+
+  const handleMarkDelivered = async (id) => {
+    setBusy(id);
+    try {
+      const res = await api.put(`/api/demand/delivery-boy/${id}/delivered`);
+      toast.success(res.data.message || 'Marked delivered — outlet accepts to add stock');
+      await fetchDeliveries();
+    } catch { toast.error('Failed to mark delivered'); }
+    setBusy(null);
+  };
+
+  if (loading) return <LoadingSpinner text="Loading demand deliveries..." />;
+
+  const grouped = [
+    { label: 'In Transit — Awaiting Your Accept', color: 'blue', list: data.actionable || [] },
+    { label: 'Accepted — Deliver It', color: 'amber', list: data.inTransit || [] },
+    { label: 'Delivered — Awaiting Outlet Accept', color: 'emerald', list: data.delivered || [] }
+  ].filter(g => g.list.length > 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
+          <ClipboardList size={16} /> Demand Deliveries — In Transit
+        </h3>
+        <button onClick={fetchDeliveries} className="text-[10px] font-black text-blue-400 uppercase tracking-widest hover:text-white flex items-center gap-1">
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
+        </button>
+      </div>
+
+      {data.total === 0 ? (
+        <div className="flex flex-col items-center py-16 gap-3 text-center">
+          <ClipboardList size={36} className="theme-text-muted" />
+          <p className="theme-text-muted font-black text-base">No demand deliveries</p>
+          <p className="text-gray-600 text-xs max-w-[240px]">Dispatched Enamels (delivery boy) demands assigned to you will appear here.</p>
+        </div>
+      ) : (
+        <>
+          {grouped.map((g) => (
+            <div key={g.label}>
+              <div className="flex items-center gap-2 py-1">
+                <div className={`h-px flex-1 bg-${g.color}-500/30`} />
+                <span className={`text-[10px] font-black text-${g.color}-400 uppercase tracking-widest`}>{g.label} ({g.list.length})</span>
+                <div className={`h-px flex-1 bg-${g.color}-500/30`} />
+              </div>
+              {g.list.map((t) => (
+                <DemandDeliveryCard key={t.id} task={t} onAccept={handleAccept} onDeliver={handleMarkDelivered} busy={busy === t.id}
+                  stageKey={g.color} />
+              ))}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+};
+
+const DemandDeliveryCard = ({ task, onAccept, onDeliver, busy, stageKey }) => {
+  const accepted = !!task.deliveryBoyAcceptedAt;
+  const delivered = !!task.deliveredAt;
+  const canAccept = !accepted && !delivered && !task.acceptedAt;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="bg-gray-800/40 rounded-xl border border-blue-500/20 overflow-hidden">
+      {/* Header */}
+      <div className="px-3 py-2.5 bg-gray-900/60 border-b border-gray-700/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Truck size={16} className={delivered ? 'text-emerald-400' : accepted ? 'text-amber-400' : 'text-blue-400'} />
+          <span className="text-xs font-black text-white">TRF-{task.transferNumber || task.id.slice(0, 8)}</span>
+          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-600 text-white">Enamels</span>
+          {task.deliveryBoyName && (
+            <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-blue-300">
+              <UserCheck size={12} /> {task.deliveryBoyName}
+            </span>
+          )}
+        </div>
+        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${delivered ? 'bg-emerald-600 text-white' : accepted ? 'bg-amber-600 text-white' : 'bg-blue-600 text-white'}`}>
+          {delivered ? 'Delivered' : accepted ? 'Accepted' : 'In Transit'}
+        </span>
+      </div>
+
+      <div className="px-3 py-2 space-y-1.5">
+        {/* Source → Receiving outlet */}
+        <div className="flex items-center justify-between text-xs font-bold">
+          <span className="text-gray-400">Warehouse → Receiving Outlet</span>
+          <span className="text-gray-200">{task.outletName || '—'}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+          <Clock size={12} /> Dispatched {task.dispatchedAt ? formatDateTime(task.dispatchedAt) : '—'}
+        </div>
+
+        {/* Job Sheet-style items table */}
+        {task.items && task.items.length > 0 && (
+          <div className="bg-gray-900/50 rounded-lg border border-gray-700/50 overflow-hidden">
+            <div className="px-2.5 py-1.5 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700/50">
+              <span>Product / Variant</span><span>Color</span><span>Size</span><span className="text-right">Units</span>
+            </div>
+            {task.items.map((it, i) => (
+              <div key={i} className="px-2.5 py-1.5 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[11px] font-bold text-gray-300 border-b border-gray-800/30 last:border-0">
+                <span className="truncate">{toUrduName(it.productName || '—')}</span>
+                <span className="text-gray-500">{toUrduName(it.color || '—')}</span>
+                <span className="text-gray-500">{toUrduName(it.size || '—')}</span>
+                <span className="text-right text-white">{it.units ?? '—'}</span>
+              </div>
+            ))}
+            <div className="px-2.5 py-1.5 flex items-center justify-between text-[10px] font-black text-gray-400 border-t border-gray-700/50">
+              <span>{task.productCount ?? 0} product(s)</span>
+              <span>Total Units: <span className="text-white">{task.totalUnits ?? 0}</span></span>
+            </div>
+          </div>
+        )}
+
+        {task.notes && (
+          <div className="px-2 py-1.5 bg-gray-900/40 rounded-lg border border-gray-700/40 text-[11px] font-medium text-gray-400">
+            <span className="font-black text-gray-500 uppercase tracking-widest text-[9px]">Notes: </span>{task.notes}
+          </div>
+        )}
+
+        {/* Action */}
+        {canAccept ? (
+          <button onClick={() => onAccept(task.id)} disabled={busy}
+            className={`w-full mt-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all bg-blue-600 text-white shadow-lg hover:bg-blue-500 ${busy ? 'opacity-60' : ''}`}>
+            <CheckCircle2 size={14} /> {busy ? 'Accepting…' : 'Accept Assignment'}
+          </button>
+        ) : !delivered ? (
+          <button onClick={() => onDeliver(task.id)} disabled={busy}
+            className={`w-full mt-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all bg-emerald-600 text-white shadow-lg hover:bg-emerald-500 ${busy ? 'opacity-60' : ''}`}>
+            <CheckCircle2 size={14} /> {busy ? 'Marking…' : 'Mark Delivered'}<span className="text-[9px] normal-case">(outlet accepts to add stock)</span>
+          </button>
+        ) : (
+          <div className="mt-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 bg-emerald-600/30 text-emerald-300">
+            <CheckCircle2 size={14} /> Delivered — Awaiting Outlet Accept
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 /* ─── Delivery Charges Ledger ─── */
 const DeliveryChargesPanel = ({ refresh }) => {
   const [chargesData, setChargesData] = useState(null);
@@ -1281,6 +1447,7 @@ const DeliveryDashboard = () => {
           { key: 'cod', label: 'COD', icon: Wallet },
           { key: 'ledger', label: 'Ledger', icon: ListOrdered },
           { key: 'deposits', label: 'Deposits', icon: Building2 },
+          { key: 'stock', label: 'Demand Deliveries', icon: ClipboardList },
           { key: 'performance', label: 'Stats', icon: BarChart3 },
         ].map(v => (
           <button key={v.key} onClick={() => setView(v.key)}
@@ -1456,6 +1623,9 @@ const DeliveryDashboard = () => {
 
       {/* Deposits View */}
       {view === 'deposits' && <DepositPanel />}
+
+      {/* Stock (NBD Delivery Tasks) View */}
+      {view === 'stock' && <DemandDeliveriesPanel />}
 
       {/* Performance View */}
       {view === 'performance' && <PerformancePanel />}

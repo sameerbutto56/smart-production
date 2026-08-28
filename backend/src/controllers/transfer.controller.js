@@ -252,7 +252,7 @@ const rejectTransfer = async (req, res) => {
 const dispatchTransfer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { dispatchMethod } = req.body;
+    const { dispatchMethod, deliveryChannel, deliveryBoyName } = req.body;
     const transfer = await prisma.outletTransfer.findUnique({ where: { id }, include: { items: true } });
     if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
     if (transfer.status !== 'APPROVED') return res.status(400).json({ message: `Transfer must be APPROVED before dispatch. Current: ${transfer.status}` });
@@ -269,38 +269,87 @@ const dispatchTransfer = async (req, res) => {
     }
     if (!isSource) return res.status(403).json({ message: 'Only the source location can dispatch' });
 
-    for (const item of transfer.items) {
-      const qty = item.approvedQty || item.quantity;
-      if (transfer.type === 'WAREHOUSE_OUTLET') {
-        const invItem = await prisma.inventoryItem.findFirst({
-          where: { name: item.productName, color: item.color || undefined, size: item.size || undefined }
-        });
-        if (!invItem || invItem.stock < qty) {
-          return res.status(400).json({ message: `Insufficient warehouse stock for ${item.productName}. Available: ${invItem?.stock || 0}` });
-        }
-      } else if (item.outletInventoryId) {
-        const ov = await prisma.outletInventory.findUnique({ where: { id: item.outletInventoryId } });
-        if (!ov || ov.stock < qty) {
-          return res.status(400).json({ message: `Insufficient stock for ${item.productName}. Available: ${ov?.stock || 0}` });
+    const channel = deliveryChannel || (dispatchMethod ? (dispatchMethod === 'RIDER' ? 'NBD' : dispatchMethod) : 'NBD');
+
+    // Atomic dispatch: guard (only APPROVED one) + SOURCE stock deduction + dispatch
+    // fields all in ONE 30s transaction so stock can NEVER be deducted twice for a
+    // double-dispatch (e.g. double-click). Destination stock is NOT touched here.
+    const updated = await prisma.$transaction(async (tx) => {
+      const recheck = await tx.outletTransfer.findUnique({ where: { id }, include: { items: true } });
+      if (!recheck || recheck.status !== 'APPROVED') {
+        const err = new Error('Transfer is no longer APPROVED. Cannot dispatch.');
+        err.validation = true;
+        throw err;
+      }
+
+      for (const item of recheck.items) {
+        const qty = item.approvedQty || item.quantity;
+        if (recheck.type === 'WAREHOUSE_OUTLET') {
+          const invItem = await tx.inventoryItem.findFirst({
+            where: { name: item.productName, color: item.color || undefined, size: item.size || undefined }
+          });
+          if (!invItem || (invItem.stock || 0) < qty) {
+            const err = new Error(`Insufficient warehouse stock for ${item.productName}. Available: ${invItem?.stock || 0}`);
+            err.validation = true;
+            throw err;
+          }
+          await deductSourceWarehouse(tx, invItem.id, item.color, item.size, qty);
+        } else if (item.outletInventoryId || item.outletVariantId) {
+          const srcId = item.outletInventoryId || item.outletVariantId;
+          const ov = await tx.outletInventory.findUnique({ where: { id: srcId } });
+          if (!ov || (ov.stock || 0) < qty) {
+            const err = new Error(`Insufficient stock for ${item.productName}. Available: ${ov?.stock || 0}`);
+            err.validation = true;
+            throw err;
+          }
+          await tx.outletInventory.update({ where: { id: srcId }, data: { stock: { decrement: qty } } });
         }
       }
-    }
 
-    const updated = await prisma.outletTransfer.update({
-      where: { id },
-      data: {
-        status: 'DISPATCHED',
-        dispatchedById: req.user?.id || null,
-        dispatchedAt: new Date(),
-        dispatchMethod: dispatchMethod || transfer.dispatchMethod || 'RIDER'
-      },
-      include: { items: true }
-    });
-    await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'OUTLET', title: 'Transfer Dispatched', message: `Transfer #${transfer.transferNumber} dispatched`, action: 'Transfer Dispatched', employeeName: req.user?.name }).catch(() => {});
+      return tx.outletTransfer.update({
+        where: { id },
+        data: {
+          status: 'DISPATCHED',
+          dispatchedById: req.user?.id || null,
+          dispatchedAt: new Date(),
+          dispatchMethod: dispatchMethod || transfer.dispatchMethod || 'RIDER',
+          deliveryChannel: channel,
+          deliveryBoyName: channel === 'NBD' && (deliveryBoyName || req.body.riderName) ? (deliveryBoyName || req.body.riderName) : null
+        },
+        include: { items: true }
+      });
+    }, { timeout: 30000 });
+
+    await notify.create(req, { type: 'transfer', moduleName: channel === 'NBD' ? 'Delivery Boy' : 'Transfers', path: channel === 'NBD' ? '/delivery-tasks' : '/transfers', role: channel === 'NBD' ? 'DELIVERY_BOY' : 'OUTLET', title: 'Transfer Dispatched', message: `Transfer #${transfer.transferNumber} dispatched`, action: 'Transfer Dispatched', employeeName: req.user?.name }).catch(() => {});
     cache.delPattern('pos:');
+    cache.delPattern('warehouse:');
+    cache.delPattern('products:');
     res.json(updated);
   } catch (error) {
+    if (error && error.validation) return res.status(400).json({ message: error.message });
+    errorLogger.logError({ module: 'transfer:dispatch', userId: req.user?.id, userName: req.user?.name, outletName: req.user?.name, context: `transfer ${req.params?.id}`, message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Failed to dispatch transfer', error: error.message });
+  }
+};
+
+// Deduct a warehouse InventoryItem at dispatch (variant-aware), recomputing top-level stock.
+const deductSourceWarehouse = async (tx, inventoryItemId, color, size, qty) => {
+  const inv = await tx.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+  if (!inv) return;
+  if (Array.isArray(inv.variants) && inv.variants.length > 0) {
+    let done = false;
+    const variants = inv.variants.map(v => {
+      if (done) return v;
+      const matchColor = !color || (v.color || '').toString().toLowerCase() === String(color).toLowerCase();
+      const matchSize = !size || (v.size || '').toString().toLowerCase() === String(size).toLowerCase();
+      if (!matchColor || !matchSize) return v;
+      done = true;
+      return { ...v, stock: Math.max(0, (v.stock || 0) - qty) };
+    });
+    const newTotal = variants.reduce((s, v) => s + (v.stock || 0), 0);
+    await tx.inventoryItem.update({ where: { id: inv.id }, data: { variants, stock: newTotal } });
+  } else {
+    await tx.inventoryItem.update({ where: { id: inv.id }, data: { stock: { decrement: Math.min(qty, inv.stock || 0) } } });
   }
 };
 
@@ -322,12 +371,9 @@ const acceptTransfer = async (req, res) => {
         const srcId = item.outletInventoryId || item.outletVariantId;
         if (!srcId) throw vErr(`Missing source inventory reference for ${item.productName}`);
 
-        const sourceOv = await tx.outletInventory.findUnique({ where: { id: srcId } });
-        if (!sourceOv || sourceOv.stock < qty) {
-          throw vErr(`Insufficient stock for ${item.productName} at source`);
-        }
-
-        await tx.outletInventory.update({ where: { id: srcId }, data: { stock: { decrement: qty } } });
+        // Source stock was already deducted atomically at dispatch. Acceptance only
+        // ADDS to the destination inventory (never deducts source again).
+        const sourceOv = srcId ? await tx.outletInventory.findUnique({ where: { id: srcId } }) : null;
 
         if (transfer.type === 'OUTLET_WAREHOUSE') {
           let destItem = await tx.inventoryItem.findFirst({
@@ -389,24 +435,12 @@ const acceptTransfer = async (req, res) => {
       for (const item of transfer.items) {
         const qty = item.approvedQty || item.quantity;
 
+        // Source warehouse stock was already deducted atomically at dispatch.
+        // Acceptance only ADDS to the destination outlet inventory.
+
         const srcItem = await tx.inventoryItem.findFirst({
           where: { name: item.productName, color: item.color || undefined, size: item.size || undefined }
         });
-        if (!srcItem || srcItem.stock < qty) {
-          throw vErr(`Insufficient warehouse stock for ${item.productName}. Available: ${srcItem?.stock || 0}`);
-        }
-
-        const newStock = (srcItem.stock || 0) - qty;
-        let newVariants = srcItem.variants;
-        if (Array.isArray(newVariants) && newVariants.length > 0) {
-          newVariants = newVariants.map(v => {
-            if ((v.color || null) === (item.color || null) && (v.size || null) === (item.size || null)) {
-              return { ...v, stock: Math.max(0, (v.stock || 0) - qty) };
-            }
-            return v;
-          });
-        }
-        await tx.inventoryItem.update({ where: { id: srcItem.id }, data: { stock: newStock, variants: newVariants } });
 
         let destOv = await tx.outletInventory.findFirst({
           where: { barcode: item.barcode, outletName: transfer.toOutlet }
@@ -439,7 +473,7 @@ const acceptTransfer = async (req, res) => {
 
     return tx.outletTransfer.update({
       where: { id },
-      data: { status: 'COMPLETED', completedById: req.user?.id || null, completedAt: new Date() },
+      data: { status: 'COMPLETED', completedById: req.user?.id || null, completedAt: new Date(), deliveredById: req.user?.id || null, deliveredAt: new Date() },
       include: { items: true }
     });
     }, { timeout: 30000 });
