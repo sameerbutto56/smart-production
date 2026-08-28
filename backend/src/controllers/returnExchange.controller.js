@@ -251,7 +251,7 @@ const approveFaisal = async (req, res) => {
             orderId: record.orderId,
             action: 'REPLACEMENT_FAISAL_REJECTED',
             details: `Faisal rejected replacement for ${record.orderNumber}. Notes: ${notes || 'N/A'}`,
-            performedBy: req.user?.id || 'SYSTEM'
+          performedBy: req.user?.id || null
           }
         });
         return tx.returnExchange.findUnique({ where: { id } });
@@ -308,11 +308,12 @@ const processByStore = async (req, res) => {
       return res.status(400).json({ message: 'Replacement can be deducted from stock or routed to Production' });
     }
 
-    let newStatus = 'COMPLETED';
+    let newStatus;
     let actionLabel = record.type === 'RETURN' ? 'RETURN_STORE_PROCESSED' : 'REPLACEMENT_STORE_PROCESSED';
     let actionDetail = '';
 
     if (action === 'restock') {
+      newStatus = 'RESTOCKED';
       // Add original returned goods back into inventory
       const originals = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
       for (const item of originals) {
@@ -369,7 +370,7 @@ const processByStore = async (req, res) => {
       newStatus = 'DISPATCH_READY'; // existing dispatch flow completes fulfilment
       actionDetail = `Replacement items deducted from inventory by ${req.user?.name || 'Store'} — ready for dispatch.`;
     } else if (action === 'route_to_production') {
-      newStatus = 'IN_PRODUCTION';
+      newStatus = 'ROUTED_TO_PRODUCTION';
       actionLabel = record.type === 'RETURN' ? 'RETURN_ROUTED_TO_PRODUCTION' : 'REPLACEMENT_ROUTED_TO_PRODUCTION';
       actionDetail = `${record.type} for ${record.orderNumber} routed to Production by ${req.user?.name || 'Store'}${notes ? `. Notes: ${notes}` : ''}.`;
     }
@@ -379,7 +380,7 @@ const processByStore = async (req, res) => {
         where: { id },
         data: {
           status: newStatus,
-          routedTo: newStatus === 'IN_PRODUCTION' ? 'STORE' : 'STORE',
+          routedTo: 'STORE',
           storeProcessedBy: req.user?.name || 'Store',
           storeProcessedById: req.user?.id || null,
           storeProcessedAt: new Date(),
@@ -419,6 +420,55 @@ const processByStore = async (req, res) => {
   } catch (error) {
     console.error('Error processing by Store:', error);
     res.status(500).json({ message: 'Failed to process', error: error.message });
+  }
+};
+
+// POST /api/return-exchange/:id/complete-return
+// Final step of the strict Store return-completion workflow. A Store-routed
+// return must first be accepted (storeAccept) and then restocked (processByStore
+// action 'restock' → status RESTOCKED) before it may be completed here. This
+// handler is the ONLY way a return reaches COMPLETED — processByStore no longer
+// completes returns. Guards: must be a RETURN with the Store, already restocked
+// (status RESTOCKED), and never completed. Idempotent re-submits are blocked.
+const completeReturn = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await prisma.returnExchange.findUnique({ where: { id } });
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    if (record.type !== 'RETURN') return res.status(400).json({ message: 'Only Return cases can be completed here' });
+    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This return is not with the Store' });
+    if (record.status !== 'RESTOCKED') {
+      return res.status(400).json({ message: record.status === 'COMPLETED' ? 'This return has already been completed' : 'Returned goods must be restocked into inventory before completing' });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.returnExchange.update({
+        where: { id },
+        data: {
+          status: 'COMPLETED',
+          completedBy: req.user?.name || 'Store',
+          completedAt: new Date()
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          orderId: record.orderId,
+          action: 'RETURN_COMPLETED',
+          details: `Return for ${record.orderNumber || ''} completed by ${req.user?.name || 'Store'} — returned goods restocked into inventory. Completed: ${new Date().toLocaleString()}.`,
+          performedBy: req.user?.id || 'SYSTEM'
+        }
+      });
+      return tx.returnExchange.findUnique({ where: { id } });
+    });
+
+    const io = req.app?.get('io');
+    if (io) io.emit('return-exchange-updated', { caseId: id });
+    if (io) io.emit('order-updated', { orderId: record.orderId });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error completing return at Store:', error);
+    res.status(500).json({ message: 'Failed to complete return', error: error.message });
   }
 };
 
@@ -2320,9 +2370,13 @@ const bulkCompleteStaleReturns = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // 1) Find all non-terminal RETURN cases
+    // 1) Find all unprocessed RETURN cases.
+    //    Strict workflow: only PENDING/ACCEPTED that were never actually Store-processed
+    //    may be auto-completed as stale. RESTOCKED/ROUTED_TO_PRODUCTION are mid-flow and
+    //    must NEVER be auto-completed here — they progress via the strict workflow
+    //    (RESTOCKED → Complete Return / ROUTED_TO_PRODUCTION → Production).
     const staleCases = await prisma.returnExchange.findMany({
-      where: { type: 'RETURN', status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      where: { type: 'RETURN', status: { in: ['PENDING', 'ACCEPTED'] } },
       select: { id: true, orderId: true, status: true, handledBy: true, createdAt: true }
     });
 
@@ -2422,4 +2476,4 @@ const getCompletedReturns = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns };
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, completeReturn, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns };

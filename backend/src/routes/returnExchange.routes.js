@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth.middleware');
-const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns } = require('../controllers/returnExchange.controller');
+const { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, completeReturn, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns } = require('../controllers/returnExchange.controller');
 
 const router = express.Router();
 
@@ -19,6 +19,7 @@ router.post('/:id/approve', authenticate, approveWarehouse);
 router.post('/:id/faisal-approve', authenticate, approveFaisal);
 router.post('/:id/store-accept', authenticate, storeAccept);
 router.post('/:id/store-process', authenticate, processByStore);
+router.post('/:id/complete-return', authenticate, completeReturn);
 router.post('/:id/dispatch', authenticate, dispatchReplacement);
 router.get('/:id', authenticate, getCase);
 router.get('/:id/job-sheet-order', authenticate, getReplacementJobSheetOrder);

@@ -948,7 +948,7 @@ model ReturnExchange {
   customerName     String?
   customerPhone    String?
   type             String   // RETURN, REPLACEMENT, NO_RESPONSE
-  status           String   @default("PENDING") // PENDING, ACCEPTED, FAISAL_APPROVED, DISPATCH_READY, COMPLETED, IN_PRODUCTION, STORE_RECEIVE, REPLACEMENT_COMPLETED, CANCELLED, WAREHOUSE_REJECTED
+  status           String   @default("PENDING") // PENDING, ACCEPTED, FAISAL_APPROVED, DISPATCH_READY, COMPLETED, IN_PRODUCTION, RESTOCKED, ROUTED_TO_PRODUCTION, STORE_RECEIVE, REPLACEMENT_COMPLETED, CANCELLED, WAREHOUSE_REJECTED
   routedTo         String   @default("STORE") // STORE, FAISAL — where the case currently sits
   returnReason     String?
   specialNote      String?  // mandatory for REPLACEMENT — goes to Faisal
@@ -994,6 +994,9 @@ model ReturnExchange {
   acceptedBy        String?      // inventory view user who accepted
   acceptedById      String?      // inventory view user id
   acceptedAt        DateTime?    // when accepted
+  // Strict Store-return completion workflow (RESTOCKED → COMPLETED)
+  completedBy       String?      // Store user who completed the return
+  completedAt       DateTime?    // when the return was completed
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

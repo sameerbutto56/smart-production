@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Package, RotateCcw, RefreshCw, Factory, Eye, Box, Undo2 } from 'lucide-react';
+import { Package, RotateCcw, RefreshCw, Factory, Eye, Box, Undo2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -17,6 +17,8 @@ const parseItems = (items) => {
 
 const STATUS_BADGE = (status) => {
   if (status === 'COMPLETED' || status === 'REPLACEMENT_COMPLETED') return 'bg-emerald-500/20 text-emerald-400';
+  if (status === 'RESTOCKED') return 'bg-teal-500/20 text-teal-400';
+  if (status === 'ROUTED_TO_PRODUCTION') return 'bg-purple-500/20 text-purple-400';
   if (status === 'ACCEPTED') return 'bg-blue-500/20 text-blue-400';
   if (status === 'DISPATCH_READY') return 'bg-amber-500/20 text-amber-400';
   if (status === 'IN_PRODUCTION') return 'bg-purple-500/20 text-purple-400';
@@ -33,15 +35,18 @@ const StoreReturns = ({ refreshKey }) => {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [processingId, setProcessingId] = useState(null);
+  const [completingId, setCompletingId] = useState(null);
 
   const fetchCases = useCallback(async () => {
     setLoading(true);
     try {
-      const [pendingRes, acceptedRes] = await Promise.all([
+      const [pendingRes, acceptedRes, restockedRes, routedRes] = await Promise.all([
         api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'PENDING', limit: 100 } }),
-        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ACCEPTED', limit: 100 } })
+        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ACCEPTED', limit: 100 } }),
+        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'RESTOCKED', limit: 100 } }),
+        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ROUTED_TO_PRODUCTION', limit: 100 } })
       ]);
-      const list = [...(pendingRes.data.cases || []), ...(acceptedRes.data.cases || [])]
+      const list = [...(pendingRes.data.cases || []), ...(acceptedRes.data.cases || []), ...(restockedRes.data.cases || []), ...(routedRes.data.cases || [])]
         .filter(c => c.routedTo === 'STORE')
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setReturns(list);
@@ -82,6 +87,18 @@ const StoreReturns = ({ refreshKey }) => {
     await processCase(record, 'route_to_production', notes);
   };
 
+  const completeReturnCase = async (record) => {
+    if (!window.confirm(`Complete return of order ${record.orderNumber}? The returned goods have been restocked and this return will be marked completed.`)) return;
+    if (completingId === record.id) return;
+    setCompletingId(record.id);
+    try {
+      const res = await api.post(`/api/return-exchange/${record.id}/complete-return`);
+      toast.success(res.data?.message || 'Return completed');
+      await fetchCases();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to complete return'); }
+    setCompletingId(null);
+  };
+
   const searchMatch = (c) => !search ||
     (c.orderNumber || '').toLowerCase().includes(search.toLowerCase()) ||
     (c.customerName || '').toLowerCase().includes(search.toLowerCase());
@@ -112,6 +129,11 @@ const StoreReturns = ({ refreshKey }) => {
                 <p className="text-[10px] theme-text-muted mt-0.5">Initiated by {c.handledBy} • {fmtDateTime(c.createdAt)}</p>
               </div>
               <div className="flex items-center gap-2">
+                {c.status === 'RESTOCKED' && (
+                  <button onClick={() => completeReturnCase(c)} disabled={processingId === c.id || completingId === c.id} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
+                    <CheckCircle2 size={14} /> {completingId === c.id ? 'Completing...' : 'Complete Return'}
+                  </button>
+                )}
                 <button onClick={() => setExpandedId(expandedId === c.id ? null : c.id)} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1">
                   <Eye size={14} /> {expandedId === c.id ? 'Hide' : 'Details'}
                 </button>
@@ -142,6 +164,18 @@ const StoreReturns = ({ refreshKey }) => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] font-black bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg">
                       Accepted by {c.storeAcceptedBy || 'Store'} • {fmtDateTime(c.storeAcceptedAt)}
+                    </span>
+                  </div>
+                ) : c.status === 'RESTOCKED' ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black bg-teal-500/20 text-teal-400 px-2 py-1 rounded-lg">
+                      Restocked into inventory — ready to complete
+                    </span>
+                  </div>
+                ) : c.status === 'ROUTED_TO_PRODUCTION' || c.status === 'IN_PRODUCTION' ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black bg-purple-500/20 text-purple-400 px-2 py-1 rounded-lg">
+                      Routed to Production
                     </span>
                   </div>
                 ) : (
@@ -195,7 +229,7 @@ const StoreReturns = ({ refreshKey }) => {
         <div className="text-center py-16 text-gray-500 font-bold">Loading...</div>
       ) : (
         <div className="space-y-8">
-          <ReturnsSection title="Returns — Store" icon={<Box size={18} className="text-red-400" />} color="bg-red-500/20" list={returns} emptyText="No returns to process. Returned orders from Inventory View will appear here." />
+          <ReturnsSection title="Returns — Store" icon={<Box size={18} className="text-red-400" />} color="bg-red-500/20" list={returns} emptyText="No returns to process. Returned orders from Inventory View will appear here until they are completed." />
         </div>
       )}
     </div>
