@@ -16,6 +16,36 @@ import { getAllowedHours, STAGE_CONFIG_MAP, computeActiveWorkingMs } from '../ut
 import { useSystemPause } from '../context/SystemPauseContext';
 import toast from 'react-hot-toast';
 
+// Detect whether a product object carries direct per-product outlet engraving.
+const hasDirectOutletEngraving = (p) =>
+  !!p && (p.engravingRequired === true ||
+    (Array.isArray(p.engravingLines) && p.engravingLines.some(l => l && l.trim())) ||
+    (Array.isArray(p.logoEntries) && p.logoEntries.some(l => l && (l.name?.trim() || l.design?.trim()))) ||
+    (typeof p.engravingInstructions === 'string' && p.engravingInstructions.trim() !== ''));
+
+// Map frontend thread-color value to a display color name.
+const mapThread = (t) => (t === 'Custom' ? '' : t || '');
+
+// Normalize a product's direct per-product outlet engraving fields into the legacy
+// customization shape so all existing render paths (names / specs / logos / notes) work.
+const normalizeOutletEngraving = (p, c) => {
+  if (!hasDirectOutletEngraving(p)) return c || {};
+  const lines = Array.isArray(p.engravingLines)
+    ? p.engravingLines.filter(l => l && l.trim())
+    : [];
+  return {
+    ...(c || {}),
+    engravingType: p.engravingType || 'direct',
+    logoPlacement: p.engravingPlacement || 'LeftChest',
+    nameColor: mapThread(p.engravingThreadColor) || (c || {}).nameColor,
+    logoColor: mapThread(p.engravingThreadColor) || (c || {}).logoColor,
+    articleNames: lines,
+    nameSpelling: lines.join(', '),
+    logos: Array.isArray(p.logoEntries) ? p.logoEntries : (c || {}).logos,
+    designNotes: (lines.length === 0 && p.engravingInstructions) ? p.engravingInstructions : (c || {}).designNotes,
+  };
+};
+
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
@@ -428,8 +458,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       return (
         <div className="space-y-4">
           {sortedItems.map((item, idx) => {
-            const p = item.productDetails || {};
-            const c = item.customization || {};
+            const p = item.productDetails || (item.name ? item : {});
+            const c0 = item.customization ? (typeof item.customization === 'string' ? (() => { try { return JSON.parse(item.customization); } catch { return {}; } })() : item.customization) : {};
+            const c = normalizeOutletEngraving(item, hasDirectOutletEngraving(item) ? null : c0);
             const rawS = item.sizeData || {};
             const s = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
               ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
@@ -910,8 +941,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </h4>
                 {isMultiItem && orderItems?.length > 0 ? (
                   orderItems.map((item, idx) => {
-                    const p = item.productDetails || item;
-                    const ic = item.customization ? parseJSON(item.customization) : custom;
+                    const p = item.productDetails || (item.name ? item : item.productDetails || {});
+                    const baseCustom = item.customization ? parseJSON(item.customization) : null;
+                    const ic = hasDirectOutletEngraving(item)
+                      ? normalizeOutletEngraving(item, null)
+                      : (baseCustom || custom || {});
                     const isz = item.sizeData ? parseJSON(item.sizeData) : sizes;
                     const slip = { 'full':'Full','half':'Half','three-quarter':'3 Quarter' };
                     const shmp = { 'long':'Long','short':'Short','regular':'Regular' };

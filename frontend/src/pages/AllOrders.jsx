@@ -41,6 +41,37 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 const POS_MAP = { 'LeftChest': 'Left Chest', 'RightChest': 'Right Chest', 'Sleeve': 'Sleeve Cuff', 'Back': 'Upper Back', 'Cuff': 'Cuff' };
 const fmtPos = (v) => POS_MAP[v] || v;
 
+// Detect whether a product object carries direct per-product outlet engraving
+// (stored directly on productDetails[i], not inside a legacy customization object).
+const hasDirectOutletEngraving = (p) =>
+  !!p && (p.engravingRequired === true ||
+    (Array.isArray(p.engravingLines) && p.engravingLines.some(l => l && l.trim())) ||
+    (Array.isArray(p.logoEntries) && p.logoEntries.some(l => l && (l.name?.trim() || l.design?.trim()))) ||
+    (typeof p.engravingInstructions === 'string' && p.engravingInstructions.trim() !== ''));
+
+// Map frontend thread-color value to a display color name.
+const mapThread = (t) => (t === 'Custom' ? '' : t || '');
+
+// Normalize a product's direct per-product outlet engraving fields into the legacy
+// customization shape so all existing render paths (names / specs / logos / notes) work.
+const normalizeOutletEngraving = (p, c) => {
+  if (!hasDirectOutletEngraving(p)) return c || {};
+  const lines = Array.isArray(p.engravingLines)
+    ? p.engravingLines.filter(l => l && l.trim())
+    : [];
+  return {
+    ...(c || {}),
+    engravingType: p.engravingType || 'direct',
+    logoPlacement: p.engravingPlacement || 'LeftChest',
+    nameColor: mapThread(p.engravingThreadColor) || (c || {}).nameColor,
+    logoColor: mapThread(p.engravingThreadColor) || (c || {}).logoColor,
+    articleNames: lines,
+    nameSpelling: lines.join(', '),
+    logos: Array.isArray(p.logoEntries) ? p.logoEntries : (c || {}).logos,
+    designNotes: (lines.length === 0 && p.engravingInstructions) ? p.engravingInstructions : (c || {}).designNotes,
+  };
+};
+
 // --- Delay helpers live in ../utils/delayUtils.js (shared with Admin Dashboard) ---
 // getDateRange returns an absolute [start,end) window for the selected date filter.
 const getDateRange = (key) => {
@@ -1264,9 +1295,10 @@ const AllOrders = () => {
         const hasCustomData = isMultiItem
           ? allItems.some(item => {
               const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : {};
-              return hasEngravingData(c);
+              // New outlet orders store engraving directly on the product item; legacy uses customization.
+              return hasEngravingData(c) || hasDirectOutletEngraving(item);
             })
-          : hasEngravingData(typeof custom === 'string' ? JSON.parse(custom) : custom);
+          : hasEngravingData(typeof custom === 'string' ? JSON.parse(custom) : custom) || hasDirectOutletEngraving(product);
         
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
@@ -1678,8 +1710,9 @@ const AllOrders = () => {
                   {isMultiItem ? (
                     <div className="space-y-6">
                       {allItems.map((item, idx) => {
-                        const c = item.customization || {};
-                        const p = item.productDetails || {};
+                        const p = item.productDetails || (item.name ? item : {});
+                        const c0 = item.customization ? (typeof item.customization === 'string' ? (() => { try { return JSON.parse(item.customization); } catch { return {}; } })() : item.customization) : {};
+                        const c = normalizeOutletEngraving(item, hasDirectOutletEngraving(item) ? c0 : null);
                         const filledArticles = getFilledArticleNames(c);
                         const filledLines = getFilledEngravingLines(c);
                         const hasLines = filledLines.length > 0;

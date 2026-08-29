@@ -1395,25 +1395,51 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const engravingCheckboxOff = order.source === 'OUTLET' && order.engravingRequired === false;
 
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
+
+    // Per-product outlet engraving lives DIRECTLY on the productDetails item (new outlet
+    // orders) — normalize those fields into the legacy customization shape so every render
+    // path (lines/names/specs/logos/notes) works uniformly.
+    const hasDirectOutletEngraving = (p) => !!(p && (p.engravingRequired === true ||
+      (Array.isArray(p.engravingLines) && p.engravingLines.some(l => l && String(l).trim())) ||
+      (Array.isArray(p.logoEntries) && p.logoEntries.some(l => l && (l.name?.trim() || l.design?.trim()))) ||
+      (p.engravingInstructions && String(p.engravingInstructions).trim())));
+    const mapThread = (t) => (t && t !== 'Custom' ? String(t).trim() : '');
+
     const hasAnyCustomization = !engravingCheckboxOff && brandingItems.some(item => {
+      const p = getItemProduct(item);
+      if (hasDirectOutletEngraving(p)) return true;
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
       return hasEngravingData(c);
     });
 
     if (!engravingCheckboxOff && (hasAnyCustomization || outHasEngraving)) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.engraving}</div>`);
-      // Per-item customization (standard flow)
+      // Per-item customization (standard flow) + per-product outlet direct engraving
       if (hasAnyCustomization) {
         brandingItems.forEach((item, idx) => {
           const p = getItemProduct(item);
           const c = item.customization ? parseJSON(item.customization) : custom;
-          const filteredNames = getFilledArticleNames(c);
-          const filledLines = getFilledEngravingLines(c);
+          const src = hasDirectOutletEngraving(p)
+            ? {
+                ...c,
+                engravingType: p.engravingType || c?.engravingType,
+                logoPlacement: p.engravingPlacement || c?.logoPlacement,
+                articleNames: (p.engravingLines || []).length ? p.engravingLines : (c?.articleNames || []),
+                nameSpelling: (p.engravingLines || []).filter(l => l && String(l).trim()).join(', ') || c?.nameSpelling,
+                logos: (p.logoEntries || []).length ? p.logoEntries : (c?.logos || []),
+                nameColor: mapThread(p.engravingThreadColor) || c?.nameColor,
+                logoColor: mapThread(p.engravingThreadColor) || c?.logoColor,
+                designNotes: !(p.engravingLines || []).length ? (p.engravingInstructions || c?.designNotes) : c?.designNotes,
+                designReference: c?.designReference
+              }
+            : c;
+          const filteredNames = getFilledArticleNames(src);
+          const filledLines = getFilledEngravingLines(src);
           const hasLines = filledLines.length > 0;
-          const hasNames = filteredNames.length > 0 || c?.nameSpelling?.trim();
-          const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
-          const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;
-          const hasNotes = c?.designNotes && !hasLines;
+          const hasNames = filteredNames.length > 0 || src?.nameSpelling?.trim();
+          const hasLogos = src?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
+          const hasSpecs = src?.nameColor || src?.logoPlacement || src?.engravingType;
+          const hasNotes = src?.designNotes && !hasLines;
 
           if (!hasLines && !hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
 
@@ -1442,9 +1468,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
               win.document.write(`</div>`);
             });
           } else {
-            if (c?.engravingType) {
+            if (src?.engravingType) {
               win.document.write(`<div style="margin-bottom:6px">`);
-              const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
+              const engravingLabel = src.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
               win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
               win.document.write(`</div>`);
             }
@@ -1457,7 +1483,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
                   win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
                 });
               } else {
-                win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
+                win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${src.nameSpelling}</span></div>`);
               }
               win.document.write(`</div>`);
             }
@@ -1465,27 +1491,27 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
           if (hasSpecs) {
             win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
-            if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${vu(c.nameColor)}</span>`);
-            if (c.logoPlacement) {
+            if (src.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${vu(src.nameColor)}</span>`);
+            if (src.logoPlacement) {
               const posMap = { 'LeftChest': 'Left Chest', 'RightChest': 'Right Chest', 'Sleeve': 'Sleeve Cuff', 'Back': 'Upper Back', 'Cuff': 'Cuff' };
-              const posDisplay = isUrdu ? vu(c.logoPlacement) : (posMap[c.logoPlacement] || c.logoPlacement);
+              const posDisplay = isUrdu ? vu(src.logoPlacement) : (posMap[src.logoPlacement] || src.logoPlacement);
               win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${posDisplay}</span>`);
             }
-            if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${vu(c.logoColor)}</span>`);
+            if (src.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${vu(src.logoColor)}</span>`);
             win.document.write(`</div>`);
           }
 
           if (hasLogos) {
             win.document.write(`<div style="margin-bottom:6px">`);
             win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
-            c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
+            src.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
               win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
             });
             win.document.write(`</div>`);
           }
 
           if (hasNotes) {
-            const notesDisplay = isUrdu ? romanToUrdu(c.designNotes) : c.designNotes;
+            const notesDisplay = isUrdu ? romanToUrdu(src.designNotes) : src.designNotes;
             win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
             win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
             win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);

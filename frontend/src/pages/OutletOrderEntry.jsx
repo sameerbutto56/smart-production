@@ -2,11 +2,11 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock } from 'lucide-react';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock } from 'lucide-react';
 import { formatDateOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
 
-const STEPS = ['Customer', 'Products', 'Engraving', 'Measurements', 'Review'];
+const STEPS = ['Customer', 'Products', 'Measurements', 'Review'];
 
 const SLEEVE_LENGTH_OPTIONS = [
   { value: 'full', label: 'Full', labelUrdu: 'پوری بازو' },
@@ -55,7 +55,10 @@ const EMPTY_PRODUCT = {
   name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0,
   design: '', stitchingNotes: '', accessories: '',
   sleeveLength: '', shirtLength: '', measurementSpecialNote: '',
-  gender: 'Male', matchingCap: false, matchingCapQty: 0
+  gender: 'Male', matchingCap: false, matchingCapQty: 0,
+  engravingRequired: false, engravingLines: [''], engravingType: 'direct',
+  engravingThreadColor: '', customThreadColor: '', engravingPlacement: 'LeftChest',
+  logoEntries: [{ name: '', design: '' }], engravingInstructions: ''
 };
 
 const OutletOrderEntry = () => {
@@ -145,16 +148,6 @@ const OutletOrderEntry = () => {
   const [products, setProducts] = useState([]);
   const [newProduct, setNewProduct] = useState({ ...EMPTY_PRODUCT });
 
-  const [engravingRequired, setEngravingRequired] = useState(false);
-  const [engravingType, setEngravingType] = useState('direct');
-  const [engravingLines, setEngravingLines] = useState(['']);
-  const [engravingThreadColor, setEngravingThreadColor] = useState('');
-  const [customThreadColor, setCustomThreadColor] = useState('');
-  const [engravingPlacement, setEngravingPlacement] = useState('LeftChest');
-  const [logoEntries, setLogoEntries] = useState([{ name: '', design: '' }]);
-  const [engravingInstructions, setEngravingInstructions] = useState('');
-
-  const [logoDesign, setLogoDesign] = useState('');
   const [specialNotes, setSpecialNotes] = useState('');
 
   const [sizeData, setSizeData] = useState({});
@@ -354,6 +347,10 @@ const OutletOrderEntry = () => {
     setNewProduct(prev => ({ ...prev, [field]: value }));
   }, []);
 
+  const updateProductField = useCallback((idx, field, value) => {
+    setProducts(prev => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
+  }, []);
+
   const CAP_UNIT_PRICE = 500;
   const totalAmount = useMemo(() => products.reduce((sum, p) => {
     const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
@@ -382,32 +379,39 @@ const OutletOrderEntry = () => {
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
 
   const buildCustomization = useCallback(() => {
-    if (!engravingRequired) {
+    const anyEngraving = products.some(p => p.engravingRequired);
+    if (!anyEngraving) {
       return { articleNames: [], nameSpelling: '', nameColor: '', logoColor: '', logoPlacement: '', designNotes: '', designReference: '', additionalFeatures: [], logos: [], engravingType: '', skipEngraving: true };
     }
-    const filteredNames = engravingLines.filter(l => l.trim());
-    const filteredLogos = logoEntries.filter(l => l.name?.trim() || l.design?.trim());
+    const names = [];
+    const logos = [];
+    products.forEach(p => {
+      if (!p.engravingRequired) return;
+      const pNames = (p.engravingLines || []).filter(l => l && l.trim());
+      const pLogos = (p.logoEntries || []).filter(l => l.name?.trim() || l.design?.trim());
+      const label = p.name ? `${p.name}: ` : '';
+      names.push(...pNames.map(n => `${label}${n}`));
+      logos.push(...pLogos.map(l => `${label}${l.name}${l.design ? ' — ' + l.design : ''}`));
+    });
     return {
-      articleNames: filteredNames,
-      nameSpelling: filteredNames.join(', '),
-      nameColor: engravingThreadColor === 'Custom' ? customThreadColor : (engravingThreadColor || ''),
+      articleNames: names,
+      nameSpelling: names.join(', '),
+      nameColor: '',
       logoColor: '',
-      logoPlacement: engravingPlacement || '',
+      logoPlacement: '',
       designNotes: '',
       designReference: '',
       additionalFeatures: [],
-      logos: filteredLogos,
-      engravingType: engravingType || '',
+      logos,
+      engravingType: 'direct',
       skipEngraving: false
     };
-  }, [engravingLines, logoEntries, engravingThreadColor, customThreadColor, engravingPlacement, engravingType, engravingRequired]);
+  }, [products]);
 
   const handleSubmit = async () => {
     if (products.length === 0) return toast.error('Add at least one product');
     setSubmitting(true);
     try {
-      const engravingNames = engravingLines.filter(l => l.trim());
-      const engravingLogos = logoEntries.filter(l => l.name?.trim() || l.design?.trim()).map(l => `${l.name}${l.design ? ' — ' + l.design : ''}`);
       const payload = {
         orderNumber: orderNumber.trim() || undefined,
         clientNumber: clientData?.clientNumber || null,
@@ -434,15 +438,15 @@ const OutletOrderEntry = () => {
           gender: p.gender || 'Male',
           matchingCap: p.matchingCap || false,
           matchingCapQty: p.matchingCapQty || 0,
-          capCharges: p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0
+          capCharges: p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0,
+          engravingRequired: p.engravingRequired || false,
+          engravingType: p.engravingRequired ? (p.engravingType || 'direct') : null,
+          engravingLines: p.engravingRequired ? ((p.engravingLines || []).filter(l => l && l.trim()) || []) : [],
+          engravingThreadColor: p.engravingRequired ? (p.engravingThreadColor === 'Custom' ? p.customThreadColor : (p.engravingThreadColor || '')) : null,
+          engravingPlacement: p.engravingRequired ? (p.engravingPlacement || 'LeftChest') : null,
+          logoEntries: p.engravingRequired ? ((p.logoEntries || []).filter(l => l.name?.trim() || l.design?.trim()) || []) : [],
+          engravingInstructions: p.engravingRequired ? (p.engravingInstructions || '') : ''
         })),
-        engravingRequired,
-        engravingType: engravingRequired ? engravingType : null,
-        engravingInstructions: engravingRequired ? (engravingInstructions || null) : null,
-        logoRequired: engravingRequired ? logoEntries.some(l => l.name?.trim() || l.design?.trim()) : false,
-        logoDesign: engravingRequired ? (logoDesign || null) : null,
-        engravingNames: engravingRequired ? (engravingNames.length > 0 ? engravingNames : null) : null,
-        engravingLogos: engravingRequired ? (engravingLogos.length > 0 ? engravingLogos : null) : null,
         customization: buildCustomization(),
         sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
         standardSize: sizingMode === 'standard' ? selectedStandardSize : null,
@@ -476,14 +480,6 @@ const OutletOrderEntry = () => {
     setCustomer({ name: '', phone: '', address: '', city: '', notes: '' });
     setProducts([]);
     setNewProduct({ ...EMPTY_PRODUCT });
-    setEngravingRequired(false);
-    setEngravingLines(['']);
-    setEngravingThreadColor('');
-    setCustomThreadColor('');
-    setEngravingPlacement('LeftChest');
-    setLogoEntries([{ name: '', design: '' }]);
-    setEngravingInstructions('');
-    setLogoDesign('');
     setSpecialNotes('');
     setSizeData({});
     setClientMeasurements({});
@@ -954,8 +950,115 @@ const OutletOrderEntry = () => {
                         {p.design && <p className="text-[10px] text-gray-500 mt-0.5">Design: {p.design}</p>}
                         {p.stitchingNotes && <p className="text-[10px] text-gray-500">Stitching: {p.stitchingNotes}</p>}
                         {p.accessories && <p className="text-[10px] text-gray-500">Accessories: {p.accessories}</p>}
-                        {p.measurementSpecialNote && <p className="text-[10px] text-amber-400 font-bold mt-0.5">Measurement Note: {p.measurementSpecialNote}</p>}
-                      </div>
+                         {p.measurementSpecialNote && <p className="text-[10px] text-amber-400 font-bold mt-0.5">Measurement Note: {p.measurementSpecialNote}</p>}
+                         <label className="flex items-center gap-2 cursor-pointer mt-1.5">
+                           <input type="checkbox" checked={!!p.engravingRequired}
+                             onChange={e => updateProductField(idx, 'engravingRequired', e.target.checked)}
+                             className="accent-purple-500 w-4 h-4" />
+                           <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Engraving</span>
+                         </label>
+                         {!!p.engravingRequired && (
+                           <div className="mt-2 space-y-2 bg-gray-900/60 rounded-lg p-2.5 border border-purple-500/30">
+                             <div>
+                               <label className="text-[10px] font-bold text-gray-400 block mb-1">Method</label>
+                               <div className="flex gap-2">
+                                 {[{ value: 'direct', label: 'Direct' }, { value: 'patch', label: 'Patch' }].map(opt => (
+                                   <button key={opt.value} type="button" onClick={() => updateProductField(idx, 'engravingType', opt.value)}
+                                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                       (p.engravingType || 'direct') === opt.value
+                                         ? 'bg-purple-600/20 text-purple-400 border-purple-500'
+                                         : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
+                                     }`}>
+                                     {opt.label}
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+                             <div>
+                               <div className="flex items-center justify-between mb-1">
+                                 <label className="text-[10px] font-bold text-gray-400">Engraving Lines</label>
+                                 {((p.engravingLines || []).length) < 5 && (
+                                   <button type="button" onClick={() => updateProductField(idx, 'engravingLines', [...(p.engravingLines || []), ''])}
+                                     className="text-[10px] font-black text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                                     <Plus size={11} /> Add Line
+                                   </button>
+                                 )}
+                               </div>
+                               <div className="space-y-1.5">
+                                 {(p.engravingLines || ['']).map((line, li) => (
+                                   <div key={li} className="flex items-center gap-1.5">
+                                     <span className="bg-purple-500/20 text-purple-400 text-[10px] font-black px-1.5 py-0.5 rounded shrink-0">L{li + 1}</span>
+                                     <input value={line} onChange={e => { const next = [...(p.engravingLines || [''])]; next[li] = e.target.value; updateProductField(idx, 'engravingLines', next); }}
+                                       className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                                       placeholder={`Engraving line ${li + 1}`} />
+                                     {(p.engravingLines || []).length > 1 && (
+                                       <button onClick={() => updateProductField(idx, 'engravingLines', (p.engravingLines || []).filter((_, j) => j !== li))}
+                                         className="text-red-400 hover:text-red-300 p-0.5"><X size={12} /></button>
+                                     )}
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                             <div className="grid grid-cols-2 gap-2">
+                               <div>
+                                 <label className="text-[10px] font-bold text-gray-400 block mb-1">Thread / Text Color</label>
+                                 <select value={p.engravingThreadColor === 'Custom' ? 'Custom' : (p.engravingThreadColor || '')}
+                                   onChange={e => updateProductField(idx, 'engravingThreadColor', e.target.value)}
+                                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:border-purple-500 outline-none appearance-none">
+                                   {THREAD_COLOR_OPTIONS.map(o => (
+                                     <option key={o.value} value={o.value}>{o.label}</option>
+                                   ))}
+                                 </select>
+                                 {(p.engravingThreadColor === 'Custom') && (
+                                   <input value={p.customThreadColor || ''} onChange={e => updateProductField(idx, 'customThreadColor', e.target.value)}
+                                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none mt-1"
+                                     placeholder="Custom color" />
+                                 )}
+                               </div>
+                               <div>
+                                 <label className="text-[10px] font-bold text-gray-400 block mb-1">Placement</label>
+                                 <select value={p.engravingPlacement || 'LeftChest'} onChange={e => updateProductField(idx, 'engravingPlacement', e.target.value)}
+                                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:border-purple-500 outline-none appearance-none">
+                                   {PLACEMENT_OPTIONS.map(o => (
+                                     <option key={o.value} value={o.value}>{o.label}</option>
+                                   ))}
+                                 </select>
+                               </div>
+                             </div>
+                             <div>
+                               <div className="flex items-center justify-between mb-1">
+                                 <label className="text-[10px] font-bold text-gray-400">Logos</label>
+                                 <button type="button" onClick={() => updateProductField(idx, 'logoEntries', [...(p.logoEntries || []), { name: '', design: '' }])}
+                                   className="text-[10px] font-black text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                                   <Plus size={11} /> Add Logo
+                                 </button>
+                               </div>
+                               <div className="space-y-1.5">
+                                 {(p.logoEntries || []).map((logo, li) => (
+                                   <div key={li} className="flex items-center gap-1.5">
+                                     <input value={logo.name || ''} onChange={e => { const next = [...(p.logoEntries || [])]; next[li] = { ...next[li], name: e.target.value }; updateProductField(idx, 'logoEntries', next); }}
+                                       className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                                       placeholder="Logo name" />
+                                     <input value={logo.design || ''} onChange={e => { const next = [...(p.logoEntries || [])]; next[li] = { ...next[li], design: e.target.value }; updateProductField(idx, 'logoEntries', next); }}
+                                       className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                                       placeholder="Design" />
+                                     {(p.logoEntries || []).length > 1 && (
+                                       <button onClick={() => updateProductField(idx, 'logoEntries', (p.logoEntries || []).filter((_, j) => j !== li))}
+                                         className="text-red-400 hover:text-red-300 p-0.5"><X size={12} /></button>
+                                     )}
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                             <div>
+                               <label className="text-[10px] font-bold text-gray-400 block mb-1">Engraving Instructions</label>
+                               <input value={p.engravingInstructions || ''} onChange={e => updateProductField(idx, 'engravingInstructions', e.target.value)}
+                                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                                 placeholder="Font, style, special instructions..." />
+                             </div>
+                           </div>
+                         )}
+                       </div>
                       <button onClick={() => removeProduct(idx)} className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
                     </div>
                   </div>
@@ -965,156 +1068,16 @@ const OutletOrderEntry = () => {
           </div>
         )}
 
-        {/* ═══════════════════ Step 2: Engraving ═══════════════════ */}
+        {/* ═══════════════════ Step 2: Measurements ═══════════════════ */}
         {step === 2 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><FileText size={18} />Engraving / Branding</h2>
-            <label className="flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
-              <input type="checkbox" checked={engravingRequired} onChange={e => setEngravingRequired(e.target.checked)}
-                className="accent-amber-500 w-5 h-5" />
-              Engraving Required
-            </label>
-            {engravingRequired && (
-              <div className="space-y-4 pl-6">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Method</label>
-                  <div className="flex gap-2">
-                    {[{ value: 'direct', label: 'Direct Engraving' }, { value: 'patch', label: 'Patch Engraving' }].map(opt => (
-                      <button key={opt.value} type="button" onClick={() => setEngravingType(opt.value)}
-                        className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
-                          engravingType === opt.value
-                            ? 'bg-purple-600/20 text-purple-400 border-purple-500'
-                            : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
-                        }`}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-gray-400">Engraving Lines</label>
-                    {engravingLines.length < 5 && (
-                      <button type="button" onClick={() => setEngravingLines(prev => [...prev, ''])}
-                        className="text-[10px] font-black text-purple-400 hover:text-purple-300 flex items-center gap-1">
-                        <Plus size={12} /> Add Line
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {engravingLines.map((line, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="bg-purple-500/20 text-purple-400 text-[10px] font-black px-2 py-1 rounded-lg shrink-0">L{i + 1}</span>
-                        <input value={line} onChange={e => { const next = [...engravingLines]; next[i] = e.target.value; setEngravingLines(next); }}
-                          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
-                          placeholder={`Engraving line ${i + 1}`} />
-                        {engravingLines.length > 1 && (
-                          <button onClick={() => setEngravingLines(prev => prev.filter((_, j) => j !== i))}
-                            className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 block mb-1">Thread / Text Color</label>
-                    <select value={engravingThreadColor === 'Custom' ? 'Custom' : (engravingThreadColor || '')}
-                      onChange={e => setEngravingThreadColor(e.target.value)}
-                      className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-purple-500 outline-none appearance-none">
-                      {THREAD_COLOR_OPTIONS.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                    {engravingThreadColor === 'Custom' && (
-                      <input value={customThreadColor} onChange={e => setCustomThreadColor(e.target.value)}
-                        className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none mt-2"
-                        placeholder="Enter custom color" />
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 block mb-1">Placement</label>
-                    <select value={engravingPlacement} onChange={e => setEngravingPlacement(e.target.value)}
-                      className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-purple-500 outline-none appearance-none">
-                      {PLACEMENT_OPTIONS.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-gray-400">Logos</label>
-                    <button type="button" onClick={() => setLogoEntries(prev => [...prev, { name: '', design: '' }])}
-                      className="text-[10px] font-black text-purple-400 hover:text-purple-300 flex items-center gap-1">
-                      <Plus size={12} /> Add Logo
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {logoEntries.map((logo, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <input value={logo.name} onChange={e => { const next = [...logoEntries]; next[i] = { ...next[i], name: e.target.value }; setLogoEntries(next); }}
-                          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
-                          placeholder="Logo name" />
-                        <input value={logo.design} onChange={e => { const next = [...logoEntries]; next[i] = { ...next[i], design: e.target.value }; setLogoEntries(next); }}
-                          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
-                          placeholder="Design description" />
-                        {logoEntries.length > 1 && (
-                          <button onClick={() => setLogoEntries(prev => prev.filter((_, j) => j !== i))}
-                            className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Instructions</label>
-                  <textarea value={engravingInstructions} onChange={e => setEngravingInstructions(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none resize-none" rows={2}
-                    placeholder="Font, style, special instructions..." />
-                </div>
-              </div>
-            )}
-            {!engravingRequired && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-500">No engraving — tap Next to continue.</p>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Logo Design</label>
-                  <input value={logoDesign} onChange={e => setLogoDesign(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none"
-                    placeholder="Logo name or design description" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Special Notes</label>
-                  <textarea value={specialNotes} onChange={e => setSpecialNotes(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={2}
-                    placeholder="Production instructions, fabric notes, urgent delivery..." />
-                </div>
-              </div>
-            )}
-            {engravingRequired && (
-              <div className="pl-6">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Logo Design</label>
-                  <input value={logoDesign} onChange={e => setLogoDesign(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none"
-                    placeholder="Logo name or design description" />
-                </div>
-                <div className="mt-3">
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Special Notes</label>
-                  <textarea value={specialNotes} onChange={e => setSpecialNotes(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none resize-none" rows={2}
-                    placeholder="Production instructions, fabric notes, urgent delivery..." />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ═══════════════════ Step 3: Measurements ═══════════════════ */}
-        {step === 3 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurement Special Notes</h2>
+            <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurements & Special Notes</h2>
+            <div className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
+              <label className="text-xs font-bold text-gray-400 block">Order Special Notes</label>
+              <textarea value={specialNotes} onChange={e => setSpecialNotes(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={2}
+                placeholder="Production instructions, fabric notes, urgent delivery..." />
+            </div>
             <p className="text-xs font-bold text-gray-500">Enter measurement instructions for each product separately.</p>
             {products.map((p, idx) => (
               <div key={p._tempId} className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
@@ -1135,8 +1098,8 @@ const OutletOrderEntry = () => {
           </div>
         )}
 
-        {/* ═══════════════════ Step 4: Review & Place ═══════════════════ */}
-        {step === 4 && (
+        {/* ═══════════════════ Step 3: Review & Place ═══════════════════ */}
+        {step === 3 && (
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><CheckCircle size={18} />Review & Place Order</h2>
 
@@ -1179,22 +1142,27 @@ const OutletOrderEntry = () => {
               ))}
             </div>
 
-            <div className="bg-gray-800 rounded-xl p-4 text-sm space-y-1">
-              <p className="text-gray-400">Engraving: <span className="text-white font-black">{engravingRequired ? 'Yes' : 'No'}</span></p>
-              {engravingRequired && (
-                <>
-                  <p className="text-gray-400">Method: <span className="text-white font-black">{engravingType === 'direct' ? 'Direct' : 'Patch'}</span></p>
-                  {engravingLines.some(l => l.trim()) && (
-                    <p className="text-gray-400">Lines: <span className="text-white font-black">{engravingLines.filter(l => l.trim()).join(' | ')}</span></p>
-                  )}
-                  {engravingThreadColor && <p className="text-gray-400">Thread: <span className="text-purple-400 font-black">{engravingThreadColor === 'Custom' ? customThreadColor : engravingThreadColor}</span></p>}
-                  <p className="text-gray-400">Placement: <span className="text-white font-black">{PLACEMENT_OPTIONS.find(p => p.value === engravingPlacement)?.label}</span></p>
-                  {logoEntries.some(l => l.name?.trim() || l.design?.trim()) && (
-                    <p className="text-gray-400">Logos: <span className="text-white font-black">{logoEntries.filter(l => l.name?.trim() || l.design?.trim()).map(l => `${l.name}${l.design ? ' — ' + l.design : ''}`).join(', ')}</span></p>
-                  )}
-                </>
+            <div className="bg-gray-800 rounded-xl p-4 text-sm space-y-2">
+              <p className="text-gray-400 font-bold">Engraving:</p>
+              {products.filter(p => p.engravingRequired).length === 0 ? (
+                <p className="text-white font-black">No products require engraving</p>
+              ) : (
+                products.filter(p => p.engravingRequired).map(p => {
+                  const lines = (p.engravingLines || []).filter(l => l && l.trim());
+                  const logos = (p.logoEntries || []).filter(l => l.name?.trim() || l.design?.trim());
+                  return (
+                    <div key={p._tempId} className="bg-gray-900 rounded-lg px-3 py-2">
+                      <p className="text-white font-black">{p.name}</p>
+                      <p className="text-gray-400">Method: <span className="text-white font-black">{(p.engravingType || 'direct') === 'direct' ? 'Direct' : 'Patch'}</span></p>
+                      {lines.length > 0 && <p className="text-gray-400">Lines: <span className="text-white font-black">{lines.join(' | ')}</span></p>}
+                      {p.engravingThreadColor && <p className="text-gray-400">Thread: <span className="text-purple-400 font-black">{p.engravingThreadColor === 'Custom' ? p.customThreadColor : p.engravingThreadColor}</span></p>}
+                      <p className="text-gray-400">Placement: <span className="text-white font-black">{PLACEMENT_OPTIONS.find(o => o.value === (p.engravingPlacement || 'LeftChest'))?.label || p.engravingPlacement}</span></p>
+                      {logos.length > 0 && <p className="text-gray-400">Logos: <span className="text-white font-black">{logos.map(l => `${l.name}${l.design ? ' — ' + l.design : ''}`).join(', ')}</span></p>}
+                      {p.engravingInstructions && <p className="text-gray-400">Instructions: <span className="text-white font-black">{p.engravingInstructions}</span></p>}
+                    </div>
+                  );
+                })
               )}
-              {engravingRequired && logoDesign && <p className="text-gray-400">Logo Design: <span className="text-white font-black">{logoDesign}</span></p>}
             </div>
 
             <div className="bg-gray-800 rounded-xl p-4 space-y-3">
@@ -1298,19 +1266,28 @@ const OutletOrderEntry = () => {
                 ))}
               </tbody>
             </table>
-            {engravingRequired && (
+            {products.some(p => p.engravingRequired) && (
               <div className="border-2 border-purple-300 rounded-lg p-3 space-y-2">
                 <p className="text-xs font-black uppercase text-purple-700">Engraving / Branding</p>
-                <p className="text-xs">Method: <span className="font-black">{engravingType === 'direct' ? 'Direct' : 'Patch'}</span></p>
-                {engravingLines.filter(l => l.trim()).map((line, i) => (
-                  <p key={i} className="text-xs">Line {i + 1}: <span className="font-black">{line}</span></p>
-                ))}
-                {engravingThreadColor && <p className="text-xs">Thread Color: <span className="font-black">{engravingThreadColor === 'Custom' ? customThreadColor : engravingThreadColor}</span></p>}
-                <p className="text-xs">Placement: <span className="font-black">{PLACEMENT_OPTIONS.find(p => p.value === engravingPlacement)?.label}</span></p>
-                {logoEntries.filter(l => l.name?.trim() || l.design?.trim()).map((l, i) => (
-                  <p key={i} className="text-xs">Logo: <span className="font-black">{l.name}{l.design ? ` — ${l.design}` : ''}</span></p>
-                ))}
-                {engravingInstructions && <p className="text-xs mt-1">Instructions: <span className="font-black">{engravingInstructions}</span></p>}
+                {products.filter(p => p.engravingRequired).map(p => {
+                  const lines = (p.engravingLines || []).filter(l => l && l.trim());
+                  const logos = (p.logoEntries || []).filter(l => l.name?.trim() || l.design?.trim());
+                  return (
+                    <div key={p._tempId} className="border-t border-purple-200 pt-1 first:border-t-0 first:pt-0">
+                      <p className="text-xs font-black uppercase">{p.name}</p>
+                      <p className="text-xs">Method: <span className="font-black">{(p.engravingType || 'direct') === 'direct' ? 'Direct' : 'Patch'}</span></p>
+                      {lines.map((line, i) => (
+                        <p key={i} className="text-xs">Line {i + 1}: <span className="font-black">{line}</span></p>
+                      ))}
+                      {p.engravingThreadColor && <p className="text-xs">Thread Color: <span className="font-black">{p.engravingThreadColor === 'Custom' ? p.customThreadColor : p.engravingThreadColor}</span></p>}
+                      <p className="text-xs">Placement: <span className="font-black">{PLACEMENT_OPTIONS.find(o => o.value === (p.engravingPlacement || 'LeftChest'))?.label || p.engravingPlacement}</span></p>
+                      {logos.map((l, i) => (
+                        <p key={i} className="text-xs">Logo: <span className="font-black">{l.name}{l.design ? ` — ${l.design}` : ''}</span></p>
+                      ))}
+                      {p.engravingInstructions && <p className="text-xs mt-1">Instructions: <span className="font-black">{p.engravingInstructions}</span></p>}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {products.some(p => p.measurementSpecialNote) && (
