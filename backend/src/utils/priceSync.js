@@ -89,6 +89,16 @@ const syncOnePrice = async (tx, outletRow) => {
 // Sync the price of EVERY outlet store row (OutletInventory across all outlets)
 // whose warehouse master is the given InventoryItem id. Uses a transaction client
 // `tx` when provided (defaults to prisma). Returns summary counts.
+//
+// PERFORMANCE: saving a common warehouse item (e.g. "Sprinter Men" → 340 outlet
+// rows) iterating rows ONE BY ONE with two sequential pooler round trips each
+// (a master re-query + an update) exceeded the 30s request timeout. The master is
+// already in scope here, so:
+//   - the redundant per-row `findWarehouseMaster` re-query is gone (target prices
+//     are resolved from the in-scope `master` with `resolveMasterPrice`), and
+//   - the row updates run CONCURRENTLY (bounded chunk), not serially.
+// The whole pass now completes in a handful of parallel round trips regardless of
+// row count.
 const syncPricesForWarehouseItem = async (inventoryItemId, tx) => {
   const db = tx || prisma;
   const master = await db.inventoryItem.findUnique({ where: { id: inventoryItemId } });
@@ -100,7 +110,8 @@ const syncPricesForWarehouseItem = async (inventoryItemId, tx) => {
   // in JS by strict metadata-id match — with a same-name fallback for legacy rows
   // that carry no metadata at all.
   const orgRows = await db.outletInventory.findMany({
-    where: { name: { equals: master.name, mode: 'insensitive' } }
+    where: { name: { equals: master.name, mode: 'insensitive' } },
+    select: { id: true, name: true, category: true, color: true, size: true, price: true, metadata: true, barcode: true }
   });
 
   const rows = orgRows.filter(r => {
@@ -113,10 +124,26 @@ const syncPricesForWarehouseItem = async (inventoryItemId, tx) => {
     return true;
   });
 
+  // Compute every target price up front (pure JS, no extra queries).
+  const targets = rows.map(row => ({
+    ...row,
+    target: resolveMasterPrice(master, row.color, row.size)
+  }));
+
   let changed = 0;
-  for (const row of rows) {
-    const res = await syncOnePrice(db, row);
-    if (res.synced) changed++;
+  const CHUNK = 50;
+  for (let i = 0; i < targets.length; i += CHUNK) {
+    const chunk = targets.slice(i, i + CHUNK);
+    await Promise.all(chunk.map(async (row) => {
+      if (row.target == null) return; // no trustworthy master price — leave row alone
+      const current = parseFloat(row.price);
+      if (current === row.target) return; // unchanged
+      await db.outletInventory.update({
+        where: { id: row.id },
+        data: { price: row.target, updatedAt: new Date() }
+      });
+      changed++;
+    }));
   }
   return { matched: rows.length, changed };
 };
