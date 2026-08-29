@@ -719,4 +719,43 @@ const markDemandDeliveredByBoy = async (req, res) => {
   }
 };
 
-module.exports = { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, dispatchDemandRequest, acceptDemandRequest, getInventoryForOutlet, getDemandStats, getMyDemandDeliveries, acceptDemandDeliveryById, markDemandDeliveredByBoy };
+// GET /api/demand/history — all-scoped Enamels-delivery ledger for Admin/Faisal/Store.
+// Reuses the same query shape + job-sheet serializer as the boy panel but is NOT
+// user-scoped: every dispatched demand appears with its full timeline (dispatched →
+// boy-accepted → boy-delivered → outlet-accepted).
+const getDemandDeliveriesHistory = async (req, res) => {
+  try {
+    const { status, outletName, channel, deliveryBoyName, dateFrom, dateTo } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 500, 1000);
+    const where = { dispatchedAt: { not: null } };
+    if (status) where.status = status;
+    if (outletName) where.outletName = { contains: outletName, mode: 'insensitive' };
+    if (channel) where.deliveryChannel = channel;
+    if (deliveryBoyName) where.deliveryBoyName = { contains: deliveryBoyName, mode: 'insensitive' };
+    if (dateFrom || dateTo) {
+      where.dispatchedAt = {
+        ...(where.dispatchedAt || {}),
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(dateTo) } : {})
+      };
+    }
+    const demands = await prisma.outletDemandRequest.findMany({
+      where,
+      orderBy: [{ dispatchedAt: 'desc' }],
+      take: limit
+    });
+    const deliveries = (demands || []).map(buildDemandJobSheet);
+    res.json({
+      deliveries,
+      total: deliveries.length,
+      pending: deliveries.filter((d) => !d.deliveryBoyAcceptedAt && !d.deliveredAt && !d.acceptedAt).length,
+      inTransit: deliveries.filter((d) => d.deliveryBoyAcceptedAt && !d.deliveredAt && !d.acceptedAt).length,
+      delivered: deliveries.filter((d) => d.deliveredAt && !d.acceptedAt).length,
+      completed: deliveries.filter((d) => !!d.acceptedAt).length
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error loading demand delivery history', error: error.message });
+  }
+};
+
+module.exports = { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, dispatchDemandRequest, acceptDemandRequest, getInventoryForOutlet, getDemandStats, getMyDemandDeliveries, acceptDemandDeliveryById, markDemandDeliveredByBoy, getDemandDeliveriesHistory };

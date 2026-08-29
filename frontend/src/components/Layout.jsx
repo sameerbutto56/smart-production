@@ -131,6 +131,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Gate Pass', path: '/gate-pass', icon: ClipboardList, roles: ['OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['FAISAL'] },
     { name: 'Replacements', path: '/replacements', icon: ArrowRightLeft, roles: ['FAISAL'] },
+    { name: 'Demand Ledger', path: '/demand-history', icon: ClipboardList, roles: ['FAISAL', 'STORE', 'ADMIN', 'SUPER_ADMIN'] },
 
     { name: 'Order Track', path: '/order-track', icon: Search, roles: ['INVENTORY_VIEW', 'FAISAL', 'OUTLET', 'ADMIN', 'SUPER_ADMIN', 'CEO'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY'] },

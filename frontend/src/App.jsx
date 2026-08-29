@@ -65,6 +65,7 @@ const SoftwareSettings = lazy(() => import('./pages/SoftwareSettings'));
 const StoreOrderTracker = lazy(() => import('./pages/StoreOrderTracker'));
 const StoreOrders = lazy(() => import('./pages/StoreOrders'));
 const PostExDashboard = lazy(() => import('./pages/PostExDashboard'));
+const DemandDeliveriesHistory = lazy(() => import('./pages/DemandDeliveriesHistory'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -188,6 +189,7 @@ function App() {
                   <Route path="order-cancellation" element={<FaisalOrderCancellation />} />
                   <Route path="software-settings" element={<SoftwareSettings />} />
                   <Route path="postex-dashboard" element={<PostExDashboard />} />
+                  <Route path="demand-history" element={<DemandDeliveriesHistory />} />
                 </Route>
               </Routes>
               </ErrorBoundary>
