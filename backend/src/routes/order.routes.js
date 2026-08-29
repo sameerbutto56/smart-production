@@ -13,6 +13,7 @@ const {
   deleteOrder,
   getDeletedOrders,
   checkDeletedOrder,
+  getOrderNumberRegistry,
   holdOrder,
   sendForDelivery,
   updateOrderPriority,
@@ -93,6 +94,9 @@ router.get('/deleted-orders', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']),
 
 // Check if an order was deleted (for source visibility)
 router.get('/deleted-check', authenticate, checkDeletedOrder);
+
+// Central Order Number Registry (read-only) — must be registered before /:orderId.
+router.get('/number-registry', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getOrderNumberRegistry);
 
 // Control Center: Update payment status
 router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), updatePaymentStatus);

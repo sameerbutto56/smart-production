@@ -74,8 +74,12 @@ const createOutletOrder = async (req, res) => {
     let orderNumber;
     if (customOrderNumber && customOrderNumber.trim()) {
       const trimmedOrder = customOrderNumber.trim();
-      const existingOrder = await prisma.order.findUnique({ where: { orderNumber: trimmedOrder }, select: { id: true } });
-      if (existingOrder) return res.status(400).json({ message: `Order number ${trimmedOrder} already exists` });
+      // Centralized global order-number reserve/reuse validation (shares the same
+      // rule as Faisal/Online: active/delivered/completed/cancelled reserve the
+      // number; only truly deleted orders release it for reuse).
+      const { checkOrderNumberAvailable } = require('../utils/orderNumber');
+      const chk = await checkOrderNumberAvailable(prisma, trimmedOrder);
+      if (!chk.available) return res.status(400).json({ message: chk.reason });
       orderNumber = trimmedOrder;
     } else {
       orderNumber = await generateOrderNumber(outletName);

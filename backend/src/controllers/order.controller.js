@@ -294,28 +294,23 @@ const createOrder = async (req, res) => {
         if (!existing) isUnique = true;
       }
     } else {
-      // Check if manual order number is already taken.
-      // Match BOTH the raw submitted form and the legacy `#`-prefixed storage form
-      // (live DB stores numbers like `#50037`), so a cancelled number can never be
-      // reused by submitting it with or without the `#`.
-      const bareNumber = String(orderNumber || '').trim().replace(/^#/, '');
-      const existing = await prisma.order.findFirst({
-        where: { OR: [{ orderNumber }, { orderNumber: `#${bareNumber}` }] },
-        select: { id: true, status: true }
-      });
-      if (existing) {
-        if (existing.status === 'CANCELLED') {
-          return res.status(400).json({ message: `This order number has already been cancelled and cannot be reused.` });
-        }
+      // Centralized global order-number reserve/reuse validation.
+      // Active/delivered/completed/cancelled orders reserve their number forever;
+      // only truly deleted orders release it for reuse (their audit stays in
+      // DeletedOrder). Matches BOTH the raw submitted form and the legacy
+      // `#`-prefixed storage form (live DB stores `#50037`).
+      const { checkOrderNumberAvailable } = require('../utils/orderNumber');
+      const chk = await checkOrderNumberAvailable(prisma, orderNumber);
+      if (!chk.available) {
         const io = req.app.get('io');
-        if (io) {
+        if (io && chk.reserved && chk.order?.status !== 'CANCELLED') {
           io.emit('global-alert', {
             title: 'Duplicate Order Attempt',
             message: `${req.user?.name || 'User'} attempted to use existing Order Number #${orderNumber}. System blocked the entry.`,
             type: 'SECURITY_ALERT'
           });
         }
-        return res.status(400).json({ message: `Order Number ${orderNumber} is already in use. Please use a unique number.` });
+        return res.status(400).json({ message: chk.reason });
       }
 
       // Order range validation: only for manually entered order numbers (Faisal/Online Order Entry)
@@ -2080,6 +2075,96 @@ const checkDeletedOrder = async (req, res) => {
   } catch (error) {
     console.error('Check deleted order error:', error);
     res.status(500).json({ message: 'Error checking deleted order', error: error.message });
+  }
+};
+
+/**
+ * Central Order Number Registry (read-only).
+ * Authoritative, consolidated view of whether an order number is RESERVED
+ * (active/delivered/completed/cancelled order still exists) or AVAILABLE for
+ * reuse (only a DeletedOrder audit snapshot remains). Uses the SAME shared
+ * validator as every order-creation route, so this endpoint always agrees with
+ * the backend's final enforcement rule.
+ */
+const getOrderNumberRegistry = async (req, res) => {
+  try {
+    const { number, limit } = req.query;
+    if (number) {
+      const { checkOrderNumberAvailable } = require('../utils/orderNumber');
+      const chk = await checkOrderNumberAvailable(prisma, number);
+      const bare = require('../utils/orderNumber').bareNumber(number);
+      if (!chk.available) {
+        const order = chk.order;
+        // Enrich with created/completed/cancelled/deleted context for the registry row.
+        let deletedRecord = null;
+        if (!order) {
+          deletedRecord = await prisma.deletedOrder.findFirst({
+            where: { orderNumber: { equals: bare } },
+            select: { id: true, orderNumber: true, source: true, customerName: true, deletedAt: true, deletedBy: { select: { name: true } } }
+          });
+        }
+        const status = order?.status || 'DELETED';
+        const reusable = !order;
+        return res.json({
+          orderNumber: order?.orderNumber || `#${bare}`,
+          internalOrderId: order?.id || null,
+          source: order?.source || deletedRecord?.source || null,
+          currentStatus: order?.status || null,
+          currentStage: order?.currentStage || null,
+          deliveredAt: order?.deliveredAt || null,
+          createdAt: order?.createdAt || null,
+          reusableStatus: reusable ? 'AVAILABLE (deleted — audit retained)' : 'RESERVED (not reusable)',
+          reusable,
+          reserved: !reusable,
+          reason: chk.reason,
+          deletedRecord,
+        });
+      }
+      return res.json({
+        orderNumber: `#${bare}`,
+        internalOrderId: null,
+        source: null,
+        currentStatus: null,
+        currentStage: null,
+        deliveredAt: null,
+        createdAt: null,
+        reusableStatus: 'AVAILABLE (no order exists — reusable)',
+        reusable: true,
+        reserved: false,
+        reason: null,
+        deletedRecord: null,
+      });
+    }
+
+    // No number query: return a recent registry listing (admin monitoring view).
+    const take = Math.min(parseInt(limit) || 200, 500);
+    const orders = await prisma.order.findMany({
+      select: {
+        id: true, orderNumber: true, source: true, status: true, currentStage: true,
+        createdAt: true, deliveredAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    const deleted = await prisma.deletedOrder.findMany({
+      select: { id: true, orderNumber: true, source: true, deletedAt: true, deletedBy: { select: { name: true } } },
+      orderBy: { deletedAt: 'desc' },
+      take: Math.min(take, 200),
+    });
+    res.json({
+      reserved: orders.map(o => ({
+        orderNumber: o.orderNumber, internalOrderId: o.id, source: o.source,
+        currentStatus: o.status, currentStage: o.currentStage,
+        createdAt: o.createdAt, deliveredAt: o.deliveredAt, reusable: false, reserved: true,
+      })),
+      reusable: deleted.map(d => ({
+        orderNumber: d.orderNumber, source: d.source, deletedAt: d.deletedAt,
+        deletedBy: d.deletedBy?.name || null, reusable: true, reserved: false,
+      })),
+    });
+  } catch (error) {
+    console.error('Order number registry error:', error);
+    res.status(500).json({ message: 'Error reading order number registry', error: error.message });
   }
 };
 
@@ -4812,6 +4897,7 @@ module.exports = {
   deleteOrder,
   getDeletedOrders,
   checkDeletedOrder,
+  getOrderNumberRegistry,
   holdOrder,
   sendForDelivery,
   updateOrderPriority,
