@@ -1390,20 +1390,23 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
     const outHasEngraving = outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || order.logoDesign || !!order.instructionNotes;
 
-    // For outlet orders, engravingRequired checkbox is authoritative — if unchecked,
-    // no engraving data should appear regardless of stale fields in the DB.
-    const engravingCheckboxOff = order.source === 'OUTLET' && order.engravingRequired === false;
-
-    const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
-
     // Per-product outlet engraving lives DIRECTLY on the productDetails item (new outlet
     // orders) — normalize those fields into the legacy customization shape so every render
     // path (lines/names/specs/logos/notes) works uniformly.
+    const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
+
     const hasDirectOutletEngraving = (p) => !!(p && (p.engravingRequired === true ||
       (Array.isArray(p.engravingLines) && p.engravingLines.some(l => l && String(l).trim())) ||
       (Array.isArray(p.logoEntries) && p.logoEntries.some(l => l && (l.name?.trim() || l.design?.trim()))) ||
       (p.engravingInstructions && String(p.engravingInstructions).trim())));
     const mapThread = (t) => (t && t !== 'Custom' ? String(t).trim() : '');
+
+    // For outlet orders the engravingRequired checkbox is authoritative at the order level,
+    // but per-product engraving is the real carrier in the new outlet flow. Suppress the
+    // section ONLY when the order-level flag is off AND no product item carries its own
+    // per-product engraving data (so legacy orders with per-product data still render).
+    const engravingCheckboxOff = order.source === 'OUTLET' && order.engravingRequired === false &&
+      !brandingItems.some(item => hasDirectOutletEngraving(getItemProduct(item)));
 
     const hasAnyCustomization = !engravingCheckboxOff && brandingItems.some(item => {
       const p = getItemProduct(item);

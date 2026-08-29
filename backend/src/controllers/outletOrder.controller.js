@@ -100,6 +100,10 @@ const createOutletOrder = async (req, res) => {
       alteration: p.alteration || null
     }));
     const productDetails = enriched;
+    // Authoritative engraving flag: TRUE when ANY product carries per-product engraving
+    // (outlet flow sends engraving per-product only). Drives order-level columns below
+    // and the Job Sheet print gate's order.engravingRequired check.
+    const hasEngravedProduct = enriched.some(p => p?.engravingRequired === true);
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
     const totalPrice = products.reduce((sum, p) => {
       const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
@@ -148,17 +152,17 @@ const createOutletOrder = async (req, res) => {
           createdById: req.user?.id,
           productDetails,
           sizeData: sizeDataStr,
-          customization: engravingRequired ? (customization ? (typeof customization === 'string' ? customization : JSON.stringify(customization)) : null) : null,
+          customization: hasEngravedProduct ? (customization ? (typeof customization === 'string' ? customization : JSON.stringify(customization)) : null) : null,
           instructionNotes: notes || null,
           measurementSpecialNote: aggregatedNote,
-          engravingRequired: engravingRequired || false,
-          engravingText: engravingRequired ? (engravingText || null) : null,
-          engravingType: engravingRequired ? (engravingType || null) : null,
-          engravingInstructions: engravingRequired ? (engravingInstructions || null) : null,
-          logoRequired: engravingRequired ? (logoRequired || false) : false,
-          logoDesign: engravingRequired ? (logoDesign || null) : null,
-          engravingNames: engravingRequired ? (engravingNames ? (typeof engravingNames === 'string' ? engravingNames : JSON.stringify(engravingNames)) : null) : null,
-          engravingLogos: engravingRequired ? (engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null) : null,
+          engravingRequired: hasEngravedProduct,
+          engravingText: hasEngravedProduct ? (engravingText || null) : null,
+          engravingType: hasEngravedProduct ? (engravingType || null) : null,
+          engravingInstructions: hasEngravedProduct ? (engravingInstructions || null) : null,
+          logoRequired: hasEngravedProduct ? (logoRequired || false) : false,
+          logoDesign: hasEngravedProduct ? (logoDesign || null) : null,
+          engravingNames: hasEngravedProduct ? (engravingNames ? (typeof engravingNames === 'string' ? engravingNames : JSON.stringify(engravingNames)) : null) : null,
+          engravingLogos: hasEngravedProduct ? (engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null) : null,
           orderDestination: orderDestination || null,
           placedBy: resolvedEmployee?.name || placedBy || null,
           placedByEmployeeId: resolvedEmployee?.id || null,

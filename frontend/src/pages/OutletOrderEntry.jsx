@@ -422,6 +422,7 @@ const OutletOrderEntry = () => {
         city: customer.city,
         notes: specialNotes || null,
         measurementSpecialNote: null,
+        engravingRequired: products.some(p => !!p.engravingRequired),
         products: products.map(p => ({
           name: p.name,
           fabric: p.fabric,
