@@ -11,6 +11,94 @@ const CUTOFF_DATE = new Date('2026-08-19T00:00:00.000Z');
 
 let backfillInFlight = false;
 
+// Mirror of GatePass.jsx computeUnits — sums quantity across productDetails rows.
+const computeUnits = (rec) => {
+  const raw = rec && rec.productDetails;
+  if (!raw) return 0;
+  let items = [];
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) items = parsed;
+    else if (parsed && typeof parsed === 'object') items = [parsed];
+  } catch (e) { items = []; }
+  return items.reduce((s, entry) => {
+    const p = (entry && entry.productDetails) || entry || {};
+    return s + (entry.quantity || p.quantity || 1);
+  }, 0);
+};
+
+const toDateKey = (d) => (d ? new Date(d).toISOString().split('T')[0] : null);
+
+// Map in-transit Enamels-boy demands into Gate Pass rows (buildDemandJobSheet-style).
+const mapDemandRows = (demands, gateDate) => demands.map((d) => {
+  const rows = (Array.isArray(d.items) ? d.items : []).map((it, i) => {
+    const units = parseInt(it.approvedQty ?? it.quantity, 10) || 0;
+    return {
+      id: `${d.id}-item-${i}`,
+      transferNumber: d.transferNumber,
+      outletName: d.outletName,
+      productName: it.productName || it.name || '',
+      color: it.color || null,
+      size: it.size || null,
+      quantity: units,
+      units,
+      qtyRequested: parseInt(it.requestedQty ?? it.quantity, 10) || 0,
+    };
+  });
+  const units = rows.reduce((s, r) => s + r.units, 0);
+  return {
+    id: d.id,
+    transferNumber: d.transferNumber,
+    source: 'Demand',
+    outletName: d.outletName,
+    status: d.status,
+    deliveryChannel: d.deliveryChannel,
+    deliveryBoyName: d.deliveryBoyName || 'Enamels Delivery',
+    dispatchedAt: d.dispatchedAt,
+    deliveryBoyAcceptedAt: d.deliveryBoyAcceptedAt,
+    acceptedAt: d.acceptedAt,
+    deliveredAt: d.deliveredAt,
+    productCount: rows.length,
+    units,
+    items: rows,
+    isToday: toDateKey(d.dispatchedAt) === gateDate,
+  };
+});
+
+// Map in-transit NBD outlet transfers into Gate Pass rows.
+const mapTransferRows = (transfers, gateDate) => transfers.map((t) => {
+  const rows = (Array.isArray(t.items) ? t.items : []).map((it, i) => {
+    const units = parseInt(it.approvedQty ?? it.quantity, 10) || 0;
+    return {
+      id: `${t.id}-item-${i}`,
+      transferNumber: t.transferNumber,
+      outletName: t.toOutlet,
+      productName: it.productName || '',
+      color: it.color || null,
+      size: it.size || null,
+      quantity: units,
+      units,
+    };
+  });
+  const units = rows.reduce((s, r) => s + r.units, 0);
+  return {
+    id: t.id,
+    transferNumber: t.transferNumber,
+    source: 'Transfer',
+    fromOutlet: t.fromOutlet,
+    toOutlet: t.toOutlet,
+    type: t.type,
+    status: t.status,
+    deliveryChannel: t.deliveryChannel,
+    deliveryBoyName: t.deliveryBoyName || 'NBD Rider',
+    dispatchedAt: t.dispatchedAt,
+    productCount: rows.length,
+    units,
+    items: rows,
+    isToday: toDateKey(t.dispatchedAt) === gateDate,
+  };
+});
+
 const getTahirSheet = async (req, res) => {
   try {
     const { date } = req.query;
@@ -24,7 +112,7 @@ const getTahirSheet = async (req, res) => {
 
     // 1. Fetch today's assignments + previous assignments (carry-forward)
     //    Carry-forward: only from CUTOFF_DATE forward, exclude terminal orders at DB level.
-    const [todayAssignments, previousAssignments] = await Promise.all([
+    const [todayAssignments, previousAssignments, gateDemands, gateTransfers] = await Promise.all([
       prisma.deliveryAssignment.findMany({
         where: { assignmentDate: { gte: dayStart, lte: dayEnd } },
         orderBy: { assignedAt: 'asc' },
@@ -37,6 +125,27 @@ const getTahirSheet = async (req, res) => {
           returnedAt: null,
         },
         orderBy: { assignedAt: 'asc' },
+      }),
+      // Gate Pass demands: Enamels-boy-dispatched AND boy-accepted, not yet accepted by the outlet
+      prisma.outletDemandRequest.findMany({
+        where: {
+          deliveryChannel: 'ENAMELS',
+          deliveryBoyAcceptedAt: { not: null },
+          acceptedAt: null,
+          deliveredAt: null,
+          dispatchedAt: { not: null },
+          status: { notIn: FINAL_STATUSES },
+        },
+        orderBy: { dispatchedAt: 'asc' },
+      }),
+      // Gate Pass transfers: NBD outlet transfers currently in transit (dispatched, not yet completed)
+      prisma.outletTransfer.findMany({
+        where: {
+          deliveryChannel: 'NBD',
+          status: 'DISPATCHED',
+        },
+        include: { items: true },
+        orderBy: { dispatchedAt: 'asc' },
       }),
     ]);
 
@@ -97,6 +206,7 @@ const getTahirSheet = async (req, res) => {
         paymentStatus: live.paymentStatus || a.status,
         productDetails: live.productDetails || a.productDetails || null,
         dispatchStatus: dStatus,
+        units: computeUnits(live.productDetails || a.productDetails),
       };
     });
 
@@ -116,23 +226,39 @@ const getTahirSheet = async (req, res) => {
 
     const visibleOrders = [...todayOrders, ...carryForwardOrders];
 
+    // Map in-transit demands + transfers into Gate Pass rows (includes their items)
+    const demands = mapDemandRows(gateDemands, date);
+    const transfers = mapTransferRows(gateTransfers, date);
+
     // Summary stats
     const total = visibleOrders.length;
     const deliveredCount = visibleOrders.filter(e => e.delivered).length;
     const pendingCount = visibleOrders.filter(e => !e.delivered && !e.returned).length;
     const returnedCount = visibleOrders.filter(e => e.returned).length;
     const carryForwardCount = carryForwardOrders.length;
+    const orderUnits = visibleOrders.reduce((s, e) => s + (e.units || 0), 0);
+    const demandUnits = demands.reduce((s, d) => s + (d.units || 0), 0);
+    const transferUnits = transfers.reduce((s, t) => s + (t.units || 0), 0);
+    const totalUnits = orderUnits + demandUnits + transferUnits;
 
     res.json({
       date,
       assignments: visibleOrders,
+      demands,
+      transfers,
       summary: {
         total,
+        totalUnits,
+        orderUnits,
+        demandUnits,
+        transferUnits,
         delivered: deliveredCount,
         pending: pendingCount,
         returned: returnedCount,
         carryForward: carryForwardCount,
         todayAssigned: todayOrders.length,
+        todayDemands: demands.filter(d => d.isToday).length,
+        todayTransfers: transfers.filter(t => t.isToday).length,
       },
     });
   } catch (error) {

@@ -88,8 +88,21 @@ const GatePass = () => {
     );
   });
 
-  const summary = data?.summary || { total: 0, delivered: 0, pending: 0, returned: 0, carryForward: 0, todayAssigned: 0 };
-  const totalUnits = assignments.reduce((s, a) => s + computeUnits(a), 0);
+  const summary = data?.summary || { total: 0, totalUnits: 0, orderUnits: 0, demandUnits: 0, transferUnits: 0, delivered: 0, pending: 0, returned: 0, carryForward: 0, todayAssigned: 0, todayDemands: 0, todayTransfers: 0 };
+
+  const searchMatches = (s, fields) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return fields.some(f => (s[f] || '').toLowerCase().includes(q))
+      || (Array.isArray(s.items) && s.items.some(it => (it.productName || '').toLowerCase().includes(q)));
+  };
+  const demands = (data?.demands || []).filter(d => searchMatches(d, ['transferNumber', 'outletName']));
+  const transfers = (data?.transfers || []).filter(t => searchMatches(t, ['transferNumber', 'fromOutlet', 'toOutlet']));
+
+  const orderUnits = assignments.reduce((s, a) => s + computeUnits(a), 0);
+  const demandUnits = demands.reduce((s, d) => s + (d.units || 0), 0);
+  const transferUnits = transfers.reduce((s, t) => s + (t.units || 0), 0);
+  const totalUnits = orderUnits + demandUnits + transferUnits;
 
   const todayOrders = assignments.filter(a => a.isToday);
   const carryForwardOrders = assignments.filter(a => !a.isToday);
@@ -223,12 +236,14 @@ const GatePass = () => {
           <h2>Date: {selectedDate}</h2>
         </div>
         <div className="meta">
-          <span>Total Orders: {summary.total} | Total Units: {totalUnits} (Today: {summary.todayAssigned}, Carry Forward: {summary.carryForward})</span>
+          <span>Total Orders: {summary.total} | Total Units: {totalUnits} (Transfers: {transferUnits}, Demands: {demandUnits})</span>
           <span>Generated: {new Date().toLocaleString()}</span>
         </div>
         <div className="stats">
           <div className="stat"><div className="label">Total</div><div className="value">{summary.total}</div></div>
           <div className="stat"><div className="label">Total Units</div><div className="value">{totalUnits}</div></div>
+          <div className="stat"><div className="label">Transfer Units</div><div className="value">{transferUnits}</div></div>
+          <div className="stat"><div className="label">Demand Units</div><div className="value">{demandUnits}</div></div>
           <div className="stat"><div className="label">Delivered</div><div className="value">{summary.delivered}</div></div>
           <div className="stat"><div className="label">Pending</div><div className="value">{summary.pending}</div></div>
           <div className="stat"><div className="label">Returned</div><div className="value">{summary.returned}</div></div>
@@ -274,6 +289,84 @@ const GatePass = () => {
             })}
           </tbody>
         </table>
+        {transfers.length > 0 && (
+          <>
+            <h3 style={{ margin: '14px 0 6px', fontSize: 14, color: '#1e40af' }}>Outlet Transfers (NBD Dispatch) — {transfers.length}</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Transfer #</th>
+                  <th>From → To</th>
+                  <th>Products (Qty)</th>
+                  <th>Units</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transfers.map((t, i) => {
+                  const items = Array.isArray(t.items) ? t.items : [];
+                  const prodNames = items.map(it => {
+                    const name = it.productName || it.name || 'Item';
+                    const color = it.color || '';
+                    const size = it.size || '';
+                    const qty = it.approvedQty ?? it.quantity ?? 1;
+                    return `${name}${color ? ' — ' + color : ''}${size ? ' (' + size + ')' : ''}${qty > 1 ? ' x' + qty : ''}`;
+                  }).join(', ') || '-';
+                  return (
+                    <tr key={t.id || i}>
+                      <td>{i + 1}</td>
+                      <td><strong>{t.transferNumber || '-'}</strong></td>
+                      <td>{(t.fromOutlet || '-') + ' → ' + (t.toOutlet || '-')}</td>
+                      <td style={{ maxWidth: 260, fontSize: 10 }}>{prodNames}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{t.units}</td>
+                      <td><span className="status-pending">{t.status}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+        {demands.length > 0 && (
+          <>
+            <h3 style={{ margin: '14px 0 6px', fontSize: 14, color: '#1e40af' }}>Enamels Boy Demands (In Transit) — {demands.length}</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Demand #</th>
+                  <th>Outlet</th>
+                  <th>Products (Qty)</th>
+                  <th>Units</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {demands.map((d, i) => {
+                  const items = Array.isArray(d.items) ? d.items : [];
+                  const prodNames = items.map(it => {
+                    const name = it.productName || it.name || 'Item';
+                    const color = it.color || '';
+                    const size = it.size || '';
+                    const qty = it.approvedQty ?? it.quantity ?? 1;
+                    return `${name}${color ? ' — ' + color : ''}${size ? ' (' + size + ')' : ''}${qty > 1 ? ' x' + qty : ''}`;
+                  }).join(', ') || '-';
+                  return (
+                    <tr key={d.id || i}>
+                      <td>{i + 1}</td>
+                      <td><strong>{d.transferNumber || '-'}</strong></td>
+                      <td>{d.outletName || '-'}</td>
+                      <td style={{ maxWidth: 260, fontSize: 10 }}>{prodNames}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{d.units}</td>
+                      <td><span className="status-pending">{d.status}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
         <div className="footer">
           Printed from ENAMELS Smart Production — Gate Pass &bull; {selectedDate}
         </div>
@@ -381,7 +474,7 @@ const GatePass = () => {
                 <RefreshCcw className="w-8 h-8 animate-spin text-blue-500" />
                 <span className="ml-3 text-gray-500">Loading Gate Pass...</span>
               </div>
-            ) : !data || assignments.length === 0 ? (
+            ) : !data || (assignments.length === 0 && demands.length === 0 && transfers.length === 0) ? (
               <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
                 <Calendar className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">No Assignments</h3>
@@ -395,9 +488,11 @@ const GatePass = () => {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3">
                   <StatCard icon={<Package className="w-5 h-5" />} label="Total" value={summary.total} color="blue" />
                   <StatCard icon={<Package className="w-5 h-5" />} label="Total Units" value={totalUnits} color="violet" />
+                  <StatCard icon={<Truck className="w-5 h-5" />} label="Transfers" value={transfers.length} color="blue" />
+                  <StatCard icon={<FileText className="w-5 h-5" />} label="Demands" value={demands.length} color="teal" />
                   <StatCard icon={<Clock className="w-5 h-5" />} label="Today Assigned" value={summary.todayAssigned} color="indigo" />
                   <StatCard icon={<Truck className="w-5 h-5" />} label="Carry Forward" value={summary.carryForward} color="amber" />
                   <StatCard icon={<CheckCircle2 className="w-5 h-5" />} label="Delivered" value={summary.delivered} color="emerald" />
@@ -451,6 +546,138 @@ const GatePass = () => {
                     </table>
                   </div>
                 </div>
+
+                {transfers.length > 0 && (
+                  <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-blue-100 flex items-center justify-between">
+                      <h3 className="font-semibold text-blue-800 flex items-center gap-2">
+                        <Truck className="w-4 h-4" />
+                        Outlet Transfers (NBD Dispatch) ({transfers.length})
+                      </h3>
+                      <span className="text-xs text-blue-600 font-medium">{transferUnits} units</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-blue-50 text-left text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                            <th className="px-4 py-2.5">#</th>
+                            <th className="px-4 py-2.5">Transfer #</th>
+                            <th className="px-4 py-2.5">From → To</th>
+                            <th className="px-4 py-2.5">Products</th>
+                            <th className="px-4 py-2.5">Delivery Boy</th>
+                            <th className="px-4 py-2.5">Dispatch</th>
+                            <th className="px-4 py-2.5 text-center">Units</th>
+                            <th className="px-4 py-2.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-blue-50">
+                          {transfers.map((t, i) => {
+                            const tItems = Array.isArray(t.items) ? t.items : [];
+                            return (
+                              <tr key={t.id || i}>
+                                <td className="px-4 py-2.5 text-gray-500">{i + 1}</td>
+                                <td className="px-4 py-2.5 font-bold text-gray-900">{t.transferNumber || '-'}</td>
+                                <td className="px-4 py-2.5 text-xs text-gray-600">{(t.fromOutlet || '-') + ' → ' + (t.toOutlet || '-')}</td>
+                                <td className="px-4 py-2.5">
+                                  <div className="max-w-[260px] text-xs space-y-0.5">
+                                    {tItems.map((it, ti) => {
+                                      const iname = it.productName || it.name || 'Item';
+                                      const icolor = it.color || '';
+                                      const isize = it.size || '';
+                                      const iqty = it.approvedQty ?? it.quantity ?? 1;
+                                      return (
+                                        <div key={ti}>
+                                          <span className="font-medium text-gray-700">{toUrduName(iname)}</span>
+                                          {icolor && <span className="text-gray-500"> — {toUrduName(icolor)}</span>}
+                                          {isize && <span className="text-gray-400"> ({toUrduName(isize)})</span>}
+                                          {iqty > 1 && <span className="text-gray-400"> ×{iqty}</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2.5 text-xs text-gray-600">{t.deliveryBoyName || 'NBD Rider'}</td>
+                                <td className="px-4 py-2.5 text-xs text-gray-600">{t.dispatchedAt ? new Date(t.dispatchedAt).toLocaleString() : '-'}</td>
+                                <td className="px-4 py-2.5 text-center font-bold text-blue-700">{t.units}</td>
+                                <td className="px-4 py-2.5">
+                                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                    {t.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {demands.length > 0 && (
+                  <div className="bg-white rounded-xl border border-teal-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-teal-100 flex items-center justify-between">
+                      <h3 className="font-semibold text-teal-800 flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Enamels Boy Demands (In Transit) ({demands.length})
+                      </h3>
+                      <span className="text-xs text-teal-600 font-medium">{demandUnits} units</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-teal-50 text-left text-xs font-semibold text-teal-700 uppercase tracking-wide">
+                            <th className="px-4 py-2.5">#</th>
+                            <th className="px-4 py-2.5">Demand #</th>
+                            <th className="px-4 py-2.5">Outlet</th>
+                            <th className="px-4 py-2.5">Products</th>
+                            <th className="px-4 py-2.5">Delivery Boy</th>
+                            <th className="px-4 py-2.5">Dispatch</th>
+                            <th className="px-4 py-2.5 text-center">Units</th>
+                            <th className="px-4 py-2.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-teal-50">
+                          {demands.map((d, i) => {
+                            const dItems = Array.isArray(d.items) ? d.items : [];
+                            return (
+                              <tr key={d.id || i}>
+                                <td className="px-4 py-2.5 text-gray-500">{i + 1}</td>
+                                <td className="px-4 py-2.5 font-bold text-gray-900">{d.transferNumber || '-'}</td>
+                                <td className="px-4 py-2.5 text-xs text-gray-600">{d.outletName || '-'}</td>
+                                <td className="px-4 py-2.5">
+                                  <div className="max-w-[260px] text-xs space-y-0.5">
+                                    {dItems.map((it, ti) => {
+                                      const iname = it.productName || it.name || 'Item';
+                                      const icolor = it.color || '';
+                                      const isize = it.size || '';
+                                      const iqty = it.approvedQty ?? it.quantity ?? 1;
+                                      return (
+                                        <div key={ti}>
+                                          <span className="font-medium text-gray-700">{toUrduName(iname)}</span>
+                                          {icolor && <span className="text-gray-500"> — {toUrduName(icolor)}</span>}
+                                          {isize && <span className="text-gray-400"> ({toUrduName(isize)})</span>}
+                                          {iqty > 1 && <span className="text-gray-400"> ×{iqty}</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2.5 text-xs text-gray-600">{d.deliveryBoyName || 'Enamels Delivery'}</td>
+                                <td className="px-4 py-2.5 text-xs text-gray-600">{d.dispatchedAt ? new Date(d.dispatchedAt).toLocaleString() : '-'}</td>
+                                <td className="px-4 py-2.5 text-center font-bold text-teal-700">{d.units}</td>
+                                <td className="px-4 py-2.5">
+                                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-teal-700">
+                                    {d.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
