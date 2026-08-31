@@ -1,0 +1,715 @@
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import api from '../services/api';
+import useCache from '../hooks/useCache';
+import { useLanguage } from '../context/LanguageContext';
+import toast from 'react-hot-toast';
+import {
+  Search, RefreshCcw, FileText, X, User, Phone, MapPin, Calendar,
+  Hash, CreditCard, Package, Truck, Plus, CheckCircle2, Printer,
+  Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban,
+} from 'lucide-react';
+import { formatDateOnly, formatDateTime } from '../utils/dateTime';
+
+const STAGE_LABELS = {
+  CREATED: 'Created',
+  SUBMITTED: 'Submitted',
+  ADMIN_APPROVED: 'Admin Approved',
+  PRODUCTION_READY: 'Production Ready',
+  GIVE_STOCK: 'Stock Given',
+  ASM_ACCEPTED: 'Accepted by ASM',
+  DELIVER: 'Deliver',
+  DELIVERED: 'Delivered',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  REJECTED: 'Rejected',
+};
+
+const STAGE_COLORS = {
+  CREATED: 'bg-slate-500',
+  SUBMITTED: 'bg-amber-500',
+  ADMIN_APPROVED: 'bg-blue-500',
+  PRODUCTION_READY: 'bg-indigo-500',
+  GIVE_STOCK: 'bg-violet-500',
+  ASM_ACCEPTED: 'bg-cyan-500',
+  DELIVER: 'bg-orange-500',
+  DELIVERED: 'bg-green-500',
+  COMPLETED: 'bg-emerald-600',
+  CANCELLED: 'bg-red-500',
+  REJECTED: 'bg-rose-600',
+};
+
+const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'PRODUCTION_READY', 'GIVE_STOCK', 'ASM_ACCEPTED', 'DELIVER', 'DELIVERED', 'COMPLETED'];
+
+const fmtCurrency = (n) => `Rs. ${(n || 0).toLocaleString()}`;
+
+const FilterChip = ({ label, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
+      active ? 'bg-cyan-600 text-white shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+    }`}
+  >
+    {label}
+  </button>
+);
+
+const StatCard = ({ icon: Icon, label, value, sub, color }) => (
+  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+    <div className={`p-3 rounded-lg ${color}`}>
+      <Icon className="h-5 w-5 text-white" />
+    </div>
+    <div className="min-w-0">
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className="text-xl font-bold text-white truncate">{value}</p>
+      {sub ? <p className="text-xs text-slate-500">{sub}</p> : null}
+    </div>
+  </div>
+);
+
+const AsmPage = () => {
+  const { t, isUrdu } = useLanguage();
+  const [filter, setFilter] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const flexDir = isUrdu ? 'flex-row-reverse' : '';
+
+  const { data: ordersData, loading, error, refresh } = useCache('asm:vendor-orders', {
+    fetcher: () => api.get('/api/vendors/orders').then((r) => r.data?.orders || []),
+    ttl: 30000,
+  });
+
+  const { data: analytics } = useCache('asm:analytics', {
+    fetcher: () => api.get('/api/vendors/analytics').then((r) => r.data || {}),
+    ttl: 60000,
+  });
+
+  const { data: catalog } = useCache('asm:catalog', {
+    fetcher: () => api.get('/api/vendors/catalog').then((r) => r.data?.items || []),
+    ttl: 600000,
+  });
+
+  const { data: vendors } = useCache('asm:vendors', {
+    fetcher: () => api.get('/api/vendors').then((r) => r.data?.vendors || []),
+    ttl: 600000,
+  });
+
+  const orders = Array.isArray(ordersData) ? ordersData : [];
+
+  const filteredOrders = useMemo(() => {
+    if (!orders.length) return [];
+    let list = orders;
+    if (filter !== 'ALL') list = list.filter((o) => o.status === filter || o.currentStage === filter);
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (o) =>
+          String(o.orderNumber || '').toLowerCase().includes(q) ||
+          String(o.vendor?.name || '').toLowerCase().includes(q) ||
+          String(o.deliveryCity || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [orders, filter, searchTerm]);
+
+  const viewDetail = async (order) => {
+    setSelectedOrder(order);
+    setLoadingDetail(true);
+    try {
+      const res = await api.get(`/api/vendors/orders/${order.id}`);
+      if (res.data?.order) setSelectedOrder(res.data.order);
+    } catch (err) {
+      console.error('Failed to load vendor order detail:', err);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const closeDetail = () => setSelectedOrder(null);
+
+  const runAction = async (orderId, endpoint, successMsg, { confirmText, payload } = {}) => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    const toastId = toast.loading('Processing...');
+    try {
+      const res = await api.post(`/api/vendors/orders/${orderId}${endpoint}`, payload || {});
+      toast.success(successMsg || res.data?.message || 'Done');
+      refresh();
+      if (selectedOrder?.id === orderId) viewDetail({ id: orderId });
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Action failed');
+    } finally {
+      toast.dismiss(toastId);
+    }
+  };
+
+  const openCreate = () => setShowCreate(true);
+  const closeCreate = () => setShowCreate(false);
+
+  return (
+    <div className="p-5 min-h-screen" dir={isUrdu ? 'rtl' : 'ltr'}>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-cyan-400" />
+            {t('ASM Dashboard')}
+          </h1>
+          <p className="text-sm text-slate-400">
+            {t('Agent Sales Manager — vendor orders & operational analytics')}
+          </p>
+        </div>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+        >
+          <Plus className="h-4 w-4" />
+          {t('New Vendor Order')}
+        </button>
+      </div>
+
+      {analytics && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
+          <StatCard icon={ClipboardList} label={t('Total Orders')} value={orders.length} color="bg-slate-700" />
+          <StatCard icon={TrendingUp} label={t('Active')} value={analytics.active ?? 0} color="bg-blue-600" />
+          <StatCard icon={ClockIcon} label={t('Pending')} value={analytics.pending ?? 0} color="bg-amber-600" />
+          <StatCard icon={Package} label={t('Completed')} value={analytics.completed ?? 0} color="bg-emerald-600" />
+          <StatCard icon={Users} label={t('Vendors')} value={analytics.vendorCount ?? 0} color="bg-violet-600" />
+          <StatCard icon={CreditCard} label={t('Payments')} value={fmtCurrency(analytics.totalPayments)} color="bg-cyan-600" />
+        </div>
+      )}
+
+      <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={t('Search order #, vendor, city...')}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
+          <button onClick={refresh} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition">
+            <RefreshCcw className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+          {FILTERS.map((f) => (
+            <FilterChip key={f} label={f === 'ALL' ? t('All') : t(STAGE_LABELS[f] || f)} active={filter === f} onClick={() => setFilter(f)} />
+          ))}
+        </div>
+
+        {loading ? (
+          <p className="text-slate-400 text-center py-8">{t('Loading...')}</p>
+        ) : error ? (
+          <p className="text-red-400 text-center py-8">{t('Failed to load orders.')}</p>
+        ) : filteredOrders.length === 0 ? (
+          <p className="text-slate-500 text-center py-10">{t('No vendor orders found.')}</p>
+        ) : (
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+            {filteredOrders.map((o) => (
+              <OrderRow key={o.id} order={o} onOpen={viewDetail} flexDir={flexDir} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selectedOrder && (
+        <OrderDetailDrawer order={selectedOrder} loading={loadingDetail} onClose={closeDetail} runAction={runAction} flexDir={flexDir} />
+      )}
+
+      {showCreate && (
+        <CreateOrderModal
+          catalog={Array.isArray(catalog) ? catalog : []}
+          vendors={Array.isArray(vendors) ? vendors : []}
+          onClose={closeCreate}
+          onCreated={() => { closeCreate(); refresh(); }}
+        />
+      )}
+    </div>
+  );
+};
+
+import { Clock as ClockIcon } from 'lucide-react';
+
+const OrderRow = ({ order, onOpen, flexDir }) => {
+  const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
+  const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
+  const stage = order.status || order.currentStage;
+  const color = STAGE_COLORS[stage] || 'bg-slate-500';
+  const itemsCount = (order.items || []).length;
+  const totalUnits = (order.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+
+  return (
+    <button
+      onClick={() => onOpen(order)}
+      className={`w-full text-left bg-slate-800/50 hover:bg-slate-800 rounded-lg p-3 border border-slate-700/50 transition ${flexDir}`}
+    >
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <span className="font-bold text-white">{order.orderNumber}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${color}`}>
+            {STAGE_LABELS[stage] || stage}
+          </span>
+          {remaining > 0.01 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              {t('Balance')}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center text-xs text-slate-400">
+          <User className="h-3.5 w-3.5 mr-1" />
+          {order.vendor?.name || (order.vendorId ? order.vendorId.slice(0, 8) : '—')}
+          {order.deliveryCity ? ` (${order.deliveryCity})` : ''}
+        </div>
+      </div>
+      <div className="flex items-center justify-between mt-2 text-xs text-slate-400 flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <span>{itemsCount} {t('item(s)')} · {totalUnits} {t('units')}</span>
+          <span className="font-semibold text-white">{fmtCurrency(order.grandTotal)}</span>
+        </div>
+        <span className="flex items-center gap-1">
+          <Calendar className="h-3 w-3" />
+          {formatDateOnly(order.createdAt)}
+        </span>
+      </div>
+    </button>
+  );
+};
+
+const OrderDetailDrawer = ({ order, loading, onClose, runAction, flexDir }) => {
+  const { t } = useLanguage();
+  const [showPayForm, setShowPayForm] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('CASH');
+  const [showDeliverForm, setShowDeliverForm] = useState(false);
+  const [carrier, setCarrier] = useState('');
+  const [address, setAddress] = useState(order.deliveryAddress || '');
+  const [city, setCity] = useState(order.deliveryCity || '');
+
+  const payments = Array.isArray(order.payments) ? order.payments : [];
+  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+  const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
+  const stage = order.status || order.currentStage;
+
+  const recordPayment = async () => {
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0) return toast.error(t('Enter a positive amount'));
+    await runAction(order.id, `/pay`, t('Payment recorded'), {
+      payload: { amount: amt, paymentMethod: payMethod },
+    });
+    setPayAmount('');
+    setShowPayForm(false);
+  };
+
+  const doDeliver = async () => {
+    await runAction(order.id, `/deliver`, t('Order delivered'), {
+      payload: { carrier, address, city, notes: order.notes || '' },
+    });
+    setShowDeliverForm(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex justify-end">
+      <div className={`w-full max-w-xl bg-slate-900 h-full shadow-2xl flex flex-col ${flexDir}`}>
+        <div className="flex items-center justify-between p-4 border-b border-slate-800">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Package className="h-5 w-5 text-cyan-400" />
+            {order.orderNumber}
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? (
+            <p className="text-slate-400 text-center py-8">{t('Loading...')}</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`px-3 py-1 rounded-full text-xs font-bold text-white ${STAGE_COLORS[stage] || 'bg-slate-500'}`}>
+                  {STAGE_LABELS[stage] || stage}
+                </span>
+                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                  remaining > 0.01 ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
+                }`}>
+                  {remaining > 0.01 ? `${t('Balance')}: ${fmtCurrency(remaining)}` : t('Paid')}
+                </span>
+              </div>
+
+              <InfoRow icon={User} label={t('Vendor')} value={order.vendor?.name} />
+              <InfoRow icon={Phone} label={t('Phone')} value={order.vendor?.phone} />
+              <InfoRow icon={Hash} label={t('Quotation')} value={order.quotationNumber} />
+              <InfoRow icon={Hash} label={t('Invoice')} value={order.invoiceNumber} />
+              {order.deliveryAddress ? <InfoRow icon={MapPin} label={t('Address')} value={order.deliveryAddress} /> : null}
+              {order.deliveryCity ? <InfoRow icon={MapPin} label={t('City')} value={order.deliveryCity} /> : null}
+              {order.createdAt ? <InfoRow icon={Calendar} label={t('Created')} value={formatDateTime(order.createdAt)} /> : null}
+              {order.notes ? <InfoRow icon={ClipboardList} label={t('Notes')} value={order.notes} /> : null}
+
+              <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                <h3 className="text-sm font-semibold text-slate-200 mb-2">{t('Items')}</h3>
+                <div className="space-y-2">
+                  {(order.items || []).map((it, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm gap-2">
+                      <div className="min-w-0">
+                        <p className="text-white truncate">{it.productName} {it.color ? `· ${it.color}` : ''} {it.size ? `· ${it.size}` : ''}</p>
+                        <p className="text-xs text-slate-500">{it.quantity} × {fmtCurrency(it.unitPrice)}</p>
+                      </div>
+                      <p className="text-white font-semibold whitespace-nowrap">{fmtCurrency(it.lineTotal)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-slate-700 mt-3 pt-2 space-y-1 text-sm">
+                  {(order.deliveryCharges || 0) > 0 && (
+                    <div className="flex justify-between text-slate-400"><span>{t('Delivery')}</span><span>{fmtCurrency(order.deliveryCharges)}</span></div>
+                  )}
+                  {(order.discount || 0) > 0 && (
+                    <div className="flex justify-between text-slate-400"><span>{t('Discount')}</span><span>-{fmtCurrency(order.discount)}</span></div>
+                  )}
+                  <div className="flex justify-between text-white font-bold"><span>{t('Grand Total')}</span><span>{fmtCurrency(order.grandTotal)}</span></div>
+                  <div className="flex justify-between text-slate-400"><span>{t('Paid')}</span><span>{fmtCurrency(totalPaid)}</span></div>
+                  <div className="flex justify-between text-slate-400"><span>{t('Remaining')}</span><span>{fmtCurrency(remaining)}</span></div>
+                </div>
+              </div>
+
+              {payments.length > 0 && (
+                <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                  <h3 className="text-sm font-semibold text-slate-200 mb-2">{t('Payments')}</h3>
+                  <div className="space-y-1 text-sm">
+                    {payments.map((p, idx) => (
+                      <div key={idx} className="flex justify-between text-slate-300">
+                        <span>{p.paymentType} · {p.paymentMethod} {p.reference ? `(${p.reference})` : ''}</span>
+                        <span className="text-white font-semibold">{fmtCurrency(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                <h3 className="text-sm font-semibold text-slate-200 mb-2">{t('Timeline')}</h3>
+                <div className="space-y-1 text-xs text-slate-400">
+                  {(order.statusHistory || []).map((h, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 mt-1.5 shrink-0" />
+                      <div>
+                        <span className="text-slate-200 font-medium">{h.fromStage || '—'} → {h.toStage}</span>
+                        <span className="ml-2 text-slate-500">{formatDateTime(h.createdAt)}</span>
+                        {h.remarks ? <p className="text-slate-500">{h.remarks} {h.changedBy ? `· ${h.changedBy}` : ''}</p> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                {stage === 'GIVE_STOCK' && (
+                  <ActionBtn icon={CheckCircle2} color="bg-cyan-600 hover:bg-cyan-500" label={t('Accept Stock')}
+                    onClick={() => runAction(order.id, `/accept`, t('Stock accepted'), { confirmText: t('Accept this stock?') })} />
+                )}
+
+                {(stage === 'ASM_ACCEPTED' || stage === 'DELIVER') && !showDeliverForm && (
+                  <ActionBtn icon={Truck} color="bg-green-600 hover:bg-green-500" label={t('Deliver to Vendor')}
+                    onClick={() => setShowDeliverForm(true)} />
+                )}
+
+                {stage === 'DELIVERED' && (
+                  <ActionBtn icon={CheckCircle2} color="bg-emerald-600 hover:bg-emerald-500" label={t('Mark Completed')}
+                    onClick={() => runAction(order.id, `/complete`, t('Order completed'), { confirmText: t('Mark this order completed?') })} />
+                )}
+
+                {remaining > 0.01 && !showPayForm && (
+                  <ActionBtn icon={CreditCard} color="bg-amber-600 hover:bg-amber-500" label={`${t('Record Payment')} · ${fmtCurrency(remaining)}`}
+                    onClick={() => setShowPayForm(true)} />
+                )}
+
+                <ActionBtn icon={Printer} color="bg-indigo-600 hover:bg-indigo-500" label={t('Documents')}
+                  onClick={() => runAction(order.id, `/generate-documents`, t('Documents generated'))} />
+
+                {(stage === 'SUBMITTED' || stage === 'ADMIN_APPROVED' || stage === 'PRODUCTION_READY') && (
+                  <ActionBtn icon={Ban} color="bg-slate-700 hover:bg-slate-600" label={t('Awaiting Admin')}
+                    onClick={() => toast(t('This order is awaiting admin action'))} />
+                )}
+              </div>
+
+              {showPayForm && (
+                <div className="bg-slate-800 rounded-lg p-4 border border-amber-500/30">
+                  <h3 className="text-sm font-semibold text-amber-400 mb-3">{t('Record Payment')}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Amount')}</label>
+                      <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder={String(remaining || 0)} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Method')}</label>
+                      <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                        <option value="CASH">CASH</option>
+                        <option value="ONLINE">ONLINE</option>
+                        <option value="BANK_TRANSFER">BANK TRANSFER</option>
+                        <option value="CHEQUE">CHEQUE</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <ActionBtn icon={CheckCircle2} color="bg-amber-600 hover:bg-amber-500" label={t('Save')} onClick={recordPayment} />
+                      <button onClick={() => setShowPayForm(false)} className="px-3 py-2 rounded-lg bg-slate-700 text-slate-200 text-sm">{t('Cancel')}</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {showDeliverForm && (
+                <div className="bg-slate-800 rounded-lg p-4 border border-green-500/30">
+                  <h3 className="text-sm font-semibold text-green-400 mb-3">{t('Deliver to Vendor')}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Carrier')}</label>
+                      <input value={carrier} onChange={(e) => setCarrier(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder={t('e.g. Company vehicle / TCS / PostEx')} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Delivery Address')}</label>
+                      <input value={address} onChange={(e) => setAddress(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">{t('City')}</label>
+                      <input value={city} onChange={(e) => setCity(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                    <div className="flex gap-2">
+                      <ActionBtn icon={Truck} color="bg-green-600 hover:bg-green-500" label={t('Confirm Delivery')} onClick={doDeliver} />
+                      <button onClick={() => setShowDeliverForm(false)} className="px-3 py-2 rounded-lg bg-slate-700 text-slate-200 text-sm">{t('Cancel')}</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const InfoRow = ({ icon: Icon, label, value }) => {
+  if (!value) return null;
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <Icon className="h-4 w-4 text-slate-500 shrink-0" />
+      <span className="text-slate-400 w-24 shrink-0">{label}</span>
+      <span className="text-white break-words">{value}</span>
+    </div>
+  );
+};
+
+const ActionBtn = ({ icon: Icon, color, label, onClick }) => (
+  <button onClick={onClick} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-semibold transition ${color}`}>
+    <Icon className="h-4 w-4" />
+    {label}
+  </button>
+);
+
+const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
+  const { t } = useLanguage();
+  const [vendorId, setVendorId] = useState(vendors[0]?.id || '');
+  const [lineItems, setLineItems] = useState([{ catalogItemId: '', productName: '', productType: '', color: '', size: '', quantity: 1, unitPrice: '' }]);
+  const [deliveryCharges, setDeliveryCharges] = useState('');
+  const [discount, setDiscount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const updateLine = (idx, field, value) => {
+    setLineItems((prev) => prev.map((li, i) => (i === idx ? { ...li, [field]: value } : li)));
+  };
+
+  const addLine = () => setLineItems((prev) => [...prev, { catalogItemId: '', productName: '', productType: '', color: '', size: '', quantity: 1, unitPrice: '' }]);
+  const removeLine = (idx) => setLineItems((prev) => prev.filter((_, i) => i !== idx));
+
+  const selectCatalogItem = (idx, cid) => {
+    const item = catalog.find((c) => c.id === cid);
+    updateLine(idx, 'catalogItemId', cid);
+    if (item) {
+      updateLine(idx, 'productName', item.name || item.productType || '');
+      updateLine(idx, 'productType', item.productType || item.name || '');
+      updateLine(idx, 'unitPrice', item.price || '');
+    }
+  };
+
+  const submit = async () => {
+    if (!vendorId) return toast.error(t('Select a vendor'));
+    const items = lineItems
+      .filter((li) => li.productName || li.catalogItemId)
+      .map((li) => ({
+        catalogItemId: li.catalogItemId || null,
+        productName: li.productName,
+        productType: li.productType || null,
+        color: li.color || null,
+        size: li.size || null,
+        quantity: parseInt(li.quantity, 10) || 1,
+        unitPrice: parseFloat(li.unitPrice) || 0,
+        notes: null,
+      }));
+    if (!items.length) return toast.error(t('At least one product line is required'));
+    const advance = parseFloat(advanceAmount);
+    setSubmitting(true);
+    try {
+      await api.post('/api/vendors/orders', {
+        vendorId,
+        items,
+        deliveryCharges: parseFloat(deliveryCharges) || 0,
+        discount: parseFloat(discount) || 0,
+        notes: notes || null,
+        deliveryAddress: deliveryAddress || null,
+        deliveryCity: deliveryCity || null,
+        payments: advance > 0 ? [{ amount: advance, paymentType: 'ADVANCE', paymentMethod: 'CASH' }] : [],
+      });
+      toast.success(t('Vendor order created & submitted for approval'));
+      onCreated();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || t('Failed to create order'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Plus className="h-5 w-5 text-cyan-400" />
+            {t('New Vendor Order')}
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-400">{t('Vendor')} *</label>
+              <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400">{t('City')}</label>
+              <input value={deliveryCity} onChange={(e) => setDeliveryCity(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-200 mb-2">{t('Product Lines')}</h3>
+            <div className="space-y-3">
+              {lineItems.map((li, idx) => (
+                <div key={idx} className="bg-slate-900 rounded-lg p-3 border border-slate-700/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400">{t('Line')} {idx + 1}</span>
+                    {lineItems.length > 1 && (
+                      <button onClick={() => removeLine(idx)} className="text-red-400 hover:text-red-300 text-xs"><X className="h-3.5 w-3.5" /></button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="md:col-span-2">
+                      <label className="text-xs text-slate-400">{t('From Catalog')}</label>
+                      <input
+                        list={`catalog-list-${idx}`}
+                        value={li.productName}
+                        onChange={(e) => {
+                          const name = e.target.value;
+                          updateLine(idx, 'productName', name);
+                          const match = catalog.find((c) => (c.name || '') === name);
+                          if (match) {
+                            updateLine(idx, 'catalogItemId', match.id);
+                            updateLine(idx, 'productType', match.productType || match.name || '');
+                            updateLine(idx, 'unitPrice', match.price || '');
+                          }
+                        }}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                        placeholder={t('Type to search catalog...')}
+                      />
+                      <datalist id={`catalog-list-${idx}`}>
+                        {catalog.map((c) => <option key={c.id} value={c.name || c.productType || c.id} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Color')}</label>
+                      <input value={li.color} onChange={(e) => updateLine(idx, 'color', e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Size')}</label>
+                      <input value={li.size} onChange={(e) => updateLine(idx, 'size', e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Quantity')}</label>
+                      <input type="number" min="1" value={li.quantity} onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Unit Price')}</label>
+                      <input type="number" min="0" value={li.unitPrice} onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={addLine} className="mt-3 text-cyan-400 hover:text-cyan-300 text-sm font-medium flex items-center gap-1">
+              <Plus className="h-4 w-4" /> {t('Add Line')}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-slate-400">{t('Delivery Charges')}</label>
+              <input type="number" min="0" value={deliveryCharges} onChange={(e) => setDeliveryCharges(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400">{t('Discount')}</label>
+              <input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400">{t('Advance Payment')}</label>
+              <input type="number" min="0" value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400">{t('Delivery Address')}</label>
+            <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400">{t('Notes')}</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows="2"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button onClick={submit} disabled={submitting}
+              className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition disabled:opacity-50">
+              {submitting ? t('Creating...') : t('Create & Submit for Approval')}
+            </button>
+            <button onClick={onClose} className="px-4 py-2.5 rounded-lg bg-slate-700 text-slate-200 text-sm">{t('Cancel')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AsmPage;

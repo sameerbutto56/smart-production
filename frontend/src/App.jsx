@@ -66,6 +66,7 @@ const StoreOrderTracker = lazy(() => import('./pages/StoreOrderTracker'));
 const StoreOrders = lazy(() => import('./pages/StoreOrders'));
 const PostExDashboard = lazy(() => import('./pages/PostExDashboard'));
 const DemandDeliveriesHistory = lazy(() => import('./pages/DemandDeliveriesHistory'));
+const AsmPage = lazy(() => import('./pages/AsmPage'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -91,6 +92,7 @@ const AuthRedirectHandler = () => {
   if (role === 'INVENTORY_VIEW') return <Navigate to="/order-track" replace={true} />;
   if (role === 'CEO') return <Navigate to="/ceo-dashboard" replace={true} />;
   if (role === 'SOFTWARE_SETTINGS') return <Navigate to="/software-settings" replace={true} />;
+  if (role === 'ASM') return <Navigate to="/asm" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;
 };
@@ -190,6 +192,7 @@ function App() {
                   <Route path="software-settings" element={<SoftwareSettings />} />
                   <Route path="postex-dashboard" element={<PostExDashboard />} />
                   <Route path="demand-history" element={<DemandDeliveriesHistory />} />
+                  <Route path="asm" element={<AsmPage />} />
                 </Route>
               </Routes>
               </ErrorBoundary>
