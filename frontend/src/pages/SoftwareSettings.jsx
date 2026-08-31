@@ -4,7 +4,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useSystemPause } from '../context/SystemPauseContext';
-import { Users, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation, Truck, Layers, Hash } from 'lucide-react';
+import { Users, UserPlus, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation, Truck, Layers, Hash } from 'lucide-react';
 import OrderTrackPanel from '../components/OrderTrackPanel';
 import OrderControlPanel from '../components/OrderControlPanel';
 import OrderPhaseHistoryPanel from '../components/OrderPhaseHistoryPanel';
@@ -53,7 +53,13 @@ const ROLE_LABELS = {
   ORDER_ENTRY: 'Order Entry',
   OUTLET: 'Outlet',
   OUTLET_ORDER_ENTRY: 'Outlet Order Entry',
+  ASM: 'ASM (Area Sales Manager)',
 };
+
+// Login roles allowed to be created via the Login Users tab (User model).
+const CREATE_USER_ROLES = ['ASM', 'FAISAL', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN',
+  'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH',
+  'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'INVENTORY_VIEW', 'ORDER_ENTRY', 'OUTLET', 'OUTLET_ORDER_ENTRY'];
 
 const DEVICE_STATUS_LABELS = {
   PENDING: { label: 'Pending', cls: 'bg-amber-600/20 border-amber-600/50 text-amber-400' },
@@ -165,6 +171,57 @@ const SoftwareSettings = () => {
   const [sessions, setSessions] = useState([]);
   const [sessionsActive, setSessionsActive] = useState(0);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // ── Login Users state (User model accounts, incl. ASM) ──
+  const [loginUsers, setLoginUsers] = useState([]);
+  const [loginUsersLoading, setLoginUsersLoading] = useState(false);
+  const [newLoginUser, setNewLoginUser] = useState({ name: '', email: '', password: '', role: 'ASM', employeeId: '' });
+  const [creatingLoginUser, setCreatingLoginUser] = useState(false);
+
+  const fetchLoginUsers = useCallback(async () => {
+    setLoginUsersLoading(true);
+    try {
+      const res = await api.get('/api/users');
+      setLoginUsers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      toast.error('Failed to load login users: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoginUsersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'login-users') fetchLoginUsers();
+  }, [activeTab, fetchLoginUsers]);
+
+  const handleCreateLoginUser = async () => {
+    const n = (newLoginUser.name || '').trim();
+    const em = (newLoginUser.email || '').trim().toLowerCase();
+    const pw = newLoginUser.password || '';
+    if (!n || !em || !pw || !newLoginUser.role) {
+      toast.error('Name, email, password and role are required.');
+      return;
+    }
+    if (creatingLoginUser) return;
+    setCreatingLoginUser(true);
+    try {
+      await api.post('/api/auth/register', {
+        name: n,
+        email: em,
+        password: pw,
+        role: newLoginUser.role,
+        employeeId: newLoginUser.employeeId?.trim() || undefined,
+      });
+      toast.success(`Login account created for ${n} (${ROLE_LABELS[newLoginUser.role] || newLoginUser.role}).`);
+      setNewLoginUser({ name: '', email: '', password: '', role: 'ASM', employeeId: '' });
+      fetchLoginUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create login account.');
+    } finally {
+      setCreatingLoginUser(false);
+    }
+  };
+
 
   const fetchSessions = useCallback(async () => {
     setSessionsLoading(true);
@@ -505,6 +562,7 @@ const SoftwareSettings = () => {
 
   const tabs = [
     { key: 'employees', label: 'Employee Management', icon: <Users size={16} /> },
+    { key: 'login-users', label: 'Login Users', icon: <UserPlus size={16} /> },
     { key: 'payment', label: 'Payment Method Change', icon: <ArrowLeftRight size={16} /> },
     { key: 'delay', label: 'Set Delay', icon: <Clock size={16} /> },
     { key: 'devices', label: 'Device Management', icon: <Laptop size={16} /> },
@@ -604,6 +662,93 @@ const SoftwareSettings = () => {
               </div>
             ))
           )}
+        </>
+      )}
+
+      {/* ═══════════════ LOGIN USERS TAB (User model, incl. ASM) ═══════════════ */}
+      {activeTab === 'login-users' && (
+        <>
+          <div className="glass rounded-2xl border-2 border-gray-700 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <UserPlus className="text-emerald-400" size={20} />
+              <h2 className="font-black text-white">Create Login Account</h2>
+              <span className="ml-auto text-[11px] text-gray-400">
+                Creates a User-model login (e.g. ASM). The new user must be device-authorized in Device Management before first login.
+              </span>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-gray-400">Full Name *</label>
+                <input value={newLoginUser.name} onChange={e => setNewLoginUser(s => ({ ...s, name: e.target.value }))}
+                  placeholder="e.g. Asif Khan"
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-gray-400">Email *</label>
+                <input value={newLoginUser.email} onChange={e => setNewLoginUser(s => ({ ...s, email: e.target.value }))}
+                  placeholder="asm@enamels.com" type="email"
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-gray-400">Password *</label>
+                <input value={newLoginUser.password} onChange={e => setNewLoginUser(s => ({ ...s, password: e.target.value }))}
+                  placeholder="••••••••" type="password"
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-gray-400">Role *</label>
+                <select value={newLoginUser.role} onChange={e => setNewLoginUser(s => ({ ...s, role: e.target.value }))}
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none">
+                  {CREATE_USER_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-gray-400">Employee ID (optional)</label>
+                <input value={newLoginUser.employeeId} onChange={e => setNewLoginUser(s => ({ ...s, employeeId: e.target.value }))}
+                  placeholder="e.g. EMP-012"
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-blue-500 outline-none" />
+              </div>
+            </div>
+            <button onClick={handleCreateLoginUser} disabled={creatingLoginUser}
+              className="mt-4 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-sm disabled:opacity-60">
+              {creatingLoginUser ? <Loader2 className="animate-spin" size={16} /> : <UserPlus size={16} />}
+              {creatingLoginUser ? 'Creating…' : 'Create Login Account'}
+            </button>
+          </div>
+
+          <div className="glass rounded-2xl border-2 border-gray-700 overflow-hidden">
+            <div className="px-5 py-3 bg-gray-800/70 flex items-center gap-2 border-b border-gray-700">
+              <ShieldCheck className="text-blue-400" size={18} />
+              <h2 className="font-black text-white">Login Accounts ({loginUsers.length})</h2>
+              <button onClick={fetchLoginUsers} className="ml-auto flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-white">
+                <RefreshCw size={13} /> Refresh
+              </button>
+            </div>
+            {loginUsersLoading ? (
+              <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-blue-500" size={28} /></div>
+            ) : loginUsers.length === 0 ? (
+              <div className="text-center py-10 text-sm text-gray-400">No login accounts found.</div>
+            ) : (
+              <div className="divide-y divide-gray-700/70">
+                {loginUsers.map(u => (
+                  <div key={u.id} className="px-5 py-3 flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-[200px]">
+                      <div className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center font-black text-blue-300">
+                        {(u.name || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-bold text-white">{u.name}</p>
+                        <p className="text-[11px] text-gray-400">{u.email}</p>
+                      </div>
+                    </div>
+                    <span className="ml-auto px-3 py-1 rounded-lg text-[11px] font-bold border border-blue-600/50 text-blue-300 bg-blue-600/10">
+                      {ROLE_LABELS[u.role] || u.role}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
 

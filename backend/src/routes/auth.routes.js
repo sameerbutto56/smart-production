@@ -4,7 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
 // Only SUPER_ADMIN can create new user accounts
-router.post('/register', authenticate, authorize('SUPER_ADMIN'), register);
+  router.post('/register', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'SOFTWARE_SETTINGS']), register);
 router.post('/login', login);
 // Close the most recent active login session (fire-and-forget from the frontend)
 router.post('/logout', authenticate, logout);

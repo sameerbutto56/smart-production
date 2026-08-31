@@ -8,6 +8,13 @@ const register = async (req, res) => {
 
   try {
     const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!name || !normalizedEmail || !password || !role) {
+      return res.status(400).json({ message: 'Name, email, password and role are required.' });
+    }
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
+    if (existing) {
+      return res.status(400).json({ message: 'A login account with this email already exists.' });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
