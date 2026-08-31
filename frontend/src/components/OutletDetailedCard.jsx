@@ -495,8 +495,8 @@ const OutletDetailedCard = ({ outlet }) => {
 
       <div className="flex flex-wrap items-center gap-2 p-3 glass rounded-2xl border border-gray-700/50">
         {presets.map(opt => (
-          <button key={opt.value} onClick={() => { setRange(opt.value); setDateFrom(''); setDateTo(''); }}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === opt.value ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:border-indigo-500/20'}`}>
+          <button key={opt.key} onClick={() => { setRange(opt.key); setDateFrom(''); setDateTo(''); }}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === opt.key ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:border-indigo-500/20'}`}>
             {opt.label}
           </button>
         ))}
