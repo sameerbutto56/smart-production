@@ -13,6 +13,15 @@ import {
 import socket from '../socket';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import { toUrduName } from '../utils/urduDictionary';
+import useDateRange from '../hooks/useDateRange';
+
+const DATE_PRESETS = [
+  { key: 'all', label: 'All Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'custom', label: 'Custom' },
+];
 
 const COLORS = {
   cyan: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', ring: 'ring-cyan-500/20' },
@@ -154,20 +163,16 @@ const OnlineStoreCard = ({ activeTab }) => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [activeSection, setActiveSection] = useState('overview');
-  const [dateRange, setDateRange] = useState('all');
-  const [dateFrom, setdateFrom] = useState('');
-  const [dateTo, setdateTo] = useState('');
+  const dr = useDateRange({ initialRange: 'all', presets: DATE_PRESETS });
   const [searchTerm, setSearchTerm] = useState('');
   const refreshRef = useRef(null);
 
   const fetchData = useCallback(async () => {
     try {
       const params = {};
-      if (dateRange === 'custom' && dateFrom && dateTo) {
-        params.dateFrom = dateFrom;
-        params.dateTo = dateTo;
-      } else if (dateRange !== 'all') {
-        params.range = dateRange;
+      if (dr.range !== 'all') {
+        if (dr.startISO) params.dateFrom = dr.startISO;
+        if (dr.endISO) params.dateTo = dr.endISO;
       }
       const res = await api.get('/api/online-dashboard/stats', { params });
       setData(res.data);
@@ -176,7 +181,7 @@ const OnlineStoreCard = ({ activeTab }) => {
     } finally {
       setLoading(false);
     }
-  }, [dateRange, dateFrom, dateTo]);
+  }, [dr.range, dr.startISO, dr.endISO]);
 
   useEffect(() => {
     if (activeTab === 'online_store') {
@@ -316,19 +321,21 @@ const OnlineStoreCard = ({ activeTab }) => {
           <p className="theme-text-muted text-sm mt-1">Complete overview of online business operations</p>
         </div>
         <div className="flex items-center gap-3">
-          <select value={dateRange} onChange={e => setDateRange(e.target.value)}
-            className="theme-bg-subtle theme-border border rounded-xl px-3 py-2 text-xs theme-text-primary font-bold">
-            <option value="all">All Time</option>
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="custom">Custom Range</option>
-          </select>
-          {dateRange === 'custom' && (
+          <div className="flex items-center gap-1.5">
+            {dr.presets.map(p => (
+              <button key={p.key} onClick={() => dr.setRange(p.key)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                  dr.range === p.key ? 'bg-cyan-500/30 text-cyan-300' : 'theme-bg-subtle theme-text-muted hover:bg-gray-700'
+                }`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {dr.range === 'custom' && (
             <>
-              <input type="date" value={dateFrom} onChange={e => setdateFrom(e.target.value)}
+              <input type="date" value={dr.dateFrom} onChange={e => dr.setDateFrom(e.target.value)}
                 className="theme-bg-subtle theme-border border rounded-xl px-3 py-2 text-xs theme-text-primary" />
-              <input type="date" value={dateTo} onChange={e => setdateTo(e.target.value)}
+              <input type="date" value={dr.dateTo} onChange={e => dr.setDateTo(e.target.value)}
                 className="theme-bg-subtle theme-border border rounded-xl px-3 py-2 text-xs theme-text-primary" />
             </>
           )}

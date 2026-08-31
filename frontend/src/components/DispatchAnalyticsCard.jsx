@@ -4,6 +4,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { Loader2, BarChart3, TrendingUp, Activity, Package, User, X, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
 import socket from '../socket';
+import useDateRange from '../hooks/useDateRange';
 
 const SECTION_COLORS = {
   pending: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
@@ -120,8 +121,7 @@ const DispatchAnalyticsCard = ({ activeTab }) => {
   const [employee, setEmployee] = useState('');
   const [city, setCity] = useState('');
   const [status, setStatus] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const dateRange = useDateRange({ initialRange: 'today' });
   const refreshRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -130,8 +130,8 @@ const DispatchAnalyticsCard = ({ activeTab }) => {
       if (employee) params.set('employee', employee);
       if (city) params.set('city', city);
       if (status) params.set('status', status);
-      if (dateFrom) params.set('dateFrom', dateFrom);
-      if (dateTo) params.set('dateTo', dateTo);
+      if (dateRange.startISO) params.set('dateFrom', dateRange.startISO);
+      if (dateRange.endISO) params.set('dateTo', dateRange.endISO);
       const res = await api.get(`/api/dispatch-profile/dashboard?${params.toString()}`);
       setData(res.data);
     } catch (err) {
@@ -139,7 +139,7 @@ const DispatchAnalyticsCard = ({ activeTab }) => {
     } finally {
       setLoading(false);
     }
-  }, [employee, city, status, dateFrom, dateTo]);
+  }, [employee, city, status, dateRange.startISO, dateRange.endISO]);
 
   useEffect(() => { if (activeTab === 'dispatch_analytics') fetchData(); }, [activeTab, fetchData]);
 
@@ -245,8 +245,22 @@ const DispatchAnalyticsCard = ({ activeTab }) => {
           <option value="returned">Returned</option>
           <option value="rejected">Rejected</option>
         </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="theme-input rounded-xl py-2 px-3 text-xs font-black" />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="theme-input rounded-xl py-2 px-3 text-xs font-black" />
+        <div className="flex flex-wrap gap-1.5 items-center">
+          {dateRange.presets.map(p => (
+            <button key={p.key} onClick={() => dateRange.setRange(p.key)}
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                dateRange.range === p.key ? 'bg-blue-600 text-white' : 'theme-bg-subtle theme-text-muted hover:bg-gray-700'
+              }`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {dateRange.range === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={dateRange.dateFrom} onChange={e => dateRange.setDateFrom(e.target.value)} className="theme-input rounded-xl py-2 px-3 text-xs font-black" />
+            <input type="date" value={dateRange.dateTo} onChange={e => dateRange.setDateTo(e.target.value)} className="theme-input rounded-xl py-2 px-3 text-xs font-black" />
+          </div>
+        )}
         <button onClick={fetchData} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider">Apply</button>
       </div>
 

@@ -7,6 +7,7 @@ import { debounce } from '../utils/debounce';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
+import useDateRange from '../hooks/useDateRange';
 import {
   DollarSign, ShoppingCart, RefreshCw, TrendingUp, TrendingDown, RotateCcw,
   CheckCircle, Clock, XCircle, CreditCard, Globe, Award, Package,
@@ -16,21 +17,12 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
-const datePresets = [
-  { label: 'All Time', value: 'all' },
-  { label: 'Today', value: 'today' },
-  { label: 'Yesterday', value: 'yesterday' },
-  { label: 'Last 7 Days', value: 'week' },
-  { label: 'Last 30 Days', value: 'month' },
-  { label: 'This Year', value: 'year' },
-  { label: 'Custom Range', value: 'custom' }
-];
-
 const OutletPOSDashboard = ({ outlet }) => {
   const { isUrdu } = useLanguage();
-  const [range, setRange] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const {
+    range, setRange, dateFrom, setDateFrom, dateTo, setDateTo,
+    label: rangeLabel, queryParams, presets,
+  } = useDateRange({ initialRange: 'today' });
   const [cashier, setCashier] = useState('');
   const [employees, setEmployees] = useState([]);
   const cacheVersion = useRef('v3');
@@ -44,13 +36,13 @@ const OutletPOSDashboard = ({ outlet }) => {
 
   const { data: dashboard = null, loading, error, refresh } = useCache(dashboardKey, {
     fetcher: () => api.get('/api/pos/sales/dashboard', {
-      params: { outlet, range, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, cashier: cashier || undefined }
+      params: { outlet, ...queryParams, cashier: cashier || undefined }
     }).then(r => r.data),
     ttl: 30000,
   });
 
-  const { data: sales = [] } = useCache(`${salesKey}:range:all::`, {
-    fetcher: () => api.get(`/api/pos/sales?outlet=${outlet}`).then(r => r.data),
+  const { data: sales = [] } = useCache(`${salesKey}:${range}:${dateFrom || ''}:${dateTo || ''}`, {
+    fetcher: () => api.get('/api/pos/sales', { params: { outlet, ...queryParams } }).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
 
@@ -149,11 +141,14 @@ const OutletPOSDashboard = ({ outlet }) => {
 
   return (
     <div className="space-y-6">
-      {/* Date Range Selector */}
+{/* Date Range Selector */}
       <div className="flex flex-wrap items-center gap-2">
-        {datePresets.map(p => (
-          <button key={p.value} onClick={() => { setRange(p.value); if (p.value !== 'custom') { setDateFrom(''); setDateTo(''); } }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${range === p.value ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+        <span className="px-3 py-1.5 rounded-lg bg-gray-700/60 text-indigo-300 text-xs font-bold">
+          {rangeLabel}
+        </span>
+        {presets.map(p => (
+          <button key={p.key} onClick={() => { setRange(p.key); if (p.key !== 'custom') { setDateFrom(''); setDateTo(''); } }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${range === p.key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
             {p.label}
           </button>
         ))}
@@ -220,7 +215,7 @@ const OutletPOSDashboard = ({ outlet }) => {
             <style>body{font-family:Arial,sans-serif;padding:20px;color:#333}h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}.label{font-size:10px;color:#666}.val{font-size:14px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{padding:6px 8px;text-align:left;font-size:11px;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:700}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:4px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>
             ${getPrintLogoHTML()}
             <h1>${outlet} — POS Dashboard</h1>
-            <p class="sub">${formatDateTime(new Date())} | ${range} range</p>
+            <p class="sub">${formatDateTime(new Date())} | ${rangeLabel}</p>
             <div class="grid">
               <div class="card"><div class="label">Gross Sales</div><div class="val">₨${(dashboard.grossSales || 0).toLocaleString()}</div></div>
               <div class="card"><div class="label">Total Sales</div><div class="val">₨${(dashboard.totalSales || 0).toLocaleString()}</div></div>

@@ -5,6 +5,7 @@ const { getDelayMap, fmtDuration } = require('../utils/orderDelay');
 const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
+const { dateBoundToMs } = require('../utils/workingHours');
 const XLSX = require('xlsx');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
@@ -4682,8 +4683,13 @@ const trackOrder = async (req, res) => {
 const getOrderPerformance = async (req, res) => {
   try {
     const { from, to } = req.query;
-    const dateFrom = from ? new Date(from) : new Date('2000-01-01');
-    const dateTo = to ? (to.includes('T') ? new Date((new Date(to)).getTime() - 1) : new Date(to + 'T23:59:59.999Z')) : new Date('2100-01-01');
+    // PKT-aware bounds (same helpers as resolveSalesDateRange): full ISO timestamps
+    // pass through as-is; bare YYYY-MM-DD expands to the full PKT calendar day
+    // (start = PKT 00:00:00, end = PKT 23:59:59.999) so ranges match PKT data.
+    const fromMs = dateBoundToMs(from, 'start');
+    const toMs = dateBoundToMs(to, 'end');
+    const dateFrom = fromMs === null ? new Date('2000-01-01') : new Date(fromMs);
+    const dateTo = toMs === null ? new Date('2100-01-01') : new Date(toMs);
 
     // Faisal: only new orders created by Faisal-role users within date range.
     // Split the total by the actual employee who placed each order (placedBy from the

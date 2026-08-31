@@ -33,6 +33,47 @@ const dayStartUTC = (ms) => {
   return Date.UTC(pkt.getUTCFullYear(), pkt.getUTCMonth(), pkt.getUTCDate()) - PK_OFFSET;
 };
 
+/**
+ * Start of the PKT calendar day (00:00:00 PKT) containing the given UTC ms.
+ * @param {number|Date|string} input
+ * @returns {number} UTC ms
+ */
+const pktDayStart = (input) => dayStartUTC(new Date(input).getTime());
+
+/**
+ * End of the PKT calendar day (23:59:59.999 PKT) containing the given UTC ms.
+ * @param {number|Date|string} input
+ * @returns {number} UTC ms
+ */
+const pktDayEnd = (input) => {
+  const dayStart = pktDayStart(input);
+  return dayStart + 24 * 60 * 60 * 1000 - 1;
+};
+
+/**
+ * Interpret a date-range bound string as an absolute UTC instant, PKT-aware.
+ * - Full ISO/timestamp strings (contain `T`, `:`, or `Z`) are treated as absolute
+ *   instants and returned as-is (the caller supplies PKT-converted ISO already).
+ * - Bare `YYYY-MM-DD` calendar dates are treated as an entire PKT calendar day:
+ *   as the range start → PKT 00:00:00; as the range end → PKT 23:59:59.999.
+ * @param {string|null|undefined} value
+ * @param {'start'|'end'} bound
+ * @returns {number|null} UTC ms
+ */
+const dateBoundToMs = (value, bound = 'start') => {
+  if (value == null || value === '') return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  if (/[T:Z]/.test(str)) {
+    const ms = new Date(str).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  // Bare YYYY-MM-DD (or numeric) — treat as a PKT calendar day
+  const base = new Date(str);
+  if (!Number.isFinite(base.getTime())) return null;
+  return bound === 'start' ? pktDayStart(base) : pktDayEnd(base);
+};
+
 // Sunday = 0 in JS getUTCDay()
 const isSunday = (ms) => toPKT(ms).getUTCDay() === 0;
 
@@ -217,4 +258,7 @@ module.exports = {
   isWorkingTime,
   getTimerState,
   computeActiveWorkingMs,
+  pktDayStart,
+  pktDayEnd,
+  dateBoundToMs,
 };

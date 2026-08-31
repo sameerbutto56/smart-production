@@ -3,6 +3,7 @@ const cache = require('../utils/cache');
 const { getPendingAudit } = require('../utils/auditLock');
 const errorLogger = require('../utils/errorLogger');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
+const { pktDayStart, pktDayEnd, dateBoundToMs } = require('../utils/workingHours');
 const CACHE_KEY_PREFIX = 'pos:';
 
 const getOutletName = (req) => {
@@ -646,17 +647,19 @@ const createSale = async (req, res) => {
 
 /* ─── Shared POS sales-date range — single source for POS History, Register (Close Book) and Excel export ─── */
 const resolveSalesDateRange = ({ range, dateFrom, dateTo }) => {
-  const now = new Date();
+  const nowMs = Date.now();
   let start = null;
   let end = null;
   if (dateFrom || dateTo) {
-    if (dateFrom) { start = new Date(dateFrom); start.setHours(0, 0, 0, 0); }
-    if (dateTo) { end = new Date(dateTo); end.setHours(23, 59, 59, 999); }
-  } else if (range === 'today') { start = new Date(now); start.setHours(0, 0, 0, 0); end = now; }
-  else if (range === 'yesterday') { start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0); end = new Date(start); end.setHours(23, 59, 59, 999); }
-  else if (range === 'week') { start = new Date(now); start.setDate(start.getDate() - 7); start.setHours(0, 0, 0, 0); end = now; }
-  else if (range === 'month') { start = new Date(now); start.setMonth(start.getMonth() - 1); start.setHours(0, 0, 0, 0); end = now; }
-  else if (range === 'year') { start = new Date(now); start.setFullYear(start.getFullYear() - 1); start.setHours(0, 0, 0, 0); end = now; }
+    // Explicit bounds. Full ISO timestamp strings (PKT-converted by the frontend
+    // hook) are used as-is; bare YYYY-MM-DD dates are expanded to a full PKT
+    // calendar day so boundaries are always Pakistan-time correct.
+    start = dateFrom ? dateBoundToMs(dateFrom, 'start') : null;
+    end = dateTo ? dateBoundToMs(dateTo, 'end') : null;
+  } else if (range === 'today') { start = pktDayStart(nowMs); end = nowMs; }
+  else if (range === 'yesterday') { start = pktDayStart(nowMs - 86400000); end = pktDayEnd(start); }
+  else if (range === 'week') { start = pktDayStart(nowMs - 6 * 86400000); end = nowMs; }
+  else if (range === 'month' || range === 'year') { const p = new Date(pktDayStart(nowMs) + 5 * 3600000); const mo = range === 'month' ? p.getUTCMonth() : 0; start = pktDayStart(Date.UTC(p.getUTCFullYear(), mo, 1)); end = nowMs; }
   return { start, end };
 };
 

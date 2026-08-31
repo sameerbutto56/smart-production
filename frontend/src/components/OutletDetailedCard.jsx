@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../services/api';
+import useDateRange from '../hooks/useDateRange';
 import {
   LayoutDashboard, CreditCard, TrendingUp, Wallet, User, RotateCcw, FileText,
   ShoppingBag, Layers, Package, Users, ArrowLeftRight, ClipboardList, Scissors,
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react';
 import OutletRegisters from './OutletRegisters';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
+import { pktDayISO } from '../utils/pktRange';
 
 const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
 const fmt = (n) => `PKR ${(n || 0).toLocaleString()}`;
@@ -285,9 +287,7 @@ const OutletDetailedCard = ({ outlet }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('overview');
-  const [range, setRange] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const { range, setRange, dateFrom, setDateFrom, dateTo, setDateTo, label: rangeLabel, queryParams, presets } = useDateRange();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [invoicePage, setInvoicePage] = useState(1);
@@ -300,18 +300,14 @@ const OutletDetailedCard = ({ outlet }) => {
 
   const fetchData = useCallback(async () => {
     try {
-      const params = {};
-      if (range && range !== 'all') params.range = range;
-      if (dateFrom) params.dateFrom = dateFrom;
-      if (dateTo) params.dateTo = dateTo;
-      const res = await api.get(`/api/outlet-detailed/${outlet}`, { params });
+      const res = await api.get(`/api/outlet-detailed/${outlet}`, { params: queryParams });
       setData(res.data);
     } catch (e) {
       console.error('Outlet detailed fetch failed:', e);
     } finally {
       setLoading(false);
     }
-  }, [outlet, range, dateFrom, dateTo]);
+  }, [outlet, queryParams]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -325,14 +321,6 @@ const OutletDetailedCard = ({ outlet }) => {
     fetchData();
     refreshRef.current = setInterval(fetchData, 30000);
   };
-
-  const rangeOptions = [
-    { value: 'today', label: 'Today' },
-    { value: 'yesterday', label: 'Yesterday' },
-    { value: 'week', label: 'This Week' },
-    { value: 'month', label: 'This Month' },
-    { value: 'all', label: 'All' },
-  ];
 
   const summary = data?.overview || {};
   const sales = data?.invoices || [];
@@ -497,6 +485,7 @@ const OutletDetailedCard = ({ outlet }) => {
       <div className="flex items-center gap-3">
         <h2 className="text-xl font-black text-white uppercase">{outlet}</h2>
         <span className="text-xs font-bold text-gray-500">360 Degree Operational Dashboard</span>
+        <span className="px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap">{rangeLabel}</span>
         <button onClick={handleRefresh} disabled={loading}
           className="ml-auto px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50 transition-all">
           {loading ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
@@ -505,7 +494,7 @@ const OutletDetailedCard = ({ outlet }) => {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 p-3 glass rounded-2xl border border-gray-700/50">
-        {rangeOptions.map(opt => (
+        {presets.map(opt => (
           <button key={opt.value} onClick={() => { setRange(opt.value); setDateFrom(''); setDateTo(''); }}
             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === opt.value ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:border-indigo-500/20'}`}>
             {opt.label}
@@ -1535,17 +1524,19 @@ const OutletDetailedCard = ({ outlet }) => {
 const BankDepositsSection = ({ outlet }) => {
   const [deposits, setDeposits] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [summary, setSummary] = useState({ totalAmount: 0, count: 0, todayAmount: 0, todayCount: 0, monthAmount: 0, monthCount: 0 });
+
+  const { range, setRange, dateFrom, setDateFrom, dateTo, setDateTo, start, end, label, presets } = useDateRange({ initialRange: 'today' });
 
   const fetchDeposits = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (dateFrom) params.set('dateFrom', dateFrom);
-      if (dateTo) params.set('dateTo', dateTo);
+      const fromISO = start ? pktDayISO(start) : '';
+      const toISO = end ? pktDayISO(end) : '';
+      if (fromISO) params.set('dateFrom', fromISO);
+      if (toISO) params.set('dateTo', toISO);
       if (search) params.set('search', search);
       const res = await api.get(`/api/bank-deposit/deposits/${encodeURIComponent(outlet)}?${params.toString()}`);
       setDeposits(res.data.deposits || []);
@@ -1562,9 +1553,16 @@ const BankDepositsSection = ({ outlet }) => {
     } finally {
       setLoading(false);
     }
-  }, [outlet, dateFrom, dateTo, search]);
+  }, [outlet, start, end, search]);
 
   useEffect(() => { fetchDeposits(); }, [fetchDeposits]);
+
+  const handleClearFilters = () => {
+    setRange('today');
+    setDateFrom('');
+    setDateTo('');
+    setSearch('');
+  };
 
   return (
     <div className="space-y-4">
@@ -1586,19 +1584,32 @@ const BankDepositsSection = ({ outlet }) => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-2 p-3 glass rounded-2xl border border-gray-700/50">
+        {presets.map(opt => (
+          <button key={opt.key} onClick={() => { setRange(opt.key); setDateFrom(''); setDateTo(''); }}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === opt.key ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:border-indigo-500/20'}`}>
+            {opt.label}
+          </button>
+        ))}
+        <div className="flex items-center gap-1 ml-2">
+          <Calendar size={12} className="text-gray-500" />
+          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setRange('custom'); }}
+            className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-300 w-28" />
+          <span className="text-gray-600 text-[10px]">to</span>
+          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setRange('custom'); }}
+            className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-300 w-28" />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search slip # or employee..."
             className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-all" />
         </div>
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-          className="bg-gray-800/50 border border-gray-700/50 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-all" />
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-          className="bg-gray-800/50 border border-gray-700/50 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-all" />
-        {(dateFrom || dateTo || search) && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); setSearch(''); }}
+        {(search || range !== 'today') && (
+          <button onClick={handleClearFilters}
             className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-bold transition-all">
             <X size={12} />
           </button>

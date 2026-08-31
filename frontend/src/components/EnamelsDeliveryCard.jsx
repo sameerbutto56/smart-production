@@ -6,6 +6,16 @@ import { Loader2, Truck, User, Package, Activity, X, RefreshCw, Banknote, Clock,
 import socket from '../socket';
 import { formatDateOnly, formatTimeOnly, formatDateTime } from '../utils/dateTime';
 import { STATUS_BADGE, STATUS_LABEL, STAT_COLORS } from '../utils/deliveryStatusUtils';
+import useDateRange from '../hooks/useDateRange';
+
+const DATE_PRESETS = [
+  { key: 'all', label: 'All Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'Weekly' },
+  { key: 'month', label: 'Monthly' },
+  { key: 'custom', label: 'Custom Range' },
+];
 
 const C = STAT_COLORS;
 
@@ -21,15 +31,6 @@ const isCarryForwardOrder = (order) => {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return d < today;
 };
-
-const PRESETS = [
-  { key: 'all', label: 'All Time' },
-  { key: 'today', label: 'Today', getRange: () => { const d = new Date(); d.setHours(0,0,0,0); return { dateFrom: d.toISOString(), dateTo: new Date().toISOString() }; } },
-  { key: 'yesterday', label: 'Yesterday', getRange: () => { const d = new Date(); d.setDate(d.getDate()-1); d.setHours(0,0,0,0); const e = new Date(d); e.setHours(23,59,59,999); return { dateFrom: d.toISOString(), dateTo: e.toISOString() }; } },
-  { key: 'week', label: 'This Week', getRange: () => { const d = new Date(); const s = new Date(d); s.setDate(s.getDate()-s.getDay()); s.setHours(0,0,0,0); return { dateFrom: s.toISOString(), dateTo: new Date().toISOString() }; } },
-  { key: 'month', label: 'This Month', getRange: () => { const d = new Date(); const s = new Date(d.getFullYear(), d.getMonth(), 1); return { dateFrom: s.toISOString(), dateTo: new Date().toISOString() }; } },
-  { key: 'custom', label: 'Custom Range' },
-];
 
 const formatDuration = (mins) => {
   if (mins == null || isNaN(mins)) return '—';
@@ -450,10 +451,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
   const [showOutstandingList, setShowOutstandingList] = useState(false);
   const refreshRef = useRef(null);
 
-  const [datePreset, setDatePreset] = useState('all');
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
-  const [dateParams, setDateParams] = useState(null);
+  const dateRange = useDateRange({ initialRange: 'today', presets: DATE_PRESETS });
   const [riderFilter, setRiderFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('');
@@ -499,29 +497,17 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
 
   useEffect(() => { if (activeTab === 'enamels_delivery') fetchDeposits(); }, [activeTab, fetchDeposits]);
 
-  useEffect(() => {
-    if (datePreset === 'custom') {
-      if (customFrom && customTo) {
-        setDateParams({ dateFrom: new Date(customFrom).toISOString(), dateTo: new Date(customTo + 'T23:59:59').toISOString() });
-      }
-    } else {
-      const preset = PRESETS.find(p => p.key === datePreset);
-      if (preset?.getRange) setDateParams(preset.getRange());
-      else setDateParams(null);
-    }
-  }, [datePreset, customFrom, customTo]);
-
   const buildUrl = useCallback(() => {
     const qs = new URLSearchParams();
-    if (dateParams?.dateFrom) qs.set('dateFrom', dateParams.dateFrom);
-    if (dateParams?.dateTo) qs.set('dateTo', dateParams.dateTo);
+    if (dateRange.startISO) qs.set('dateFrom', dateRange.startISO);
+    if (dateRange.endISO) qs.set('dateTo', dateRange.endISO);
     if (riderFilter) qs.set('riderName', riderFilter);
     if (statusFilter) qs.set('status', statusFilter);
     if (deliveryStatusFilter) qs.set('deliveryStatus', deliveryStatusFilter);
     if (paymentFilter) qs.set('paymentType', paymentFilter);
     if (jailRoadOnly) qs.set('outlet', 'jail road');
     return `/api/delivery/analytics?${qs.toString()}`;
-  }, [dateParams, riderFilter, statusFilter, deliveryStatusFilter, paymentFilter, jailRoadOnly]);
+  }, [dateRange.startISO, dateRange.endISO, riderFilter, statusFilter, deliveryStatusFilter, paymentFilter, jailRoadOnly]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -574,8 +560,8 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     setHistoryEmployee(rider.riderName);
     try {
       const qs = new URLSearchParams({ riderName: rider.riderName });
-      if (dateParams?.dateFrom) qs.set('dateFrom', dateParams.dateFrom);
-      if (dateParams?.dateTo) qs.set('dateTo', dateParams.dateTo);
+      if (dateRange.startISO) qs.set('dateFrom', dateRange.startISO);
+      if (dateRange.endISO) qs.set('dateTo', dateRange.endISO);
       const res = await api.get(`/api/delivery/payment-history?${qs.toString()}`);
       setHistoryPayments(res.data?.payments || []);
     } catch { setHistoryPayments([]); }
@@ -584,7 +570,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
 
   const handleStatClick = (filterKey) => { setSelectedFilter(prev => prev === filterKey ? null : filterKey); };
 
-  const activePresetLabel = PRESETS.find(p => p.key === datePreset)?.label || 'Custom';
+  const activePresetLabel = dateRange.label;
   const jailStats = C.jail;
 
   if (loading) {
@@ -657,10 +643,10 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
           <span className="text-[10px] font-black text-emerald-400 ml-auto">{activePresetLabel}</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {PRESETS.map(p => (
-            <button key={p.key} onClick={() => setDatePreset(p.key)}
+          {DATE_PRESETS.map(p => (
+            <button key={p.key} onClick={() => dateRange.setRange(p.key)}
               className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                datePreset === p.key ? 'bg-emerald-600 text-white' : 'theme-bg-subtle theme-text-muted hover:bg-gray-700'
+                dateRange.range === p.key ? 'bg-emerald-600 text-white' : 'theme-bg-subtle theme-text-muted hover:bg-gray-700'
               }`}>
               {p.label}
             </button>
@@ -673,16 +659,16 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
             <MapPin size={12} /> Jail Road
           </button>
         </div>
-        {datePreset === 'custom' && (
+        {dateRange.range === 'custom' && (
           <div className="flex items-center gap-3 mt-3">
             <div>
               <label className="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-1 block">From</label>
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+              <input type="date" value={dateRange.dateFrom} onChange={e => dateRange.setDateFrom(e.target.value)}
                 className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-bold theme-text-primary focus:outline-none focus:border-emerald-500" />
             </div>
             <div>
               <label className="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-1 block">To</label>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+              <input type="date" value={dateRange.dateTo} onChange={e => dateRange.setDateTo(e.target.value)}
                 className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-bold theme-text-primary focus:outline-none focus:border-emerald-500" />
             </div>
           </div>
