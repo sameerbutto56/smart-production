@@ -48,7 +48,7 @@ const getCatalog = async (req, res) => {
       : {};
     const items = await prisma.inventoryItem.findMany({
       where,
-      select: { id: true, name: true, category: true, color: true, size: true, price: true, barcode: true },
+      select: { id: true, name: true, category: true, color: true, size: true, price: true, stock: true, variants: true },
       orderBy: { name: 'asc' },
       take: 100,
     });
