@@ -648,19 +648,20 @@ const createSale = async (req, res) => {
 /* ─── Shared POS sales-date range — single source for POS History, Register (Close Book) and Excel export ─── */
 const resolveSalesDateRange = ({ range, dateFrom, dateTo }) => {
   const nowMs = Date.now();
-  let start = null;
-  let end = null;
+  let startMs = null;
+  let endMs = null;
   if (dateFrom || dateTo) {
     // Explicit bounds. Full ISO timestamp strings (PKT-converted by the frontend
     // hook) are used as-is; bare YYYY-MM-DD dates are expanded to a full PKT
     // calendar day so boundaries are always Pakistan-time correct.
-    start = dateFrom ? dateBoundToMs(dateFrom, 'start') : null;
-    end = dateTo ? dateBoundToMs(dateTo, 'end') : null;
-  } else if (range === 'today') { start = pktDayStart(nowMs); end = nowMs; }
-  else if (range === 'yesterday') { start = pktDayStart(nowMs - 86400000); end = pktDayEnd(start); }
-  else if (range === 'week') { start = pktDayStart(nowMs - 6 * 86400000); end = nowMs; }
-  else if (range === 'month' || range === 'year') { const p = new Date(pktDayStart(nowMs) + 5 * 3600000); const mo = range === 'month' ? p.getUTCMonth() : 0; start = pktDayStart(Date.UTC(p.getUTCFullYear(), mo, 1)); end = nowMs; }
-  return { start, end };
+    startMs = dateFrom ? dateBoundToMs(dateFrom, 'start') : null;
+    endMs = dateTo ? dateBoundToMs(dateTo, 'end') : null;
+  } else if (range === 'today') { startMs = pktDayStart(nowMs); endMs = nowMs; }
+  else if (range === 'yesterday') { startMs = pktDayStart(nowMs - 86400000); endMs = pktDayEnd(startMs); }
+  else if (range === 'week') { startMs = pktDayStart(nowMs - 6 * 86400000); endMs = nowMs; }
+  else if (range === 'month' || range === 'year') { const p = new Date(pktDayStart(nowMs) + 5 * 3600000); const mo = range === 'month' ? p.getUTCMonth() : 0; startMs = pktDayStart(Date.UTC(p.getUTCFullYear(), mo, 1)); endMs = nowMs; }
+  // Callers pass these straight into Prisma gte/lte, which require Date objects.
+  return { start: startMs == null ? null : new Date(startMs), end: endMs == null ? null : new Date(endMs) };
 };
 
 /* ─── Canonical POS sales summary for a date window — single source of truth so that
