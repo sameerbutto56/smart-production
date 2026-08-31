@@ -40,6 +40,7 @@ model User {
   cancellationsRequested OrderCancellationRequest[] @relation("CancellationRequestedBy")
   cancellationsDecided  OrderCancellationRequest[] @relation("CancellationDecidedBy")
   loginSessions          LoginSession[]
+  vendorOrdersAsm       VendorOrder[]    @relation("VendorOrderAsm")
 }
 
 model Order {
@@ -1702,4 +1703,259 @@ model WrongOrderNumberAttempt {
   @@index([status])
   @@index([orderNumber])
   @@index([userId])
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// VENDORS + ASM SYSTEM (greenfield)
+// ────────────────────────────────────────────────────────────────────────────
+// Vendors place orders through the ASM (Area Sales Manager) or directly.
+// Workflow: ASM submits → Admin Approves → Admin Gives Stock (when ready) →
+// ASM Accepts → Deliver → Completed. All statuses logged immutably.
+// CRITICAL: Vendor/ASM transactions NEVER touch Warehouse or Outlet inventory.
+// InventoryItem is used strictly as a READ-ONLY reference catalog for order lines.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Atomic per-prefix sequence for Quotation (QUO-YYYY-#####) and
+// Invoice (INV-YYYY-#####) numbers.
+model VendorOrderSequence {
+  id        String @id @default(uuid())
+  prefix    String
+  year      Int
+  nextValue Int    @default(1)
+
+  @@unique([prefix, year])
+}
+
+// A vendor (company, shop, or individual) that places orders.
+model Vendor {
+  id             String    @id @default(uuid())
+  name           String
+  companyName    String?
+  contactPerson  String?
+  phone          String?
+  email          String?
+  address        String?
+  city           String?
+  notes          String?
+  isActive       Boolean   @default(true)
+  createdById    String?
+  createdBy      String?   // user name
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  orders         VendorOrder[]
+  deliveries     VendorDelivery[]
+
+  @@index([name])
+  @@index([createdAt])
+}
+
+// A vendor order (full lifecycle + financials + generated documents).
+model VendorOrder {
+  id                String    @id @default(uuid())
+  vendorId          String
+  vendor            Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  orderNumber       String    @unique // human-facing, e.g. VO-2026-00001
+  quotationNumber   String    @unique // QUO-2026-00001 (auto-generate)
+  invoiceNumber     String    @unique // INV-2026-00001 (auto-generate)
+
+  // Catalog snapshot (from InventoryItem, READ-ONLY — never mutates inventory)
+  items             VendorOrderItem[]
+
+  // Financials
+  totalOrderValue   Float     @default(0)
+  advancePaid       Float     @default(0)
+  additionalPaid    Float     @default(0)
+  deliveryCharges   Float     @default(0)
+  discount          Float     @default(0)
+  grandTotal        Float     @default(0)
+  remainingBalance  Float     @default(0)
+  payments          VendorPayment[]
+
+  // Workflow
+  status            String    @default("CREATED")
+  // CREATED, SUBMITTED, ADMIN_APPROVED, PRODUCTION_READY, GIVE_STOCK,
+  // ASM_ACCEPTED, DELIVER, DELIVERED, COMPLETED, CANCELLED, REJECTED
+  currentStage      String    @default("CREATED")
+  asmId             String?
+  asm               User?     @relation("VendorOrderAsm", fields: [asmId], references: [id])
+  assignedAt        DateTime?
+
+  // Notes / delivery target
+  notes             String?
+  deliveryAddress   String?
+  deliveryCity      String?
+  deliveryDate      DateTime?
+
+  // Immutable timeline
+  statusHistory     VendorOrderStatus[]
+  deliveries        VendorDelivery[]
+
+  // Timestamps of each step
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  submittedAt       DateTime?
+  adminApprovedAt   DateTime?
+  productionReadyAt DateTime?
+  giveStockAt       DateTime?
+  asmAcceptedAt     DateTime?
+  deliverAt         DateTime?
+  deliveredAt       DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  rejectedAt        DateTime?
+  rejectionReason   String?
+
+  // Who did what (user names)
+  createdByName     String?
+  submittedByName   String?
+  approvedByName    String?
+  stockGivenByName  String?
+  acceptedByName    String?
+  deliveredByName   String?
+  completedByName   String?
+
+  @@index([vendorId])
+  @@index([status])
+  @@index([currentStage])
+  @@index([asmId])
+  @@index([orderNumber])
+  @@index([createdAt])
+}
+
+// A product line on a vendor order — snapshot of a warehouse InventoryItem.
+// Prices/quantities are captured at order time; never written back to inventory.
+model VendorOrderItem {
+  id            String    @id @default(uuid())
+  orderId       String
+  order         VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  catalogItemId String?   // InventoryItem.id (reference only)
+  productName   String
+  productType   String?
+  color         String?
+  size          String?
+  barcode       String?
+  quantity      Int       @default(1)
+  unitPrice     Float     @default(0)
+  lineTotal     Float     @default(0)
+  notes         String?
+
+  @@index([orderId])
+}
+
+// Every payment against a vendor order (advance/deposit/additional).
+// Each payment is its own immutable record — never duplicated by double-click.
+model VendorPayment {
+  id            String    @id @default(uuid())
+  orderId       String
+  order         VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount        Float     @default(0)
+  paymentType   String    // ADVANCE / DEPOSIT / ADDITIONAL / BALANCE / FULL
+  paymentMethod String    // CASH / BANK / ONLINE / CHEQUE / CARD
+  reference     String?
+  paymentDate   DateTime
+  recordedBy    String?   // user name
+  recordedById  String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+
+  @@index([orderId])
+  @@index([paymentDate])
+}
+
+// Immutable status/timeline entry for a vendor order.
+model VendorOrderStatus {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    String
+  fromStage String?
+  toStage   String?
+  changedBy String?  // user name
+  changedById String?
+  remarks   String?
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+// Delivery records for a vendor order.
+model VendorDelivery {
+  id          String   @id @default(uuid())
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  orderId     String?
+  order       VendorOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderNumber String?
+  deliveredTo String?
+  address     String?
+  city        String?
+  carrier     String?
+  deliveredBy String?  // user name
+  deliveredById String?
+  deliveredAt DateTime @default(now())
+  notes       String?
+
+  @@index([vendorId])
+  @@index([orderId])
+  @@index([deliveredAt])
+}
+
+// Generated Quotation document records (auto-generated per order).
+model Quotation {
+  id          String   @id @default(uuid())
+  quotationNumber String @unique // QUO-YYYY-#####
+  orderId     String
+  vendorId    String
+  vendorName  String?
+  items       Json     // snapshot of ordered lines + prices
+  total       Float    @default(0)
+  status      String   @default("DRAFT") // DRAFT / SENT / ACCEPTED / EXPIRED / CANCELLED
+  generatedBy String?
+  generatedById String?
+  generatedAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([generatedAt])
+}
+
+// Generated Invoice document records (auto-generated per order).
+model Invoice {
+  id          String   @id @default(uuid())
+  invoiceNumber String @unique // INV-YYYY-#####
+  orderId     String
+  vendorId    String
+  vendorName  String?
+  items       Json
+  total       Float    @default(0)
+  paidAmount  Float    @default(0)
+  remainingBalance Float @default(0)
+  status      String   @default("UNPAID") // UNPAID / PARTIAL / PAID / CANCELLED
+  generatedBy String?
+  generatedById String?
+  generatedAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([generatedAt])
+}
+
+// Unified document-history records for a vendor order (quotation + invoice).
+model VendorDocument {
+  id         String   @id @default(uuid())
+  orderId    String
+  docType    String   // QUOTATION / INVOICE
+  docNumber  String
+  items      Json?
+  total      Float    @default(0)
+  generatedBy String?
+  generatedById String?
+  generatedAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([docType])
+  @@index([generatedAt])
 }

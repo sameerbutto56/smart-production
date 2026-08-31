@@ -126,6 +126,7 @@ const deviceRoutes = require('./routes/device.routes');
 const orderControlRoutes = require('./routes/orderControl.routes');
 const wrongAttemptRoutes = require('./routes/wrongAttempt.routes');
 const deliveryTaskRoutes = require('./routes/deliveryTask.routes');
+const vendorRoutes = require('./routes/vendor.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);
@@ -172,6 +173,7 @@ app.use('/api/order-control', orderControlRoutes);
 app.use('/api/postex', require('./routes/postex.routes'));
 app.use('/api/gate-pass', require('./routes/tahirSheet.routes'));
 app.use('/api/wrong-attempts', wrongAttemptRoutes);
+app.use('/api/vendors', vendorRoutes);
 
 
 // Global error handler (must be last)
