@@ -70,58 +70,12 @@ const getDispatchProfileOrders = async (req, res) => {
 
     const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
 
-    const isLahore = (c) => c && c.trim().toLowerCase() === 'lahore';
+    // A dispatched / delivered / completed order must permanently leave ALL
+    // dispatcher queues (Unseen/Seen/Active) — never re-appear.
+    const TERMINAL_DISPATCH = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
 
-    // ─── KHAWAR: 3-way split ───
-    if (employeeName === 'Khawar') {
-
-      const dispatchOrders = await prisma.order.findMany({
-        where: {
-          // Replacement (REP-...) orders flow through the normal pipeline once past STORE
-          // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
-          currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-          status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
-        },
-        select: baseSelect,
-        orderBy: baseOrder
-      });
-
-      const unseen = [];
-      const seen = [];
-      const active = [];
-      for (const order of dispatchOrders) {
-        if (order.forwardedBy === 'Khawar') continue;
-        if (order.dispatchOfficer === 'Faisal') continue;
-
-        if (order.currentStage === 'OUT_FOR_DELIVERY') {
-          if (order.dispatchOfficer === 'Khawar' || (!order.dispatchOfficer && order.forwardedBy !== 'Khawar')) active.push(order);
-          continue;
-        }
-
-        const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
-        const dispatchStage = dispatchStages[dispatchStages.length - 1];
-        const isAccepted = (dispatchStage?.startedAt != null) || order.dispatchOfficer != null;
-
-        if (!isAccepted || order.dispatchOfficer === null) {
-          unseen.push(order);
-        } else if (order.dispatchOfficer === 'Khawar') {
-          seen.push(order);
-        } else {
-          unseen.push(order);
-        }
-      }
-
-      const terminalStatuses2 = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
-      const filteredActive2 = active.filter(o => !terminalStatuses2.includes(o.dispatchStatus));
-
-      return res.json({
-        unseen, seen, active: filteredActive2,
-        counts: { unseen: unseen.length, seen: seen.length, active: filteredActive2.length }
-      });
-    }
-
-    // ─── FAISAL: 3-way split ───
-
+    // Replacement (REP-...) orders flow through the normal pipeline once past STORE
+    // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
     const dispatchOrders = await prisma.order.findMany({
       where: {
         currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
@@ -131,37 +85,43 @@ const getDispatchProfileOrders = async (req, res) => {
       orderBy: baseOrder
     });
 
+    // The SAME 3-way split is used symmetrically for every dispatcher employee.
+    //  - UNSEEN is SHARED / global: genuinely unaccepted orders (dispatchOfficer null)
+    //    appear in EVERY dispatcher's Unseen; once one employee accepts it, it vanishes
+    //    from everyone else's Unseen immediately.
+    //  - SEEN is EMPLOYEE-SPECIFIC: only orders accepted by the logged-in employee.
+    //  - ACTIVE is EMPLOYEE-SPECIFIC: only OUT_FOR_DELIVERY orders assigned to the
+    //    logged-in employee.
     const unseen = [];
     const seen = [];
     const active = [];
+
     for (const order of dispatchOrders) {
-      if (order.dispatchOfficer === 'Khawar') continue;
+      if (TERMINAL_DISPATCH.includes(order.dispatchStatus)) continue;
+
+      const owner = order.dispatchOfficer || null;
+      const ownedByMe = owner === employeeName;
 
       if (order.currentStage === 'OUT_FOR_DELIVERY') {
-        if (order.dispatchOfficer === 'Faisal' || (!order.dispatchOfficer && order.forwardedBy === 'Khawar')) active.push(order);
+        // Active is employee-specific — only the officer assigned to the delivery.
+        if (ownedByMe) active.push(order);
         continue;
       }
 
-      const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
-      const dispatchStage = dispatchStages[dispatchStages.length - 1];
-      const isAccepted = (dispatchStage?.startedAt != null) || order.dispatchOfficer != null;
-      const isAssignedToFaisal = order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar';
-
-      if (!isAccepted || order.dispatchOfficer === null) {
+      // currentStage === 'DISPATCH'
+      if (owner === null) {
+        // Genuinely unaccepted — SHARED unseen: every dispatcher sees the same set.
         unseen.push(order);
-      } else if (isAssignedToFaisal) {
+      } else if (ownedByMe) {
+        // Accepted by me (or forwarded to me) — my seen only.
         seen.push(order);
-      } else {
-        unseen.push(order);
       }
+      // else: accepted by the other dispatcher — hidden from me entirely.
     }
 
-    const terminalStatuses3 = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
-    const filteredActive3 = active.filter(o => !terminalStatuses3.includes(o.dispatchStatus));
-
     res.json({
-      unseen, seen, active: filteredActive3,
-      counts: { unseen: unseen.length, seen: seen.length, active: filteredActive3.length }
+      unseen, seen, active,
+      counts: { unseen: unseen.length, seen: seen.length, active: active.length }
     });
 
   } catch (error) {
@@ -170,6 +130,15 @@ const getDispatchProfileOrders = async (req, res) => {
 };
 
 // POST /api/dispatch-profile/:orderId/accept
+// Atomic, unilateral claim of a SHARED Unseen order.
+//
+// The claim is a single `updateMany` keyed on `dispatchOfficer: null`:
+//  - exactly one of two concurrent employees wins (the loser's updateMany matches 0
+//    rows -> 409, so a simultaneous double-accept is impossible);
+//  - an order already accepted by the SAME employee is idempotent (their re-accept or
+//    a refresh/retry succeeds);
+//  - an order accepted by the OTHER employee is a 409 -> it stays in their Seen and
+//    never appears in the other employee's queues.
 const acceptDispatchOrder = async (req, res) => {
   const { orderId } = req.params;
   const { employeeName } = req.body;
@@ -184,41 +153,43 @@ const acceptDispatchOrder = async (req, res) => {
       include: { stages: { where: { stageName: 'DISPATCH' }, orderBy: { createdAt: 'asc' } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.currentStage !== 'DISPATCH') {
-      return res.status(400).json({ message: 'Order is not in DISPATCH stage' });
+    if (order.currentStage !== 'DISPATCH' || order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+      return res.status(400).json({ message: 'Order is not in an accept-able DISPATCH state' });
+    }
+    if (order.dispatchOfficer && order.dispatchOfficer !== employeeName) {
+      return res.status(409).json({ message: `This order has already been accepted by another dispatcher (${order.dispatchOfficer}).` });
     }
 
-    // Update the latest DISPATCH stage to IN_PROGRESS (idempotent for re-accept)
+    // Atomically claim the order for this employee (only when currently unassigned).
+    const claim = await prisma.order.updateMany({
+      where: {
+        id: orderId,
+        currentStage: 'DISPATCH',
+        OR: [{ dispatchOfficer: null }, { dispatchOfficer: employeeName }]
+      },
+      data: { dispatchOfficer: employeeName }
+    });
+
+    if (claim.count === 0) {
+      // Lost the race (another employee accepted concurrently) OR the order moved on.
+      const fresh = await prisma.order.findUnique({ where: { id: orderId }, select: { dispatchOfficer: true, currentStage: true } });
+      if (fresh && fresh.dispatchOfficer && fresh.dispatchOfficer !== employeeName) {
+        return res.status(409).json({ message: `This order has already been accepted by another dispatcher (${fresh.dispatchOfficer}).` });
+      }
+      return res.status(409).json({ message: 'This order can no longer be accepted (it has moved out of the shared queue).' });
+    }
+
+    // Update the latest DISPATCH stage to IN_PROGRESS (idempotent for re-accept).
     const dispatchStages = order.stages || [];
     const latestStage = dispatchStages[dispatchStages.length - 1];
-
-    if (!latestStage || ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(latestStage.status)) {
-      // Create stage if missing (or the only DISPATCH stage is terminal from a prior cycle)
-      const durations = await getStageDurations(order.priority);
-      const deadline = calculateDeadline(new Date(), durations['DISPATCH'] || 12);
-      await prisma.orderStage.create({
-        data: { orderId, stageName: 'DISPATCH', status: 'IN_PROGRESS', startedAt: new Date(), deadlineAt: deadline }
-      });
-    } else if (latestStage.status === 'PENDING') {
+    if (latestStage && latestStage.status === 'PENDING') {
       await prisma.orderStage.update({
         where: { id: latestStage.id },
         data: { status: 'IN_PROGRESS', startedAt: new Date() }
       });
-    } else {
-      // Already IN_PROGRESS / WAITING_APPROVAL — ensure startedAt is present
-      await prisma.orderStage.update({
-        where: { id: latestStage.id },
-        data: { startedAt: latestStage.startedAt || new Date() }
-      });
     }
 
-    // Assign officer
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { dispatchOfficer: employeeName }
-    });
-
-    // Audit + Dispatch log
+    // Audit + Dispatch log (only when this call actually claimed the order).
     await createAuditLog(orderId, 'DISPATCH_ACCEPTED', `Dispatch accepted by ${employeeName}`, req.user?.id);
     await createDispatchLog({
       orderId,
@@ -265,25 +236,43 @@ const dispatchFromProfile = async (req, res) => {
       include: { stages: true }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.currentStage !== 'DISPATCH') {
-      return res.status(400).json({ message: 'Order is not in DISPATCH stage' });
+    if (order.currentStage !== 'DISPATCH' || order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+      return res.status(400).json({ message: 'Order is not in a dispatch-able DISPATCH state' });
+    }
+
+    // Ownership enforcement: the ONLY dispatcher who may dispatch/forward this order is
+    // the employee who accepted it (dispatchOfficer), or an unclaimed shared order
+    // (dispatchOfficer still null -> accept first). Prevents any dispatcher from
+    // dispatching another employee's order.
+    if (order.dispatchOfficer && order.dispatchOfficer !== employeeName) {
+      return res.status(409).json({ message: `This order is assigned to ${order.dispatchOfficer} and cannot be dispatched by you.` });
     }
 
     if (dispatchMethod === 'FORWARD_TO_FAISAL') {
-      // Keep order at DISPATCH, assign to Faisal (atomic: order + audit + dispatch log)
-      await prisma.$transaction(async (tx) => {
-        await tx.order.update({
-          where: { id: orderId },
-          data: {
-            dispatchOfficer: 'Faisal',
-            forwardedBy: 'Khawar'
-          }
-        });
+      // Keep order at DISPATCH, assign to Faisal (atomic + idempotent; only the current
+      // owner may forward, and only while the order is still unforwarded).
+      const claim = await prisma.order.updateMany({
+        where: {
+          id: orderId,
+          currentStage: 'DISPATCH',
+          dispatchOfficer: { in: [null, employeeName] }
+        },
+        data: { dispatchOfficer: 'Faisal', forwardedBy: employeeName }
+      });
 
-        await createAuditLog(orderId, 'FORWARDED_TO_FAISAL', `Order forwarded from Khawar to Faisal dispatch`, req.user?.id, tx);
+      if (claim.count === 0) {
+        const fresh = await prisma.order.findUnique({ where: { id: orderId }, select: { dispatchOfficer: true, currentStage: true } });
+        if (fresh && fresh.dispatchOfficer && fresh.dispatchOfficer !== 'Faisal') {
+          return res.status(409).json({ message: `This order is assigned to ${fresh.dispatchOfficer} and cannot be forwarded by you.` });
+        }
+        return res.status(409).json({ message: 'This order can no longer be forwarded (it has moved out of DISPATCH).' });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await createAuditLog(orderId, 'FORWARDED_TO_FAISAL', `Order forwarded from ${employeeName} to Faisal dispatch`, req.user?.id, tx);
         await createDispatchLog({
           orderId,
-          officerName: 'Khawar',
+          officerName: employeeName,
           action: 'FORWARDED',
           dispatchMethod: 'FORWARD_TO_FAISAL',
           orderNumber: order.orderNumber,
@@ -344,6 +333,22 @@ const dispatchFromProfile = async (req, res) => {
 
     const auditAction = dispatchMethod === 'ENAMELS' ? 'DISPATCHED_ENAMELS' : 'DISPATCHED_COURIER';
     const dispatchRemarks = `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`;
+
+    // Atomic claim of the DISPATCH -> OUT_FOR_DELIVERY transition. Only the recording
+    // employee (dispatchOfficer === employeeName) may dispatch, and only while the order
+    // is still at DISPATCH for that officer. A concurrent or duplicate dispatch attempt
+    // matches 0 rows -> the whole transaction is skipped and no duplicate OUT_FOR_DELIVERY
+    // stage / admin assignment / log is ever created.
+    const claimed = await prisma.order.updateMany({
+      where: { id: orderId, currentStage: 'DISPATCH', dispatchOfficer: employeeName },
+      data: { dispatchOfficer: employeeName }
+    });
+    if (claimed.count === 0) {
+      const fresh = await prisma.order.findUnique({ where: { id: orderId }, select: { currentStage: true, dispatchOfficer: true } });
+      return res.status(409).json({ message: (fresh && fresh.currentStage !== 'DISPATCH')
+        ? 'This order has already been dispatched or moved out of the dispatch queue.'
+        : 'This order is assigned to another dispatcher and cannot be dispatched by you.' });
+    }
 
     await prisma.$transaction(async (tx) => {
       if (currentStage) {
