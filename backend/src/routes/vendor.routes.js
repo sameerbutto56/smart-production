@@ -40,8 +40,11 @@ router.get('/asm', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), lis
 // ── VENDOR CRUD (Admin only) ────────────────────────────────────────────────
 router.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), listVendors);
 router.post('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), createVendor);
-router.get('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), getVendor);
 router.put('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), updateVendor);
+
+// NOTE: static sub-paths (/payments, /orders, /catalog, /analytics, /asm-stats,
+// /asm) MUST be declared before GET /:id, otherwise Express captures them as an
+// :id parameter and they 404 as "Vendor not found."
 
 // ── PAYMENTS (shared — ASM records, Admin view) ─────────────────────────────
 router.get('/payments', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), listPayments);
@@ -68,5 +71,8 @@ router.post('/orders/:id/complete', authenticate, authorize(['ASM', 'SUPER_ADMIN
 router.post('/orders/:id/pay', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), recordPayment);
 router.post('/orders/:id/generate-documents', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), generateDocuments);
 router.get('/orders/:id/documents', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getOrderDocuments);
+
+// ── VENDOR BY ID (declared LAST so static sub-routes above win) ─────────────
+router.get('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), getVendor);
 
 module.exports = router;
