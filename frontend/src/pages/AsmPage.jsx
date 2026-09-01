@@ -514,10 +514,107 @@ const ActionBtn = ({ icon: Icon, color, label, onClick }) => (
   </button>
 );
 
+const vendorVariants = (item) => {
+  if (!item) return [];
+  const v = item.variants;
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === 'string') {
+    try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch (e) { /* ignore */ }
+  }
+  return [];
+};
+
+const uniqValues = (variants, key) =>
+  [...new Set(variants.map((x) => (x && x[key] ? String(x[key]).trim() : '')).filter(Boolean))];
+
+const VendorFormModal = ({ onClose, onCreated }) => {
+  const { t } = useLanguage();
+  const [form, setForm] = useState({ name: '', companyName: '', phone: '', email: '', address: '', city: '', contactPerson: '', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const submit = async () => {
+    if (!form.name.trim()) return toast.error(t('Vendor name is required'));
+    setSubmitting(true);
+    try {
+      const res = await api.post('/api/vendors', form);
+      toast.success(t('New vendor created'));
+      onCreated(res.data?.vendor);
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        toast.error(err?.response?.data?.message || t('A vendor with this name already exists.'));
+      } else {
+        toast.error(err?.response?.data?.message || t('Failed to create vendor'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const field = (label, key, type = 'text', opts = {}) => (
+    <div>
+      <label className="text-xs text-slate-400">{t(label)}</label>
+      <input
+        type={type}
+        value={form[key] || ''}
+        onChange={(e) => set(key, e.target.value)}
+        placeholder={opts.placeholder ? t(opts.placeholder) : ''}
+        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+      />
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-cyan-400" />
+            {t('Create New Vendor')}
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {field('Vendor Name *', 'name')}
+            {field('Company Name', 'companyName')}
+            {field('Phone Number', 'phone')}
+            {field('Email', 'email', 'email')}
+            {field('City', 'city')}
+            {field('Contact Person', 'contactPerson')}
+            <div className="md:col-span-2">
+              <label className="text-xs text-slate-400">{t('Address')}</label>
+              <input value={form.address || ''} onChange={(e) => set('address', e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-slate-400">{t('Notes')}</label>
+              <textarea value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} rows="2"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={submit} disabled={submitting}
+              className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition disabled:opacity-50">
+              {submitting ? t('Saving...') : t('Create & Save Vendor')}
+            </button>
+            <button onClick={onClose} className="px-4 py-2.5 rounded-lg bg-slate-700 text-slate-200 text-sm">{t('Cancel')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const emptyLine = () => ({ catalogItemId: '', productName: '', category: '', color: '', size: '', quantity: 1, unitPrice: '' });
+
 const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
   const { t } = useLanguage();
-  const [vendorId, setVendorId] = useState(vendors[0]?.id || '');
-  const [lineItems, setLineItems] = useState([{ catalogItemId: '', productName: '', productType: '', color: '', size: '', quantity: 1, unitPrice: '' }]);
+  const [localVendors, setLocalVendors] = useState(Array.isArray(vendors) ? vendors : []);
+  const [vendorId, setVendorId] = useState(localVendors[0]?.id || '');
+  const [lineItems, setLineItems] = useState([emptyLine()]);
+  const [showVendorForm, setShowVendorForm] = useState(false);
   const [deliveryCharges, setDeliveryCharges] = useState('');
   const [discount, setDiscount] = useState('');
   const [notes, setNotes] = useState('');
@@ -530,16 +627,44 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
     setLineItems((prev) => prev.map((li, i) => (i === idx ? { ...li, [field]: value } : li)));
   };
 
-  const addLine = () => setLineItems((prev) => [...prev, { catalogItemId: '', productName: '', productType: '', color: '', size: '', quantity: 1, unitPrice: '' }]);
+  const addLine = () => setLineItems((prev) => [...prev, emptyLine()]);
   const removeLine = (idx) => setLineItems((prev) => prev.filter((_, i) => i !== idx));
 
+  // Resolve variants for a given line from its selected catalog item
+  const lineItem = (idx) => catalog.find((c) => c.id === lineItems[idx]?.catalogItemId) || null;
+  const lineVariants = (idx) => vendorVariants(lineItem(idx));
+  const lineColors = (idx) => uniqValues(lineVariants(idx), 'color');
+  const lineSizes = (idx) => uniqValues(lineVariants(idx), 'size');
+
+  // When an item is picked, load its real variants into per-line color/size dropdowns
   const selectCatalogItem = (idx, cid) => {
     const item = catalog.find((c) => c.id === cid);
-    updateLine(idx, 'catalogItemId', cid);
-    if (item) {
-      updateLine(idx, 'productName', item.name || item.productType || '');
-      updateLine(idx, 'productType', item.productType || item.name || '');
-      updateLine(idx, 'unitPrice', item.price || '');
+    if (!item) return;
+    const firstVariant = vendorVariants(item)[0] || {};
+    const defaultColor = lineColors(idx)[0] || firstVariant.color || '';
+    const defaultSize = lineSizes(idx)[0] || firstVariant.size || '';
+    setLineItems((prev) => prev.map((li, i) =>
+      i === idx
+        ? {
+            ...li,
+            catalogItemId: cid,
+            productName: item.name || item.category || '',
+            category: item.category || null,
+            color: defaultColor,
+            size: defaultSize,
+            unitPrice: firstVariant.price != null ? firstVariant.price : (item.price || ''),
+          }
+        : li
+    ));
+  };
+
+  const handleVendorNamePick = (idx, name) => {
+    const match = catalog.find((c) => (c.name || '') === name);
+    if (match) {
+      selectCatalogItem(idx, match.id);
+    } else {
+      updateLine(idx, 'productName', name);
+      updateLine(idx, 'catalogItemId', '');
     }
   };
 
@@ -550,7 +675,7 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
       .map((li) => ({
         catalogItemId: li.catalogItemId || null,
         productName: li.productName,
-        productType: li.productType || null,
+        productType: li.category || null,
         color: li.color || null,
         size: li.size || null,
         quantity: parseInt(li.quantity, 10) || 1,
@@ -595,10 +720,16 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-slate-400">{t('Vendor')} *</label>
-              <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
-                {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                  {localVendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+                <button onClick={() => setShowVendorForm(true)}
+                  className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
+                  <Plus className="h-4 w-4" /> {t('New Vendor')}
+                </button>
+              </div>
             </div>
             <div>
               <label className="text-xs text-slate-400">{t('City')}</label>
@@ -610,60 +741,77 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
           <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
             <h3 className="text-sm font-semibold text-slate-200 mb-2">{t('Product Lines')}</h3>
             <div className="space-y-3">
-              {lineItems.map((li, idx) => (
-                <div key={idx} className="bg-slate-900 rounded-lg p-3 border border-slate-700/50 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-400">{t('Line')} {idx + 1}</span>
-                    {lineItems.length > 1 && (
-                      <button onClick={() => removeLine(idx)} className="text-red-400 hover:text-red-300 text-xs"><X className="h-3.5 w-3.5" /></button>
-                    )}
+              {lineItems.map((li, idx) => {
+                const colors = lineColors(idx);
+                const sizes = lineSizes(idx);
+                return (
+                  <div key={idx} className="bg-slate-900 rounded-lg p-3 border border-slate-700/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400">{t('Line')} {idx + 1}</span>
+                      {lineItems.length > 1 && (
+                        <button onClick={() => removeLine(idx)} className="text-red-400 hover:text-red-300 text-xs"><X className="h-3.5 w-3.5" /></button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="md:col-span-2">
+                        <label className="text-xs text-slate-400">{t('From Catalog')}</label>
+                        <input
+                          list={`catalog-list-${idx}`}
+                          value={li.productName}
+                          onChange={(e) => handleVendorNamePick(idx, e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                          placeholder={t('Type to search catalog...')}
+                        />
+                        <datalist id={`catalog-list-${idx}`}>
+                          {catalog.map((c) => <option key={c.id} value={c.name || c.category || c.id} />)}
+                        </datalist>
+                      </div>
+                      {colors.length > 0 ? (
+                        <div>
+                          <label className="text-xs text-slate-400">{t('Color')}</label>
+                          <select value={li.color} onChange={(e) => updateLine(idx, 'color', e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                            <option value="">{t('Select color')}</option>
+                            {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-xs text-slate-400">{t('Color')}</label>
+                          <input value={li.color} onChange={(e) => updateLine(idx, 'color', e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                      )}
+                      {sizes.length > 0 ? (
+                        <div>
+                          <label className="text-xs text-slate-400">{t('Size')}</label>
+                          <select value={li.size} onChange={(e) => updateLine(idx, 'size', e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                            <option value="">{t('Select size')}</option>
+                            {sizes.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-xs text-slate-400">{t('Size')}</label>
+                          <input value={li.size} onChange={(e) => updateLine(idx, 'size', e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs text-slate-400">{t('Quantity')}</label>
+                        <input type="number" min="1" value={li.quantity} onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-400">{t('Unit Price')}</label>
+                        <input type="number" min="0" value={li.unitPrice} onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="md:col-span-2">
-                      <label className="text-xs text-slate-400">{t('From Catalog')}</label>
-                      <input
-                        list={`catalog-list-${idx}`}
-                        value={li.productName}
-                        onChange={(e) => {
-                          const name = e.target.value;
-                          updateLine(idx, 'productName', name);
-                          const match = catalog.find((c) => (c.name || '') === name);
-                          if (match) {
-                            updateLine(idx, 'catalogItemId', match.id);
-                            updateLine(idx, 'productType', match.productType || match.name || '');
-                            updateLine(idx, 'unitPrice', match.price || '');
-                          }
-                        }}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                        placeholder={t('Type to search catalog...')}
-                      />
-                      <datalist id={`catalog-list-${idx}`}>
-                        {catalog.map((c) => <option key={c.id} value={c.name || c.productType || c.id} />)}
-                      </datalist>
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">{t('Color')}</label>
-                      <input value={li.color} onChange={(e) => updateLine(idx, 'color', e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">{t('Size')}</label>
-                      <input value={li.size} onChange={(e) => updateLine(idx, 'size', e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">{t('Quantity')}</label>
-                      <input type="number" min="1" value={li.quantity} onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">{t('Unit Price')}</label>
-                      <input type="number" min="0" value={li.unitPrice} onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <button onClick={addLine} className="mt-3 text-cyan-400 hover:text-cyan-300 text-sm font-medium flex items-center gap-1">
               <Plus className="h-4 w-4" /> {t('Add Line')}
@@ -708,6 +856,21 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
           </div>
         </div>
       </div>
+      {showVendorForm && (
+        <VendorFormModal
+          onClose={() => setShowVendorForm(false)}
+          onCreated={(vendor) => {
+            if (vendor?.id) {
+              setLocalVendors((prev) => {
+                if (prev.some((v) => v.id === vendor.id)) return prev;
+                return [...prev, vendor];
+              });
+              setVendorId(vendor.id);
+              setShowVendorForm(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
