@@ -476,16 +476,16 @@ const DispatchPage = () => {
         </div>
         <div className="flex items-center gap-3">
           {isEmployeeMode && (
-            <>
-              <button onClick={() => navigate('/chat')}
-                className="px-4 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
-                <MessageCircle size={14} /> {employeeName}'s Chat
-              </button>
-              <button onClick={handleLogout}
-                className="px-4 py-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
-                <X size={14} /> Logout
-              </button>
-            </>
+            <button onClick={() => navigate('/chat')}
+              className="px-4 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
+              <MessageCircle size={14} /> {employeeName}'s Chat
+            </button>
+          )}
+          {loggedIn && (
+            <button onClick={handleLogout}
+              className="px-4 py-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
+              <X size={14} /> Logout
+            </button>
           )}
         </div>
       </div>
