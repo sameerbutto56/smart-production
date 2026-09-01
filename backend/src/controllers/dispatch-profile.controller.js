@@ -83,6 +83,7 @@ const getDispatchProfileOrders = async (req, res) => {
       totalPrice: true, paymentStatus: true, advanceAmount: true,
       type: true, productDetails: true, customization: true, sizeData: true,
       instructionNotes: true, dispatchOfficer: true, forwardedBy: true,
+      deliveredAt: true, returnedAt: true, refundStatus: true,
       createdAt: true, updatedAt: true,
       stages: {
         orderBy: { createdAt: 'asc' },
@@ -119,6 +120,19 @@ const getDispatchProfileOrders = async (req, res) => {
     const unseen = [];
     const seen = [];
     const active = [];
+    const alreadyStarted = [];
+
+    // Orders routed to the Enamels Delivery Boy (or any delivery assignment) carry a
+    // DeliveryAssignment row. Also a "work signal": an order with any assignment is
+    // never new, even if dispatchOfficer was lost/cleared.
+    const workedAssignmentIds = new Set();
+    if (dispatchOrders.length) {
+      const assignments = await prisma.deliveryAssignment.findMany({
+        where: { orderId: { in: dispatchOrders.map(o => o.id) } },
+        select: { orderId: true }
+      });
+      for (const a of assignments) workedAssignmentIds.add(a.orderId);
+    }
 
     for (const order of dispatchOrders) {
       if (TERMINAL_DISPATCH.includes(order.dispatchStatus)) continue;
@@ -134,6 +148,38 @@ const getDispatchProfileOrders = async (req, res) => {
 
       // currentStage === 'DISPATCH'
       if (owner === null) {
+        // "Work signal": the DISPATCH was actually started or completed — a non-PENDING
+        // DISPATCH stage (IN_PROGRESS/WAITING_APPROVAL/COMPLETED), a delivery
+        // assignment, a courier booking, a dispatch method, or a delivery/return stamp.
+        const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
+        const latestDispatch = dispatchStages[dispatchStages.length - 1];
+        const dispatchCompleted = !!latestDispatch && latestDispatch.status === 'COMPLETED';
+        const dispatchStarted =
+          !!latestDispatch &&
+          ['IN_PROGRESS', 'WAITING_APPROVAL'].includes(latestDispatch.status);
+        const hasWorkSignal =
+          dispatchStarted ||
+          dispatchCompleted ||
+          workedAssignmentIds.has(order.id) ||
+          !!order.trackingNumber ||
+          !!order.courierDetails ||
+          !!order.deliveredAt ||
+          !!order.returnedAt ||
+          (order.dispatchStatus && order.dispatchStatus !== 'PENDING' && order.dispatchStatus !== 'OUT_FOR_DELIVERY');
+
+        if (dispatchCompleted) {
+          // DISPATCH stage fully completed but dispatchOfficer lost — already worked.
+          // Must NOT re-surface as new in every dispatcher's Unseen.
+          continue;
+        }
+
+        if (hasWorkSignal) {
+          // Started in the past (legacy accepts, courier booked, EDB-assigned, etc.)
+          // but currently unassigned — not genuinely new. Review list, not Unseen.
+          alreadyStarted.push(order);
+          continue;
+        }
+
         // Genuinely unaccepted — SHARED unseen: every dispatcher sees the same set.
         unseen.push(order);
       } else if (ownedByMe) {
@@ -144,8 +190,8 @@ const getDispatchProfileOrders = async (req, res) => {
     }
 
     res.json({
-      unseen, seen, active,
-      counts: { unseen: unseen.length, seen: seen.length, active: active.length }
+      unseen, seen, active, alreadyStarted,
+      counts: { unseen: unseen.length, seen: seen.length, active: active.length, alreadyStarted: alreadyStarted.length }
     });
 
   } catch (error) {
