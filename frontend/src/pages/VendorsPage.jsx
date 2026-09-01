@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import {
   Search, RefreshCcw, Plus, X, Building2, Phone, Mail, MapPin, Users,
   ClipboardList, TrendingUp, CreditCard, Package, CheckCircle2, Ban, Truck, Eye, Hash,
+  ArrowDownToLine, Printer, FileText, Receipt,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 
@@ -169,6 +170,30 @@ const VendorsPage = () => {
     }
   };
 
+  const handlePrint = async (orderVal, kind) => {
+    let docOrder = orderVal;
+    const hasDoc = docOrder?.documents?.length || docOrder?.quotationNumber || docOrder?.invoiceNumber;
+    if (!hasDoc) {
+      const toastId = toast.loading('Generating documents...');
+      try {
+        const res = await api.post(`/api/vendors/orders/${docOrder.id}/generate-documents`, {});
+        const rel = res.data?.order || {};
+        toast.success(res.data?.message || 'Documents generated');
+        docOrder = { ...docOrder, ...rel, quotationNumber: rel.quotationNumber || docOrder.quotationNumber, invoiceNumber: rel.invoiceNumber || docOrder.invoiceNumber };
+      } catch (err) {
+        toast.error(err?.response?.data?.message || 'Failed to generate documents');
+        toast.dismiss(toastId);
+        return;
+      }
+      toast.dismiss(toastId);
+      refreshAll();
+      if (selectedOrder?.id === docOrder.id) viewOrder({ id: docOrder.id });
+    }
+    if (kind === 'quotation') printOrderDocument(docOrder, 'quotation');
+    else if (kind === 'invoice') printOrderDocument(docOrder, 'invoice');
+    else printThermalReceipt(docOrder);
+  };
+
   const openVendor = (v) => setSelectedVendor(v);
   const closeVendor = () => setSelectedVendor(null);
 
@@ -328,6 +353,7 @@ const VendorsPage = () => {
                 order={selectedOrder}
                 onClose={() => setSelectedOrder(null)}
                 runAction={runAction}
+                handlePrint={handlePrint}
                 flexDir={flexDir}
                 t={t}
               />
@@ -599,7 +625,7 @@ const Field = ({ label, required, children }) => (
   </label>
 );
 
-const OrderDetailDrawer = ({ order, onClose, runAction, flexDir, t }) => {
+const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t }) => {
   const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
   const stage = order.status || order.currentStage;
@@ -629,6 +655,11 @@ const OrderDetailDrawer = ({ order, onClose, runAction, flexDir, t }) => {
           {order.deliveryDate && <span>{t('Delivery')}: {formatDateOnly(order.deliveryDate)}</span>}
           {order.deliveryCity && <span>{t('City')}: {order.deliveryCity}</span>}
           {order.notes && <span className="col-span-2">{t('Notes')}: {order.notes}</span>}
+        </div>
+        <div className="flex gap-2 flex-wrap mt-3 pt-3 border-t border-slate-700/50">
+          <ActionBtn color="bg-indigo-600 hover:bg-indigo-500" onClick={() => handlePrint(order, 'quotation')} icon={Printer} label={t('Print Quotation')} />
+          <ActionBtn color="bg-indigo-600 hover:bg-indigo-500" onClick={() => handlePrint(order, 'invoice')} icon={FileText} label={t('Print Invoice')} />
+          <ActionBtn color="bg-slate-600 hover:bg-slate-500" onClick={() => handlePrint(order, 'thermal')} icon={Receipt} label={t('Thermal')} />
         </div>
       </div>
 
@@ -751,5 +782,87 @@ const ActionBtn = ({ color, onClick, icon: Icon, label }) => (
     {label}
   </button>
 );
+
+const PRINT_CSS = `@page{margin:6mm}body{font-family:sans-serif;color:#000;padding:6px;font-size:11px}table{width:100%;border-collapse:collapse;margin:4px 0}th,td{padding:3px 5px;border:1px solid #000;text-align:left}th{background:#f3f4f6;font-size:10px;font-weight:900;text-transform:uppercase}td{font-size:11px}`;
+
+async function fetchLogoUrl() {
+  let logoUrl = window.location.origin + '/logo.png';
+  try {
+    const r = await fetch(logoUrl);
+    const b = await r.blob();
+    logoUrl = URL.createObjectURL(b);
+  } catch (e) { /* fallback to path */ }
+  return logoUrl;
+}
+
+function printIframe(html, title, cleanups, style) {
+  const iframe = document.createElement('iframe');
+  iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.position = 'absolute'; iframe.style.left = '0'; iframe.style.top = '0';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>' + (style || PRINT_CSS) + '</style></head><body>');
+  doc.write(html);
+  doc.write('</body></html>');
+  setTimeout(() => {
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+      (cleanups || []).forEach((fn) => { try { fn(); } catch (e) { /* noop */ } });
+    }, 1000);
+  }, 300);
+}
+
+// A4 professional Quotation / Invoice document (vendor purchase orders)
+async function printOrderDocument(order, kind) {
+  const isInvoice = kind === 'invoice';
+  const logoUrl = await fetchLogoUrl();
+  const title = `${isInvoice ? 'INVOICE' : 'QUOTATION'} — ${order.orderNumber || ''}`;
+  const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
+  const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
+  let html = '';
+  html += `<div style="text-align:center;margin-bottom:6px;padding-bottom:6px;border-bottom:3px solid #000">`;
+  html += `<img src="${logoUrl}" alt="ENAMELS" style="height:50px;margin-bottom:2px;"><p style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:2px;margin:0;color:#000">${isInvoice ? 'INVOICE' : 'QUOTATION'}</p>`;
+  html += `<p style="font-size:10px;margin:2px 0 0;color:#333">VENDOR ORDER · ${order.orderNumber || order.id?.slice(0, 8)}</p></div>`;
+  html += `<div style="display:flex;justify-content:space-between;margin-bottom:6px">`;
+  html += `<div><p style="font-size:12px;font-weight:900;margin:0 0 2px">Vendor</p><p style="font-size:11px;font-weight:700;margin:0">${order.vendor?.name || '—'}</p>${order.vendor?.contact ? `<p style="font-size:10px;margin:0">${order.vendor.contact}</p>` : ''}${order.vendor?.address ? `<p style="font-size:10px;margin:0">${order.vendor.address}</p>` : ''}</div>`;
+  html += `<div style="text-align:right"><p style="font-size:10px;margin:0">DOC: ${isInvoice ? (order.invoiceNumber || '—') : (order.quotationNumber || '—')}</p><p style="font-size:10px;margin:0">Date: ${formatDateTime(order.createdAt)}</p>${order.deliveryDate ? `<p style="font-size:10px;margin:0">Delivery: ${formatDateOnly(order.deliveryDate)}</p>` : ''}${order.deliveryCity ? `<p style="font-size:10px;margin:0">City: ${order.deliveryCity}</p>` : ''}${order.asm?.name ? `<p style="font-size:10px;margin:0">ASM: ${order.asm.name}</p>` : ''}</div>`;
+  html += `</div>`;
+  html += `<table><thead><tr><th>#</th><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead><tbody>`;
+  (order.items || []).forEach((it, idx) => {
+    html += `<tr><td>${idx + 1}</td><td style="font-weight:700">${it.productName}</td><td>${[it.color, it.size, it.productType].filter(Boolean).join(' · ') || '—'}</td><td style="text-align:center;font-weight:700">${it.quantity}</td><td style="text-align:right">₨${parseFloat(it.unitPrice || 0).toLocaleString()}</td><td style="text-align:right;font-weight:700">₨${parseFloat(it.lineTotal || 0).toLocaleString()}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  html += `<table><tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Total Order Value</td><td style="font-weight:700">₨${parseFloat(order.totalOrderValue || 0).toLocaleString()}</td></tr>`;
+  if (parseFloat(order.deliveryCharges || 0) > 0) html += `<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Delivery Charges</td><td style="font-weight:700">₨${parseFloat(order.deliveryCharges).toLocaleString()}</td></tr>`;
+  if (parseFloat(order.discount || 0) > 0) html += `<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Discount</td><td style="font-weight:700;color:#16a34a">-₨${parseFloat(order.discount).toLocaleString()}</td></tr>`;
+  html += `<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Grand Total</td><td style="font-weight:900;font-size:12px">₨${parseFloat(order.grandTotal || 0).toLocaleString()}</td></tr>`;
+  html += `<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Advance Paid</td><td style="font-weight:700">₨${parseFloat(order.advancePaid || 0).toLocaleString()}</td></tr>`;
+  html += `<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Total Paid</td><td style="font-weight:700">₨${totalPaid.toLocaleString()}</td></tr>`;
+  html += `<tr><td style="width:50%;background:#f3f4f6;font-weight:800;text-transform:uppercase;font-size:10px">Remaining Balance</td><td style="font-weight:900;color:${remaining > 0.01 ? '#dc2626' : '#16a34a'}">₨${remaining.toLocaleString()}</td></tr>`;
+  html += `</table>`;
+  if (order.notes) html += `<p style="font-size:11px;font-weight:700;margin:6px 0 2px">Notes: ${order.notes}</p>`;
+  html += `<div style="display:flex;justify-content:space-between;margin-top:18px"><div style="text-align:center"><div style="width:150px;border-top:1.5px solid #000;margin:0 auto 2px"></div><span style="font-size:10px;font-weight:700">Authorized Signature</span></div><div style="text-align:center"><div style="width:150px;border-top:1.5px solid #000;margin:0 auto 2px"></div><span style="font-size:10px;font-weight:700">Vendor Signature</span></div></div>`;
+  printIframe(html, title, [() => { if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }]);
+}
+
+// Thermal (58mm) receipt — compact vendor order summary
+async function printThermalReceipt(order) {
+  const logoUrl = await fetchLogoUrl();
+  const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
+  const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
+  let html = `<div style="text-align:center"><img src="${logoUrl}" alt="ENAMELS" style="height:30px"><p style="font-weight:900;font-size:12px;margin:2px 0 0">VENDOR RECEIPT</p><p style="margin:1px 0">${order.orderNumber || ''}</p><p style="margin:1px 0">${formatDateTime(order.createdAt)}</p></div>`;
+  for (const it of (order.items || [])) {
+    html += `<div style="margin-top:4px"><div style="font-weight:700">${it.productName}</div><div style="display:flex;justify-content:space-between"><span>${[it.color, it.size].filter(Boolean).join('/') || '—'} x ${it.quantity}</span><span>₨${parseFloat(it.lineTotal || 0).toLocaleString()}</span></div></div>`;
+  }
+  html += `<div style="border-top:1px dashed #000;margin-top:6px;padding-top:4px">`;
+  html += `<div style="display:flex;justify-content:space-between"><span>GRAND TOTAL</span><span style="font-weight:900">₨${parseFloat(order.grandTotal || 0).toLocaleString()}</span></div>`;
+  html += `<div style="display:flex;justify-content:space-between"><span>PAID</span><span>₨${totalPaid.toLocaleString()}</span></div>`;
+  html += `<div style="display:flex;justify-content:space-between"><span>REMAINING</span><span>₨${remaining.toLocaleString()}</span></div>`;
+  html += `</div>`;
+  html += `<div style="text-align:center;margin-top:10px">——————————</div><div style="text-align:center;font-size:9px">Thank you</div>`;
+  const title = `Receipt — ${order.orderNumber || ''}`;
+  const thermalCss = `@page{margin:2mm;width:58mm}body{font-family:monospace;color:#000;width:58mm;font-size:10px;padding:2px;word-break:break-word}`;
+  printIframe(html, title, [() => { if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }], thermalCss);
+}
 
 export default VendorsPage;
