@@ -1791,6 +1791,7 @@ model VendorOrder {
   // Immutable timeline
   statusHistory     VendorOrderStatus[]
   deliveries        VendorDelivery[]
+  documents         VendorDocument[]
 
   // Timestamps of each step
   createdAt         DateTime  @default(now())
@@ -1947,6 +1948,7 @@ model Invoice {
 model VendorDocument {
   id         String   @id @default(uuid())
   orderId    String
+  order      VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   docType    String   // QUOTATION / INVOICE
   docNumber  String
   items      Json?
