@@ -37,9 +37,9 @@ router.get('/analytics', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']
 router.get('/asm-stats', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getAsmStats);
 router.get('/asm', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), listAsm);
 
-// ── VENDOR CRUD (Admin only) ────────────────────────────────────────────────
-router.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), listVendors);
-router.post('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), createVendor);
+// ── VENDOR CRUD (Admin + ASM — ASM creates vendors from the order modal) ────
+router.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), listVendors);
+router.post('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), createVendor);
 router.put('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), updateVendor);
 
 // NOTE: static sub-paths (/payments, /orders, /catalog, /analytics, /asm-stats,

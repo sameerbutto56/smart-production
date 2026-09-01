@@ -82,9 +82,24 @@ const createVendor = async (req, res) => {
     if (!name || !String(name).trim()) {
       return res.status(400).json({ message: 'Vendor name is required.' });
     }
+    const cleanName = String(name).trim();
+    const duplicate = await prisma.vendor.findFirst({
+      where: {
+        OR: [
+          { name: { equals: cleanName, mode: 'insensitive' } },
+          ...(phone && String(phone).trim()
+            ? [{ phone: String(phone).trim() }]
+            : []),
+        ],
+      },
+      select: { id: true, name: true, companyName: true, phone: true },
+    });
+    if (duplicate) {
+      return res.status(409).json({ message: 'A vendor with this name already exists.', vendor: duplicate });
+    }
     const vendor = await prisma.vendor.create({
       data: {
-        name: String(name).trim(),
+        name: cleanName,
         companyName: companyName || null,
         contactPerson: contactPerson || null,
         phone: phone || null,
@@ -155,23 +170,40 @@ const getVendor = async (req, res) => {
     let totalOrderValue = 0;
     let totalPaid = 0;
     let totalOutstanding = 0;
-    let orderCount = vendor.orders.length;
+    let totalUnits = 0;
+    const statusCounts = {};
+    const orderCount = vendor.orders.length;
     for (const o of vendor.orders) {
       totalOrderValue += o.grandTotal || 0;
       const paid = (o.payments || []).reduce((s, p) => s + (p.amount || 0), 0);
       totalPaid += paid;
       totalOutstanding += Math.max(0, (o.grandTotal || 0) - paid);
+      for (const it of o.items || []) totalUnits += it.quantity || 0;
+      const key = o.currentStage || o.status || 'CREATED';
+      statusCounts[key] = (statusCounts[key] || 0) + 1;
     }
 
-    res.json({
-      vendor,
-      summary: {
-        totalOrders: orderCount,
-        totalOrderValue,
-        totalPaid,
-        totalOutstanding,
-      },
-    });
+    const summary = {
+      totalOrders: orderCount,
+      totalOrderValue,
+      totalPaid,
+      totalOutstanding,
+      totalUnits,
+      statusCounts,
+    };
+
+    if (req.user?.role !== 'ASM') {
+      res.json({ vendor, summary });
+      return;
+    }
+
+    // ASM sees operational data only — no revenue / profit figures.
+    const operationalSummary = {
+      totalOrders: summary.totalOrders,
+      totalUnits: summary.totalUnits,
+      statusCounts: summary.statusCounts,
+    };
+    res.json({ vendor, summary: operationalSummary });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch vendor', error: error.message });
   }
