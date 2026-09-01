@@ -54,7 +54,17 @@ const getDispatchQueue = async (req, res) => {
       OR: [
         { currentStage: 'DISPATCH' },
         { dispatchStatus: { in: ['COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } }
-      ]
+      ],
+      // Orders handed to the Enamels Delivery Boy (deliveryType=ENAMELS /
+      // deliveryMethod='Enamels Delivery' / currentStage=ENAMELS_DELIVERY) are owned by
+      // the Enamel boy's profile and must NEVER appear in dispatcher queues.
+      NOT: [{
+        OR: [
+          { deliveryType: 'ENAMELS' },
+          { deliveryMethod: 'Enamels Delivery' },
+          { currentStage: 'ENAMELS_DELIVERY' }
+        ]
+      }]
     };
 
     if (req.user?.role === 'OUTLET') {
@@ -429,7 +439,17 @@ const getDispatchDashboard = async (req, res) => {
           { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } },
           { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'REJECTED'] }, status: { notIn: ['RETURNED'] } },
           { dispatchOfficer: { not: null }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } }
-        ]
+        ],
+        // Orders handed to the Enamels Delivery Boy (deliveryType=ENAMELS /
+        // deliveryMethod='Enamels Delivery' / currentStage=ENAMELS_DELIVERY) are owned by
+        // the Enamel boy's profile and must NEVER appear in dispatcher queues.
+        NOT: [{
+          OR: [
+            { deliveryType: 'ENAMELS' },
+            { deliveryMethod: 'Enamels Delivery' },
+            { currentStage: 'ENAMELS_DELIVERY' }
+          ]
+        }]
       },
       select: {
         id: true, orderNumber: true, customerName: true, customerPhone: true,

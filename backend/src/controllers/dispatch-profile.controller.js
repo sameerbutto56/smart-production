@@ -101,10 +101,24 @@ const getDispatchProfileOrders = async (req, res) => {
 
     // Replacement (REP-...) orders flow through the normal pipeline once past STORE
     // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
+    // Orders handed to the Enamels Delivery Boy (deliveryType=ENAMELS /
+    // deliveryMethod='Enamels Delivery' / currentStage=ENAMELS_DELIVERY) are owned by
+    // the Enamel boy's profile and must NEVER appear in dispatcher queues.
+    const NOT_ENAMELS = {
+      NOT: [{
+        OR: [
+          { deliveryType: 'ENAMELS' },
+          { deliveryMethod: 'Enamels Delivery' },
+          { currentStage: 'ENAMELS_DELIVERY' }
+        ]
+      }]
+    };
+
     const dispatchOrders = await prisma.order.findMany({
       where: {
         currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] },
+        ...NOT_ENAMELS
       },
       select: baseSelect,
       orderBy: baseOrder
@@ -541,11 +555,15 @@ const getDispatchDashboard = async (req, res) => {
     if (dateTo) dateFilter.lte = new Date(dateTo);
 
     // Base order query for dispatch-related orders
+    // Exclude Enamel Delivery Boy orders (they live in the DELIVERY_BOY profile, never the dispatcher dashboard)
     const orderWhere = {
       OR: [
         { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
         { dispatchStatus: { not: 'PENDING' } },
         { dispatchOfficer: { not: null } }
+      ],
+      NOT: [
+        { OR: [{ deliveryType: 'ENAMELS' }, { deliveryMethod: 'Enamels Delivery' }, { currentStage: 'ENAMELS_DELIVERY' }] }
       ]
     };
     if (dateFrom || dateTo) {
