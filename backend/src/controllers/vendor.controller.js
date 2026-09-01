@@ -616,7 +616,7 @@ const deliverOrder = async (req, res) => {
         vendorId: existing.vendorId,
         orderId: id,
         orderNumber: existing.orderNumber,
-        deliveryAddress: address || existing.deliveryAddress,
+        address: address || existing.deliveryAddress,
         city: city || existing.deliveryCity,
         carrier,
         deliveredBy: req.user?.name || null,
