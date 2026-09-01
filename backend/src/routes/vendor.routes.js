@@ -69,7 +69,7 @@ router.post('/orders/:id/give-stock', authenticate, authorize(['SUPER_ADMIN', 'A
 // Both — completion + payments + documents
 router.post('/orders/:id/complete', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), completeOrder);
 router.post('/orders/:id/pay', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), recordPayment);
-router.post('/orders/:id/generate-documents', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), generateDocuments);
+router.post('/orders/:id/generate-documents', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), generateDocuments);
 router.get('/orders/:id/documents', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getOrderDocuments);
 
 // ── VENDOR BY ID (declared LAST so static sub-routes above win) ─────────────
