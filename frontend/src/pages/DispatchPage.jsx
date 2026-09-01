@@ -14,24 +14,15 @@ import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const KHAWAR_OPTIONS = [
-  { id: 'ENAMELS', label: 'Enamels Delivery (BHC)', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
-  { id: 'TCS', label: 'TCS', type: 'courier', desc: 'Book TCS courier' },
-  { id: 'POST_EX', label: 'PostEx', type: 'courier', desc: 'Book PostEx courier' },
-  { id: 'CUSTOMER_TAKEAWAY', label: 'Customer Takeaway', type: 'walkin', desc: 'Customer picks up directly' }
-];
-
-const FAISAL_OPTIONS = [
-  { id: 'ENAMELS', label: 'Enamels Delivery (BHC)', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
+const DISPATCH_METHOD_OPTIONS = [
+  { id: 'ENAMELS', label: 'Enamels Delivery', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
   { id: 'TCS', label: 'TCS', type: 'courier', desc: 'Book TCS courier' },
   { id: 'POST_EX', label: 'PostEx', type: 'courier', desc: 'Book PostEx courier' },
   { id: 'CUSTOMER_TAKEAWAY', label: 'Customer Takeaway', type: 'walkin', desc: 'Customer picks up directly' }
 ];
 
 const DISPATCH_OPTIONS = [
-  { id: 'ENAMELS', label: 'Enamels Delivery', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
-  { id: 'TCS', label: 'TCS', type: 'courier', desc: 'Book TCS courier' },
-  { id: 'POST_EX', label: 'PostEx', type: 'courier', desc: 'Book PostEx courier' },
+  ...DISPATCH_METHOD_OPTIONS,
   { id: 'WALK_IN', label: 'Received by Customer', type: 'walkin', desc: 'Mark delivered directly' },
   { id: 'OTHER', label: 'Other', type: 'courier', desc: 'Other courier service' },
 ];
@@ -67,9 +58,7 @@ const DispatchPage = () => {
     return () => { mounted = false; };
   }, []);
 
-  const isKhawar = employeeName === 'Khawar';
-  const isFaisal = employeeName === 'Faisal';
-  const dispatchOptions = isKhawar ? KHAWAR_OPTIONS : (isFaisal ? FAISAL_OPTIONS : DISPATCH_OPTIONS);
+  const dispatchOptions = loggedIn ? DISPATCH_METHOD_OPTIONS : DISPATCH_OPTIONS;
 
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || sessionStorage.getItem('dispatchActiveTab') || 'unseen');
   const [search, setSearch] = useState(() => sessionStorage.getItem('dispatchSearch') || '');
@@ -95,7 +84,7 @@ const DispatchPage = () => {
   const [data, setData] = useState({ unseen: [], seen: [], active: [], allOrders: [], counts: { unseen: 0, seen: 0, active: 0 } });
   const [loading, setLoading] = useState(false);
 
-  const dataUrl = loggedIn && (isKhawar || isFaisal)
+  const dataUrl = loggedIn
     ? `/api/dispatch-profile/orders?employeeName=${employeeName}`
     : '/api/dispatch/dashboard';
 
@@ -115,7 +104,7 @@ const DispatchPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [dataUrl, loggedIn, isKhawar, isFaisal]);
+  }, [dataUrl, loggedIn]);
 
   const fetchStats = useCallback(async () => {
     if (!loggedIn || !employeeName) return;
@@ -144,8 +133,8 @@ const DispatchPage = () => {
 
   useEffect(() => {
     doRefresh();
-    if (loggedIn && (isKhawar || isFaisal)) fetchStats();
-  }, [loggedIn, employeeName, doRefresh, fetchStats, isKhawar, isFaisal]);
+    if (loggedIn) fetchStats();
+  }, [loggedIn, employeeName, doRefresh, fetchStats]);
 
   useEffect(() => {
     const handleStageAccepted = () => {
@@ -204,7 +193,7 @@ const DispatchPage = () => {
   const handleAcceptTask = async (orderId) => {
     setAcceptLoading(orderId);
     try {
-      if (loggedIn && (isKhawar || isFaisal)) {
+      if (loggedIn) {
         await api.post(`/api/dispatch-profile/${orderId}/accept`, { employeeName });
       } else {
         await api.post(`/api/orders/${orderId}/accept-task`, {});
@@ -222,7 +211,7 @@ const DispatchPage = () => {
     const option = selectedOption;
     setSubmitting(true);
     try {
-      if (loggedIn && (isKhawar || isFaisal)) {
+      if (loggedIn) {
         await api.post(`/api/dispatch-profile/${orderId}/dispatch`, {
           employeeName,
           dispatchMethod: option.id,
@@ -241,7 +230,7 @@ const DispatchPage = () => {
       setSelectedOption(dispatchOptions[0] || DISPATCH_OPTIONS[0]);
       toast.success(`Dispatched via ${option.label}`);
       doRefresh();
-      if (loggedIn && (isKhawar || isFaisal)) fetchStats();
+      if (loggedIn) fetchStats();
     } catch (err) {
       toast.error('Failed: ' + (err.response?.data?.error || err.message));
     }
@@ -299,7 +288,7 @@ const DispatchPage = () => {
 
   const printDispatchSheetWithOfficer = async (order) => {
     const title = 'Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8));
-    const officerName = loggedIn && (isKhawar || isFaisal) ? employeeName : '';
+    const officerName = loggedIn ? employeeName : '';
     let logoUrl = window.location.origin + '/logo.png';
     try {
       const logoResp = await fetch(logoUrl);
@@ -456,7 +445,7 @@ const DispatchPage = () => {
     return <PageLoader text="Loading Dispatch..." />;
   }
 
-  const isEmployeeMode = loggedIn && (isKhawar || isFaisal);
+  const isEmployeeMode = loggedIn;
 
   return (
     <div className="space-y-4 md:space-y-6 pb-12">
@@ -470,7 +459,7 @@ const DispatchPage = () => {
               {isEmployeeMode ? `${employeeName}'s Dispatch` : (isOutlet ? 'Outlet Dispatch' : 'Dispatch Center')}
             </h1>
             <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">
-              {isEmployeeMode ? (isKhawar ? 'Lahore Orders Only' : 'All Cities + Forwarded') : 'Task processing'}
+              {isEmployeeMode ? 'Assigned Tasks' : 'Task processing'}
             </p>
           </div>
         </div>
@@ -669,7 +658,7 @@ const DispatchPage = () => {
                     <div className="flex gap-2 shrink-0">
                       <button onClick={(e) => { e.stopPropagation(); printDispatchSheetWithOfficer(order); }}
                         className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition-all"><Printer size={16} /></button>
-                      {(isEmployeeMode && (isFaisal || isKhawar)) ? (
+                      {(isEmployeeMode) ? (
                         <div className="flex flex-wrap gap-1.5">
                           {order.dispatchStatus === 'DELIVERED' ? (
                             <span className="px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1"><CheckCircle2 size={14} /> Delivered</span>
@@ -704,11 +693,6 @@ const DispatchPage = () => {
                             </>
                           )}
                         </div>
-                      ) : isEmployeeMode ? (
-                        <button onClick={() => { setBookModal(order); setSelectedOption(dispatchOptions[0] || DISPATCH_OPTIONS[0]); setTrackingNumber(''); }}
-                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
-                          <Send size={14} /> Dispatch
-                        </button>
                       ) : isOutlet ? (
                         !order.dispatchStatus || order.dispatchStatus === 'PENDING' ? (
                           <button onClick={() => setRequestModal(order)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5"><Send size={14} /> Request Courier</button>

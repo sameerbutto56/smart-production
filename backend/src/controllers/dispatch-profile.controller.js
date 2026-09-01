@@ -3,6 +3,30 @@ const { calculateDeadline } = require('../utils/deadline');
 const { recordAssignment } = require('./tahirSheet.controller');
 const postexService = require('../services/postex.service');
 
+// A dispatcher = an OutletEmployee whose `profiles` array contains "DISPATCH" AND
+// whose `isActive` is still true. This replaces the old hardcoded ['Khawar','Faisal']
+// allow-list so that ANY employee created/activated via Software Settings → Employees
+// works immediately (e.g. Numan), and a deactivated employee is automatically excluded
+// from new tasks / counts without deleting any history.
+const getActiveDispatchers = async () => {
+  const employees = await prisma.outletEmployee.findMany({
+    where: { isActive: true },
+    select: { name: true, profiles: true }
+  });
+  return employees
+    .filter(e => Array.isArray(e.profiles) && e.profiles.includes('DISPATCH'))
+    .map(e => e.name);
+};
+
+const isActiveDispatcher = async (name) => {
+  if (!name) return false;
+  const dispatchers = await getActiveDispatchers();
+  return dispatchers.includes(name);
+};
+
+const DISPATCH_METHODS = ['ENAMELS', 'TCS', 'POST_EX', 'CUSTOMER_TAKEAWAY'];
+const ALLOWED_ACTIONS = [...DISPATCH_METHODS, 'FORWARD_TO_FAISAL'];
+
 const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
     if (!userId) return;
@@ -46,8 +70,8 @@ const getStageDurations = async (priority = 'NORMAL') => {
 const getDispatchProfileOrders = async (req, res) => {
   try {
     const { employeeName } = req.query;
-    if (!employeeName || !['Khawar', 'Faisal'].includes(employeeName)) {
-      return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
+    if (!employeeName || !(await isActiveDispatcher(employeeName))) {
+      return res.status(400).json({ message: 'Unknown or inactive dispatcher employee' });
     }
 
     const baseSelect = {
@@ -143,8 +167,8 @@ const acceptDispatchOrder = async (req, res) => {
   const { orderId } = req.params;
   const { employeeName } = req.body;
 
-  if (!employeeName || !['Khawar', 'Faisal'].includes(employeeName)) {
-    return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
+  if (!employeeName || !(await isActiveDispatcher(employeeName))) {
+    return res.status(400).json({ message: 'Unknown or inactive dispatcher employee' });
   }
 
   try {
@@ -214,20 +238,12 @@ const dispatchFromProfile = async (req, res) => {
   const { orderId } = req.params;
   const { employeeName, dispatchMethod, trackingUrl } = req.body;
 
-  if (!employeeName || !['Khawar', 'Faisal'].includes(employeeName)) {
-    return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
+  if (!employeeName || !(await isActiveDispatcher(employeeName))) {
+    return res.status(400).json({ message: 'Unknown or inactive dispatcher employee' });
   }
 
-  // Khawar can use ENAMELS, TCS, POST_EX, CUSTOMER_TAKEAWAY
-  // Faisal can use ENAMELS, TCS, POST_EX, CUSTOMER_TAKEAWAY
-  const khawarMethods = ['ENAMELS', 'TCS', 'POST_EX', 'CUSTOMER_TAKEAWAY'];
-  const faisalMethods = ['ENAMELS', 'TCS', 'POST_EX', 'CUSTOMER_TAKEAWAY'];
-
-  if (employeeName === 'Khawar' && !khawarMethods.includes(dispatchMethod)) {
-    return res.status(400).json({ message: `Khawar can only use: ${khawarMethods.join(', ')}` });
-  }
-  if (employeeName === 'Faisal' && !faisalMethods.includes(dispatchMethod)) {
-    return res.status(400).json({ message: `Faisal can only use: ${faisalMethods.join(', ')}` });
+  if (!ALLOWED_ACTIONS.includes(dispatchMethod)) {
+    return res.status(400).json({ message: `Allowed dispatch methods: ${DISPATCH_METHODS.join(', ')}` });
   }
 
   try {
@@ -419,8 +435,8 @@ const dispatchFromProfile = async (req, res) => {
 const getDispatchProfileStats = async (req, res) => {
   try {
     const { employeeName, dateFrom, dateTo } = req.query;
-    if (!employeeName || !['Khawar', 'Faisal'].includes(employeeName)) {
-      return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
+    if (!employeeName || !(await isActiveDispatcher(employeeName))) {
+      return res.status(400).json({ message: 'Unknown or inactive dispatcher employee' });
     }
 
     const whereClause = { officerName: employeeName };
@@ -463,6 +479,8 @@ const getDispatchProfileStats = async (req, res) => {
 const getDispatchDashboard = async (req, res) => {
   try {
     const { dateFrom, dateTo, employee, city, status, payment, period } = req.query;
+
+    const activeDispatchers = await getActiveDispatchers();
 
     const dateFilter = {};
     if (dateFrom) dateFilter.gte = new Date(dateFrom);
@@ -576,10 +594,10 @@ const getDispatchDashboard = async (req, res) => {
       };
     };
 
-    const employeeStats = {
-      Khawar: buildEmployeeStats('Khawar'),
-      Faisal: buildEmployeeStats('Faisal')
-    };
+    const employeeStats = {};
+    for (const name of activeDispatchers) {
+      employeeStats[name] = buildEmployeeStats(name);
+    }
 
     // Tracking data for the table
     const trackingData = orders.map(o => {
@@ -622,7 +640,7 @@ const getDispatchDashboard = async (req, res) => {
 
     // Employee monthly breakdown
     const employeeMonthly = {};
-    for (const name of ['Khawar', 'Faisal']) {
+    for (const name of activeDispatchers) {
       const empLogs = allLogs.filter(l => l.officerName === name);
       const empMonthlyMap = {};
       for (const l of empLogs) {
