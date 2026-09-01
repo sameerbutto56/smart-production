@@ -67,6 +67,7 @@ const StoreOrders = lazy(() => import('./pages/StoreOrders'));
 const PostExDashboard = lazy(() => import('./pages/PostExDashboard'));
 const DemandDeliveriesHistory = lazy(() => import('./pages/DemandDeliveriesHistory'));
 const AsmPage = lazy(() => import('./pages/AsmPage'));
+const VendorsPage = lazy(() => import('./pages/VendorsPage'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -193,6 +194,7 @@ function App() {
                   <Route path="postex-dashboard" element={<PostExDashboard />} />
                   <Route path="demand-history" element={<DemandDeliveriesHistory />} />
                   <Route path="asm" element={<AsmPage />} />
+                  <Route path="vendors-admin" element={<VendorsPage />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

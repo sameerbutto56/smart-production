@@ -106,6 +106,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Vendors', path: '/vendors-admin', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'] },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['OUTLET', 'STORE'] },
 
