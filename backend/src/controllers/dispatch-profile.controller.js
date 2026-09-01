@@ -135,7 +135,15 @@ const getDispatchProfileOrders = async (req, res) => {
     }
 
     for (const order of dispatchOrders) {
-      if (TERMINAL_DISPATCH.includes(order.dispatchStatus)) continue;
+      // Terminal stamps clear EVERY queue — even when dispatchStatus was never
+      // flipped (an OUT_FOR_DELIVERY order returned by the delivery boy has
+      // returnedAt set but dispatchStatus still 'BOOKED').
+      const orderTerminal =
+        TERMINAL_DISPATCH.includes(order.dispatchStatus) ||
+        ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'].includes(order.status) ||
+        !!order.deliveredAt ||
+        !!order.returnedAt;
+      if (orderTerminal) continue;
 
       const owner = order.dispatchOfficer || null;
       const ownedByMe = owner === employeeName;
