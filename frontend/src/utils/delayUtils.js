@@ -13,7 +13,7 @@ export const STAGE_DEPARTMENTS = {
   LOGO_DESIGN: 'Logo',
   DISPATCH: 'Dispatch',
   IN_DISPATCH: 'In Dispatch',
-  OUTLET_RECEIVE: 'Dispatch',
+  OUTLET_RECEIVE: 'Outlet',
   ENAMELS_DELIVERY: 'Delivery',
   OUT_FOR_DELIVERY: 'Out of Delivery',
   ORDER_ENTRY: 'Inventory Verification',
