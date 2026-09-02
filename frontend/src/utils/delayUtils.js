@@ -33,24 +33,25 @@ export const DELAY_REASONS = {
 export const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry',
   VERIFICATION: 'Verification',
+  RETURN_VERIFICATION: 'Return Verification',
   STORE: 'Store',
   STORE_RECEIVE: 'Store Receive',
-  WORKERS: 'Workers',
+  WORKERS: 'Production In',
   PRODUCTION_ACCEPTANCE: 'Production Acceptance',
-  PRODUCTION: 'Production',
-  LOGO_DESIGN: 'Logo Design',
+  PRODUCTION: 'Production Out',
+  LOGO_DESIGN: 'Logo',
   DISPATCH: 'Dispatch',
   IN_DISPATCH: 'In Dispatch',
   OUTLET_RECEIVE: 'Outlet Receive',
-  ENAMELS_DELIVERY: 'Enamels Delivery',
-  OUT_FOR_DELIVERY: 'Out for Delivery',
-  DELIVERED: 'Delivered',
+  ENAMELS_DELIVERY: 'Delivery',
+  OUT_FOR_DELIVERY: 'Out of Delivery',
+  DELIVERED: 'Completed',
 };
 
 // Canonical workflow order for sorting stage filter chips.
 export const STAGE_ORDER = [
-  'ORDER_ENTRY', 'VERIFICATION', 'STORE', 'STORE_RECEIVE', 'LOGO_DESIGN',
-  'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'WORKERS', 'DISPATCH', 'IN_DISPATCH',
+  'ORDER_ENTRY', 'VERIFICATION', 'RETURN_VERIFICATION', 'STORE', 'STORE_RECEIVE', 'LOGO_DESIGN',
+  'PRODUCTION_ACCEPTANCE', 'WORKERS', 'PRODUCTION', 'DISPATCH', 'IN_DISPATCH',
   'OUTLET_RECEIVE', 'ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED'
 ];
 
@@ -58,6 +59,7 @@ export const STAGE_ORDER = [
 export const FALLBACK_STAGE_HOURS = {
   ORDER_ENTRY: 4,
   VERIFICATION: 4,
+  RETURN_VERIFICATION: 4,
   STORE: 24,
   STORE_RECEIVE: 12,
   WORKERS: 24,
@@ -75,6 +77,7 @@ export const FALLBACK_STAGE_HOURS = {
 export const DEFAULT_DELAY_CONFIG = {
   ORDER_ENTRY: 4,
   VERIFICATION: 4,
+  RETURN_VERIFICATION: 4,
   STORE: 24,
   STORE_RECEIVE: 12,
   WORKERS: 24,
@@ -92,6 +95,7 @@ export const DEFAULT_DELAY_CONFIG = {
 export const STAGE_CONFIG_MAP = {
   ORDER_ENTRY: 'ORDER_ENTRY',
   VERIFICATION: 'VERIFICATION',
+  RETURN_VERIFICATION: 'VERIFICATION',
   STORE: 'STORE',
   STORE_RECEIVE: 'STORE_RECEIVE',
   WORKERS: 'WORKERS',
@@ -112,6 +116,7 @@ export const fmtDuration = fmtWorkingDuration;
 
 // The workflow stage an order is actually stuck in for tracking/delay purposes.
 export const getEffectiveStage = (order) => {
+  if (order?.verificationReturnedAt && !order?.verifiedAt && order?.currentStage === 'ORDER_ENTRY') return 'RETURN_VERIFICATION';
   if (order?.goForVerification && !order?.verifiedAt && !order?.verificationReturnedAt) return 'VERIFICATION';
   return order?.currentStage;
 };

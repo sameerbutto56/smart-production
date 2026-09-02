@@ -251,7 +251,7 @@ const returnToFaisal = async (req, res) => {
 const getReturnedToFaisal = async (req, res) => {
   try {
     const { search, page = 1, limit = 50 } = req.query;
-    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: { not: null }, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED', 'REJECTED'] } };
+    const where = { currentStage: 'ORDER_ENTRY', goForVerification: true, verifiedAt: null, verificationReturnedAt: { not: null }, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED', 'REJECTED'] } };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
