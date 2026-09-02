@@ -12,13 +12,14 @@ export const STAGE_DEPARTMENTS = {
   PRODUCTION: 'Production',
   LOGO_DESIGN: 'Logo',
   DISPATCH: 'Dispatch',
-  IN_DISPATCH: 'Dispatch',
+  IN_DISPATCH: 'In Dispatch',
   OUTLET_RECEIVE: 'Dispatch',
-  ENAMELS_DELIVERY: 'Dispatch',
-  OUT_FOR_DELIVERY: 'Dispatch',
+  ENAMELS_DELIVERY: 'Delivery',
+  OUT_FOR_DELIVERY: 'Out of Delivery',
   ORDER_ENTRY: 'Inventory Verification',
   VERIFICATION: 'Verification',
-  DELIVERED: 'Delivered',
+  RETURN_VERIFICATION: 'Return Verification',
+  DELIVERED: 'Completed',
 };
 
 export const DELAY_REASONS = {
@@ -26,8 +27,11 @@ export const DELAY_REASONS = {
   'Production': 'Delayed in Production',
   'Logo': 'Delayed in Logo Department',
   'Dispatch': 'Delayed in Dispatch',
+  'In Dispatch': 'Delayed in In Dispatch',
+  'Out of Delivery': 'Delayed in Out of Delivery',
   'Inventory Verification': 'Delayed in Inventory Verification',
   'Verification': 'Delayed in Verification',
+  'Return Verification': 'Delayed in Return Verification',
 };
 
 export const STAGE_LABELS = {
@@ -169,10 +173,10 @@ export const computeActiveWorkingMs = (startMs, endMs, pausePeriods = null, prof
 export const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey = null) => {
   if (!order) return null;
   const status = (order.status || '').toUpperCase();
-  if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].includes(status)) return null;
+  if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'].includes(status)) return null;
 
   const effectiveStage = getEffectiveStage(order);
-  if (!effectiveStage || effectiveStage === 'DELIVERED') return null;
+  if (!effectiveStage || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'RETURNED'].includes(effectiveStage)) return null;
 
   const stages = Array.isArray(order.stages) ? order.stages : [];
   const active = stages.find(

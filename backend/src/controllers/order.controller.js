@@ -689,11 +689,11 @@ const getOrders = async (req, res) => {
     // 2. Add database-level filters based on page context
     if (filterStatus === 'active') {
       // Return only active/in-progress/waiting orders
-      where.status = { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] };
+      where.status = { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] };
     } else if (filterStatus === 'completed') {
-      // History Page: Return completed/delivered/cancelled/rejected orders
+      // History Page: Return completed/delivered/cancelled/rejected/returned orders
       where.OR = [
-        { status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
+        { status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] } },
         { currentStage: { in: ['COMPLETED', 'DELIVERED'] } }
       ];
     } else if (filterStatus === 'delivery') {
@@ -702,11 +702,8 @@ const getOrders = async (req, res) => {
         { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
         { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY'] } }
       ];
-      // Optionally filter by deliveryType (e.g., ENAMELS, TCS, POST_EX)
-      // Also match deliveryMethod as fallback for orders dispatched before deliveryType was added
       if (req.query.deliveryType) {
         const dt = req.query.deliveryType;
-        // Build the delivery method string that would have been stored for this type
         const methodMap = { 'ENAMELS': 'Enamels Delivery', 'TCS': 'TCS', 'POST_EX': 'PostEx' };
         const methodStr = methodMap[dt];
         if (methodStr) {
@@ -718,8 +715,7 @@ const getOrders = async (req, res) => {
         }
       }
     } else {
-      // Default: If no status specified, load active orders + the 100 most recent completed orders to keep payload tiny!
-      // This is backward-compatible with older frontend code that filters in memory!
+      // Default: Load active orders + 100 most recent completed orders
       if (!limit || limit !== 'all') {
         const isDeliveryQuery = filterStatus === 'delivery';
         const deliveryPaymentsInclude = isDeliveryQuery ? { deliveryPayments: { orderBy: { createdAt: 'desc' }, select: { paymentMethod: true, cashAmount: true, onlineAmount: true, collectedBy: true, createdAt: true } } } : {};
@@ -727,7 +723,7 @@ const getOrders = async (req, res) => {
           prisma.order.findMany({
             where: {
               ...where,
-              status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+              status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
             },
             include: {
               stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
@@ -741,7 +737,7 @@ const getOrders = async (req, res) => {
           prisma.order.findMany({
             where: {
               ...where,
-              status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+              status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
             },
             include: {
               stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
