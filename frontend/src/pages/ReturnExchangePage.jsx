@@ -281,7 +281,7 @@ const ReturnExchangePage = () => {
             )}
 
             {/* Return Already Processed — previous return case completed/cancelled */}
-            {!returnCase && orderData && !isPending && !isAccepted && !accepting && hasCompletedReturn && (
+            {!returnCase && orderData && !isPending && !isAccepted && !accepting && !completedReturnCase && hasCompletedReturn && (
               <div className="bg-gray-500/10 border border-gray-500/30 rounded-xl p-5 space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gray-500/20 rounded-lg"><CheckCircle size={20} className="text-gray-400" /></div>
