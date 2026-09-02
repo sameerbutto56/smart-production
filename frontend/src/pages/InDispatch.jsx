@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
+import { getDelayInfo, fmtDuration } from '../utils/delayUtils';
 
 // Dedicated In Dispatch module — JOHAR TOWN outlet only.
 // Isolated from the existing Dispatch (dispatch officer) workflow.
@@ -695,9 +696,19 @@ const InDispatch = () => {
             {filteredOrders.map(order => {
               const inRoute = assignedIds.has(order.id);
               const isSelected = selectedForRoute.has(order.id);
+              const delayInfo = getDelayInfo(order);
+              const isDelayed = !!delayInfo;
               return (
                 <motion.div key={order.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className={`bg-gray-900/80 backdrop-blur-sm border rounded-2xl p-5 space-y-3 shadow-lg ${inRoute ? 'border-cyan-500/30' : isSelected ? 'border-blue-500/40' : 'border-violet-500/20'}`}>
+                  className={`bg-gray-900/80 backdrop-blur-sm border rounded-2xl p-5 space-y-3 shadow-lg ${
+                    isDelayed
+                      ? 'border-2 border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.25)] bg-red-950/20'
+                      : inRoute
+                      ? 'border-cyan-500/30'
+                      : isSelected
+                      ? 'border-blue-500/40'
+                      : 'border-violet-500/20'
+                  }`}>
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-lg font-black text-white">{order.orderNumber}</p>
@@ -705,9 +716,16 @@ const InDispatch = () => {
                       {order.customerPhone && <p className="flex items-center gap-1 text-xs text-gray-500"><Phone size={10} /> {order.customerPhone}</p>}
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
-                      {inRoute
-                        ? <span className="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 text-[10px] font-black rounded-full">IN ROUTE</span>
-                        : <span className="px-2.5 py-1 bg-violet-500/20 text-violet-300 text-[10px] font-black rounded-full">IN DISPATCH</span>}
+                      {isDelayed ? (
+                        <span className="px-2.5 py-1 bg-red-600 text-white border border-red-500 text-[10px] font-black rounded-full animate-pulse shadow-md shadow-red-900/50 flex items-center gap-1">
+                          <Clock size={10} className="animate-spin text-white" />
+                          IN DISPATCH (DELAYED)
+                        </span>
+                      ) : inRoute ? (
+                        <span className="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 text-[10px] font-black rounded-full">IN ROUTE</span>
+                      ) : (
+                        <span className="px-2.5 py-1 bg-violet-500/20 text-violet-300 text-[10px] font-black rounded-full">IN DISPATCH</span>
+                      )}
                       {order._payment && (
                         <span className={`px-2.5 py-1 text-[10px] font-black rounded-full ${
                           order._payment.status === 'Paid' ? 'bg-emerald-500/20 text-emerald-300'
@@ -723,6 +741,13 @@ const InDispatch = () => {
                       </button>
                     </div>
                   </div>
+
+                  {isDelayed && (
+                    <div className="flex items-center gap-1.5 text-xs text-red-400 font-black bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-xl animate-pulse">
+                      <Clock size={12} className="animate-spin text-red-400" />
+                      <span>Overdue by {fmtDuration(delayInfo.delayDuration)} in stage</span>
+                    </div>
+                  )}
 
                   {productsSummary(order) && (
                     <div className="flex flex-wrap gap-1.5">{productsSummary(order)}</div>
