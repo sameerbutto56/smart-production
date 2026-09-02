@@ -577,18 +577,19 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-emerald-400" size={32} /></div>;
   }
 
+  const safeStats = stats || {};
   const statCards = [
-    { label: 'Total Assigned', key: 'total', value: stats.totalAssigned, filterKey: null },
-    { label: 'Accepted', key: 'accepted', value: stats.accepted, filterKey: null },
-    { label: 'Picked-Up', key: 'pickedUp', value: stats.pickedUp, filterKey: null },
-    { label: 'Delivered', key: 'delivered', value: stats.delivered, filterKey: 'delivered' },
-    { label: 'Pending', key: 'pending', value: stats.pending, filterKey: 'pending' },
-    { label: 'In Transit', key: 'inTransit', value: stats.inTransit, filterKey: 'inTransit' },
+    { label: 'Total Assigned', key: 'total', value: safeStats.totalAssigned || 0, filterKey: null },
+    { label: 'Accepted', key: 'accepted', value: safeStats.accepted || 0, filterKey: null },
+    { label: 'Picked-Up', key: 'pickedUp', value: safeStats.pickedUp || 0, filterKey: null },
+    { label: 'Delivered', key: 'delivered', value: safeStats.delivered || 0, filterKey: 'delivered' },
+    { label: 'Pending', key: 'pending', value: safeStats.pending || 0, filterKey: 'pending' },
+    { label: 'In Transit', key: 'inTransit', value: safeStats.inTransit || 0, filterKey: 'inTransit' },
     { label: 'Carry Forward', key: 'carryForward', value: carryForwardCount, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: null },
-    { label: 'Returned', key: 'returned', value: stats.returned, filterKey: 'returned' },
-    { label: 'No Response', key: 'noResponse', value: stats.noResponse, filterKey: 'noResponse' },
-    { label: 'Cancelled', key: 'cancelled', value: stats.cancelled, filterKey: 'cancelled' },
-    { label: 'Failed', key: 'failed', value: stats.failed, filterKey: 'failed' },
+    { label: 'Returned', key: 'returned', value: safeStats.returned || 0, filterKey: 'returned' },
+    { label: 'No Response', key: 'noResponse', value: safeStats.noResponse || 0, filterKey: 'noResponse' },
+    { label: 'Cancelled', key: 'cancelled', value: safeStats.cancelled || 0, filterKey: 'cancelled' },
+    { label: 'Failed', key: 'failed', value: safeStats.failed || 0, filterKey: 'failed' },
   ];
 
   const paymentCards = [

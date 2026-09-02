@@ -295,8 +295,8 @@ const DispatchDashboard = () => {
 
             {/* Employee Performance */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {['Khawar', 'Faisal'].map(name => {
-                const es = dashboardData.employeeStats[name];
+              {Object.keys(dashboardData.employeeStats || {}).map(name => {
+                const es = dashboardData.employeeStats[name] || {};
                 return (
                   <div key={name} className="glass rounded-2xl p-5 border theme-border">
                     <h3 className="text-lg font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -304,13 +304,13 @@ const DispatchDashboard = () => {
                     </h3>
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { label: 'Total Assigned', value: es.totalAssigned },
-                        { label: 'Total Dispatched', value: es.totalDispatched },
-                        { label: 'Pending', value: es.pending, color: 'text-amber-400' },
-                        { label: 'Delivered', value: es.delivered, color: 'text-emerald-400' },
-                        { label: 'Returned', value: es.returned, color: 'text-red-400' },
-                        { label: 'Rejected', value: es.rejected, color: 'text-gray-400' },
-                        { label: 'Avg Dispatch Time', value: es.averageDispatchTime, span: true },
+                        { label: 'Total Assigned', value: es.totalAssigned || 0 },
+                        { label: 'Total Dispatched', value: es.totalDispatched || 0 },
+                        { label: 'Pending', value: es.pending || 0, color: 'text-amber-400' },
+                        { label: 'Delivered', value: es.delivered || 0, color: 'text-emerald-400' },
+                        { label: 'Returned', value: es.returned || 0, color: 'text-red-400' },
+                        { label: 'Rejected', value: es.rejected || 0, color: 'text-gray-400' },
+                        { label: 'Avg Dispatch Time', value: es.averageDispatchTime || 'N/A', span: true },
                         { label: 'Last Dispatch', value: es.lastDispatch ? formatDateOnly(es.lastDispatch) : 'N/A', span: true },
                       ].map(s => (
                         <div key={s.label} className={`theme-bg-subtle rounded-xl p-3 ${s.span ? 'col-span-2' : ''}`}>
@@ -332,7 +332,7 @@ const DispatchDashboard = () => {
                               <th className="text-right pl-1">Pend</th>
                             </tr></thead>
                             <tbody>
-                              {dashboardData.employeeMonthly[name].map(m => (
+                              {(dashboardData.employeeMonthly[name] || []).map(m => (
                                 <tr key={m.month} className="border-t border-gray-800">
                                   <td className="py-1 pr-2 font-bold theme-text-primary">{m.month}</td>
                                   <td className="text-right px-1 font-bold text-blue-400">{m.dispatches}</td>

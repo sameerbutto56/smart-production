@@ -295,7 +295,7 @@ const DispatchAnalyticsCard = ({ activeTab }) => {
           <User size={16} className="text-emerald-400" /> Employee Performance
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {['Khawar', 'Faisal'].map(name => {
+          {Object.keys(data.employeeStats || {}).map(name => {
             const es = data.employeeStats?.[name] || {};
             return (
               <div key={name} className="theme-bg-subtle rounded-2xl p-4 border theme-border">
