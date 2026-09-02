@@ -26,6 +26,9 @@ const InDispatch = () => {
   const { user } = useAuth();
   const outletName = getOutletName(user);
   const isJoharTown = outletName === 'Johar Town';
+  const userRole = String(user?.role || '').toUpperCase();
+  const isAdminRole = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL', 'DISPATCH', 'SOFTWARE_SETTINGS'].includes(userRole);
+  const canAccessInDispatch = isJoharTown || isAdminRole;
 
   const [orders, setOrders] = useState([]);
   const [routes, setRoutes] = useState([]);
@@ -81,8 +84,8 @@ const InDispatch = () => {
   }, [fetchOrders, fetchRoutes]);
 
   useEffect(() => {
-    if (isJoharTown) refreshAll();
-  }, [isJoharTown, refreshAll]);
+    if (canAccessInDispatch) refreshAll();
+  }, [canAccessInDispatch, refreshAll]);
 
   const activeRoutes = routes.filter(r => r.status === 'ACTIVE');
   const completedRoutes = routes.filter(r => r.status === 'COMPLETED');
@@ -504,7 +507,7 @@ const InDispatch = () => {
 
   const selectedOrders = orders.filter(o => selectedForRoute.has(o.id));
 
-  if (!isJoharTown) {
+  if (!canAccessInDispatch) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}

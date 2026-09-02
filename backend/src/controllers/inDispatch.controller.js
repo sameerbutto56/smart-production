@@ -24,7 +24,11 @@ const isJoharTownUser = (req) => {
 };
 
 const requireJoharTown = (req, res) => {
-  if (String(req.user?.role || '').toUpperCase() !== 'OUTLET') {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL', 'DISPATCH', 'SOFTWARE_SETTINGS'].includes(role)) {
+    return true;
+  }
+  if (role !== 'OUTLET') {
     res.status(403).json({ message: 'In Dispatch module is only available to the JOHAR TOWN outlet' });
     return false;
   }

@@ -506,7 +506,11 @@ const AllOrders = () => {
       case 'production':
         return ['PRODUCTION', 'PRODUCTION_ACCEPTANCE', 'WORKERS'].includes(effectiveStage);
       case 'dispatch':
-        return ['DISPATCH', 'IN_DISPATCH', 'OUTLET_RECEIVE', 'ENAMELS_DELIVERY', 'OUT_FOR_DELIVERY'].includes(effectiveStage);
+        return effectiveStage === 'DISPATCH';
+      case 'in_dispatch':
+        return effectiveStage === 'IN_DISPATCH';
+      case 'out_for_delivery':
+        return ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'].includes(effectiveStage);
       case 'delayed':
         return !!delayMap[order.id];
       case 'urgent':
@@ -558,7 +562,7 @@ const AllOrders = () => {
   }, [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, user?.role, user?.id, dateRange, isServerSearchActive]);
 
   const summaryCounts = useMemo(() => {
-    const counts = { all: 0, store: 0, verification: 0, logo: 0, production: 0, dispatch: 0, delayed: 0, urgent: 0, super_urgent: 0, standard: 0, custom: 0 };
+    const counts = { all: 0, store: 0, verification: 0, logo: 0, production: 0, dispatch: 0, in_dispatch: 0, out_for_delivery: 0, delayed: 0, urgent: 0, super_urgent: 0, standard: 0, custom: 0 };
     baseFilteredOrders.forEach(o => {
       counts.all++;
       if (matchesCategory(o, 'store')) counts.store++;
@@ -566,6 +570,8 @@ const AllOrders = () => {
       if (matchesCategory(o, 'logo')) counts.logo++;
       if (matchesCategory(o, 'production')) counts.production++;
       if (matchesCategory(o, 'dispatch')) counts.dispatch++;
+      if (matchesCategory(o, 'in_dispatch')) counts.in_dispatch++;
+      if (matchesCategory(o, 'out_for_delivery')) counts.out_for_delivery++;
       if (matchesCategory(o, 'delayed')) counts.delayed++;
       if (matchesCategory(o, 'urgent')) counts.urgent++;
       if (matchesCategory(o, 'super_urgent')) counts.super_urgent++;
@@ -692,6 +698,8 @@ const AllOrders = () => {
           { key: 'logo', label: '🎨 Logo', value: summaryCounts.logo, cls: 'bg-amber-600/10 border-amber-500/20 text-amber-400' },
           { key: 'production', label: '⚙️ Production', value: summaryCounts.production, cls: 'bg-orange-600/10 border-orange-500/20 text-orange-400' },
           { key: 'dispatch', label: '🚚 Dispatch', value: summaryCounts.dispatch, cls: 'bg-teal-600/10 border-teal-500/20 text-teal-400' },
+          { key: 'in_dispatch', label: '📦 In Dispatch', value: summaryCounts.in_dispatch, cls: 'bg-violet-600/10 border-violet-500/20 text-violet-400' },
+          { key: 'out_for_delivery', label: '🛵 Out of Delivery', value: summaryCounts.out_for_delivery, cls: 'bg-pink-600/10 border-pink-500/20 text-pink-400' },
           { key: 'delayed', label: '🔴 Delayed', value: summaryCounts.delayed, cls: 'bg-red-600/10 border-red-500/20 text-red-400' },
           { key: 'urgent', label: '🟡 Urgent', value: summaryCounts.urgent, cls: 'bg-yellow-600/10 border-yellow-500/20 text-yellow-400' },
           { key: 'standard', label: '🟢 Standard', value: summaryCounts.standard, cls: 'bg-emerald-600/10 border-emerald-500/20 text-emerald-400' },
@@ -718,6 +726,8 @@ const AllOrders = () => {
           { key: 'logo', label: '🎨 Logo', count: summaryCounts.logo },
           { key: 'production', label: '⚙️ Production', count: summaryCounts.production },
           { key: 'dispatch', label: '🚚 Dispatch', count: summaryCounts.dispatch },
+          { key: 'in_dispatch', label: '📦 In Dispatch', count: summaryCounts.in_dispatch },
+          { key: 'out_for_delivery', label: '🛵 Out of Delivery', count: summaryCounts.out_for_delivery },
           { key: 'delayed', label: '🔴 Delayed', count: summaryCounts.delayed },
           { key: 'urgent', label: '🟡 Urgent', count: summaryCounts.urgent },
           { key: 'super_urgent', label: '🟠 Super Urgent', count: summaryCounts.super_urgent },
