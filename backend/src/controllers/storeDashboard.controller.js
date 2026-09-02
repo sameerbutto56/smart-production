@@ -243,16 +243,22 @@ const getDelayMonitoring = async () => {
   const overdueStages = await prisma.orderStage.findMany({
     where: {
       deadlineAt: { lt: now, not: null },
-      status: { in: ['PENDING', 'IN_PROGRESS'] }
+      status: { in: ['PENDING', 'IN_PROGRESS'] },
+      order: {
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+      }
     },
     include: {
-      order: { select: { id: true, orderNumber: true, customerName: true, currentStage: true, createdAt: true } }
+      order: { select: { id: true, orderNumber: true, customerName: true, currentStage: true, status: true, createdAt: true } }
     },
     orderBy: { deadlineAt: 'asc' }
   });
 
   const delayedOrders = new Map();
   for (const stage of overdueStages) {
+    if (!stage.order) continue;
+    // Only count active delay if the stage matches the order's actual current stage
+    if (stage.stageName !== stage.order.currentStage) continue;
     if (!delayedOrders.has(stage.orderId)) {
       const deadlineMs = new Date(stage.deadlineAt).getTime();
       const stageCreatedMs = new Date(stage.createdAt || stage.deadlineAt).getTime();

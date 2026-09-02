@@ -3298,8 +3298,7 @@ const getUnseenOrders = async (req, res) => {
     const relevantStages = getRolesForStageBasedOnRole(userRole);
     const whereClause = {
       currentStage: { in: relevantStages },
-      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-      stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
     };
     // Replacement (REP-...) orders are hub-managed (Store Returns/Replacements) ONLY while
     // they sit at the STORE stage. Once routed onward they flow through the normal pipeline
@@ -3334,7 +3333,6 @@ const getUnseenOrders = async (req, res) => {
       // Production-returned orders live in the "Come From Production" tab (OUTLET_RECEIVE),
       // and In Dispatch orders live in the dedicated In Dispatch module — neither appears here.
       whereClause.currentStage = 'ORDER_ENTRY';
-      whereClause.stages = { some: { stageName: 'ORDER_ENTRY', status: { in: ['PENDING', 'IN_PROGRESS'] } } };
     }
     if (userRole === 'OUTLET' && req.user?.name) {
       const rawName = req.user.name.toLowerCase();

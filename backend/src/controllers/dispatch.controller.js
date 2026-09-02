@@ -47,14 +47,8 @@ const getStageDurations = async (priority = 'NORMAL') => {
 const getDispatchQueue = async (req, res) => {
   try {
     const whereClause = {
-      // Replacement (REP-...) orders flow through the normal pipeline once past STORE
-      // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
-      currentStage: { notIn: ['OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'] },
-      status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] },
-      OR: [
-        { currentStage: 'DISPATCH' },
-        { dispatchStatus: { in: ['COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } }
-      ]
+      currentStage: 'DISPATCH',
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
     };
 
     if (req.user?.role === 'OUTLET') {
