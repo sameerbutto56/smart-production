@@ -585,7 +585,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     { label: 'Delivered', key: 'delivered', value: safeStats.delivered || 0, filterKey: 'delivered' },
     { label: 'Pending', key: 'pending', value: safeStats.pending || 0, filterKey: 'pending' },
     { label: 'In Transit', key: 'inTransit', value: safeStats.inTransit || 0, filterKey: 'inTransit' },
-    { label: 'Carry Forward', key: 'carryForward', value: carryForwardCount, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: null },
+    { label: 'Carry Forward', key: 'carryForward', value: safeStats.carryForward ?? carryForwardCount, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: null },
     { label: 'Returned', key: 'returned', value: safeStats.returned || 0, filterKey: 'returned' },
     { label: 'No Response', key: 'noResponse', value: safeStats.noResponse || 0, filterKey: 'noResponse' },
     { label: 'Cancelled', key: 'cancelled', value: safeStats.cancelled || 0, filterKey: 'cancelled' },

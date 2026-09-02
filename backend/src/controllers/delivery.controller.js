@@ -595,615 +595,327 @@ const clearCOD = async (req, res) => {
   }
 };
 
-// GET /api/delivery/performance — delivery boy performance stats
-const getPerformance = async (req, res) => {
-  try {
-    const { riderName, dateFrom, dateTo } = req.query;
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(todayStart.getTime() - todayStart.getDay() * 86400000);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+// Shared delivery analytics calculation engine — single source of truth for both Delivery Boy Profile and Admin Card
+const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, deliveryStatus, paymentType, outlet }) => {
+  const dateFilter = parseDateRange(dateFrom, dateTo);
 
-    const whereRider = riderName ? { riderName } : {};
-    const dateFilter = parseDateRange(dateFrom, dateTo);
+  const identityOR = [
+    { deliveryType: 'ENAMELS' },
+    { deliveryMethod: 'Enamels Delivery' },
+    { currentStage: 'ENAMELS_DELIVERY' },
+    { deliveryAttempts: { some: {} } },
+    { deliveryPayments: { some: {} } },
+    { deliveryChargeRecords: { some: {} } },
+    { orderAcceptances: { some: {} } },
+    { noResponseLogs: { some: {} } }
+  ];
 
-    const deliveredToday = await prisma.deliveryAttempt.count({
-      where: { ...whereRider, status: 'DELIVERED', attemptedAt: { gte: todayStart } }
-    });
-    const deliveredThisWeek = await prisma.deliveryAttempt.count({
-      where: { ...whereRider, status: 'DELIVERED', attemptedAt: { gte: weekStart } }
-    });
-    const deliveredThisMonth = await prisma.deliveryAttempt.count({
-      where: { ...whereRider, status: 'DELIVERED', attemptedAt: { gte: monthStart } }
-    });
+  const candidateOrders = await prisma.order.findMany({
+    where: { OR: identityOR },
+    include: {
+      orderAcceptances: { orderBy: { assignedAt: 'desc' } },
+      deliveryAttempts: { orderBy: { attemptNumber: 'asc' } },
+      noResponseLogs: { orderBy: { createdAt: 'asc' } },
+      deliveryPayments: true,
+      deliveryChargeRecords: true,
+      returnExchangeCases: { orderBy: { createdAt: 'desc' } },
+      createdBy: { select: { name: true } }
+    },
+    orderBy: { updatedAt: 'desc' }
+  });
 
-    const assignedToday = await prisma.orderAcceptance.count({
-      where: { assignedAt: { gte: todayStart }, ...(riderName ? { riderName } : {}) }
-    });
+  const inWindow = (date) => {
+    if (!date) return false;
+    if (!dateFilter) return true;
+    const t = new Date(date).getTime();
+    if (dateFilter.gte && t < new Date(dateFilter.gte).getTime()) return false;
+    if (dateFilter.lte && t > new Date(dateFilter.lte).getTime()) return false;
+    return true;
+  };
 
-    const pendingDeliveries = await prisma.order.count({
-      where: { currentStage: 'OUT_FOR_DELIVERY', riderAcceptedAt: null }
-    });
+  const beforeWindow = (date) => {
+    if (!date || !dateFilter || !dateFilter.gte) return false;
+    return new Date(date).getTime() < new Date(dateFilter.gte).getTime();
+  };
 
-    const activeDeliveries = await prisma.order.count({
-      where: { currentStage: 'OUT_FOR_DELIVERY', riderAcceptedAt: { not: null } }
-    });
+  const deriveRider = (o) => {
+    const att = o.deliveryAttempts || [];
+    const pay = o.deliveryPayments || [];
+    const ch = o.deliveryChargeRecords || [];
+    const acc = o.orderAcceptances || [];
+    return att[att.length - 1]?.riderName || pay[0]?.collectedBy || ch[0]?.riderName || acc[0]?.riderName || null;
+  };
 
-    const returnedCount = await prisma.deliveryAttempt.count({
-      where: { ...whereRider, status: 'RETURNED', attemptedAt: { gte: monthStart } }
-    });
+  const classify = (o) => {
+    const acc = o.orderAcceptances || [];
+    const attempts = o.deliveryAttempts || [];
+    const lastAttempt = attempts[attempts.length - 1];
+    const assignedAt = acc[0]?.assignedAt || o.createdAt;
+    const acceptedAt = o.riderAcceptedAt || acc[0]?.acceptedAt || null;
+    const deliveredAt = o.deliveredAt || attempts.find(a => a.status === 'DELIVERED')?.attemptedAt || null;
+    const returnedAt = o.returnedAt || attempts.find(a => a.status === 'RETURNED')?.attemptedAt || null;
+    const cancelledAt = (o.status === 'CANCELLED' || lastAttempt?.status === 'CANCELLED') ? (o.updatedAt || o.createdAt) : null;
 
-    const noResponseCount = await prisma.deliveryAttempt.count({
-      where: { ...whereRider, status: 'NO_RESPONSE', attemptedAt: { gte: monthStart } }
-    });
+    const cancelled = o.status === 'CANCELLED' || lastAttempt?.status === 'CANCELLED';
+    const returned = o.status === 'RETURNED' || !!returnedAt;
+    const delivered = o.currentStage === 'DELIVERED' || o.status === 'COMPLETED' || !!deliveredAt;
+    const failed = !delivered && !returned && !cancelled && (o.noResponseCount || 0) >= 3;
+    const noResponse = !delivered && !returned && !cancelled && !failed && (o.noResponseCount || 0) > 0;
+    const accepted = !!acceptedAt;
 
-    const allTimeDelivered = await prisma.deliveryAttempt.count({
-      where: { ...whereRider, status: 'DELIVERED' }
-    });
+    let primaryStatus;
+    if (delivered) primaryStatus = 'delivered';
+    else if (returned) primaryStatus = 'returned';
+    else if (cancelled) primaryStatus = 'cancelled';
+    else if (failed) primaryStatus = 'failed';
+    else if (noResponse) primaryStatus = 'noResponse';
+    else if (accepted) primaryStatus = 'inTransit';
+    else primaryStatus = 'pending';
 
-    // Date-filtered delivered count + earnings
-    let filteredDelivered = allTimeDelivered;
-    let filteredEarnings = allTimeDelivered * 200;
-    if (dateFilter) {
-      filteredDelivered = await prisma.deliveryAttempt.count({
-        where: { ...whereRider, status: 'DELIVERED', attemptedAt: dateFilter }
-      });
-      filteredEarnings = filteredDelivered * 200;
-    }
+    let durationMinutes = null;
+    if (deliveredAt && assignedAt) durationMinutes = Math.round((new Date(deliveredAt) - new Date(assignedAt)) / 60000);
 
-    res.json({
-      assignedToday,
-      deliveredToday,
-      deliveredThisWeek,
-      deliveredThisMonth,
-      allTimeDelivered,
-      filteredDelivered,
-      filteredEarnings,
-      pendingDeliveries,
-      activeDeliveries,
-      returnedCount,
-      noResponseCount
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch performance', error: error.message });
-  }
-};
-
-// GET /api/delivery/dispatch-tracking — dispatch dashboard tracking data
-const getDispatchTracking = async (req, res) => {
-  try {
-    const { dispatchOfficer } = req.query;
-
-    const deliveryAttempts = await prisma.deliveryAttempt.findMany({
-      where: { status: 'NO_RESPONSE' },
-      include: { order: { select: { orderNumber: true, customerName: true, city: true, noResponseCount: true, deliveryMethod: true } } },
-      orderBy: { attemptedAt: 'desc' },
-      take: 100
-    });
-
-    const deliveredOrders = await prisma.deliveryPayment.findMany({
-      include: { order: { select: { orderNumber: true, customerName: true, totalPrice: true, paymentMethod: true, city: true } } },
-      orderBy: { collectedAt: 'desc' },
-      take: 100
-    });
-
-    const noResponseOrders = await prisma.order.findMany({
-      where: { noResponseCount: { gt: 0 } },
-      select: { id: true, orderNumber: true, customerName: true, city: true, noResponseCount: true, lastDeliveryAttempt: true },
-      orderBy: { lastDeliveryAttempt: 'desc' }
-    });
-
-    res.json({ deliveryAttempts, deliveredOrders, noResponseOrders });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch tracking data', error: error.message });
-  }
-};
-
-// GET /api/delivery/employee-stats — per-employee payment breakdown
-const getDeliveryEmployeeStats = async (req, res) => {
-  try {
-    const DELIVERY_RATE = 200;
-    const { dateFrom, dateTo } = req.query;
-    const dateFilter = parseDateRange(dateFrom, dateTo);
-
-    // Get all delivery orders (source of truth for riders + delivered count)
-    const allOrders = await prisma.order.findMany({
-      where: {
-        OR: [
-          { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED', 'ENAMELS_DELIVERY'] } },
-          { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY', 'RETURNED', 'CANCELLED'] } }
-        ]
-      },
-      select: {
-        id: true, currentStage: true, status: true, deliveryType: true, deliveryMethod: true,
-        riderAcceptedAt: true, deliveredAt: true, returnedAt: true, noResponseCount: true,
-        orderAcceptances: { select: { riderName: true, assignedAt: true } },
-        deliveryAttempts: { select: { riderName: true, status: true } },
-        deliveryPayments: { select: { collectedBy: true } }
-      }
-    });
-
-    // Get DeliveryCharge records (for payment tracking)
-    const allCharges = await prisma.deliveryCharge.findMany({
-      select: { riderName: true, orderId: true, amount: true, isPaid: true, deliveredAt: true }
-    });
-
-    // Get all payment records
-    const allPayments = await prisma.deliveryChargePayment.findMany({
-      orderBy: { paidAt: 'desc' }
-    });
-
-    // Derive rider names from related records (Order model has NO riderName field)
-    const orderRiders = [...new Set(
-      allOrders.flatMap(o => [
-        ...(o.orderAcceptances || []).map(a => a.riderName),
-        ...(o.deliveryAttempts || []).map(a => a.riderName),
-        ...(o.deliveryPayments || []).map(p => p.collectedBy)
-      ].filter(Boolean))
-    )];
-    const chargeRiders = [...new Set(allCharges.map(c => c.riderName).filter(Boolean))];
-    const riderNames = [...new Set([...orderRiders, ...chargeRiders])];
-    if (riderNames.length === 0) return res.json({ employees: [], paymentAnalytics: {} });
-
-    const orderHasRider = (o, name) =>
-      (o.orderAcceptances || []).some(a => a.riderName === name) ||
-      (o.deliveryAttempts || []).some(a => a.riderName === name) ||
-      (o.deliveryPayments || []).some(p => p.collectedBy === name);
-
-    const employees = riderNames.map(name => {
-      const myOrders = allOrders.filter(o => orderHasRider(o, name));
-      const myCharges = allCharges.filter(c => c.riderName === name);
-
-      // Date-filtered delivered orders for earnings
-      let deliveredOrders = myOrders.filter(o => o.currentStage === 'DELIVERED' || o.status === 'COMPLETED');
-      if (dateFilter) {
-        deliveredOrders = deliveredOrders.filter(o => o.deliveredAt && dateFilter.gte && o.deliveredAt >= dateFilter.gte && (!dateFilter.lte || o.deliveredAt <= dateFilter.lte));
-      }
-      const deliveredFromCharges = myCharges.length;
-      const delivered = Math.max(deliveredFromCharges, deliveredOrders.length);
-
-      const totalEarnings = delivered * DELIVERY_RATE;
-
-      // Payment tracking from DeliveryCharge records
-      const pendingCharges = myCharges.filter(c => !c.isPaid);
-      const paidCharges = myCharges.filter(c => c.isPaid);
-      const totalPaid = paidCharges.reduce((s, c) => s + c.amount, 0);
-      const remainingPayable = totalEarnings - totalPaid;
-
-      // Order status counts (all-time, not date-filtered)
-      const activeCount = myOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && o.riderAcceptedAt).length;
-      const pendingCount = myOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && !o.riderAcceptedAt).length;
-      const returnedCount = myOrders.filter(o => o.status === 'RETURNED').length;
-
-      // Payment history for this employee (date-filtered if applicable)
-      let myPayments = allPayments.filter(p => p.riderName === name);
-      if (dateFilter) {
-        myPayments = myPayments.filter(p => p.paidAt && dateFilter.gte && p.paidAt >= dateFilter.gte && (!dateFilter.lte || p.paidAt <= dateFilter.lte));
-      }
-
-      return {
-        name,
-        totalAssigned: myOrders.length,
-        totalDelivered: delivered,
-        pendingDeliveries: pendingCount,
-        activeDeliveries: activeCount,
-        returnedOrders: returnedCount,
-        totalEarnings,
-        totalPaid,
-        remainingPayable: Math.max(0, remainingPayable),
-        ratePerDelivery: DELIVERY_RATE,
-        paymentHistory: myPayments.map(p => ({
-          id: p.id,
-          totalAmount: p.totalAmount,
-          paidByName: p.paidByName,
-          remarks: p.remarks,
-          paidAt: p.paidAt,
-          chargeCount: Array.isArray(p.chargeIds) ? p.chargeIds.length : 0
-        }))
-      };
-    }).filter(e => e.totalAssigned > 0);
-
-    // Payment analytics summary
-    const totalEarningsAll = employees.reduce((s, e) => s + e.totalEarnings, 0);
-    const totalPaidAll = employees.reduce((s, e) => s + e.totalPaid, 0);
-    const totalOutstanding = employees.reduce((s, e) => s + e.remainingPayable, 0);
-    const paymentAnalytics = {
-      totalEarnings: totalEarningsAll,
-      totalPaid: totalPaidAll,
-      totalOutstanding,
-      totalPayments: allPayments.length,
-      lastPaymentDate: allPayments.length > 0 ? allPayments[0].paidAt : null
-    };
-
-    res.json({ employees, paymentAnalytics });
-  } catch (error) {
-    console.error('getDeliveryEmployeeStats error:', error);
-    res.status(500).json({ message: 'Failed to fetch employee stats' });
-  }
-};
-
-// POST /api/delivery/pay-employee — pay a specific delivery employee
-const payDeliveryEmployee = async (req, res) => {
-  try {
-    const { riderName, amount, paidByName, remarks } = req.body;
-    if (!riderName) return res.status(400).json({ message: 'riderName is required' });
-
-    const pendingCharges = await prisma.deliveryCharge.findMany({
-      where: { riderName, isPaid: false },
-      orderBy: { deliveredAt: 'asc' }
-    });
-
-    if (pendingCharges.length === 0) return res.status(400).json({ message: 'No pending charges for this employee' });
-
-    const totalPending = pendingCharges.reduce((s, c) => s + c.amount, 0);
-    const payAmount = Math.min(amount || totalPending, totalPending);
-    const now = new Date();
-
-    // Sort by deliveredAt, mark oldest charges as paid until amount is exhausted
-    let remaining = payAmount;
-    const toMarkPaid = [];
-    for (const charge of pendingCharges) {
-      if (remaining <= 0) break;
-      toMarkPaid.push(charge.id);
-      remaining -= charge.amount;
-    }
-
-    // Create payment record
-    await prisma.deliveryChargePayment.create({
-      data: {
-        totalAmount: payAmount,
-        chargeIds: toMarkPaid,
-        riderName,
-        paidByName: paidByName || 'Admin',
-        remarks: remarks || null,
-        paidAt: now
-      }
-    });
-
-    // Mark charges as paid
-    await prisma.deliveryCharge.updateMany({
-      where: { id: { in: toMarkPaid } },
-      data: { isPaid: true, paidAt: now }
-    });
-
-    res.json({
-      message: `Paid ₨${payAmount.toLocaleString()} to ${riderName}`,
-      paidAmount: payAmount,
-      chargesCleared: toMarkPaid.length,
-      remainingPending: totalPending - payAmount
-    });
-  } catch (error) {
-    console.error('payDeliveryEmployee error:', error);
-    res.status(500).json({ message: 'Payment failed' });
-  }
-};
-
-// GET /api/delivery/payment-history — complete payment history
-const getDeliveryPaymentHistory = async (req, res) => {
-  try {
-    const { riderName, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
-    const where = riderName ? { riderName } : {};
-    const dateFilter = parseDateRange(dateFrom, dateTo);
-    if (dateFilter) where.paidAt = dateFilter;
-
-    const [payments, total] = await Promise.all([
-      prisma.deliveryChargePayment.findMany({
-        where,
-        orderBy: { paidAt: 'desc' },
-        skip: (parseInt(page) - 1) * parseInt(limit),
-        take: parseInt(limit)
-      }),
-      prisma.deliveryChargePayment.count({ where })
-    ]);
-
-    res.json({
-      payments,
-      total,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / parseInt(limit))
-    });
-  } catch (error) {
-    console.error('getDeliveryPaymentHistory error:', error);
-    res.status(500).json({ message: 'Failed to fetch payment history' });
-  }
-};
-
-// GET /api/delivery/activity — timeline with rider names, date-filtered
-const getActivityTimeline = async (req, res) => {
-  try {
-    const { dateFrom, dateTo, limit = 100 } = req.query;
-    const dateFilter = parseDateRange(dateFrom, dateTo);
-
-    const auditWhere = {
-      action: { in: ['DELIVERED', 'DELIVERY_ACCEPTED', 'DELIVERY_FAILED', 'DISPATCH_RETURNED'] }
-    };
-    if (dateFilter) auditWhere.timestamp = dateFilter;
-
-    const [audits, orders] = await Promise.all([
-      prisma.auditLog.findMany({
-        where: auditWhere,
-        include: { order: { select: {
-          id: true, orderNumber: true, customerName: true, city: true, currentStage: true, totalPrice: true, paymentMethod: true,
-          orderAcceptances: { select: { riderName: true } },
-          deliveryAttempts: { select: { riderName: true } },
-          deliveryPayments: { select: { collectedBy: true } }
-        } } },
-        orderBy: { timestamp: 'desc' },
-        take: parseInt(limit)
-      }),
-      prisma.order.findMany({
-        where: {
-          currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED', 'ENAMELS_DELIVERY'] },
-          ...(dateFilter ? { createdAt: dateFilter } : {})
-        },
-        select: { id: true, orderNumber: true, customerName: true, city: true, currentStage: true, totalPrice: true, deliveryType: true, riderAcceptedAt: true, deliveredAt: true, noResponseCount: true, orderAcceptances: { select: { riderName: true } }, deliveryAttempts: { select: { riderName: true } }, deliveryPayments: { select: { collectedBy: true } } },
-        orderBy: { updatedAt: 'desc' },
-        take: parseInt(limit)
-      })
-    ]);
-
-    // Derive rider names from related records (Order model has NO riderName field)
-    const deriveRider = (o) => {
-      if (!o) return null;
-      return (o.deliveryAttempts?.[0]?.riderName) || (o.deliveryPayments?.[0]?.collectedBy) ||
-        (o.orderAcceptances?.[0]?.riderName) || null;
-    };
-    audits.forEach(a => { if (a.order) a.order.riderName = deriveRider(a.order); });
-    orders.forEach(o => { o.riderName = deriveRider(o); });
-
-    res.json({ audits, orders });
-  } catch (error) {
-    console.error('getActivityTimeline error:', error);
-    res.status(500).json({ message: 'Failed to fetch activity timeline' });
-  }
-};
-
-// GET /api/delivery/analytics — comprehensive Enamels delivery analytics
-// Returns order statistics, payment breakdown, per-order timelines, and per-rider earnings,
-// all computed from actual delivery records with working date/rider/status/payment/outlet filters.
-const getDeliveryAnalytics = async (req, res) => {
-  try {
-    const { dateFrom, dateTo, riderName, status, deliveryStatus, paymentType, outlet } = req.query;
-    const dateFilter = parseDateRange(dateFrom, dateTo);
-
-    // An order belongs to the Enamels delivery module if it was dispatched via Enamels,
-    // routed to the ENAMELS_DELIVERY stage, or has any delivery-boy activity records.
-    const identityOR = [
-      { deliveryType: 'ENAMELS' },
-      { deliveryMethod: 'Enamels Delivery' },
-      { currentStage: 'ENAMELS_DELIVERY' },
-      { deliveryAttempts: { some: {} } },
-      { deliveryPayments: { some: {} } },
-      { deliveryChargeRecords: { some: {} } },
-      { orderAcceptances: { some: {} } },
-      { noResponseLogs: { some: {} } }
-    ];
-
-    const where = { AND: [{ OR: identityOR }] };
-    // Count by activity day: an order belongs to a date window if ANY delivery
-    // activity happened that day — assigned, accepted, attempted, delivered,
-    // payment collected, charge recorded, or a no-response logged. This keeps
-    // genuinely-busy riders visible on the day they worked (e.g. #51298 was
-    // assigned 29 Aug but delivered + collected on 1 Sep, so it must appear
-    // under Yesterday), while remaining consistent across every preset.
-    if (dateFilter) {
-      where.AND.push({
-        OR: [
-          { orderAcceptances: { some: { OR: [{ assignedAt: dateFilter }, { acceptedAt: dateFilter }, { deliveredAt: dateFilter }] } } },
-          { deliveryAttempts: { some: { attemptedAt: dateFilter } } },
-          { deliveryPayments: { some: { collectedAt: dateFilter } } },
-          { noResponseLogs: { some: { createdAt: dateFilter } } },
-          { deliveryChargeRecords: { some: { OR: [{ deliveredAt: dateFilter }, { createdAt: dateFilter }] } } }
-        ]
-      });
-    }
-
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        orderAcceptances: { orderBy: { assignedAt: 'desc' } },
-        deliveryAttempts: { orderBy: { attemptNumber: 'asc' } },
-        noResponseLogs: { orderBy: { attemptNumber: 'asc' } },
-        deliveryPayments: true,
-        deliveryChargeRecords: true,
-        returnExchangeCases: { orderBy: { createdAt: 'desc' } },
-        createdBy: { select: { name: true } }
-      },
-      orderBy: { updatedAt: 'desc' }
-    });
-
-    const deriveRider = (o) => {
-      const att = o.deliveryAttempts || [];
-      const pay = o.deliveryPayments || [];
-      const ch = o.deliveryChargeRecords || [];
-      const acc = o.orderAcceptances || [];
-      return att[att.length - 1]?.riderName || pay[0]?.collectedBy || ch[0]?.riderName || acc[0]?.riderName || null;
-    };
-
-    const classify = (o) => {
-      const acc = o.orderAcceptances || [];
-      const attempts = o.deliveryAttempts || [];
-      const lastAttempt = attempts[attempts.length - 1];
-      const assignedAt = acc[0]?.assignedAt || o.createdAt;
-      const acceptedAt = o.riderAcceptedAt || acc[0]?.acceptedAt || null;
-      const deliveredAt = o.deliveredAt || attempts.find(a => a.status === 'DELIVERED')?.attemptedAt || null;
-      const returnedAt = o.returnedAt || attempts.find(a => a.status === 'RETURNED')?.attemptedAt || null;
-
-      const cancelled = o.status === 'CANCELLED' || lastAttempt?.status === 'CANCELLED';
-      const returned = o.status === 'RETURNED' || !!returnedAt;
-      const delivered = o.currentStage === 'DELIVERED' || o.status === 'COMPLETED' || !!deliveredAt;
-      const failed = !delivered && !returned && !cancelled && (o.noResponseCount || 0) >= 3;
-      const noResponse = !delivered && !returned && !cancelled && !failed && (o.noResponseCount || 0) > 0;
-      const accepted = !!acceptedAt;
-
-      let primaryStatus;
-      if (delivered) primaryStatus = 'delivered';
-      else if (returned) primaryStatus = 'returned';
-      else if (cancelled) primaryStatus = 'cancelled';
-      else if (failed) primaryStatus = 'failed';
-      else if (noResponse) primaryStatus = 'noResponse';
-      else if (accepted) primaryStatus = 'inTransit';
-      else primaryStatus = 'pending';
-
-      let durationMinutes = null;
-      if (deliveredAt && assignedAt) durationMinutes = Math.round((new Date(deliveredAt) - new Date(assignedAt)) / 60000);
-
-      let cashCollected = 0, onlineCollected = 0;
-      (o.deliveryPayments || []).forEach(p => {
+    let cashCollected = 0, onlineCollected = 0;
+    (o.deliveryPayments || []).forEach(p => {
+      if (inWindow(p.collectedAt)) {
         if (p.paymentMethod === 'CASH') cashCollected += (p.cashAmount || 0);
         else if (p.paymentMethod === 'ONLINE') onlineCollected += (p.onlineAmount || 0);
         else if (p.paymentMethod === 'CASH_ONLINE') { cashCollected += (p.cashAmount || 0); onlineCollected += (p.onlineAmount || 0); }
         else if (p.paymentMethod === 'MULTIPLE_ONLINE') onlineCollected += (p.onlineAmount || 0);
-      });
-      const totalCollected = cashCollected + onlineCollected;
-      const advance = o.advanceAmount || 0;
-      const outstanding = Math.max(0, (o.totalPrice || 0) - advance - totalCollected);
-      const isPaid = outstanding <= 0.01;
-
-      const charge = (o.deliveryChargeRecords || [])[0] || null;
-      const orderDate = deliveredAt || returnedAt || acceptedAt || assignedAt || o.createdAt;
-      const firstAttempt = attempts.find(a => a && a.status);
-
-      return {
-        id: o.id,
-        orderNumber: o.orderNumber,
-        invoiceNumber: o.invoiceNumber,
-        customerName: o.customerName,
-        customerPhone: o.customerPhone,
-        city: o.city,
-        address: o.address,
-        outletName: o.outletName,
-        totalPrice: o.totalPrice || 0,
-        advanceAmount: advance,
-        paymentMethod: o.paymentMethod,
-        paymentStatus: o.paymentStatus,
-        orderStage: o.currentStage,
-        orderStatus: o.status,
-        riderName: deriveRider(o),
-        primaryStatus,
-        accepted,
-        orderDate,
-        timeline: {
-          assignedAt,
-          acceptedAt,
-          pickedUpAt: firstAttempt?.attemptedAt || acceptedAt,
-          deliveredAt,
-          returnedAt,
-          noResponseAt: lastAttempt?.status === 'NO_RESPONSE' ? lastAttempt.attemptedAt : (o.noResponseLogs?.[o.noResponseLogs.length - 1]?.createdAt || null),
-          durationMinutes
-        },
-        payments: (o.deliveryPayments || []).map(p => ({
-          id: p.id, paymentMethod: p.paymentMethod, cashAmount: p.cashAmount, onlineAmount: p.onlineAmount, collectedBy: p.collectedBy, collectedAt: p.collectedAt
-        })),
-        deliveryCharge: charge ? { id: charge.id, amount: charge.amount, isPaid: charge.isPaid, paidAt: charge.paidAt, deliveredAt: charge.deliveredAt, riderName: charge.riderName } : null,
-        attempts: attempts.map(a => ({ id: a.id, attemptNumber: a.attemptNumber, status: a.status, riderName: a.riderName, attemptedAt: a.attemptedAt, notes: a.notes, rescheduledTo: a.rescheduledTo })),
-        noResponseCount: o.noResponseCount || 0,
-        cashCollected,
-        onlineCollected,
-        totalCollected,
-        outstanding,
-        isPaid
-      };
-    };
-
-    let enriched = orders.map(classify);
-
-    // Apply filters (riders list computed before riderName filter so the dropdown stays populated)
-    if (status) enriched = enriched.filter(e => e.orderStatus === status || e.orderStage === status);
-    if (deliveryStatus) enriched = enriched.filter(e => e.primaryStatus === deliveryStatus);
-    if (paymentType) enriched = enriched.filter(e =>
-      e.paymentMethod === paymentType || e.payments.some(p => p.paymentMethod === paymentType)
-    );
-    if (outlet) enriched = enriched.filter(e => e.outletName && e.outletName.toLowerCase().includes(outlet.toLowerCase()));
-
-    const riders = [...new Set(enriched.map(e => e.riderName).filter(Boolean))].sort();
-
-    if (riderName) enriched = enriched.filter(e => e.riderName && e.riderName.toLowerCase().includes(riderName.toLowerCase()));
-
-    // Approved deposits reduce cash-in-hand — fetch BEFORE stats so totalDeposited is in scope
-    const riderNames = riders.length > 0 ? riders : [...new Set(enriched.map(e => e.riderName).filter(Boolean))];
-    const depositWhere = { status: 'APPROVED', deliveryBoy: { in: riderNames.length > 0 ? riderNames : ['__none__'] } };
-    if (dateFilter) depositWhere.createdAt = dateFilter;
-    const approvedDeposits = await prisma.deliveryDeposit.findMany({
-      where: depositWhere,
-      select: { deliveryBoy: true, cashAmount: true, totalAmount: true, createdAt: true }
-    }).catch(() => []);
-    const totalDeposited = approvedDeposits.reduce((s, d) => s + (d.cashAmount || d.totalAmount || 0), 0);
-    // Per-rider deposit totals for per-rider breakdown
-    const depositsByRider = {};
-    for (const d of approvedDeposits) {
-      depositsByRider[d.deliveryBoy] = (depositsByRider[d.deliveryBoy] || 0) + (d.cashAmount || d.totalAmount || 0);
-    }
-
-    // Order statistics — cashCollected net of approved deposits
-    const grossCash = enriched.reduce((s, e) => s + e.cashCollected, 0);
-    const stats = {
-      totalAssigned: enriched.length,
-      accepted: enriched.filter(e => e.accepted).length,
-      pickedUp: enriched.filter(e => e.accepted).length,
-      delivered: enriched.filter(e => e.primaryStatus === 'delivered').length,
-      pending: enriched.filter(e => e.primaryStatus === 'pending').length,
-      inTransit: enriched.filter(e => e.primaryStatus === 'inTransit').length,
-      returned: enriched.filter(e => e.primaryStatus === 'returned').length,
-      noResponse: enriched.filter(e => e.primaryStatus === 'noResponse').length,
-      cancelled: enriched.filter(e => e.primaryStatus === 'cancelled').length,
-      failed: enriched.filter(e => e.primaryStatus === 'failed').length,
-      totalOrderValue: enriched.reduce((s, e) => s + e.totalPrice, 0),
-      codOrderCount: enriched.filter(e => !e.isPaid).length,
-      paidOrderCount: enriched.filter(e => e.isPaid).length,
-      totalCOD: enriched.filter(e => !e.isPaid).reduce((s, e) => s + e.outstanding, 0),
-      totalPaidAmount: enriched.filter(e => e.isPaid).reduce((s, e) => s + (e.totalCollected || e.totalPrice), 0),
-      outstandingCollection: enriched.reduce((s, e) => s + e.outstanding, 0),
-      cashBeforeDeposits: grossCash,
-      totalDeposited,
-      cashCollected: Math.max(0, grossCash - totalDeposited),
-      onlinePrepaid: enriched.reduce((s, e) => s + e.onlineCollected, 0),
-      overallOutstanding: enriched.reduce((s, e) => s + e.outstanding, 0)
-    };
-
-    // Earnings from actual DeliveryCharge records (per order → per rider)
-    const riderMap = new Map();
-    let totalEarnings = 0, totalEarningsPaid = 0;
-    for (const e of enriched) {
-      const ch = e.deliveryCharge;
-      if (!ch) continue;
-      const rider = ch.riderName || e.riderName || 'Unknown';
-      if (!riderMap.has(rider)) riderMap.set(rider, { riderName: rider, totalEarnings: 0, totalPaid: 0, remainingPayable: 0, completedDeliveries: 0, perOrder: [] });
-      const r = riderMap.get(rider);
-      const amount = ch.amount || 200;
-      // Rider earnings = Rs.200 × successfully Delivered orders only.
-      // Pending / Active / No Response / Returned orders do NOT earn.
-      if (e.primaryStatus === 'delivered') {
-        r.totalEarnings += amount;
-        totalEarnings += amount;
-        if (ch.isPaid) { r.totalPaid += amount; totalEarningsPaid += amount; }
-        r.completedDeliveries += 1;
       }
-      r.perOrder.push({
-        orderId: e.id, orderNumber: e.orderNumber, customerName: e.customerName,
-        amount, isPaid: ch.isPaid, paidAt: ch.paidAt, deliveredAt: e.timeline.deliveredAt
-      });
+    });
+    const totalCollected = cashCollected + onlineCollected;
+    const advance = o.advanceAmount || 0;
+    const outstanding = Math.max(0, (o.totalPrice || 0) - advance - totalCollected);
+    const isPaid = outstanding <= 0.01;
+
+    const charge = (o.deliveryChargeRecords || [])[0] || null;
+    const orderDate = deliveredAt || returnedAt || acceptedAt || assignedAt || o.createdAt;
+    const firstAttempt = attempts.find(a => a && a.status);
+
+    return {
+      id: o.id,
+      orderNumber: o.orderNumber,
+      invoiceNumber: o.invoiceNumber,
+      customerName: o.customerName,
+      customerPhone: o.customerPhone,
+      city: o.city,
+      address: o.address,
+      outletName: o.outletName,
+      totalPrice: o.totalPrice || 0,
+      advanceAmount: advance,
+      paymentMethod: o.paymentMethod,
+      paymentStatus: o.paymentStatus,
+      orderStage: o.currentStage,
+      orderStatus: o.status,
+      riderName: deriveRider(o),
+      primaryStatus,
+      accepted,
+      orderDate,
+      timeline: {
+        assignedAt,
+        acceptedAt,
+        pickedUpAt: firstAttempt?.attemptedAt || acceptedAt,
+        deliveredAt,
+        returnedAt,
+        cancelledAt,
+        noResponseAt: lastAttempt?.status === 'NO_RESPONSE' ? lastAttempt.attemptedAt : (o.noResponseLogs?.[o.noResponseLogs.length - 1]?.createdAt || null),
+        durationMinutes
+      },
+      events: {
+        assignedInWindow: inWindow(assignedAt),
+        acceptedInWindow: inWindow(acceptedAt),
+        deliveredInWindow: inWindow(deliveredAt),
+        returnedInWindow: inWindow(returnedAt),
+        cancelledInWindow: inWindow(cancelledAt),
+        assignedBeforeWindow: beforeWindow(assignedAt),
+        paymentsInWindow: (o.deliveryPayments || []).filter(p => inWindow(p.collectedAt)),
+        attemptsInWindow: (attempts || []).filter(a => inWindow(a.attemptedAt)),
+        noResponseInWindow: (o.noResponseLogs || []).filter(n => inWindow(n.createdAt))
+      },
+      payments: (o.deliveryPayments || []).map(p => ({
+        id: p.id, paymentMethod: p.paymentMethod, cashAmount: p.cashAmount, onlineAmount: p.onlineAmount, collectedBy: p.collectedBy, collectedAt: p.collectedAt
+      })),
+      deliveryCharge: charge ? { id: charge.id, amount: charge.amount, isPaid: charge.isPaid, paidAt: charge.paidAt, deliveredAt: charge.deliveredAt, riderName: charge.riderName } : null,
+      attempts: attempts.map(a => ({ id: a.id, attemptNumber: a.attemptNumber, status: a.status, riderName: a.riderName, attemptedAt: a.attemptedAt, notes: a.notes, rescheduledTo: a.rescheduledTo })),
+      noResponseCount: o.noResponseCount || 0,
+      cashCollected,
+      onlineCollected,
+      totalCollected,
+      outstanding,
+      isPaid
+    };
+  };
+
+  const allClassified = candidateOrders.map(classify);
+
+  const matchedOrders = allClassified.filter(e => {
+    if (!dateFilter) return true;
+    const ev = e.events;
+    return ev.assignedInWindow || ev.acceptedInWindow || ev.deliveredInWindow || ev.returnedInWindow || ev.cancelledInWindow || ev.paymentsInWindow.length > 0 || ev.attemptsInWindow.length > 0 || ev.noResponseInWindow.length > 0;
+  });
+
+  let filtered = matchedOrders;
+  if (status) filtered = filtered.filter(e => e.orderStatus === status || e.orderStage === status);
+  if (deliveryStatus) filtered = filtered.filter(e => e.primaryStatus === deliveryStatus);
+  if (paymentType) filtered = filtered.filter(e =>
+    e.paymentMethod === paymentType || e.payments.some(p => p.paymentMethod === paymentType)
+  );
+  if (outlet) filtered = filtered.filter(e => e.outletName && e.outletName.toLowerCase().includes(outlet.toLowerCase()));
+
+  const riders = [...new Set(filtered.map(e => e.riderName).filter(Boolean))].sort();
+
+  if (riderName) filtered = filtered.filter(e => e.riderName && e.riderName.toLowerCase().includes(riderName.toLowerCase()));
+
+  let totalAssigned = 0;
+  let acceptedCount = 0;
+  let pickedUpCount = 0;
+  let deliveredCount = 0;
+  let returnedCount = 0;
+  let cancelledCount = 0;
+  let noResponseCount = 0;
+  let pendingCount = 0;
+  let inTransitCount = 0;
+  let carryForwardCount = 0;
+  let failedCount = 0;
+
+  for (const e of filtered) {
+    const ev = e.events;
+    if (ev.assignedInWindow) totalAssigned++;
+    if (ev.acceptedInWindow) { acceptedCount++; pickedUpCount++; }
+    if (ev.deliveredInWindow) deliveredCount++;
+    if (ev.returnedInWindow) returnedCount++;
+    if (ev.cancelledInWindow) cancelledCount++;
+    if (ev.noResponseInWindow.length > 0) noResponseCount += ev.noResponseInWindow.length;
+
+    if (e.primaryStatus === 'pending') pendingCount++;
+    if (e.primaryStatus === 'inTransit') inTransitCount++;
+    if (e.primaryStatus === 'failed') failedCount++;
+
+    if (ev.assignedBeforeWindow && ['pending', 'inTransit', 'noResponse'].includes(e.primaryStatus)) {
+      carryForwardCount++;
     }
-    const perRider = [...riderMap.values()].map(r => ({
-      ...r,
-      deposited: depositsByRider[r.riderName] || 0,
-      remainingPayable: Math.max(0, r.totalEarnings - r.totalPaid)
-    }))
-      .sort((a, b) => b.totalEarnings - a.totalEarnings);
+  }
+
+  const riderNames = riders.length > 0 ? riders : [...new Set(filtered.map(e => e.riderName).filter(Boolean))];
+  const depositWhere = { status: 'APPROVED', deliveryBoy: { in: riderNames.length > 0 ? riderNames : ['__none__'] } };
+  if (dateFilter) depositWhere.createdAt = dateFilter;
+  const approvedDeposits = await prisma.deliveryDeposit.findMany({
+    where: depositWhere,
+    select: { deliveryBoy: true, cashAmount: true, totalAmount: true, createdAt: true }
+  }).catch(() => []);
+  const totalDeposited = approvedDeposits.reduce((s, d) => s + (d.cashAmount || d.totalAmount || 0), 0);
+  const depositsByRider = {};
+  for (const d of approvedDeposits) {
+    depositsByRider[d.deliveryBoy] = (depositsByRider[d.deliveryBoy] || 0) + (d.cashAmount || d.totalAmount || 0);
+  }
+
+  const grossCash = filtered.reduce((s, e) => s + e.cashCollected, 0);
+
+  const stats = {
+    totalAssigned: dateFilter ? totalAssigned : filtered.length,
+    accepted: dateFilter ? acceptedCount : filtered.filter(e => e.accepted).length,
+    pickedUp: dateFilter ? pickedUpCount : filtered.filter(e => e.accepted).length,
+    delivered: dateFilter ? deliveredCount : filtered.filter(e => e.primaryStatus === 'delivered').length,
+    pending: pendingCount,
+    inTransit: inTransitCount,
+    carryForward: carryForwardCount,
+    returned: dateFilter ? returnedCount : filtered.filter(e => e.primaryStatus === 'returned').length,
+    noResponse: dateFilter ? noResponseCount : filtered.filter(e => e.primaryStatus === 'noResponse').length,
+    cancelled: dateFilter ? cancelledCount : filtered.filter(e => e.primaryStatus === 'cancelled').length,
+    failed: failedCount,
+    totalOrderValue: filtered.reduce((s, e) => s + e.totalPrice, 0),
+    codOrderCount: filtered.filter(e => !e.isPaid).length,
+    paidOrderCount: filtered.filter(e => e.isPaid).length,
+    totalCOD: filtered.filter(e => !e.isPaid).reduce((s, e) => s + e.outstanding, 0),
+    totalPaidAmount: filtered.filter(e => e.isPaid).reduce((s, e) => s + (e.totalCollected || e.totalPrice), 0),
+    outstandingCollection: filtered.reduce((s, e) => s + e.outstanding, 0),
+    cashBeforeDeposits: grossCash,
+    totalDeposited,
+    cashCollected: Math.max(0, grossCash - totalDeposited),
+    onlinePrepaid: filtered.reduce((s, e) => s + e.onlineCollected, 0),
+    overallOutstanding: filtered.reduce((s, e) => s + e.outstanding, 0)
+  };
+
+  const riderMap = new Map();
+  let totalEarnings = 0, totalEarningsPaid = 0;
+  for (const e of filtered) {
+    const ch = e.deliveryCharge;
+    if (!ch) continue;
+    const rider = ch.riderName || e.riderName || 'Unknown';
+    if (!riderMap.has(rider)) riderMap.set(rider, { riderName: rider, totalEarnings: 0, totalPaid: 0, remainingPayable: 0, completedDeliveries: 0, perOrder: [] });
+    const r = riderMap.get(rider);
+    const amount = ch.amount || 200;
+
+    if (e.events.deliveredInWindow || (!dateFilter && e.primaryStatus === 'delivered')) {
+      r.totalEarnings += amount;
+      totalEarnings += amount;
+      if (ch.isPaid) { r.totalPaid += amount; totalEarningsPaid += amount; }
+      r.completedDeliveries += 1;
+    }
+    r.perOrder.push({
+      orderId: e.id, orderNumber: e.orderNumber, customerName: e.customerName,
+      amount, isPaid: ch.isPaid, paidAt: ch.paidAt, deliveredAt: e.timeline.deliveredAt
+    });
+  }
+  const perRider = [...riderMap.values()].map(r => ({
+    ...r,
+    deposited: depositsByRider[r.riderName] || 0,
+    remainingPayable: Math.max(0, r.totalEarnings - r.totalPaid)
+  })).sort((a, b) => b.totalEarnings - a.totalEarnings);
+
+  return {
+    orders: filtered,
+    stats,
+    earnings: {
+      totalEarnings,
+      totalPaid: totalEarningsPaid,
+      outstandingEarnings: Math.max(0, totalEarnings - totalEarningsPaid),
+      completedDeliveries: stats.delivered,
+      perRider
+    },
+    deposits: { totalDeposited, byRider: depositsByRider },
+    riders
+  };
+};
+
+// GET /api/delivery/performance — delivery boy performance stats
+const getPerformance = async (req, res) => {
+  try {
+    const { riderName, dateFrom, dateTo } = req.query;
+
+    const todayData = await getDeliveryAnalyticsData({ dateFrom: 'today', dateTo: 'today', riderName });
+    const weekData = await getDeliveryAnalyticsData({ dateFrom: 'week', dateTo: 'week', riderName });
+    const monthData = await getDeliveryAnalyticsData({ dateFrom: 'month', dateTo: 'month', riderName });
+    const allData = await getDeliveryAnalyticsData({ riderName });
+    const filteredData = (dateFrom || dateTo)
+      ? await getDeliveryAnalyticsData({ dateFrom, dateTo, riderName })
+      : allData;
 
     res.json({
-      orders: enriched,
-      stats,
-      earnings: {
-        totalEarnings,
-        totalPaid: totalEarningsPaid,
-        outstandingEarnings: Math.max(0, totalEarnings - totalEarningsPaid),
-        completedDeliveries: stats.delivered,
-        perRider
-      },
-      deposits: { totalDeposited, byRider: depositsByRider },
-      riders
+      assignedToday: todayData.stats.totalAssigned,
+      deliveredToday: todayData.stats.delivered,
+      deliveredThisWeek: weekData.stats.delivered,
+      deliveredThisMonth: monthData.stats.delivered,
+      allTimeDelivered: allData.stats.delivered,
+      filteredDelivered: filteredData.stats.delivered,
+      filteredEarnings: filteredData.stats.delivered * 200,
+      pendingDeliveries: filteredData.stats.pending,
+      activeDeliveries: filteredData.stats.inTransit,
+      returnedCount: filteredData.stats.returned,
+      noResponseCount: filteredData.stats.noResponse
     });
+  } catch (error) {
+    console.error('getPerformance error:', error);
+    res.status(500).json({ message: 'Failed to fetch performance', error: error.message });
+  }
+};
+
+// GET /api/delivery/analytics — comprehensive Enamels delivery analytics
+const getDeliveryAnalytics = async (req, res) => {
+  try {
+    const data = await getDeliveryAnalyticsData(req.query);
+    res.json(data);
   } catch (error) {
     console.error('getDeliveryAnalytics error:', error);
     res.status(500).json({ message: 'Failed to fetch delivery analytics', error: error.message });
