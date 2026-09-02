@@ -2102,29 +2102,51 @@ const searchReturns = async (req, res) => {
 
     const RETURN_TERMINAL = ['COMPLETED', 'CANCELLED'];
 
-    // Search active (non-terminal) cases first
-    const cases = await prisma.returnExchange.findMany({
-      where: {
-        type: 'RETURN',
-        status: { notIn: RETURN_TERMINAL },
-        OR: [
-          { orderNumber: { equals: q, mode: 'insensitive' } },
-          { orderNumber: { endsWith: q, mode: 'insensitive' } },
-          { customerName: { contains: q, mode: 'insensitive' } },
-          { customerPhone: { contains: q } }
-        ]
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    });
+    const orderInclude = {
+      stages: { orderBy: { createdAt: 'asc' } },
+      deliveryAttempts: { orderBy: { attemptNumber: 'desc' } },
+      returnExchangeCases: { orderBy: { createdAt: 'desc' } }
+    };
 
-    // Also search for COMPLETED return cases so frontend can show "Return Already Completed"
+    // Priority 1: resolve the exact-number order FIRST so a fuzzy name/phone hit can never win.
+    let resolvedOrder = null;
+    if (/^REP-/i.test(q)) {
+      resolvedOrder = await prisma.order.findFirst({
+        where: { source: 'REPLACEMENT', orderNumber: { equals: q, mode: 'insensitive' } },
+        include: orderInclude
+      });
+    } else {
+      resolvedOrder = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { orderNumber: { equals: q, mode: 'insensitive' } },
+            { orderNumber: { equals: `#${bareNumber}`, mode: 'insensitive' } },
+            { invoiceNumber: { equals: q, mode: 'insensitive' } }
+          ]
+        },
+        orderBy: { createdAt: 'desc' },
+        include: orderInclude
+      });
+    }
+
+    // When the exact order exists, return ONLY that order's return cases — never every case
+    // whose phone/name merely contains the query.
+    let cases = [];
     let completedCases = [];
-    if (cases.length === 0) {
-      completedCases = await prisma.returnExchange.findMany({
+    if (resolvedOrder) {
+      const exactCases = await prisma.returnExchange.findMany({
+        where: { orderId: resolvedOrder.id, type: 'RETURN' },
+        orderBy: { createdAt: 'desc' },
+        take: 25
+      });
+      cases = exactCases.filter(c => !RETURN_TERMINAL.includes(c.status));
+      completedCases = exactCases.filter(c => RETURN_TERMINAL.includes(c.status)).slice(0, 5);
+    } else {
+      // No exact-number order: fuzzy case search (endsWith / name / phone) as before
+      cases = await prisma.returnExchange.findMany({
         where: {
           type: 'RETURN',
-          status: { in: RETURN_TERMINAL },
+          status: { notIn: RETURN_TERMINAL },
           OR: [
             { orderNumber: { equals: q, mode: 'insensitive' } },
             { orderNumber: { endsWith: q, mode: 'insensitive' } },
@@ -2132,9 +2154,27 @@ const searchReturns = async (req, res) => {
             { customerPhone: { contains: q } }
           ]
         },
-        orderBy: { updatedAt: 'desc' },
-        take: 5
+        orderBy: { createdAt: 'desc' },
+        take: 20
       });
+
+      // Also search for COMPLETED return cases so frontend can show "Return Already Completed"
+      if (cases.length === 0) {
+        completedCases = await prisma.returnExchange.findMany({
+          where: {
+            type: 'RETURN',
+            status: { in: RETURN_TERMINAL },
+            OR: [
+              { orderNumber: { equals: q, mode: 'insensitive' } },
+              { orderNumber: { endsWith: q, mode: 'insensitive' } },
+              { customerName: { contains: q, mode: 'insensitive' } },
+              { customerPhone: { contains: q } }
+            ]
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 5
+        });
+      }
     }
 
     // Enrich with order data
@@ -2180,21 +2220,34 @@ const searchReturns = async (req, res) => {
           include: orderInclude
         });
       } else {
+        // Priority 1: exact order/invoice number match (never a fuzzy hit first)
         foundOrder = await prisma.order.findFirst({
           where: {
             OR: [
               { orderNumber: { equals: q, mode: 'insensitive' } },
               { orderNumber: { equals: `#${bareNumber}`, mode: 'insensitive' } },
-              { orderNumber: { endsWith: q, mode: 'insensitive' } },
-              { invoiceNumber: { equals: q, mode: 'insensitive' } },
-              { invoiceNumber: { endsWith: q, mode: 'insensitive' } },
-              { customerPhone: { contains: q } },
-              { customerName: { contains: q, mode: 'insensitive' } }
+              { invoiceNumber: { equals: q, mode: 'insensitive' } }
             ]
           },
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: 'desc' },
           include: orderInclude
         });
+
+        // Priority 2: fuzzy fallback (endsWith / name / phone) only when no exact match
+        if (!foundOrder) {
+          foundOrder = await prisma.order.findFirst({
+            where: {
+              OR: [
+                { orderNumber: { endsWith: q, mode: 'insensitive' } },
+                { invoiceNumber: { endsWith: q, mode: 'insensitive' } },
+                { customerPhone: { contains: q } },
+                { customerName: { contains: q, mode: 'insensitive' } }
+              ]
+            },
+            orderBy: { createdAt: 'desc' },
+            include: orderInclude
+          });
+        }
       }
 
       // Enrich found order with createdBy
