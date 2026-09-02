@@ -686,8 +686,13 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     });
     const totalCollected = cashCollected + onlineCollected;
     const advance = o.advanceAmount || 0;
-    const outstanding = Math.max(0, (o.totalPrice || 0) - advance - totalCollected);
+    const expectedCodAmount = Math.max(0, (o.totalPrice || 0) - advance);
+    const outstanding = Math.max(0, expectedCodAmount - totalCollected);
     const isPaid = outstanding <= 0.01;
+
+    // A PAID Order is an order where customer paid in full in advance (no COD expected on delivery assignment)
+    const isPrepaid = expectedCodAmount <= 0.01 && (o.deliveryPayments || []).length === 0;
+    const isCOD = !isPrepaid;
 
     const charge = (o.deliveryChargeRecords || [])[0] || null;
     const orderDate = deliveredAt || returnedAt || acceptedAt || assignedAt || o.createdAt;
@@ -704,6 +709,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       outletName: o.outletName,
       totalPrice: o.totalPrice || 0,
       advanceAmount: advance,
+      expectedCodAmount,
       paymentMethod: o.paymentMethod,
       paymentStatus: o.paymentStatus,
       orderStage: o.currentStage,
@@ -712,6 +718,8 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       primaryStatus,
       accepted,
       orderDate,
+      isPrepaid,
+      isCOD,
       timeline: {
         assignedAt,
         acceptedAt,
@@ -810,7 +818,17 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     depositsByRider[d.deliveryBoy] = (depositsByRider[d.deliveryBoy] || 0) + (d.cashAmount || d.totalAmount || 0);
   }
 
-  const grossCash = filtered.reduce((s, e) => s + e.cashCollected, 0);
+  // COD & Payment Calculations
+  const codOrders = filtered.filter(e => e.isCOD);
+  const prepaidOrders = filtered.filter(e => e.isPrepaid);
+
+  const codExpectedAmount = codOrders.reduce((s, e) => s + e.expectedCodAmount, 0);
+  const grossCashOnCOD = codOrders.reduce((s, e) => s + e.cashCollected, 0);
+  const grossOnlineOnCOD = codOrders.reduce((s, e) => s + e.onlineCollected, 0);
+  const cashReceived = Math.max(0, grossCashOnCOD - totalDeposited);
+  const onlineReceived = grossOnlineOnCOD;
+  const totalReceived = cashReceived + onlineReceived;
+  const remainingCOD = Math.max(0, codExpectedAmount - (grossCashOnCOD + grossOnlineOnCOD));
 
   const stats = {
     totalAssigned: dateFilter ? totalAssigned : filtered.length,
@@ -825,16 +843,24 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     cancelled: dateFilter ? cancelledCount : filtered.filter(e => e.primaryStatus === 'cancelled').length,
     failed: failedCount,
     totalOrderValue: filtered.reduce((s, e) => s + e.totalPrice, 0),
-    codOrderCount: filtered.filter(e => !e.isPaid).length,
-    paidOrderCount: filtered.filter(e => e.isPaid).length,
-    totalCOD: filtered.filter(e => !e.isPaid).reduce((s, e) => s + e.outstanding, 0),
-    totalPaidAmount: filtered.filter(e => e.isPaid).reduce((s, e) => s + (e.totalCollected || e.totalPrice), 0),
-    outstandingCollection: filtered.reduce((s, e) => s + e.outstanding, 0),
-    cashBeforeDeposits: grossCash,
+
+    // Order Payment Classification
+    paidOrderCount: prepaidOrders.length,
+    totalPaidAmount: prepaidOrders.reduce((s, e) => s + e.totalPrice, 0),
+    codOrderCount: codOrders.length,
+    codExpectedAmount,
+    totalCOD: codExpectedAmount, // alias
+
+    // COD Collection Breakdown
+    cashReceived,
+    cashBeforeDeposits: grossCashOnCOD,
+    onlineReceived,
+    onlinePrepaid: onlineReceived, // alias
+    totalReceived,
+    remainingCOD,
     totalDeposited,
-    cashCollected: Math.max(0, grossCash - totalDeposited),
-    onlinePrepaid: filtered.reduce((s, e) => s + e.onlineCollected, 0),
-    overallOutstanding: filtered.reduce((s, e) => s + e.outstanding, 0)
+    cashCollected: cashReceived, // alias
+    overallOutstanding: remainingCOD // alias
   };
 
   const riderMap = new Map();
@@ -903,7 +929,8 @@ const getPerformance = async (req, res) => {
       pendingDeliveries: filteredData.stats.pending,
       activeDeliveries: filteredData.stats.inTransit,
       returnedCount: filteredData.stats.returned,
-      noResponseCount: filteredData.stats.noResponse
+      noResponseCount: filteredData.stats.noResponse,
+      stats: filteredData.stats
     });
   } catch (error) {
     console.error('getPerformance error:', error);

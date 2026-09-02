@@ -593,14 +593,15 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
   ];
 
   const paymentCards = [
-    { label: 'Total Order Value', value: stats.totalOrderValue || 0, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-    { label: 'COD Amount', value: stats.totalCOD || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-    { label: 'Paid Amount', value: stats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    { label: '# COD Orders', value: stats.codOrderCount || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-    { label: '# Paid Orders', value: stats.paidOrderCount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    { label: 'Cash Collected', value: stats.cashCollected || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (stats.totalDeposited || 0) > 0 ? `₨${stats.totalDeposited.toLocaleString()} deposited` : undefined },
-    { label: 'Online / Prepaid', value: stats.onlinePrepaid || 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-    { label: 'Outstanding', value: stats.overallOutstanding || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: 'Total Order Value', value: safeStats.totalOrderValue || 0, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+    { label: '# Paid Orders', value: safeStats.paidOrderCount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: 'Paid Orders Amount', value: safeStats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: '# COD Orders', value: safeStats.codOrderCount || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: 'COD Expected Amount', value: safeStats.codExpectedAmount ?? safeStats.totalCOD ?? 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: 'Cash Received', value: safeStats.cashReceived ?? safeStats.cashCollected ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (safeStats.totalDeposited || 0) > 0 ? `₨${safeStats.totalDeposited.toLocaleString()} deposited` : undefined },
+    { label: 'Online Received', value: safeStats.onlineReceived ?? safeStats.onlinePrepaid ?? 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+    { label: 'Total Received', value: safeStats.totalReceived ?? 0, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
+    { label: 'Remaining COD', value: safeStats.remainingCOD ?? safeStats.overallOutstanding ?? 0, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
   ];
 
   const selectClass = "bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-[10px] font-bold theme-text-primary focus:outline-none focus:border-emerald-500 cursor-pointer";

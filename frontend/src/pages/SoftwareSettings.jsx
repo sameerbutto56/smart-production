@@ -10,6 +10,7 @@ import OrderControlPanel from '../components/OrderControlPanel';
 import OrderPhaseHistoryPanel from '../components/OrderPhaseHistoryPanel';
 import PostExIntegrationPanel from '../components/PostExIntegrationPanel';
 import OrderRangePanel from '../components/OrderRangePanel';
+import DeleteInvoicePanel from '../components/DeleteInvoicePanel';
 
 const PROFILE_LABELS = {
   POS: 'POS',
@@ -564,6 +565,7 @@ const SoftwareSettings = () => {
     { key: 'employees', label: 'Employee Management', icon: <Users size={16} /> },
     { key: 'login-users', label: 'Login Users', icon: <UserPlus size={16} /> },
     { key: 'payment', label: 'Payment Method Change', icon: <ArrowLeftRight size={16} /> },
+    { key: 'delete-invoice', label: 'Delete Invoice', icon: <Trash2 size={16} /> },
     { key: 'delay', label: 'Set Delay', icon: <Clock size={16} /> },
     { key: 'devices', label: 'Device Management', icon: <Laptop size={16} /> },
     { key: 'profiles', label: 'Profile Management', icon: <UserCog size={16} /> },
@@ -921,6 +923,9 @@ const SoftwareSettings = () => {
           </div>
         </>
       )}
+
+      {/* ═══════════════ DELETE INVOICE TAB ═══════════════ */}
+      {activeTab === 'delete-invoice' && <DeleteInvoicePanel />}
 
       {activeTab === 'delay' && (
         <div className="glass rounded-2xl p-6 border-2 border-gray-700/50 space-y-6">

@@ -14,6 +14,8 @@ const {
   updateDelayConfig,
   getOrderRange,
   updateOrderRange,
+  lookupInvoiceForDeletion,
+  deleteInvoicePermanently,
 } = require('../controllers/softwareSettings.controller');
 
 const router = express.Router();
@@ -32,6 +34,10 @@ router.get('/payment-change/outlets', authenticate, authorize('SOFTWARE_SETTINGS
 router.get('/payment-change/invoices', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeInvoices);
 router.get('/payment-change/history', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeHistory);
 router.post('/payment-change', authenticate, authorize('SOFTWARE_SETTINGS'), changePaymentMethod);
+
+// Permanent Invoice Delete — SOFTWARE_SETTINGS, SUPER_ADMIN, ADMIN
+router.get('/delete-invoice/lookup', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), lookupInvoiceForDeletion);
+router.post('/delete-invoice/permanent', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), deleteInvoicePermanently);
 
 // Delay threshold configuration — read: any authenticated user; write: SOFTWARE_SETTINGS only
 router.get('/delay-config', authenticate, getDelayConfig);
