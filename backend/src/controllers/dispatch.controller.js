@@ -54,17 +54,7 @@ const getDispatchQueue = async (req, res) => {
       OR: [
         { currentStage: 'DISPATCH' },
         { dispatchStatus: { in: ['COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } }
-      ],
-      // Orders handed to the Enamels Delivery Boy (deliveryType=ENAMELS /
-      // deliveryMethod='Enamels Delivery' / currentStage=ENAMELS_DELIVERY) are owned by
-      // the Enamel boy's profile and must NEVER appear in dispatcher queues.
-      NOT: [{
-        OR: [
-          { deliveryType: 'ENAMELS' },
-          { deliveryMethod: 'Enamels Delivery' },
-          { currentStage: 'ENAMELS_DELIVERY' }
-        ]
-      }]
+      ]
     };
 
     if (req.user?.role === 'OUTLET') {
@@ -76,7 +66,7 @@ const getDispatchQueue = async (req, res) => {
       whereClause.outletName = outletName;
     }
 
-    const orders = await prisma.order.findMany({
+    const rawOrders = await prisma.order.findMany({
       where: whereClause,
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
@@ -85,6 +75,12 @@ const getDispatchQueue = async (req, res) => {
       },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });
+
+    const orders = rawOrders.filter(o => !(
+      o.deliveryType === 'ENAMELS' ||
+      o.deliveryMethod === 'Enamels Delivery' ||
+      o.currentStage === 'ENAMELS_DELIVERY'
+    ));
 
     const PRIORITY_SORT = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
     const sorted = [...orders].sort((a, b) => {
@@ -432,24 +428,14 @@ const getDispatchDashboard = async (req, res) => {
     }
 
     // Include completed/delivered so active orders stay visible until final status
-    const orders = await prisma.order.findMany({
+    const rawOrders = await prisma.order.findMany({
       where: {
         ...baseWhere,
         OR: [
           { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } },
           { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'REJECTED'] }, status: { notIn: ['RETURNED'] } },
           { dispatchOfficer: { not: null }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } }
-        ],
-        // Orders handed to the Enamels Delivery Boy (deliveryType=ENAMELS /
-        // deliveryMethod='Enamels Delivery' / currentStage=ENAMELS_DELIVERY) are owned by
-        // the Enamel boy's profile and must NEVER appear in dispatcher queues.
-        NOT: [{
-          OR: [
-            { deliveryType: 'ENAMELS' },
-            { deliveryMethod: 'Enamels Delivery' },
-            { currentStage: 'ENAMELS_DELIVERY' }
-          ]
-        }]
+        ]
       },
       select: {
         id: true, orderNumber: true, customerName: true, customerPhone: true,
@@ -468,6 +454,12 @@ const getDispatchDashboard = async (req, res) => {
       },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });
+
+    const orders = rawOrders.filter(o => !(
+      o.deliveryType === 'ENAMELS' ||
+      o.deliveryMethod === 'Enamels Delivery' ||
+      o.currentStage === 'ENAMELS_DELIVERY'
+    ));
 
     // Categorize into unseen / seen / active
     const unseen = [];

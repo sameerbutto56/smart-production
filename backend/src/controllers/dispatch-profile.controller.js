@@ -101,28 +101,22 @@ const getDispatchProfileOrders = async (req, res) => {
 
     // Replacement (REP-...) orders flow through the normal pipeline once past STORE
     // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
-    // Orders handed to the Enamels Delivery Boy (deliveryType=ENAMELS /
-    // deliveryMethod='Enamels Delivery' / currentStage=ENAMELS_DELIVERY) are owned by
-    // the Enamel boy's profile and must NEVER appear in dispatcher queues.
-    const NOT_ENAMELS = {
-      NOT: [{
-        OR: [
-          { deliveryType: 'ENAMELS' },
-          { deliveryMethod: 'Enamels Delivery' },
-          { currentStage: 'ENAMELS_DELIVERY' }
-        ]
-      }]
-    };
+    const isEnamelsOrder = (o) => (
+      o.deliveryType === 'ENAMELS' ||
+      o.deliveryMethod === 'Enamels Delivery' ||
+      o.currentStage === 'ENAMELS_DELIVERY'
+    );
 
-    const dispatchOrders = await prisma.order.findMany({
+    const rawDispatchOrders = await prisma.order.findMany({
       where: {
         currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] },
-        ...NOT_ENAMELS
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
       },
       select: baseSelect,
       orderBy: baseOrder
     });
+
+    const dispatchOrders = rawDispatchOrders.filter(o => !isEnamelsOrder(o));
 
     // The SAME 3-way split is used symmetrically for every dispatcher employee.
     //  - UNSEEN is SHARED / global: genuinely unaccepted orders (dispatchOfficer null)
@@ -561,9 +555,6 @@ const getDispatchDashboard = async (req, res) => {
         { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
         { dispatchStatus: { not: 'PENDING' } },
         { dispatchOfficer: { not: null } }
-      ],
-      NOT: [
-        { OR: [{ deliveryType: 'ENAMELS' }, { deliveryMethod: 'Enamels Delivery' }, { currentStage: 'ENAMELS_DELIVERY' }] }
       ]
     };
     if (dateFrom || dateTo) {
@@ -593,7 +584,7 @@ const getDispatchDashboard = async (req, res) => {
       orderWhere.paymentStatus = { notIn: ['PAID', 'REFUNDED'] };
     }
 
-    const orders = await prisma.order.findMany({
+    const rawOrders = await prisma.order.findMany({
       where: orderWhere,
       select: {
         id: true, orderNumber: true, customerName: true, customerPhone: true,
@@ -610,6 +601,12 @@ const getDispatchDashboard = async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
+
+    const orders = rawOrders.filter(o => !(
+      o.deliveryType === 'ENAMELS' ||
+      o.deliveryMethod === 'Enamels Delivery' ||
+      o.currentStage === 'ENAMELS_DELIVERY'
+    ));
 
     // Summary stats
     const totalOrders = orders.length;
