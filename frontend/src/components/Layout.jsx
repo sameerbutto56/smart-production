@@ -117,6 +117,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY', 'OUTLET'] },
     { name: 'Dashboard', path: '/store-dashboard', icon: LayoutDashboard, roles: ['STORE'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
+    { name: 'ASM Allowed', path: '/asm-allowed', icon: Package, roles: ['STORE', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'ASM Dashboard', path: '/asm', icon: Building2, roles: ['ASM'] },
     { name: 'Inventory Audit', path: '/audit', icon: ClipboardCheck, roles: ['STORE', 'STORE_EMPLOYEE'] },
     { name: 'Returns', path: '/returns', icon: RotateCcw, roles: ['STORE'] },

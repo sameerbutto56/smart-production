@@ -168,6 +168,93 @@ const AsmPage = () => {
     else printThermalReceipt(docOrder);
   };
 
+  const [mainTab, setMainTab] = useState('vendor-orders'); // 'vendor-orders' | 'asm-stock'
+  const [asmRequests, setAsmRequests] = useState([]);
+  const [asmRequestsLoading, setAsmRequestsLoading] = useState(false);
+  const [asmReturns, setAsmReturns] = useState([]);
+  const [asmReturnsLoading, setAsmReturnsLoading] = useState(false);
+
+  // Return Modal state
+  const [returnModalRequest, setReturnModalRequest] = useState(null);
+  const [returnItemQty, setReturnItemQty] = useState({}); // { itemId: quantity }
+  const [returnNotes, setReturnNotes] = useState('');
+  const [submittingReturn, setSubmittingReturn] = useState(false);
+
+  const fetchAsmStockData = useCallback(async () => {
+    setAsmRequestsLoading(true);
+    setAsmReturnsLoading(true);
+    try {
+      const [reqRes, retRes] = await Promise.all([
+        api.get('/api/asm-stock/requests'),
+        api.get('/api/asm-stock/returns')
+      ]);
+      setAsmRequests(reqRes.data?.requests || []);
+      setAsmReturns(retRes.data?.returns || []);
+    } catch (err) {
+      toast.error('Failed to load ASM stock data');
+    }
+    setAsmRequestsLoading(false);
+    setAsmReturnsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (mainTab === 'asm-stock') fetchAsmStockData();
+  }, [mainTab, fetchAsmStockData]);
+
+  const handleAcceptStock = async (requestId) => {
+    const toastId = toast.loading('Accepting stock handover...');
+    try {
+      const res = await api.post(`/api/asm-stock/requests/${requestId}/accept`);
+      toast.success(res.data?.message || 'Stock handover accepted!');
+      fetchAsmStockData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to accept stock');
+    } finally {
+      toast.dismiss(toastId);
+    }
+  };
+
+  const openReturnModal = (reqData) => {
+    setReturnModalRequest(reqData);
+    const initialQtys = {};
+    reqData.items.forEach(item => {
+      if (item.quantityRemaining > 0) initialQtys[item.id] = 0;
+    });
+    setReturnItemQty(initialQtys);
+    setReturnNotes('');
+  };
+
+  const handleCreateReturnSubmit = async () => {
+    if (!returnModalRequest) return;
+
+    const returnItems = [];
+    Object.entries(returnItemQty).forEach(([requestItemId, qtyStr]) => {
+      const q = parseInt(qtyStr) || 0;
+      if (q > 0) {
+        returnItems.push({ requestItemId, quantityReturned: q });
+      }
+    });
+
+    if (returnItems.length === 0) {
+      return toast.error('Enter a return quantity of at least 1 for at least one item');
+    }
+
+    setSubmittingReturn(true);
+    try {
+      const res = await api.post('/api/asm-stock/returns', {
+        requestId: returnModalRequest.id,
+        notes: returnNotes,
+        items: returnItems
+      });
+      toast.success(`Return ${res.data?.returnRecord?.returnNumber} submitted for Store Verification!`);
+      setReturnModalRequest(null);
+      fetchAsmStockData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to submit return');
+    }
+    setSubmittingReturn(false);
+  };
+
   const openCreate = () => setShowCreate(true);
   const closeCreate = () => setShowCreate(false);
 
@@ -183,62 +270,301 @@ const AsmPage = () => {
             {t('Agent Sales Manager — vendor orders & operational analytics')}
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
-        >
-          <Plus className="h-4 w-4" />
-          {t('New Vendor Order')}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Main Tab Switcher */}
+          <div className="bg-slate-900 p-1 rounded-lg border border-slate-800 flex gap-1">
+            <button onClick={() => setMainTab('vendor-orders')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${mainTab === 'vendor-orders' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+              Vendor Orders
+            </button>
+            <button onClick={() => setMainTab('asm-stock')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${mainTab === 'asm-stock' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'}`}>
+              Incoming Stock / ASM Allowed {asmRequests.filter(r => r.status === 'SUBMITTED').length > 0 && <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{asmRequests.filter(r => r.status === 'SUBMITTED').length}</span>}
+            </button>
+          </div>
+          {mainTab === 'vendor-orders' && (
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+            >
+              <Plus className="h-4 w-4" />
+              {t('New Vendor Order')}
+            </button>
+          )}
+        </div>
       </div>
 
-      {analytics && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
-          <StatCard icon={ClipboardList} label={t('Total Orders')} value={orders.length} color="bg-slate-700" />
-          <StatCard icon={TrendingUp} label={t('Active')} value={analytics.active ?? 0} color="bg-blue-600" />
-          <StatCard icon={ClockIcon} label={t('Pending')} value={analytics.pending ?? 0} color="bg-amber-600" />
-          <StatCard icon={Package} label={t('Completed')} value={analytics.completed ?? 0} color="bg-emerald-600" />
-          <StatCard icon={Users} label={t('Vendors')} value={analytics.vendorCount ?? 0} color="bg-violet-600" />
-          <StatCard icon={CreditCard} label={t('Payments')} value={fmtCurrency(analytics.totalPayments)} color="bg-cyan-600" />
+      {mainTab === 'asm-stock' && (
+        <div className="space-y-6">
+          {/* Section 1: Incoming Stock Handovers */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Package className="h-5 w-5 text-amber-400" /> Incoming Stock Handovers from Store
+                </h2>
+                <p className="text-xs text-slate-400">Verify physical stock against the printed handover sheet and click Accept</p>
+              </div>
+              <button onClick={fetchAsmStockData} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300">
+                <RefreshCcw className="h-4 w-4" />
+              </button>
+            </div>
+
+            {asmRequestsLoading ? (
+              <p className="text-slate-500 text-center py-8 text-xs font-bold">Loading stock handovers...</p>
+            ) : asmRequests.filter(r => r.status === 'SUBMITTED').length === 0 ? (
+              <p className="text-slate-500 text-center py-8 text-xs font-bold">No pending incoming stock handovers</p>
+            ) : (
+              <div className="space-y-4">
+                {asmRequests.filter(r => r.status === 'SUBMITTED').map(reqData => (
+                  <div key={reqData.id} className="bg-slate-950 rounded-xl p-4 border border-amber-500/30 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <span className="text-sm font-bold text-amber-400">{reqData.requestNumber}</span>
+                        <span className="ml-2 text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full uppercase">Pending ASM Acceptance</span>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Store: <span className="text-slate-200">{reqData.storeName}</span> | Submitted by: <span className="text-slate-200">{reqData.submittedByName}</span> | {formatDateTime(reqData.submittedAt)}
+                        </p>
+                      </div>
+                      <button onClick={() => handleAcceptStock(reqData.id)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-900/40">
+                        <CheckCircle2 className="h-4 w-4" /> Accept Stock Handover
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto border-t border-slate-800 pt-2">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-slate-500 font-bold uppercase border-b border-slate-800">
+                            <th className="py-2">Product Name</th>
+                            <th className="py-2">Category</th>
+                            <th className="py-2">Color / Size</th>
+                            <th className="py-2 text-right">Quantity Offered</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reqData.items.map(item => (
+                            <tr key={item.id} className="border-b border-slate-800/40 text-slate-300">
+                              <td className="py-2 font-bold text-white">{item.productName}</td>
+                              <td className="py-2 text-slate-400">{item.category}</td>
+                              <td className="py-2 text-slate-400">{[item.color, item.size].filter(Boolean).join(' / ') || '—'}</td>
+                              <td className="py-2 text-right font-bold text-amber-400">{item.quantityGiven} {item.unit}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Accepted Stock Inventory & Return Action */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" /> Accepted Stock & ASM Returns
+              </h2>
+              <p className="text-xs text-slate-400">Manage accepted stock and return items back to Store (requires Store verification)</p>
+            </div>
+
+            {asmRequests.filter(r => ['ACCEPTED', 'PARTIALLY_RETURNED'].includes(r.status)).length === 0 ? (
+              <p className="text-slate-500 text-center py-8 text-xs font-bold">No active accepted stock handovers</p>
+            ) : (
+              <div className="space-y-4">
+                {asmRequests.filter(r => ['ACCEPTED', 'PARTIALLY_RETURNED'].includes(r.status)).map(reqData => (
+                  <div key={reqData.id} className="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <span className="text-sm font-bold text-emerald-400">{reqData.requestNumber}</span>
+                        <span className="ml-2 text-[10px] bg-cyan-500/20 text-cyan-300 font-bold px-2 py-0.5 rounded-full uppercase">
+                          {reqData.status}
+                        </span>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Accepted on: {formatDateTime(reqData.acceptedAt)}
+                        </p>
+                      </div>
+                      <button onClick={() => openReturnModal(reqData)}
+                        className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
+                        <RotateCcw className="h-4 w-4" /> Return Stock to Store
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto border-t border-slate-800 pt-2">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-slate-500 font-bold uppercase border-b border-slate-800">
+                            <th className="py-2">Product</th>
+                            <th className="py-2">Color / Size</th>
+                            <th className="py-2 text-right">Given</th>
+                            <th className="py-2 text-right">Returned</th>
+                            <th className="py-2 text-right">Remaining with ASM</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reqData.items.map(item => (
+                            <tr key={item.id} className="border-b border-slate-800/40 text-slate-300">
+                              <td className="py-2 font-bold text-white">{item.productName}</td>
+                              <td className="py-2 text-slate-400">{[item.color, item.size].filter(Boolean).join(' / ') || '—'}</td>
+                              <td className="py-2 text-right font-bold text-slate-400">{item.quantityGiven}</td>
+                              <td className="py-2 text-right font-bold text-emerald-400">{item.quantityReturned}</td>
+                              <td className="py-2 text-right font-bold text-amber-400">{item.quantityRemaining}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 3: Submitted Returns Status */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-purple-400" /> Submitted ASM Returns Track
+            </h2>
+            {asmReturns.length === 0 ? (
+              <p className="text-slate-500 text-center py-6 text-xs font-bold">No returned stock requests submitted yet</p>
+            ) : (
+              <div className="space-y-3">
+                {asmReturns.map(retRec => (
+                  <div key={retRec.id} className="bg-slate-950 rounded-xl p-3.5 border border-slate-800 text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-400">{retRec.returnNumber}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${retRec.status === 'STORE_ACCEPTED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        {retRec.status === 'STORE_ACCEPTED' ? '✓ Accepted by Store' : '⏳ Pending Store Verification'}
+                      </span>
+                    </div>
+                    <p className="text-slate-400">
+                      Handover #: <span className="text-slate-200">{retRec.request?.requestNumber}</span> | Submitted: {formatDateTime(retRec.submittedAt)}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-900">
+                      {retRec.items.map(i => (
+                        <span key={i.id} className="bg-slate-900 px-2 py-1 rounded text-[11px] text-slate-300">
+                          {i.productName} ({[i.color, i.size].filter(Boolean).join('/')}): <strong className="text-emerald-400">+{i.quantityReturned}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Return Modal */}
+          {returnModalRequest && (
+            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-white text-base">
+                    Return ASM Stock to Store ({returnModalRequest.requestNumber})
+                  </h3>
+                  <button onClick={() => setReturnModalRequest(null)} className="text-slate-400 hover:text-white">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-400">
+                  Select the quantity of each product you are returning. Returned stock will enter Store Verification before being restored to inventory.
+                </p>
+
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  {returnModalRequest.items.map(item => (
+                    item.quantityRemaining > 0 && (
+                      <div key={item.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-bold text-white">{item.productName}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {[item.color, item.size].filter(Boolean).join(' / ')} | Remaining: <strong className="text-amber-400">{item.quantityRemaining}</strong>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400 text-[10px]">Return Qty:</span>
+                          <input type="number" min="0" max={item.quantityRemaining}
+                            value={returnItemQty[item.id] || 0}
+                            onChange={e => setReturnItemQty({ ...returnItemQty, [item.id]: Math.min(item.quantityRemaining, Math.max(0, parseInt(e.target.value) || 0)) })}
+                            className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-center font-bold outline-none" />
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Return Notes / Reason</label>
+                  <textarea value={returnNotes} onChange={e => setReturnNotes(e.target.value)}
+                    placeholder="Reason for return..."
+                    rows={2}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none" />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button onClick={() => setReturnModalRequest(null)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold">
+                    Cancel
+                  </button>
+                  <button onClick={handleCreateReturnSubmit} disabled={submittingReturn}
+                    className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl text-xs flex items-center gap-1.5">
+                    {submittingReturn ? 'Submitting Return...' : 'Submit Return to Store'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={t('Search order #, vendor, city...')}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
+      {mainTab === 'vendor-orders' && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
+            <StatCard icon={ClipboardList} label={t('Total Orders')} value={orders.length} color="bg-slate-700" />
+            <StatCard icon={TrendingUp} label={t('Active')} value={analytics?.active ?? 0} color="bg-blue-600" />
+            <StatCard icon={ClockIcon} label={t('Pending')} value={analytics?.pending ?? 0} color="bg-amber-600" />
+            <StatCard icon={Package} label={t('Completed')} value={analytics?.completed ?? 0} color="bg-emerald-600" />
+            <StatCard icon={Users} label={t('Vendors')} value={analytics?.vendorCount ?? 0} color="bg-violet-600" />
+            <StatCard icon={CreditCard} label={t('Payments')} value={fmtCurrency(analytics?.totalPayments)} color="bg-cyan-600" />
           </div>
-          <button onClick={refresh} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition">
-            <RefreshCcw className="h-4 w-4" />
-          </button>
-        </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
-          {FILTERS.map((f) => (
-            <FilterChip key={f} label={f === 'ALL' ? t('All') : t(STAGE_LABELS[f] || f)} active={filter === f} onClick={() => setFilter(f)} />
-          ))}
-        </div>
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={t('Search order #, vendor, city...')}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+              <button onClick={refresh} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition">
+                <RefreshCcw className="h-4 w-4" />
+              </button>
+            </div>
 
-        {loading ? (
-          <p className="text-slate-400 text-center py-8">{t('Loading...')}</p>
-        ) : error ? (
-          <p className="text-red-400 text-center py-8">{t('Failed to load orders.')}</p>
-        ) : filteredOrders.length === 0 ? (
-          <p className="text-slate-500 text-center py-10">{t('No vendor orders found.')}</p>
-        ) : (
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-            {filteredOrders.map((o) => (
-              <OrderRow key={o.id} order={o} onOpen={viewDetail} flexDir={flexDir} />
-            ))}
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+              {FILTERS.map((f) => (
+                <FilterChip key={f} label={f === 'ALL' ? t('All') : t(STAGE_LABELS[f] || f)} active={filter === f} onClick={() => setFilter(f)} />
+              ))}
+            </div>
+
+            {loading ? (
+              <p className="text-slate-400 text-center py-8">{t('Loading...')}</p>
+            ) : error ? (
+              <p className="text-red-400 text-center py-8">{t('Error loading vendor orders')}</p>
+            ) : filteredOrders.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">{t('No vendor orders found')}</p>
+            ) : (
+              <div className="space-y-2">
+                {filteredOrders.map((o) => (
+                  <OrderRow key={o.id} order={o} onOpen={viewDetail} flexDir={flexDir} />
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {selectedOrder && (
         <OrderDetailDrawer order={selectedOrder} loading={loadingDetail} onClose={closeDetail} runAction={runAction} onPrint={handlePrint} flexDir={flexDir} />

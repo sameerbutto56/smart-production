@@ -1961,3 +1961,117 @@ model VendorDocument {
   @@index([docType])
   @@index([generatedAt])
 }
+
+// ─── ASM ALLOWED INVENTORY HANDOVER & RETURN WORKFLOW MODELS ───
+
+model AsmStockRequestSequence {
+  id        String   @id @default(uuid())
+  prefix    String   @default("ASH")
+  year      Int
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@unique([prefix, year])
+}
+
+model AsmStockRequest {
+  id              String                @id @default(uuid())
+  requestNumber   String                @unique
+  storeName       String                @default("Warehouse Store")
+  submittedById   String
+  submittedByName String
+  asmId           String?
+  asmName         String?
+  status          String                @default("SUBMITTED") // SUBMITTED, ACCEPTED, PARTIALLY_RETURNED, FULLY_RETURNED
+  notes           String?
+  items           AsmStockRequestItem[]
+  returns         AsmStockReturn[]
+  auditLogs       AsmStockAuditLog[]
+  submittedAt     DateTime              @default(now())
+  acceptedAt      DateTime?
+  acceptedById    String?
+  acceptedByName  String?
+  updatedAt       DateTime              @updatedAt
+
+  @@index([status])
+  @@index([asmId])
+}
+
+model AsmStockRequestItem {
+  id                String          @id @default(uuid())
+  requestId         String
+  request           AsmStockRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  inventoryItemId   String?
+  productName       String
+  category          String
+  color             String?
+  size              String?
+  fabric            String?
+  quantityGiven     Int
+  quantityReturned  Int             @default(0)
+  quantityRemaining Int
+  unit              String          @default("Pieces")
+  price             Float?
+  metadata          String?
+
+  @@index([requestId])
+}
+
+model AsmStockReturnSequence {
+  id        String   @id @default(uuid())
+  prefix    String   @default("ASR")
+  year      Int
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@unique([prefix, year])
+}
+
+model AsmStockReturn {
+  id               String               @id @default(uuid())
+  returnNumber     String               @unique
+  requestId        String
+  request          AsmStockRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  asmId            String
+  asmName          String
+  status           String               @default("PENDING_STORE_ACCEPT") // PENDING_STORE_ACCEPT, STORE_ACCEPTED, REJECTED
+  notes            String?
+  items            AsmStockReturnItem[]
+  submittedAt      DateTime             @default(now())
+  acceptedAt       DateTime?
+  acceptedById     String?
+  acceptedByName   String?
+  updatedAt        DateTime             @updatedAt
+
+  @@index([status])
+  @@index([requestId])
+}
+
+model AsmStockReturnItem {
+  id               String         @id @default(uuid())
+  returnId         String
+  returnRequest    AsmStockReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  requestItemId    String
+  inventoryItemId  String?
+  productName      String
+  category         String
+  color            String?
+  size             String?
+  fabric           String?
+  quantityReturned Int
+  unit             String         @default("Pieces")
+
+  @@index([returnId])
+}
+
+model AsmStockAuditLog {
+  id          String          @id @default(uuid())
+  requestId   String
+  request     AsmStockRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  action      String
+  details     String
+  performedBy String
+  createdAt   DateTime        @default(now())
+
+  @@index([requestId])
+}
