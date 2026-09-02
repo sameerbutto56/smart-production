@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Search, Clock, User, Phone, Package, MessageSquare, FileEdit, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
+import { getDelayInfo, fmtDuration } from '../utils/delayUtils';
 
 const ReturnedFromVerification = () => {
   const { user } = useAuth();
@@ -64,18 +65,34 @@ const ReturnedFromVerification = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {orders.map(order => (
-              <motion.div key={order.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-gray-800 rounded-xl border border-amber-500/30 overflow-hidden">
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-amber-500/20"><ArrowLeft size={16} className="text-amber-400" /></div>
-                      <div>
-                        <p className="text-sm font-black text-white">{order.orderNumber || 'No #'}</p>
-                        <p className="text-xs text-gray-400">{order.customerName} • {order.customerPhone || 'No phone'}</p>
+            {orders.map(order => {
+              const delayInfo = getDelayInfo(order);
+              const isDelayed = !!delayInfo;
+              return (
+                <motion.div key={order.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-xl border overflow-hidden transition-all ${
+                    isDelayed
+                      ? 'bg-gray-800 border-2 border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.25)] bg-red-950/20'
+                      : 'bg-gray-800 border-amber-500/30'
+                  }`}>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${isDelayed ? 'bg-red-600 text-white animate-pulse' : 'bg-amber-500/20'}`}>
+                          {isDelayed ? <Clock size={16} className="text-white animate-spin" /> : <ArrowLeft size={16} className="text-amber-400" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-black text-white">{order.orderNumber || 'No #'}</p>
+                            {isDelayed && (
+                              <span className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-black rounded-full animate-pulse flex items-center gap-1 shadow-md shadow-red-900/50">
+                                <Clock size={10} className="animate-spin" /> DELAYED ({fmtDuration(delayInfo.delayDuration)})
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400">{order.customerName} • {order.customerPhone || 'No phone'}</p>
+                        </div>
                       </div>
-                    </div>
                     <div className="text-right">
                       <p className="text-sm font-black text-amber-400">{formatCurrency(order.totalPrice)}</p>
                       <p className="text-[10px] text-gray-500">Returned {formatDateTime(order.verificationReturnedAt)}</p>
@@ -112,7 +129,8 @@ const ReturnedFromVerification = () => {
                   </button>
                 </div>
               </motion.div>
-            ))}
+            );
+          })}
           </div>
         )}
       </div>

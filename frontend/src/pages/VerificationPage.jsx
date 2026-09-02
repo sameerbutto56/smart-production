@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Shield, Search, CheckCircle, Clock, User, Phone, Package, FileText, ChevronDown, ChevronUp, AlertCircle, DollarSign, ArrowRight, History, Scissors, Star, Ruler, MessageSquare, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
+import { getDelayInfo, fmtDuration } from '../utils/delayUtils';
 
 const VerificationPage = () => {
   const { user } = useAuth();
@@ -305,19 +306,31 @@ const VerificationPage = () => {
             {orders.map(order => {
               const products = parseProducts(order.productDetails);
               const isExpanded = expandedOrder === order.id;
+              const delayInfo = getDelayInfo(order);
+              const isDelayed = !!delayInfo;
               return (
-                <div key={order.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                <div key={order.id} className={`rounded-xl border overflow-hidden transition-all ${
+                  isDelayed
+                    ? 'bg-gray-800 border-2 border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.25)] bg-red-950/20'
+                    : 'bg-gray-800 border-gray-700'
+                }`}>
                   {/* Order Header */}
                   <div className="p-4 cursor-pointer hover:bg-gray-750 transition-colors" onClick={() => setExpandedOrder(isExpanded ? null : order.id)}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${activeTab === 'pending' ? 'bg-amber-500/20' : 'bg-emerald-500/20'}`}>
-                          {activeTab === 'pending' ? <Clock size={16} className="text-amber-400" /> : <CheckCircle size={16} className="text-emerald-400" />}
+                        <div className={`p-2 rounded-lg ${isDelayed ? 'bg-red-600 text-white animate-pulse' : activeTab === 'pending' ? 'bg-amber-500/20' : 'bg-emerald-500/20'}`}>
+                          {isDelayed ? <Clock size={16} className="text-white animate-spin" /> : activeTab === 'pending' ? <Clock size={16} className="text-amber-400" /> : <CheckCircle size={16} className="text-emerald-400" />}
                         </div>
                         <div>
-                          <p className="text-sm font-black text-white">{order.orderNumber || 'No #'}
-                            {activeTab === 'history' && order.verifiedByName && <span className="text-xs text-emerald-400 ml-2">Verified by {order.verifiedByName}</span>}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-black text-white">{order.orderNumber || 'No #'}</p>
+                            {isDelayed && (
+                              <span className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-black rounded-full animate-pulse flex items-center gap-1 shadow-md shadow-red-900/50">
+                                <Clock size={10} className="animate-spin" /> DELAYED ({fmtDuration(delayInfo.delayDuration)})
+                              </span>
+                            )}
+                            {activeTab === 'history' && order.verifiedByName && <span className="text-xs text-emerald-400 font-bold">Verified by {order.verifiedByName}</span>}
+                          </div>
                           <p className="text-xs text-gray-400">{order.customerName} • {order.customerPhone || 'No phone'}</p>
                           {activeTab === 'pending' && (
                             <p className="text-[10px] text-amber-400/80 mt-0.5">Arrived: {formatDateTime(getVerificationArrivalTime(order))}</p>
