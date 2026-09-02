@@ -769,9 +769,19 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <span className="text-purple-400 ml-2 font-black text-[9px] md:text-[10px]">Shopify: {formatDateOnly(order.shopifyOrderDate)}</span>
                     )}
                   </p>
-                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-widest ${
+                    order.status === 'ON_HOLD'
+                      ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                      : isWaitingApproval
+                      ? 'bg-orange-500 text-white animate-pulse border-orange-400'
+                      : isDelayed
+                      ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-900/50 animate-pulse'
+                      : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                  } border flex items-center gap-1`}>
                     {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={7} />}
+                    {isDelayed && <Clock size={7} className="animate-spin text-white" />}
                     {order.status === 'ON_HOLD' ? t('Hold') : t(currentStage?.stageName)}
+                    {isDelayed && <span className="ml-0.5 text-[8px] bg-black/40 px-1 py-0.2 rounded font-black">DELAYED</span>}
                   </span>
                   {!isWaitingApproval && order.status !== 'PENDING' && order.status !== 'REJECTED' && order.status !== 'ON_HOLD' && ['OUTLET'].includes(userRole) && (
                     <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-gray-800/50 text-gray-500 border border-gray-700/50 flex items-center gap-0.5">
