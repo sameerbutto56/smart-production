@@ -18,7 +18,7 @@ export const STAGE_DEPARTMENTS = {
   OUT_FOR_DELIVERY: 'Out of Delivery',
   ORDER_ENTRY: 'Inventory Verification',
   VERIFICATION: 'Verification',
-  RETURN_VERIFICATION: 'Return Verification',
+  RETURN_VERIFICATION: 'Return from Verification',
   DELIVERED: 'Completed',
 };
 
@@ -31,13 +31,13 @@ export const DELAY_REASONS = {
   'Out of Delivery': 'Delayed in Out of Delivery',
   'Inventory Verification': 'Delayed in Inventory Verification',
   'Verification': 'Delayed in Verification',
-  'Return Verification': 'Delayed in Return Verification',
+  'Return from Verification': 'Delayed in Return from Verification',
 };
 
 export const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry',
   VERIFICATION: 'Verification',
-  RETURN_VERIFICATION: 'Return Verification',
+  RETURN_VERIFICATION: 'Return from Verification',
   STORE: 'Store',
   STORE_RECEIVE: 'Store Receive',
   WORKERS: 'Production In',
