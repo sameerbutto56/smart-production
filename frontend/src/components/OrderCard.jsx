@@ -548,13 +548,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {(p?.sleeveLength || (female.sleeves && female.sleeves !== 'full')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves بازو</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength ? (isUrdu ? toUrduName({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength)) : (isUrdu ? toUrduName({'full':'Full','half':'Half','medium':'Medium'}[female.sleeves] || female.sleeves) : ({'full':'Full','half':'Half','medium':'Medium'}[female.sleeves] || female.sleeves || 'N/A'))}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength ? (isUrdu ? toUrduName({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength)) : (isUrdu ? toUrduName({'full':'Full','half':'Half','medium':'Medium'}[female.sleeves] || female.sleeves) : ({'full':'Full','half':'Half','medium':'Medium'}[female.sleeves] || female.sleeves || ''))}</p>
                           </div>
                         )}
                         {(p?.shirtLength || (female.shirtLength && female.shirtLength !== 'long')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength ? (isUrdu ? toUrduName({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength)) : (isUrdu ? toUrduName({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength) : ({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength || 'N/A'))}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength ? (isUrdu ? toUrduName({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength)) : (isUrdu ? toUrduName({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength) : ({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength || ''))}</p>
                           </div>
                         )}
                       </>
@@ -562,13 +562,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {p?.sleeveLength && p?.gender !== 'Female' && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves بازو</p>
-                        <p className="text-xs md:text-sm font-black text-white">{isUrdu ? toUrduName(p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half' : p.sleeveLength || 'Quarter') : (p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half' : p.sleeveLength || 'Quarter')}</p>
+                        <p className="text-xs md:text-sm font-black text-white">{isUrdu ? toUrduName(p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half' : p.sleeveLength || '') : (p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half' : p.sleeveLength || '')}</p>
                       </div>
                     )}
                     {p?.shirtLength && p?.gender !== 'Female' && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                        <p className="text-xs md:text-sm font-black text-white">{isUrdu ? toUrduName(p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular' : 'Short') : (p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular' : 'Short')}</p>
+                        <p className="text-xs md:text-sm font-black text-white">{isUrdu ? toUrduName(p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular' : (p.shirtLength === 'short' ? 'Short' : p.shirtLength || '')) : (p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular' : (p.shirtLength === 'short' ? 'Short' : p.shirtLength || ''))}</p>
                       </div>
                     )}
                   </div>

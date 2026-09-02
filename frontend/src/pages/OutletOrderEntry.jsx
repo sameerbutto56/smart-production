@@ -160,6 +160,7 @@ const OutletOrderEntry = () => {
   const [advanceAmount, setAdvanceAmount] = useState(0);
   const [priority, setPriority] = useState('NORMAL');
   const [deliveryType, setDeliveryType] = useState('DELIVERY');
+  const [paymentStatus, setPaymentStatus] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -369,11 +370,11 @@ const OutletOrderEntry = () => {
         return false;
       case 1: return products.length > 0;
       case 2: return true;
-      case 3: return true;
+      case 3: return paymentStatus === 'PAID' || paymentStatus === 'UNPAID';
       case 4: return true;
       default: return false;
     }
-  }, [step, customerMode, lookedUp, clientData, customer, products, orderNumber]);
+  }, [step, customerMode, lookedUp, clientData, customer, products, orderNumber, paymentStatus]);
 
   const nextStep = () => { if (canProceed) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
@@ -410,6 +411,9 @@ const OutletOrderEntry = () => {
 
   const handleSubmit = async () => {
     if (products.length === 0) return toast.error('Add at least one product');
+    if (!paymentStatus || !['PAID', 'UNPAID'].includes(paymentStatus.toUpperCase())) {
+      return toast.error('Please select Paid or Unpaid before proceeding.');
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -457,7 +461,8 @@ const OutletOrderEntry = () => {
         placedByEmployeeId: employee?.id || null,
         placedByEmployeeName: employee?.name || null,
         priority,
-        deliveryType
+        deliveryType,
+        paymentStatus: paymentStatus.toUpperCase()
       };
       const res = await api.post('/api/outlet-orders', payload);
       setCreatedOrder(res.data);
@@ -1166,6 +1171,42 @@ const OutletOrderEntry = () => {
               )}
             </div>
 
+            {/* Mandatory Payment Status Selection */}
+            <div className={`bg-gray-800 rounded-xl p-4 space-y-3 border-2 transition-all ${!paymentStatus ? 'border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.2)] bg-red-950/10' : 'border-amber-500/40'}`}>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-amber-300 uppercase tracking-wider block">
+                  Payment Status <span className="text-red-400 font-black">* Mandatory</span>
+                </label>
+                {paymentStatus && (
+                  <span className={`text-xs font-black px-2.5 py-1 rounded-full uppercase ${paymentStatus === 'PAID' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-red-500/20 text-red-400 border border-red-500/40'}`}>
+                    {paymentStatus === 'PAID' ? 'ORDER PAID' : 'ORDER UNPAID'}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] font-bold text-gray-400">Select whether this order is Paid or Unpaid before proceeding.</p>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button type="button" onClick={() => setPaymentStatus('PAID')}
+                  className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'PAID' ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
+                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'PAID' ? 'border-white' : ''}`}>
+                    {paymentStatus === 'PAID' && <span className="w-2 h-2 rounded-full bg-white"></span>}
+                  </span>
+                  PAID
+                </button>
+                <button type="button" onClick={() => setPaymentStatus('UNPAID')}
+                  className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'UNPAID' ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
+                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'UNPAID' ? 'border-white' : ''}`}>
+                    {paymentStatus === 'UNPAID' && <span className="w-2 h-2 rounded-full bg-white"></span>}
+                  </span>
+                  UNPAID
+                </button>
+              </div>
+              {!paymentStatus && (
+                <p className="text-[11px] font-black text-red-400 mt-1 flex items-center gap-1">
+                  ⚠️ Please select Paid or Unpaid before proceeding.
+                </p>
+              )}
+            </div>
+
             <div className="bg-gray-800 rounded-xl p-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400 font-bold">Total Amount</span>
@@ -1238,6 +1279,11 @@ const OutletOrderEntry = () => {
             <div className={`text-center py-2 rounded-lg font-black text-xs uppercase border-2 ${deliveryType === 'SELF_COLLECTION' ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-blue-100 text-blue-700 border-blue-300'}`}>
               {deliveryType === 'DELIVERY' ? '🚚 DELIVERY' : '🏪 SELF COLLECTION'}
             </div>
+            {paymentStatus && (
+              <div className={`text-center py-2.5 rounded-lg font-black text-sm uppercase border-2 tracking-wider ${paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800 border-emerald-400' : 'bg-red-100 text-red-800 border-red-400'}`}>
+                {paymentStatus === 'PAID' ? 'ORDER PAID' : 'ORDER UNPAID'}
+              </div>
+            )}
             <div className="text-xs font-bold space-y-0.5 border-b border-gray-200 pb-2">
               <p>Customer: {customer.name} — {customer.phone}</p>
               {customer.address && <p>Address: {customer.address}{customer.city ? `, ${customer.city}` : ''}</p>}

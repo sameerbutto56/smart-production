@@ -41,10 +41,13 @@ const generateInvoiceNumber = async (outletName) => {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement, deliveryType, placedByEmployeeId, placedByEmployeeName } = req.body;
+    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement, deliveryType, placedByEmployeeId, placedByEmployeeName, paymentStatus } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
+    if (!paymentStatus || !['PAID', 'UNPAID'].includes(paymentStatus.toString().toUpperCase())) {
+      return res.status(400).json({ message: 'Please select Paid or Unpaid before proceeding.' });
+    }
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
 
@@ -169,7 +172,7 @@ const createOutletOrder = async (req, res) => {
           deliveryType: deliveryType || 'DELIVERY',
           advanceAmount: adv,
           totalPrice,
-          paymentStatus: adv > 0 ? 'PAID' : 'PENDING',
+          paymentStatus: paymentStatus.toString().toUpperCase(),
           currentStage: 'ORDER_ENTRY'
         }
       });

@@ -44,7 +44,7 @@ const OrderEntryContext = createContext(null);
 
 const INITIAL_FORM_DATA = {
   orderNumber: '', customerName: '', customerPhone: '', address: '', type: 'STANDARD', priority: 'NORMAL',
-  advancePaid: false, advanceAmount: '', paymentStatus: 'PENDING', totalPrice: '', quantity: 1,
+  advancePaid: false, advanceAmount: '', paymentStatus: '', totalPrice: '', quantity: 1,
   matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
   alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
   instructionNotes: '', shopifyOrderDate: '',
@@ -222,7 +222,7 @@ export const OrderEntryProvider = ({ children }) => {
             priority: found.priority || 'NORMAL',
             advancePaid: !!found.advancePaid,
             advanceAmount: found.advanceAmount || '',
-            paymentStatus: found.paymentStatus || 'PENDING',
+            paymentStatus: found.paymentStatus || '',
             totalPrice: found.totalPrice || '',
             quantity: found.quantity || 1,
             deliveryCharges: found.deliveryCharges || '',
