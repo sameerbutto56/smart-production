@@ -686,13 +686,20 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     });
     const totalCollected = cashCollected + onlineCollected;
     const advance = o.advanceAmount || 0;
-    const expectedCodAmount = Math.max(0, (o.totalPrice || 0) - advance);
+    const totalPrice = o.totalPrice || 0;
+    const delivPayments = o.deliveryPayments || [];
+    const hasDelivPay = delivPayments.length > 0;
+
+    // A PAID (Prepaid) Order is an order paid in full before delivery assignment (no doorstep payment collected by rider)
+    const isPrepaid = !hasDelivPay && totalPrice > 0 && (
+      o.paymentStatus === 'PAID' ||
+      o.paymentMethod === 'ONLINE' ||
+      advance >= totalPrice - 0.01
+    );
+    const isCOD = !isPrepaid && (totalPrice > 0 || hasDelivPay);
+    const expectedCodAmount = isPrepaid ? 0 : Math.max(0, totalPrice - advance);
     const outstanding = Math.max(0, expectedCodAmount - totalCollected);
     const isPaid = outstanding <= 0.01;
-
-    // A PAID Order is an order where customer paid in full in advance (no COD expected on delivery assignment)
-    const isPrepaid = expectedCodAmount <= 0.01 && (o.deliveryPayments || []).length === 0;
-    const isCOD = !isPrepaid;
 
     const charge = (o.deliveryChargeRecords || [])[0] || null;
     const orderDate = deliveredAt || returnedAt || acceptedAt || assignedAt || o.createdAt;

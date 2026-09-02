@@ -594,9 +594,9 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
 
   const paymentCards = [
     { label: 'Total Order Value', value: safeStats.totalOrderValue || 0, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-    { label: '# Paid Orders', value: safeStats.paidOrderCount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: '# Paid Orders', value: safeStats.paidOrderCount || 0, isCount: true, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
     { label: 'Paid Orders Amount', value: safeStats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    { label: '# COD Orders', value: safeStats.codOrderCount || 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: '# COD Orders', value: safeStats.codOrderCount || 0, isCount: true, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     { label: 'COD Expected Amount', value: safeStats.codExpectedAmount ?? safeStats.totalCOD ?? 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     { label: 'Cash Received', value: safeStats.cashReceived ?? safeStats.cashCollected ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (safeStats.totalDeposited || 0) > 0 ? `₨${safeStats.totalDeposited.toLocaleString()} deposited` : undefined },
     { label: 'Online Received', value: safeStats.onlineReceived ?? safeStats.onlinePrepaid ?? 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
@@ -753,7 +753,9 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
           {paymentCards.map(card => (
             <div key={card.label} className={`${card.bg} rounded-2xl p-3 border ${card.border} text-center`}>
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
-              <p className={`text-xl font-black ${card.color}`}>₨{(card.value || 0).toLocaleString()}</p>
+              <p className={`text-xl font-black ${card.color}`}>
+                {card.isCount ? (card.value || 0) : `₨${(card.value || 0).toLocaleString()}`}
+              </p>
             </div>
           ))}
           <div className="bg-amber-500/10 rounded-2xl p-3 border border-amber-500/20 text-center cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setShowOutstandingList(!showOutstandingList)}>
