@@ -50,7 +50,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
   const [localInventoryAdded, setLocalInventoryAdded] = useState(false);
-  const stageFromDb = order.stages?.find(s => s.stageName === order.currentStage);
+  const activeStageFromDb = order.stages?.find(s => s.stageName === order.currentStage && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status));
+  const stageFromDb = activeStageFromDb || order.stages?.find(s => s.stageName === order.currentStage);
   const currentStage = stageFromDb || (order.currentStage ? { stageName: order.currentStage, status: 'PENDING', id: null } : null) || order.stages?.[0];
 
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'].includes(userRole);
@@ -205,10 +206,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (!currentStage?.deadlineAt || currentStage.status === 'COMPLETED') {
+      const isOrderFinished = ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].includes(order.status) || ['COMPLETED', 'DELIVERED'].includes(order.currentStage);
+      if (isOrderFinished) {
         setTimeLeft('--:--');
         setUrgencyColor('text-gray-600');
         setDeadlineStatus('COMPLETED');
+        return;
+      }
+
+      if (!currentStage?.deadlineAt || currentStage.status === 'COMPLETED') {
+        setTimeLeft('--:--');
+        setUrgencyColor('text-gray-600');
+        setDeadlineStatus('ON_TIME');
         return;
       }
 
@@ -816,7 +825,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {deadlineStatus === 'APPROACHING' && <span className="text-[6px] bg-amber-500/10 text-amber-400 px-1 py-0.5 rounded-sm font-black uppercase">APPROACHING</span>}
                 {deadlineStatus === 'OVERDUE' && <span className="text-[6px] bg-red-500/10 text-red-400 px-1 py-0.5 rounded-sm font-black uppercase animate-pulse">OVERDUE</span>}
                 {deadlineStatus === 'PAUSED' && <span className="text-[6px] bg-blue-500/10 text-blue-400 px-1 py-0.5 rounded-sm font-black uppercase">⏸ PAUSED</span>}
-                {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
+                {deadlineStatus === 'COMPLETED' && (['COMPLETED', 'DELIVERED'].includes(order.status) || ['COMPLETED', 'DELIVERED'].includes(order.currentStage)) && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
               </div>
               <span className="text-[6px] text-gray-600 font-mono">
                 {currentStage?.deadlineAt ? formatTimeOnly(currentStage.deadlineAt) : '--:--'}
