@@ -397,7 +397,7 @@ const markPickedUp = async (req, res) => {
     });
 
     await createAuditLog(orderId, 'PICKED_UP', `Order picked up by customer. Marked by: ${req.user.name}`, req.user.id);
-    await syncReplacementCaseOnOrderCompletion(order);
+    await syncReplacementCaseOnOrderCompletion(order, req.user.id);
     await markAssignmentTerminal(orderId, { delivered: true });
 
     const io = req.app?.get('io');

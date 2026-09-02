@@ -694,6 +694,21 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
         </div>
       </div>
 
+      {/* Empty-window note — no delivery activity in the selected date range */}
+      {orders.length === 0 && dateRange.range !== 'all' && !riderFilter && !statusFilter && !paymentFilter && (
+        <div className="glass rounded-2xl p-4 border-2 border-amber-500/20 bg-amber-500/5 flex items-start gap-3">
+          <Calendar size={18} className="text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-black text-amber-400 uppercase tracking-wider">No delivery activity in this range</p>
+            <p className="text-[11px] font-bold theme-text-muted mt-1">
+              {activePresetLabel} has no delivery activity. Every order is counted on the day any delivery work happened — assigned, accepted,
+              attempted, delivered, payment collected, or a charge recorded. A genuinely quiet day legitimately shows zero, even if riders
+              were already working on older orders. Switch to Today, All Time, or a wider range to see activity.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. Order Statistics */}
       <div className="glass rounded-2xl p-5 border-2 theme-border">
         <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -819,7 +834,10 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
           <Clock size={16} className="text-indigo-400" /> Delivery Timeline & Timing
         </h3>
         {orders.length === 0 ? (
-          <div className="text-center py-10"><p className="theme-text-muted font-black uppercase text-xs">No orders in selected filters</p></div>
+          <div className="text-center py-10">
+            <p className="theme-text-muted font-black uppercase text-xs">{dateRange.range === 'all' ? 'No delivery orders found' : `No delivery activity in this range (${activePresetLabel})`}</p>
+            <p className="text-[10px] font-bold theme-text-muted mt-2 max-w-md mx-auto">Orders are counted on the day any delivery activity happened — assigned, accepted, attempted, delivered, payment collected, or a charge recorded. A day with no activity shows an empty timeline.</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[10px]">

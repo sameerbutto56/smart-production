@@ -354,7 +354,7 @@ const routeOrder = async (req, res) => {
       await createAuditLog(order.id, 'CUSTOMER_TAKEN',
         `Customer taken from In Dispatch by ${outletName}`,
         req.user?.id || 'SYSTEM');
-      await syncReplacementCaseOnOrderCompletion(order);
+      await syncReplacementCaseOnOrderCompletion(order, req.user?.id);
       await markAssignmentTerminal(order.id, { delivered: true });
 
       await prisma.routingHistory.create({

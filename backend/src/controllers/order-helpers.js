@@ -207,7 +207,8 @@ const calculateAndRecordRevenue = async (order) => {
 // When a replacement order (source: REPLACEMENT, linked via replacementCaseId) completes its
 // pipeline, auto-sync the ReturnExchange case so its status follows the actual order outcome.
 // Idempotent — no-op if the case was already marked completed.
-const syncReplacementCaseOnOrderCompletion = async (order) => {
+const SYNC_REPLACEMENT_SYSTEM_USER_ID = '3cc08d49-90d0-439d-9cec-6e3e8b50418a';
+const syncReplacementCaseOnOrderCompletion = async (order, userId) => {
   try {
     if (!order || !order.replacementCaseId) return { synced: false, reason: 'not-replacement' };
     const fresh = await prisma.order.findUnique({
@@ -241,7 +242,7 @@ const syncReplacementCaseOnOrderCompletion = async (order) => {
           orderId: record.orderId,
           action: 'REPLACEMENT_STATUS_UPDATED',
           details: `Replacement order ${fresh?.orderNumber || order.orderNumber || ''} completed its pipeline — case auto-marked REPLACEMENT_COMPLETED.`,
-          performedBy: 'SYSTEM'
+          performedBy: userId || SYNC_REPLACEMENT_SYSTEM_USER_ID
         }
       });
       return tx.returnExchange.findUnique({ where: { id: record.id } });

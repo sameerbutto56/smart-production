@@ -57,7 +57,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
     const updatedOrder = await prisma.order.update({ where: { id: orderId }, data: updateData, include: { stages: true } });
     await prisma.deliveryAttempt.create({ data: { orderId, attemptNumber: (order.noResponseCount || 0) + 1, status: 'DELIVERED', riderId: userId, riderName, notes: remarks || 'Order delivered successfully' } });
     await calculateAndRecordRevenue(updatedOrder);
-    await syncReplacementCaseOnOrderCompletion(updatedOrder);
+    await syncReplacementCaseOnOrderCompletion(updatedOrder, userId);
     await markAssignmentTerminal(orderId, { delivered: true });
     await createAuditLog(orderId, 'DELIVERED', remarks || 'Order delivered', userId);
     const io = req.app.get('io');

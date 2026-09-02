@@ -1208,7 +1208,7 @@ const requestStageCompletion = async (req, res) => {
       const completedOrder = await prisma.order.findUnique({ where: { id: orderId } });
       if (completedOrder) {
         await calculateAndRecordRevenue(completedOrder);
-        await syncReplacementCaseOnOrderCompletion(completedOrder);
+        await syncReplacementCaseOnOrderCompletion(completedOrder, req.user.id);
       }
     }
     
@@ -1354,7 +1354,7 @@ const approveStageCompletion = async (req, res) => {
       const completedOrder = await prisma.order.findUnique({ where: { id: orderId } });
       if (completedOrder) {
         await calculateAndRecordRevenue(completedOrder);
-        await syncReplacementCaseOnOrderCompletion(completedOrder);
+        await syncReplacementCaseOnOrderCompletion(completedOrder, req.user.id);
       }
     }
 

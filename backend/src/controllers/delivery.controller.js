@@ -2,17 +2,14 @@ const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const { markAssignmentTerminal } = require('./tahirSheet.controller');
+const { dateBoundToMs } = require('../utils/workingHours');
 
 const parseDateRange = (dateFrom, dateTo) => {
   const dateFilter = {};
-  if (dateFrom) {
-    const from = new Date(dateFrom);
-    if (!isNaN(from.getTime())) dateFilter.gte = from;
-  }
-  if (dateTo) {
-    const to = new Date(dateTo);
-    if (!isNaN(to.getTime())) { to.setHours(23, 59, 59, 999); dateFilter.lte = to; }
-  }
+  const fromMs = dateBoundToMs(dateFrom, 'start');
+  const toMs = dateBoundToMs(dateTo, 'end');
+  if (fromMs !== null) dateFilter.gte = new Date(fromMs);
+  if (toMs !== null) dateFilter.lte = new Date(toMs);
   return Object.keys(dateFilter).length > 0 ? dateFilter : null;
 };
 
@@ -231,7 +228,7 @@ const deliverOrder = async (req, res) => {
     else if (paymentMethod === 'MULTIPLE_ONLINE') updateData.paymentMethod = 'MULTIPLE_ONLINE';
 
     await prisma.order.update({ where: { id: orderId }, data: updateData });
-    await syncReplacementCaseOnOrderCompletion(order);
+    await syncReplacementCaseOnOrderCompletion(order, req.user?.id);
 
     // Mark delivery assignment as delivered so it never carries forward in Gate Pass
     await markAssignmentTerminal(orderId, { delivered: true });
@@ -983,13 +980,21 @@ const getDeliveryAnalytics = async (req, res) => {
     ];
 
     const where = { AND: [{ OR: identityOR }] };
-    // Use assignment-date-based filtering: the order's "day" is the date it was
-    // assigned to a delivery boy, not when the order was created / delivered /
-    // accepted / returned / last attempted.  This gives consistent date ranges
-    // across the Admin card and the Delivery Boy profile.
+    // Count by activity day: an order belongs to a date window if ANY delivery
+    // activity happened that day — assigned, accepted, attempted, delivered,
+    // payment collected, charge recorded, or a no-response logged. This keeps
+    // genuinely-busy riders visible on the day they worked (e.g. #51298 was
+    // assigned 29 Aug but delivered + collected on 1 Sep, so it must appear
+    // under Yesterday), while remaining consistent across every preset.
     if (dateFilter) {
       where.AND.push({
-        orderAcceptances: { some: { assignedAt: dateFilter } }
+        OR: [
+          { orderAcceptances: { some: { OR: [{ assignedAt: dateFilter }, { acceptedAt: dateFilter }, { deliveredAt: dateFilter }] } } },
+          { deliveryAttempts: { some: { attemptedAt: dateFilter } } },
+          { deliveryPayments: { some: { collectedAt: dateFilter } } },
+          { noResponseLogs: { some: { createdAt: dateFilter } } },
+          { deliveryChargeRecords: { some: { OR: [{ deliveredAt: dateFilter }, { createdAt: dateFilter }] } } }
+        ]
       });
     }
 
