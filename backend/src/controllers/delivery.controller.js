@@ -911,6 +911,203 @@ const getPerformance = async (req, res) => {
   }
 };
 
+// GET /api/delivery/dispatch-tracking — dispatch dashboard tracking data
+const getDispatchTracking = async (req, res) => {
+  try {
+    const { dispatchOfficer } = req.query;
+
+    const deliveryAttempts = await prisma.deliveryAttempt.findMany({
+      where: { status: 'NO_RESPONSE' },
+      include: { order: { select: { orderNumber: true, customerName: true, city: true, noResponseCount: true, deliveryMethod: true } } },
+      orderBy: { attemptedAt: 'desc' },
+      take: 100
+    });
+
+    const deliveredOrders = await prisma.deliveryPayment.findMany({
+      include: { order: { select: { orderNumber: true, customerName: true, totalPrice: true, paymentMethod: true, city: true } } },
+      orderBy: { collectedAt: 'desc' },
+      take: 100
+    });
+
+    const noResponseOrders = await prisma.order.findMany({
+      where: { noResponseCount: { gt: 0 } },
+      select: { id: true, orderNumber: true, customerName: true, city: true, noResponseCount: true, lastDeliveryAttempt: true },
+      orderBy: { lastDeliveryAttempt: 'desc' }
+    });
+
+    res.json({ deliveryAttempts, deliveredOrders, noResponseOrders });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch tracking data', error: error.message });
+  }
+};
+
+// GET /api/delivery/employee-stats — per-employee payment breakdown
+const getDeliveryEmployeeStats = async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const analytics = await getDeliveryAnalyticsData({ dateFrom, dateTo });
+    
+    const employees = (analytics.earnings?.perRider || []).map(r => ({
+      name: r.riderName,
+      totalAssigned: r.perOrder.length,
+      totalDelivered: r.completedDeliveries,
+      pendingDeliveries: 0,
+      activeDeliveries: 0,
+      returnedOrders: 0,
+      totalEarnings: r.totalEarnings,
+      totalPaid: r.totalPaid,
+      remainingPayable: r.remainingPayable,
+      ratePerDelivery: 200,
+      paymentHistory: []
+    }));
+
+    const paymentAnalytics = {
+      totalEarnings: analytics.earnings?.totalEarnings || 0,
+      totalPaid: analytics.earnings?.totalPaid || 0,
+      totalOutstanding: analytics.earnings?.outstandingEarnings || 0,
+      totalPayments: 0,
+      lastPaymentDate: null
+    };
+
+    res.json({ employees, paymentAnalytics });
+  } catch (error) {
+    console.error('getDeliveryEmployeeStats error:', error);
+    res.status(500).json({ message: 'Failed to fetch employee stats' });
+  }
+};
+
+// POST /api/delivery/pay-employee — pay a specific delivery employee
+const payDeliveryEmployee = async (req, res) => {
+  try {
+    const { riderName, amount, paidByName, remarks } = req.body;
+    if (!riderName) return res.status(400).json({ message: 'riderName is required' });
+
+    const pendingCharges = await prisma.deliveryCharge.findMany({
+      where: { riderName, isPaid: false },
+      orderBy: { deliveredAt: 'asc' }
+    });
+
+    if (pendingCharges.length === 0) return res.status(400).json({ message: 'No pending charges for this employee' });
+
+    const totalPending = pendingCharges.reduce((s, c) => s + c.amount, 0);
+    const payAmount = Math.min(amount || totalPending, totalPending);
+    const now = new Date();
+
+    let remaining = payAmount;
+    const toMarkPaid = [];
+    for (const charge of pendingCharges) {
+      if (remaining <= 0) break;
+      toMarkPaid.push(charge.id);
+      remaining -= charge.amount;
+    }
+
+    await prisma.deliveryChargePayment.create({
+      data: {
+        totalAmount: payAmount,
+        chargeIds: toMarkPaid,
+        riderName,
+        paidByName: paidByName || 'Admin',
+        remarks: remarks || null,
+        paidAt: now
+      }
+    });
+
+    await prisma.deliveryCharge.updateMany({
+      where: { id: { in: toMarkPaid } },
+      data: { isPaid: true, paidAt: now }
+    });
+
+    res.json({
+      message: `Paid ₨${payAmount.toLocaleString()} to ${riderName}`,
+      paidAmount: payAmount,
+      chargesCleared: toMarkPaid.length,
+      remainingPending: totalPending - payAmount
+    });
+  } catch (error) {
+    console.error('payDeliveryEmployee error:', error);
+    res.status(500).json({ message: 'Payment failed' });
+  }
+};
+
+// GET /api/delivery/payment-history — complete payment history
+const getDeliveryPaymentHistory = async (req, res) => {
+  try {
+    const { riderName, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+    const where = riderName ? { riderName } : {};
+    const dateFilter = parseDateRange(dateFrom, dateTo);
+    if (dateFilter) where.paidAt = dateFilter;
+
+    const [payments, total] = await Promise.all([
+      prisma.deliveryChargePayment.findMany({
+        where,
+        orderBy: { paidAt: 'desc' },
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit)
+      }),
+      prisma.deliveryChargePayment.count({ where })
+    ]);
+
+    res.json({
+      payments,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (error) {
+    console.error('getDeliveryPaymentHistory error:', error);
+    res.status(500).json({ message: 'Failed to fetch payment history' });
+  }
+};
+
+// GET /api/delivery/activity — timeline with rider names, date-filtered
+const getActivityTimeline = async (req, res) => {
+  try {
+    const { dateFrom, dateTo, limit = 100 } = req.query;
+    const dateFilter = parseDateRange(dateFrom, dateTo);
+
+    const auditWhere = {
+      action: { in: ['DELIVERED', 'DELIVERY_ACCEPTED', 'DELIVERY_FAILED', 'DISPATCH_RETURNED'] }
+    };
+    if (dateFilter) auditWhere.timestamp = dateFilter;
+
+    const [audits, orders] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: auditWhere,
+        include: { order: { select: {
+          id: true, orderNumber: true, customerName: true, city: true, currentStage: true, totalPrice: true, paymentMethod: true,
+          orderAcceptances: { select: { riderName: true } },
+          deliveryAttempts: { select: { riderName: true } },
+          deliveryPayments: { select: { collectedBy: true } }
+        } } },
+        orderBy: { timestamp: 'desc' },
+        take: parseInt(limit)
+      }),
+      prisma.order.findMany({
+        where: {
+          currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED', 'ENAMELS_DELIVERY'] },
+          ...(dateFilter ? { createdAt: dateFilter } : {})
+        },
+        select: { id: true, orderNumber: true, customerName: true, city: true, currentStage: true, totalPrice: true, deliveryType: true, riderAcceptedAt: true, deliveredAt: true, noResponseCount: true, orderAcceptances: { select: { riderName: true } }, deliveryAttempts: { select: { riderName: true } }, deliveryPayments: { select: { collectedBy: true } } },
+        orderBy: { updatedAt: 'desc' },
+        take: parseInt(limit)
+      })
+    ]);
+
+    const deriveRider = (o) => {
+      if (!o) return null;
+      return (o.deliveryAttempts?.[0]?.riderName) || (o.deliveryPayments?.[0]?.collectedBy) ||
+        (o.orderAcceptances?.[0]?.riderName) || null;
+    };
+    audits.forEach(a => { if (a.order) a.order.riderName = deriveRider(a.order); });
+    orders.forEach(o => { o.riderName = deriveRider(o); });
+
+    res.json({ audits, orders });
+  } catch (error) {
+    console.error('getActivityTimeline error:', error);
+    res.status(500).json({ message: 'Failed to fetch activity timeline' });
+  }
+};
+
 // GET /api/delivery/analytics — comprehensive Enamels delivery analytics
 const getDeliveryAnalytics = async (req, res) => {
   try {
