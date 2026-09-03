@@ -219,7 +219,7 @@ const createVendorOrder = async (req, res) => {
   try {
     const {
       vendorId,
-      items,          // [{ catalogItemId, productName, productType, color, size, quantity, unitPrice, notes }]
+      items,          // [{ catalogItemId, productName, productType, color, size, articleName, articleNumber, unit, variant, quantity, unitPrice, notes }]
       payments,       // [{ amount, paymentType, paymentMethod, reference, paymentDate, notes }]
       deliveryCharges = 0,
       discount = 0,
@@ -243,6 +243,10 @@ const createVendorOrder = async (req, res) => {
         productType: i.productType || null,
         color: i.color || null,
         size: i.size || null,
+        articleName: i.articleName || null,
+        articleNumber: i.articleNumber || null,
+        unit: i.unit || null,
+        variant: i.variant || null,
         quantity: Math.max(1, parseInt(i.quantity, 10) || 1),
         unitPrice: parseFloat(i.unitPrice) || 0,
         notes: i.notes || null,
@@ -776,6 +780,10 @@ const generateDocuments = async (req, res) => {
       productType: i.productType,
       color: i.color,
       size: i.size,
+      articleName: i.articleName,
+      articleNumber: i.articleNumber,
+      unit: i.unit,
+      variant: i.variant,
       quantity: i.quantity,
       unitPrice: i.unitPrice,
       lineTotal: i.lineTotal,

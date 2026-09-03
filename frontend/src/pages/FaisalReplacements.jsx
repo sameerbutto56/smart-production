@@ -46,7 +46,7 @@ const STATUS_BADGE = (status) => {
 
 const newItemRow = () => ({
   name: '', productType: '', color: '', size: '', quantity: 1, unitPrice: '',
-  fabricType: '', gender: 'Male', sleeveLength: 'full', shirtLength: 'long',
+  fabricType: '', gender: 'Male', sleeveLength: '', shirtLength: '',
   matchingCap: false, matchingCapQty: 0, notes: '', measurements: '',
   engravingRequired: 'skip',
   engravingLines: [{ type: 'direct', name: '', designNotes: '' }]
@@ -155,8 +155,8 @@ const FaisalReplacements = ({ refreshKey }) => {
         unitPrice: it.unitPrice || '',
         fabricType: it.fabricType || '',
         gender: it.gender || 'Male',
-        sleeveLength: it.sleeveLength || 'full',
-        shirtLength: it.shirtLength || 'long',
+        sleeveLength: it.sleeveLength || '',
+        shirtLength: it.shirtLength || '',
         matchingCap: !!it.matchingCap,
         matchingCapQty: it.matchingCapQty || 0,
         notes: it.notes || '',
@@ -874,6 +874,7 @@ const FaisalReplacements = ({ refreshKey }) => {
                     <option value="STANDARD">Standard</option>
                     <option value="LOGO">Logo</option>
                     <option value="FULL_CUSTOM">Full Custom</option>
+                    <option value="READY_LOGO">Ready Logo</option>
                   </select>
                 </div>
               </div>
@@ -946,12 +947,14 @@ const FaisalReplacements = ({ refreshKey }) => {
                         </select>
                         <select value={it.sleeveLength} onChange={e => updateItem(idx, 'sleeveLength', e.target.value)}
                           className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                          <option value="">Select</option>
                           <option value="full">Full Sleeve</option>
                           <option value="half">Half Sleeve</option>
                           <option value="three-quarter">3 Quarter Sleeve</option>
                         </select>
                         <select value={it.shirtLength} onChange={e => updateItem(idx, 'shirtLength', e.target.value)}
                           className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                          <option value="">Select</option>
                           <option value="long">Long</option>
                           <option value="regular">Regular</option>
                           <option value="short">Short</option>

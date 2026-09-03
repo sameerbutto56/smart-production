@@ -961,7 +961,7 @@ const VendorFormModal = ({ onClose, onCreated }) => {
   );
 };
 
-const emptyLine = () => ({ catalogItemId: '', productName: '', category: '', color: '', size: '', quantity: 1, unitPrice: '' });
+const emptyLine = () => ({ catalogItemId: '', productName: '', category: '', color: '', size: '', articleName: '', articleNumber: '', unit: '', variant: '', quantity: 1, unitPrice: '' });
 
 const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
   const { t } = useLanguage();
@@ -976,6 +976,8 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
   const [deliveryCity, setDeliveryCity] = useState('');
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [resultsOpen, setResultsOpen] = useState(null);
 
   const updateLine = (idx, field, value) => {
     setLineItems((prev) => prev.map((li, i) => (i === idx ? { ...li, [field]: value } : li)));
@@ -990,6 +992,34 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
   const lineColors = (idx) => uniqValues(lineVariants(idx), 'color');
   const lineSizes = (idx) => uniqValues(lineVariants(idx), 'size');
 
+  // A line is an "Other" manual product when it is not linked to a catalog item
+  const lineIsOther = (idx) => !lineItems[idx]?.catalogItemId;
+
+  // Filter the catalog by name / article / color / size / variant (case-insensitive)
+  const filteredCatalog = (idx) => {
+    const q = (catalogSearch || '').trim().toLowerCase();
+    if (!q) return catalog;
+    return catalog.filter((c) => {
+      const haystack = [
+        c.name, c.category, c.id,
+        ...(Array.isArray(c.variants) ? c.variants : [])
+          .flatMap((v) => [v.articleName, v.articleNumber, v.unit, v.variant, v.color, v.size]),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  };
+
+  // Set a line to manual "Other" mode (clears catalog link, keeps typed product name)
+  const markAsOther = (idx) => {
+    setResultsOpen(null);
+    setLineItems((prev) => prev.map((li, i) =>
+      i === idx ? { ...li, catalogItemId: '', category: null } : li
+    ));
+  };
+
   // When an item is picked, load its real variants into per-line color/size dropdowns
   const selectCatalogItem = (idx, cid) => {
     const item = catalog.find((c) => c.id === cid);
@@ -997,6 +1027,7 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
     const firstVariant = vendorVariants(item)[0] || {};
     const defaultColor = lineColors(idx)[0] || firstVariant.color || '';
     const defaultSize = lineSizes(idx)[0] || firstVariant.size || '';
+    setResultsOpen((prev) => (prev === idx ? null : prev));
     setLineItems((prev) => prev.map((li, i) =>
       i === idx
         ? {
@@ -1012,14 +1043,9 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
     ));
   };
 
-  const handleVendorNamePick = (idx, name) => {
-    const match = catalog.find((c) => (c.name || '') === name);
-    if (match) {
-      selectCatalogItem(idx, match.id);
-    } else {
-      updateLine(idx, 'productName', name);
-      updateLine(idx, 'catalogItemId', '');
-    }
+  const pickCatalogResult = (idx, cid) => {
+    selectCatalogItem(idx, cid);
+    setCatalogSearch('');
   };
 
   const submit = async () => {
@@ -1032,6 +1058,10 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
         productType: li.category || null,
         color: li.color || null,
         size: li.size || null,
+        articleName: li.articleName || null,
+        articleNumber: li.articleNumber || null,
+        unit: li.unit || null,
+        variant: li.variant || null,
         quantity: parseInt(li.quantity, 10) || 1,
         unitPrice: parseFloat(li.unitPrice) || 0,
         notes: null,
@@ -1108,18 +1138,75 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <div className="md:col-span-2">
-                        <label className="text-xs text-slate-400">{t('From Catalog')}</label>
-                        <input
-                          list={`catalog-list-${idx}`}
-                          value={li.productName}
-                          onChange={(e) => handleVendorNamePick(idx, e.target.value)}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                          placeholder={t('Type to search catalog...')}
-                        />
-                        <datalist id={`catalog-list-${idx}`}>
-                          {catalog.map((c) => <option key={c.id} value={c.name || c.category || c.id} />)}
-                        </datalist>
+                        <label className="text-xs text-slate-400">{t('Product')} *</label>
+                        <div className="relative">
+                          <div className="flex gap-1.5">
+                            <input
+                              value={lineIsOther(idx) ? li.productName : catalogSearch}
+                              onChange={(e) => { setCatalogSearch(e.target.value); updateLine(idx, 'productName', e.target.value); updateLine(idx, 'catalogItemId', ''); setResultsOpen(idx); }}
+                              onFocus={() => setResultsOpen(idx)}
+                              onBlur={() => setTimeout(() => setResultsOpen(null), 150)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                              placeholder={t('Type to search catalog or choose Other...')}
+                            />
+                            {lineIsOther(idx) && (
+                              <button type="button" onClick={() => setResultsOpen(null)}
+                                className="shrink-0 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold">
+                                {t('Manual')}
+                              </button>
+                            )}
+                          </div>
+                          {resultsOpen === idx && (
+                            <div className="absolute z-20 mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-52 overflow-y-auto">
+                              <button
+                                type="button"
+                                onClick={() => markAsOther(idx)}
+                                className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-slate-700 border-b border-slate-700"
+                              >
+                                + {t('Other (manual product)')}
+                              </button>
+                              {filteredCatalog(idx).map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onMouseDown={(e) => { e.preventDefault(); pickCatalogResult(idx, c.id); }}
+                                  className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700"
+                                >
+                                  <span className="font-medium">{c.name || c.category || c.id}</span>
+                                  <span className="block text-xs text-slate-500">{c.category} {c.id}</span>
+                                </button>
+                              ))}
+                              {filteredCatalog(idx).length === 0 && (
+                                <div className="px-3 py-2 text-xs text-slate-500">{t('No catalog match')}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      {lineIsOther(idx) && (
+                        <>
+                          <div>
+                            <label className="text-xs text-slate-400">{t('Article Name / Number')}</label>
+                            <input value={li.articleName} onChange={(e) => updateLine(idx, 'articleName', e.target.value)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400">{t('Article Number')}</label>
+                            <input value={li.articleNumber} onChange={(e) => updateLine(idx, 'articleNumber', e.target.value)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400">{t('Unit')}</label>
+                            <input value={li.unit} onChange={(e) => updateLine(idx, 'unit', e.target.value)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder={t('e.g. pcs')} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400">{t('Variant')}</label>
+                            <input value={li.variant} onChange={(e) => updateLine(idx, 'variant', e.target.value)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                          </div>
+                        </>
+                      )}
                       {colors.length > 0 ? (
                         <div>
                           <label className="text-xs text-slate-400">{t('Color')}</label>

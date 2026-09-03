@@ -1837,6 +1837,10 @@ model VendorOrderItem {
   color         String?
   size          String?
   barcode       String?
+  articleName   String?   // "Other" manual products
+  articleNumber String?
+  unit          String?
+  variant       String?
   quantity      Int       @default(1)
   unitPrice     Float     @default(0)
   lineTotal     Float     @default(0)
