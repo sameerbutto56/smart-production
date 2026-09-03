@@ -421,10 +421,19 @@ const approveEditRequest = async (req, res) => {
       where: { userId: { in: storeUsers.map(u => u.id) }, orderId: order.id, stageName: 'STORE' }
     }).catch(() => {});
 
-    // Update order to point to STORE
+    // Update order to point to STORE and reset active delivery/dispatch fields (history preserved)
     await prisma.order.update({
       where: { id: order.id },
-      data: { currentStage: 'STORE', status: 'PENDING' }
+      data: {
+        currentStage: 'STORE',
+        status: 'PENDING',
+        dispatchOfficer: null,
+        dispatchStatus: 'PENDING',
+        deliveredAt: null,
+        returnedAt: null,
+        trackingNumber: null,
+        courierDetails: null
+      }
     });
 
     // 4. Rich audit trail — log the approval with field changes (DO NOT delete routingHistory, productionRecords, allocationCart, or logoPhaseSummary)

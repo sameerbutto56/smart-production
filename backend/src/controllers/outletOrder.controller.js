@@ -41,12 +41,19 @@ const generateInvoiceNumber = async (outletName) => {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement, deliveryType, placedByEmployeeId, placedByEmployeeName, paymentStatus } = req.body;
+    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement, deliveryType, placedByEmployeeId, placedByEmployeeName, paymentStatus, balanceAmount } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
-    if (!paymentStatus || !['PAID', 'UNPAID'].includes(paymentStatus.toString().toUpperCase())) {
-      return res.status(400).json({ message: 'Please select Paid or Unpaid before proceeding.' });
+    const payStatus = (paymentStatus || '').toString().trim().toUpperCase();
+    if (!['PAID', 'BALANCE'].includes(payStatus)) {
+      return res.status(400).json({ message: 'Please select Paid or Balance before proceeding.' });
+    }
+    if (payStatus === 'BALANCE') {
+      const bal = parseFloat(balanceAmount);
+      if (!(bal > 0)) {
+        return res.status(400).json({ message: 'Please enter the remaining balance amount.' });
+      }
     }
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
@@ -171,8 +178,9 @@ const createOutletOrder = async (req, res) => {
           placedByEmployeeId: resolvedEmployee?.id || null,
           deliveryType: deliveryType || 'DELIVERY',
           advanceAmount: adv,
+          balanceAmount: payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || 0) : null,
           totalPrice,
-          paymentStatus: paymentStatus.toString().toUpperCase(),
+          paymentStatus: payStatus,
           currentStage: 'ORDER_ENTRY'
         }
       });
@@ -799,7 +807,7 @@ const lookupOrderWithFinancials = async (req, res) => {
         productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
         engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
         engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
-        deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true
+        deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true, balanceAmount: true
       }
     });
     if (!order) {
@@ -811,7 +819,7 @@ const lookupOrderWithFinancials = async (req, res) => {
           productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
           engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
           engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
-          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true
+          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true, balanceAmount: true
         }
       });
     }
@@ -825,7 +833,7 @@ const lookupOrderWithFinancials = async (req, res) => {
           productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
           engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
           engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
-          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true
+          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true, balanceAmount: true
         }
       });
       order = matches[0] || null;
@@ -867,16 +875,18 @@ const lookupOrderWithFinancials = async (req, res) => {
         cashierName: posSale.cashierName,
         posSaleDate: posSale.createdAt,
         paymentStatus: isPaid ? 'PAID' : 'BALANCE',
+        balanceAmount: (order && order.balanceAmount != null) ? order.balanceAmount : Math.max(0, posSale.grandTotal - totalPaid),
         balancePayments: posSale.balancePayments.map(bp => ({
           id: bp.id, receiptNumber: bp.receiptNumber, amountPaidNow: bp.amountPaidNow,
           paymentMethod: bp.paymentMethod, cashierName: bp.cashierName, paidAt: bp.paidAt
         }))
       };
     } else {
-      // No POS sale found — derive from order fields
+      // No POS sale found — derive from order fields (honor stored PAID/BALANCE status + balanceAmount)
       const adv = order.advanceAmount || 0;
       const tot = order.totalPrice || 0;
-      const isPaid = order.paymentStatus === 'PAID' || (adv >= tot && tot > 0);
+      const storedStatus = String(order.paymentStatus || '').toUpperCase();
+      const isPaid = storedStatus === 'PAID' || (adv >= tot && tot > 0);
       financial = {
         posSaleId: null,
         receiptNumber: null,
@@ -888,7 +898,8 @@ const lookupOrderWithFinancials = async (req, res) => {
         paymentMethod: null,
         cashierName: null,
         posSaleDate: null,
-        paymentStatus: isPaid ? 'PAID' : (adv > 0 ? 'ADVANCE' : 'PENDING'),
+        paymentStatus: storedStatus === 'PAID' || storedStatus === 'BALANCE' ? storedStatus : (isPaid ? 'PAID' : (adv > 0 ? 'ADVANCE' : 'PENDING')),
+        balanceAmount: (order.balanceAmount != null) ? order.balanceAmount : Math.max(0, tot - adv),
         balancePayments: []
       };
     }

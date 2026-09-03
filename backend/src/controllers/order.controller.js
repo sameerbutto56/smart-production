@@ -1,6 +1,6 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
-const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
+const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion, DISPATCH_RESET_FIELDS, ensureSingleActiveDispatchStage } = require('./order-helpers');
 const { getDelayMap, fmtDuration } = require('../utils/orderDelay');
 const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
@@ -1134,30 +1134,38 @@ const requestStageCompletion = async (req, res) => {
     });
 
     if (actualNextStage) {
-      const durations = await getStageDurations(order.priority);
-      const deadline = calculateDeadline(new Date(), durations[actualNextStage] || 24);
+      if (actualNextStage === 'DISPATCH') {
+        await ensureSingleActiveDispatchStage(orderId, order.priority);
+      } else {
+        const durations = await getStageDurations(order.priority);
+        const deadline = calculateDeadline(new Date(), durations[actualNextStage] || 24);
 
-      await prisma.orderStage.create({
-        data: {
-          orderId,
-          stageName: actualNextStage,
-          status: 'PENDING',
-          deadlineAt: deadline,
-          ...(currentStage.stageName === 'PRODUCTION' && order.source === 'OUTLET' && actualNextStage === 'OUTLET_RECEIVE'
-            ? { returnReason: 'Returned to Johar Town from Production' }
-            : {})
-        }
-      });
-      await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
+        await prisma.orderStage.create({
+          data: {
+            orderId,
+            stageName: actualNextStage,
+            status: 'PENDING',
+            deadlineAt: deadline,
+            ...(currentStage.stageName === 'PRODUCTION' && order.source === 'OUTLET' && actualNextStage === 'OUTLET_RECEIVE'
+              ? { returnReason: 'Returned to Johar Town from Production' }
+              : {})
+          }
+        });
+        await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
+      }
 
       const isStoreRoutingBack = ['STORE', 'STORE_EMPLOYEE'].includes(req.user.role) && actualNextStage !== 'DISPATCH';
+      const orderUpdateData = {
+        currentStage: actualNextStage,
+        status: 'PENDING',
+        ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
+      };
+      if (actualNextStage === 'DISPATCH') {
+        Object.assign(orderUpdateData, DISPATCH_RESET_FIELDS);
+      }
       await prisma.order.update({
         where: { id: orderId },
-        data: {
-          currentStage: actualNextStage,
-          status: 'PENDING',
-          ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
-        }
+        data: orderUpdateData
       });
 
       // Log routing history
@@ -1210,6 +1218,9 @@ const requestStageCompletion = async (req, res) => {
     
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
+    if (actualNextStage === 'DISPATCH') {
+      io.emit('dispatch-request', { orderId });
+    }
     const nextStageRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'DELIVERED': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
     const nextRole = nextStageRoleMap[actualNextStage] || 'STORE';
     if (order.customerName && order.orderNumber) {
@@ -2206,15 +2217,26 @@ const bulkRouteOrders = async (req, res) => {
         }
 
         // Create destination stage
-        const durations = await getStageDurations(order.priority);
-        const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
-        await prisma.orderStage.create({
-          data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
-        });
+        if (destinationStage === 'DISPATCH') {
+          await ensureSingleActiveDispatchStage(orderId, order.priority);
+        } else {
+          const durations = await getStageDurations(order.priority);
+          const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+          await prisma.orderStage.create({
+            data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+          });
+        }
 
+        const orderUpdateData = {
+          currentStage: destinationStage,
+          status: destinationStage === 'DISPATCH' ? 'PENDING' : 'IN_PROGRESS'
+        };
+        if (destinationStage === 'DISPATCH') {
+          Object.assign(orderUpdateData, DISPATCH_RESET_FIELDS);
+        }
         await prisma.order.update({
           where: { id: orderId },
-          data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+          data: orderUpdateData
         });
 
         // Routing history
@@ -2244,6 +2266,9 @@ const bulkRouteOrders = async (req, res) => {
 
         const io = req.app.get('io');
         io.emit('order-updated', { orderId, createdById: order.createdById });
+        if (destinationStage === 'DISPATCH') {
+          io.emit('dispatch-request', { orderId });
+        }
         const bulkDestRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUTLET_RECEIVE': 'OUTLET' };
         const bulkDestRole = bulkDestRoleMap[destinationStage] || 'STORE';
         if (order?.customerName && order?.orderNumber) {
@@ -3092,25 +3117,33 @@ const manualRouteOrder = async (req, res) => {
     // already exists (retried route / double-click / repeated route to same stage),
     // reuse it instead of creating a duplicate PENDING row. Prevents the multiple
     // active stage rows per order that inflated production task counts.
-    const durations = await getStageDurations(order.priority);
-    const existingDestStage = await prisma.orderStage.findFirst({
-      where: { orderId, stageName: destinationStage, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } }
-    });
-    if (!existingDestStage) {
-      const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
-      await prisma.orderStage.create({
-        data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+    if (destinationStage === 'DISPATCH') {
+      await ensureSingleActiveDispatchStage(orderId, order.priority);
+    } else {
+      const durations = await getStageDurations(order.priority);
+      const existingDestStage = await prisma.orderStage.findFirst({
+        where: { orderId, stageName: destinationStage, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } }
       });
+      if (!existingDestStage) {
+        const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+        await prisma.orderStage.create({
+          data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+        });
+      }
     }
 
     const isStoreRoutingBack = ['STORE', 'STORE_EMPLOYEE'].includes(req.user.role) && destinationStage !== 'DISPATCH';
+    const orderUpdateData = {
+      currentStage: destinationStage,
+      status: 'PENDING',
+      ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
+    };
+    if (destinationStage === 'DISPATCH') {
+      Object.assign(orderUpdateData, DISPATCH_RESET_FIELDS);
+    }
     await prisma.order.update({
       where: { id: orderId },
-      data: {
-        currentStage: destinationStage,
-        status: 'PENDING',
-        ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
-      }
+      data: orderUpdateData
     });
 
     // Record routing history
@@ -3168,6 +3201,9 @@ const manualRouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
+    if (destinationStage === 'DISPATCH') {
+      io.emit('dispatch-request', { orderId });
+    }
     const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
     const manRole = manDestRoleMap[destinationStage] || 'STORE';
     if (order?.customerName && order?.orderNumber) {
@@ -4000,14 +4036,26 @@ const storeRouteOrder = async (req, res) => {
         where: { id: storeStage.id },
         data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
       });
-      const durations = await getStageDurations(order.priority);
-      const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
-      await tx.orderStage.create({
-        data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
-      });
+      if (destinationStage === 'DISPATCH') {
+        await ensureSingleActiveDispatchStage(orderId, order.priority, tx);
+      } else {
+        const durations = await getStageDurations(order.priority);
+        const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+        await tx.orderStage.create({
+          data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+        });
+      }
+
+      const orderUpdateData = {
+        currentStage: destinationStage,
+        status: destinationStage === 'DISPATCH' ? 'PENDING' : 'IN_PROGRESS'
+      };
+      if (destinationStage === 'DISPATCH') {
+        Object.assign(orderUpdateData, DISPATCH_RESET_FIELDS);
+      }
       await tx.order.update({
         where: { id: orderId },
-        data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+        data: orderUpdateData
       });
 
       const recipientUsers = await prisma.user.findMany({
@@ -4032,6 +4080,9 @@ const storeRouteOrder = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
+    if (destinationStage === 'DISPATCH') {
+      io.emit('dispatch-request', { orderId });
+    }
 
     const destRoleMap = { 'PRODUCTION_ACCEPTANCE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUTLET_RECEIVE': 'OUTLET' };
     const storeDestRole = destRoleMap[destinationStage] || 'STORE';

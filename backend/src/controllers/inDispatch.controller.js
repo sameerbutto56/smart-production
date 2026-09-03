@@ -393,24 +393,31 @@ const routeOrder = async (req, res) => {
     }
 
     // Create destination stage
-    const durations = await require('./order-helpers').getStageDurations?.() || {};
-    const deadline = new Date(Date.now() + ((durations[destinationStage] || 48) * 60 * 60 * 1000));
-    await prisma.orderStage.create({
-      data: { orderId: order.id, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
-    });
+    if (destinationStage === 'DISPATCH') {
+      const { ensureSingleActiveDispatchStage, DISPATCH_RESET_FIELDS } = require('./order-helpers');
+      await ensureSingleActiveDispatchStage(order.id, order.priority);
+      const orderUpdateData = { ...DISPATCH_RESET_FIELDS };
+      await prisma.order.update({
+        where: { id: order.id },
+        data: orderUpdateData
+      });
+    } else {
+      const durations = await require('./order-helpers').getStageDurations?.() || {};
+      const deadline = new Date(Date.now() + ((durations[destinationStage] || 48) * 60 * 60 * 1000));
+      await prisma.orderStage.create({
+        data: { orderId: order.id, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+      });
 
-    const orderUpdateData = { currentStage: destinationStage, status: 'PENDING' };
-    if (destinationStage === 'ENAMELS_DELIVERY') {
-      orderUpdateData.deliveryType = 'ENAMELS';
-      orderUpdateData.deliveryMethod = 'Enamels Delivery';
-    } else if (destinationStage === 'DISPATCH') {
-      orderUpdateData.dispatchOfficer = null;
-      orderUpdateData.dispatchStatus = 'PENDING';
+      const orderUpdateData = { currentStage: destinationStage, status: 'PENDING' };
+      if (destinationStage === 'ENAMELS_DELIVERY') {
+        orderUpdateData.deliveryType = 'ENAMELS';
+        orderUpdateData.deliveryMethod = 'Enamels Delivery';
+      }
+      await prisma.order.update({
+        where: { id: order.id },
+        data: orderUpdateData
+      });
     }
-    await prisma.order.update({
-      where: { id: order.id },
-      data: orderUpdateData
-    });
 
     // Record delivery assignment for Gate Pass
     const deliveryBoyNames = {

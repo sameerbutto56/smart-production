@@ -255,4 +255,81 @@ const syncReplacementCaseOnOrderCompletion = async (order, userId) => {
   }
 };
 
-module.exports = { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion };
+const DISPATCH_RESET_FIELDS = {
+  currentStage: 'DISPATCH',
+  status: 'PENDING',
+  dispatchOfficer: null,
+  dispatchStatus: 'PENDING',
+  deliveredAt: null,
+  returnedAt: null,
+  trackingNumber: null,
+  courierDetails: null
+};
+
+const getStageDurations = async (priority = 'NORMAL') => {
+  const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+  let config = {
+    stageDurations: { STORE: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
+  };
+  if (setting) {
+    try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) {}
+  }
+  const slaMultiplier = config.slaMultipliers?.[priority] ?? 1;
+  const durations = config.stageDurations || {};
+  const adjusted = {};
+  for (const [stage, hours] of Object.entries(durations)) {
+    adjusted[stage] = Math.round((hours * slaMultiplier) * 100) / 100;
+  }
+  return adjusted;
+};
+
+const ensureSingleActiveDispatchStage = async (orderId, priority = 'NORMAL', tx = prisma) => {
+  // 1. Atomically close any active non-DISPATCH stages
+  await tx.orderStage.updateMany({
+    where: {
+      orderId,
+      status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
+      stageName: { not: 'DISPATCH' }
+    },
+    data: { status: 'COMPLETED', completedAt: new Date() }
+  });
+
+  // 2. Check if an active DISPATCH stage already exists (idempotent duplicate prevention)
+  const existing = await tx.orderStage.findFirst({
+    where: {
+      orderId,
+      stageName: 'DISPATCH',
+      status: { in: ['PENDING', 'IN_PROGRESS'] }
+    }
+  });
+
+  if (!existing) {
+    const { calculateDeadline } = require('../utils/deadline');
+    const durations = await getStageDurations(priority);
+    const deadline = calculateDeadline(new Date(), durations['DISPATCH'] || 12);
+    return await tx.orderStage.create({
+      data: {
+        orderId,
+        stageName: 'DISPATCH',
+        status: 'PENDING',
+        deadlineAt: deadline
+      }
+    });
+  }
+  return existing;
+};
+
+module.exports = {
+  cache,
+  CACHE_TTL,
+  isSystemPaused,
+  createAuditLog,
+  classifyOrderItems,
+  reverseInventoryForRefund,
+  calculateAndRecordRevenue,
+  syncReplacementCaseOnOrderCompletion,
+  DISPATCH_RESET_FIELDS,
+  getStageDurations,
+  ensureSingleActiveDispatchStage
+};

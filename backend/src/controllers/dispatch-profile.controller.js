@@ -95,119 +95,44 @@ const getDispatchProfileOrders = async (req, res) => {
 
     const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
 
-    // A dispatched / delivered / completed order must permanently leave ALL
-    // dispatcher queues (Unseen/Seen/Active) — never re-appear.
-    const TERMINAL_DISPATCH = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
-
-    // Replacement (REP-...) orders flow through the normal pipeline once past STORE
-    // (hub-managed only at STORE), so dispatch-stage replacements must appear here.
-    const isEnamelsOrder = (o) => (
-      o.deliveryType === 'ENAMELS' ||
-      o.deliveryMethod === 'Enamels Delivery' ||
-      o.currentStage === 'ENAMELS_DELIVERY'
-    );
-
-    const rawDispatchOrders = await prisma.order.findMany({
+    // Single Source of Truth: The active Dispatch queue strictly contains orders
+    // whose current active phase is 'DISPATCH' and status is not terminal.
+    // Orders in OUT_FOR_DELIVERY, DELIVERED, or COMPLETED do not appear in Dispatch.
+    const dispatchOrders = await prisma.order.findMany({
       where: {
-        currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
+        currentStage: 'DISPATCH',
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] }
       },
       select: baseSelect,
       orderBy: baseOrder
     });
 
-    const dispatchOrders = rawDispatchOrders.filter(o => !isEnamelsOrder(o));
-
-    // The SAME 3-way split is used symmetrically for every dispatcher employee.
-    //  - UNSEEN is SHARED / global: genuinely unaccepted orders (dispatchOfficer null)
-    //    appear in EVERY dispatcher's Unseen; once one employee accepts it, it vanishes
-    //    from everyone else's Unseen immediately.
-    //  - SEEN is EMPLOYEE-SPECIFIC: only orders accepted by the logged-in employee.
-    //  - ACTIVE is EMPLOYEE-SPECIFIC: only OUT_FOR_DELIVERY orders assigned to the
-    //    logged-in employee.
     const unseen = [];
     const seen = [];
-    const active = [];
-    const alreadyStarted = [];
-
-    // Orders routed to the Enamels Delivery Boy (or any delivery assignment) carry a
-    // DeliveryAssignment row. Also a "work signal": an order with any assignment is
-    // never new, even if dispatchOfficer was lost/cleared.
-    const workedAssignmentIds = new Set();
-    if (dispatchOrders.length) {
-      const assignments = await prisma.deliveryAssignment.findMany({
-        where: { orderId: { in: dispatchOrders.map(o => o.id) } },
-        select: { orderId: true }
-      });
-      for (const a of assignments) workedAssignmentIds.add(a.orderId);
-    }
 
     for (const order of dispatchOrders) {
-      // Terminal stamps clear EVERY queue — even when dispatchStatus was never
-      // flipped (an OUT_FOR_DELIVERY order returned by the delivery boy has
-      // returnedAt set but dispatchStatus still 'BOOKED').
-      const orderTerminal =
-        TERMINAL_DISPATCH.includes(order.dispatchStatus) ||
-        ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'].includes(order.status) ||
-        !!order.deliveredAt ||
-        !!order.returnedAt;
-      if (orderTerminal) continue;
+      const activeStage = (order.stages || []).slice().reverse().find(s => s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
+      // An order is only claimed in the active cycle if the active stage is IN_PROGRESS.
+      // If the stage is PENDING, nobody has claimed it yet in this cycle -> unassigned/unseen.
+      const isClaimedInThisCycle = activeStage && activeStage.status === 'IN_PROGRESS';
+      const owner = isClaimedInThisCycle ? (order.dispatchOfficer || null) : null;
 
-      const owner = order.dispatchOfficer || null;
-      const ownedByMe = owner === employeeName;
-
-      if (order.currentStage === 'OUT_FOR_DELIVERY') {
-        // Active is employee-specific — only the officer assigned to the delivery.
-        if (ownedByMe) active.push(order);
-        continue;
-      }
-
-      // currentStage === 'DISPATCH'
       if (owner === null) {
-        // "Work signal": the DISPATCH was actually started or completed — a non-PENDING
-        // DISPATCH stage (IN_PROGRESS/WAITING_APPROVAL/COMPLETED), a delivery
-        // assignment, a courier booking, a dispatch method, or a delivery/return stamp.
-        const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
-        const latestDispatch = dispatchStages[dispatchStages.length - 1];
-        const dispatchCompleted = !!latestDispatch && latestDispatch.status === 'COMPLETED';
-        const dispatchStarted =
-          !!latestDispatch &&
-          ['IN_PROGRESS', 'WAITING_APPROVAL'].includes(latestDispatch.status);
-        const hasWorkSignal =
-          dispatchStarted ||
-          dispatchCompleted ||
-          workedAssignmentIds.has(order.id) ||
-          !!order.trackingNumber ||
-          !!order.courierDetails ||
-          !!order.deliveredAt ||
-          !!order.returnedAt ||
-          (order.dispatchStatus && order.dispatchStatus !== 'PENDING' && order.dispatchStatus !== 'OUT_FOR_DELIVERY');
-
-        if (dispatchCompleted) {
-          // DISPATCH stage fully completed but dispatchOfficer lost — already worked.
-          // Must NOT re-surface as new in every dispatcher's Unseen.
-          continue;
-        }
-
-        if (hasWorkSignal) {
-          // Started in the past (legacy accepts, courier booked, EDB-assigned, etc.)
-          // but currently unassigned — not genuinely new. Review list, not Unseen.
-          alreadyStarted.push(order);
-          continue;
-        }
-
         // Genuinely unaccepted — SHARED unseen: every dispatcher sees the same set.
         unseen.push(order);
-      } else if (ownedByMe) {
-        // Accepted by me (or forwarded to me) — my seen only.
+      } else if (owner === employeeName) {
+        // Accepted by me — seen only.
         seen.push(order);
       }
-      // else: accepted by the other dispatcher — hidden from me entirely.
+      // else: accepted by another dispatcher — shown in that dispatcher's seen queue.
     }
 
     res.json({
-      unseen, seen, active, alreadyStarted,
-      counts: { unseen: unseen.length, seen: seen.length, active: active.length, alreadyStarted: alreadyStarted.length }
+      unseen,
+      seen,
+      active: [],
+      alreadyStarted: [],
+      counts: { unseen: unseen.length, seen: seen.length, active: 0, alreadyStarted: 0 }
     });
 
   } catch (error) {
@@ -239,7 +164,7 @@ const acceptDispatchOrder = async (req, res) => {
       include: { stages: { where: { stageName: 'DISPATCH' }, orderBy: { createdAt: 'asc' } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.currentStage !== 'DISPATCH' || order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+    if (order.currentStage !== 'DISPATCH' || order.status === 'COMPLETED') {
       return res.status(400).json({ message: 'Order is not in an accept-able DISPATCH state' });
     }
     if (order.dispatchOfficer && order.dispatchOfficer !== employeeName) {
@@ -314,7 +239,7 @@ const dispatchFromProfile = async (req, res) => {
       include: { stages: true }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.currentStage !== 'DISPATCH' || order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+    if (order.currentStage !== 'DISPATCH' || order.status === 'COMPLETED') {
       return res.status(400).json({ message: 'Order is not in a dispatch-able DISPATCH state' });
     }
 

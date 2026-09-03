@@ -67,6 +67,7 @@ model Order {
   deliveryMethod  String?
   advancePaid     Boolean      @default(false)
   advanceAmount   Float        @default(0)
+  balanceAmount   Float?
   productImage    String?
   source          String       @default("OUTLET")
   outletName      String?

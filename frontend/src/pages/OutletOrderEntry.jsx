@@ -161,6 +161,7 @@ const OutletOrderEntry = () => {
   const [priority, setPriority] = useState('NORMAL');
   const [deliveryType, setDeliveryType] = useState('DELIVERY');
   const [paymentStatus, setPaymentStatus] = useState('');
+  const [balanceAmount, setBalanceAmount] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -370,11 +371,17 @@ const OutletOrderEntry = () => {
         return false;
       case 1: return products.length > 0;
       case 2: return true;
-      case 3: return paymentStatus === 'PAID' || paymentStatus === 'UNPAID';
+      case 3:
+        if (paymentStatus === 'PAID') return true;
+        if (paymentStatus === 'BALANCE') {
+          const amt = parseFloat(balanceAmount);
+          return balanceAmount != null && String(balanceAmount).trim() !== '' && !isNaN(amt) && amt > 0;
+        }
+        return false;
       case 4: return true;
       default: return false;
     }
-  }, [step, customerMode, lookedUp, clientData, customer, products, orderNumber, paymentStatus]);
+  }, [step, customerMode, lookedUp, clientData, customer, products, orderNumber, paymentStatus, balanceAmount]);
 
   const nextStep = () => { if (canProceed) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
@@ -411,8 +418,15 @@ const OutletOrderEntry = () => {
 
   const handleSubmit = async () => {
     if (products.length === 0) return toast.error('Add at least one product');
-    if (!paymentStatus || !['PAID', 'UNPAID'].includes(paymentStatus.toUpperCase())) {
-      return toast.error('Please select Paid or Unpaid before proceeding.');
+    const payStatus = (paymentStatus || '').toString().trim().toUpperCase();
+    if (!payStatus || !['PAID', 'BALANCE'].includes(payStatus)) {
+      return toast.error('Please select Paid or Balance before proceeding.');
+    }
+    if (payStatus === 'BALANCE') {
+      const amt = parseFloat(balanceAmount);
+      if (balanceAmount == null || String(balanceAmount).trim() === '' || isNaN(amt) || amt <= 0) {
+        return toast.error('Please enter a valid remaining balance amount greater than zero.');
+      }
     }
     setSubmitting(true);
     try {
@@ -462,7 +476,8 @@ const OutletOrderEntry = () => {
         placedByEmployeeName: employee?.name || null,
         priority,
         deliveryType,
-        paymentStatus: paymentStatus.toUpperCase()
+        paymentStatus: payStatus,
+        balanceAmount: payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || 0) : null
       };
       const res = await api.post('/api/outlet-orders', payload);
       setCreatedOrder(res.data);
@@ -490,6 +505,7 @@ const OutletOrderEntry = () => {
     setSizeData({});
     setClientMeasurements({});
     setAdvanceAmount(0);
+    setBalanceAmount('');
     setPriority('NORMAL');
     setDeliveryType('DELIVERY');
     setSubmitted(false);
@@ -1179,11 +1195,11 @@ const OutletOrderEntry = () => {
                 </label>
                 {paymentStatus && (
                   <span className={`text-xs font-black px-2.5 py-1 rounded-full uppercase ${paymentStatus === 'PAID' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-red-500/20 text-red-400 border border-red-500/40'}`}>
-                    {paymentStatus === 'PAID' ? 'ORDER PAID' : 'ORDER UNPAID'}
+                    {paymentStatus === 'PAID' ? 'ORDER PAID' : 'ORDER BALANCE'}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] font-bold text-gray-400">Select whether this order is Paid or Unpaid before proceeding.</p>
+              <p className="text-[11px] font-bold text-gray-400">Select whether this order is Paid or Balance before proceeding.</p>
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <button type="button" onClick={() => setPaymentStatus('PAID')}
                   className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'PAID' ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
@@ -1192,17 +1208,34 @@ const OutletOrderEntry = () => {
                   </span>
                   PAID
                 </button>
-                <button type="button" onClick={() => setPaymentStatus('UNPAID')}
-                  className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'UNPAID' ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
-                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'UNPAID' ? 'border-white' : ''}`}>
-                    {paymentStatus === 'UNPAID' && <span className="w-2 h-2 rounded-full bg-white"></span>}
+                <button type="button" onClick={() => setPaymentStatus('BALANCE')}
+                  className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'BALANCE' ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
+                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'BALANCE' ? 'border-white' : ''}`}>
+                    {paymentStatus === 'BALANCE' && <span className="w-2 h-2 rounded-full bg-white"></span>}
                   </span>
-                  UNPAID
+                  BALANCE
                 </button>
               </div>
+              {paymentStatus === 'BALANCE' && (
+                <div className="pt-1 space-y-1">
+                  <label className="text-[11px] font-black text-red-400 uppercase tracking-wider block">Remaining Balance: ₨ <span className="text-red-500">* required</span></label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    placeholder="Enter exact balance amount (must be > 0)"
+                    value={balanceAmount}
+                    onChange={(e) => setBalanceAmount(e.target.value)}
+                    className={`w-full bg-gray-900 border-2 rounded-xl px-3 py-2.5 text-base font-bold text-white outline-none transition-all ${!(balanceAmount != null && String(balanceAmount).trim() !== '' && parseFloat(balanceAmount) > 0) ? 'border-red-500/70 focus:border-red-400' : 'border-amber-500/50 focus:border-amber-400'}`}
+                  />
+                  {!(balanceAmount != null && String(balanceAmount).trim() !== '' && !isNaN(parseFloat(balanceAmount)) && parseFloat(balanceAmount) > 0) && (
+                    <p className="text-[11px] font-black text-red-400 flex items-center gap-1">⚠️ Enter a valid balance amount greater than zero.</p>
+                  )}
+                </div>
+              )}
               {!paymentStatus && (
                 <p className="text-[11px] font-black text-red-400 mt-1 flex items-center gap-1">
-                  ⚠️ Please select Paid or Unpaid before proceeding.
+                  ⚠️ Please select Paid or Balance before proceeding.
                 </p>
               )}
             </div>
@@ -1281,7 +1314,7 @@ const OutletOrderEntry = () => {
             </div>
             {paymentStatus && (
               <div className={`text-center py-2.5 rounded-lg font-black text-sm uppercase border-2 tracking-wider ${paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800 border-emerald-400' : 'bg-red-100 text-red-800 border-red-400'}`}>
-                {paymentStatus === 'PAID' ? 'ORDER PAID' : 'ORDER UNPAID'}
+                {paymentStatus === 'PAID' ? 'ORDER PAID' : `ORDER BALANCE${balanceAmount ? `: ₨ ${balanceAmount}` : ''}`}
               </div>
             )}
             <div className="text-xs font-bold space-y-0.5 border-b border-gray-200 pb-2">

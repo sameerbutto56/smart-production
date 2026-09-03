@@ -70,11 +70,7 @@ const getDispatchQueue = async (req, res) => {
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });
 
-    const orders = rawOrders.filter(o => !(
-      o.deliveryType === 'ENAMELS' ||
-      o.deliveryMethod === 'Enamels Delivery' ||
-      o.currentStage === 'ENAMELS_DELIVERY'
-    ));
+    const orders = rawOrders;
 
     const PRIORITY_SORT = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
     const sorted = [...orders].sort((a, b) => {
@@ -421,15 +417,11 @@ const getDispatchDashboard = async (req, res) => {
       baseWhere.outletName = outletName;
     }
 
-    // Include completed/delivered so active orders stay visible until final status
-    const rawOrders = await prisma.order.findMany({
+    const orders = await prisma.order.findMany({
       where: {
         ...baseWhere,
-        OR: [
-          { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } },
-          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'REJECTED'] }, status: { notIn: ['RETURNED'] } },
-          { dispatchOfficer: { not: null }, status: { notIn: ['RETURNED', 'CANCELLED', 'REJECTED'] } }
-        ]
+        currentStage: 'DISPATCH',
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] }
       },
       select: {
         id: true, orderNumber: true, customerName: true, customerPhone: true,
@@ -449,43 +441,23 @@ const getDispatchDashboard = async (req, res) => {
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });
 
-    const orders = rawOrders.filter(o => !(
-      o.deliveryType === 'ENAMELS' ||
-      o.deliveryMethod === 'Enamels Delivery' ||
-      o.currentStage === 'ENAMELS_DELIVERY'
-    ));
-
-    // Categorize into unseen / seen / active
+    // Categorize into unseen (unassigned) / seen (assigned)
     const unseen = [];
     const seen = [];
-    const active = [];
 
     for (const order of orders) {
-      const dispatchStages = (order.stages || []).filter(s => s.stageName === 'DISPATCH');
-      const dispatchStage = dispatchStages[dispatchStages.length - 1];
-      const isAccepted = (dispatchStage?.startedAt != null) || order.dispatchOfficer != null;
-      const isDispatched = order.currentStage === 'OUT_FOR_DELIVERY' || order.dispatchStatus === 'BOOKED' || order.dispatchStatus === 'DISPATCHED';
+      const activeStage = (order.stages || []).slice().reverse().find(s => s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
+      const isClaimedInThisCycle = activeStage && activeStage.status === 'IN_PROGRESS';
+      const owner = isClaimedInThisCycle ? (order.dispatchOfficer || null) : null;
 
-      if (order.currentStage === 'OUT_FOR_DELIVERY' || ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'].includes(order.dispatchStatus)) {
-        // Order has been dispatched — active tasks
-        active.push(order);
-      } else if (order.currentStage === 'DISPATCH' && order.dispatchOfficer && isAccepted) {
-        // Accepted by an officer, awaiting dispatch — seen
-        seen.push(order);
-      } else if (order.currentStage === 'DISPATCH' && !order.dispatchOfficer && !isAccepted) {
-        // Not yet accepted — unseen
+      if (!owner) {
         unseen.push(order);
-      } else if (order.currentStage === 'DISPATCH' && isAccepted) {
-        seen.push(order);
       } else {
-        unseen.push(order);
+        seen.push(order);
       }
     }
 
-    const terminalStatuses = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
-    const filteredActive = active.filter(o => !terminalStatuses.includes(o.dispatchStatus));
-
-    res.json({ unseen, seen, active: filteredActive, counts: { unseen: unseen.length, seen: seen.length, active: filteredActive.length } });
+    res.json({ unseen, seen, active: [], counts: { unseen: unseen.length, seen: seen.length, active: 0 } });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch dispatch dashboard', error: error.message });
   }

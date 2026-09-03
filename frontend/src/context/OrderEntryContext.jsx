@@ -44,7 +44,7 @@ const OrderEntryContext = createContext(null);
 
 const INITIAL_FORM_DATA = {
   orderNumber: '', customerName: '', customerPhone: '', address: '', type: 'STANDARD', priority: 'NORMAL',
-  advancePaid: false, advanceAmount: '', paymentStatus: '', totalPrice: '', quantity: 1,
+  advancePaid: false, advanceAmount: '', balanceAmount: '', paymentStatus: '', totalPrice: '', quantity: 1,
   matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
   alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
   instructionNotes: '', shopifyOrderDate: '',
@@ -222,6 +222,7 @@ export const OrderEntryProvider = ({ children }) => {
             priority: found.priority || 'NORMAL',
             advancePaid: !!found.advancePaid,
             advanceAmount: found.advanceAmount || '',
+            balanceAmount: found.balanceAmount != null ? found.balanceAmount : '',
             paymentStatus: found.paymentStatus || '',
             totalPrice: found.totalPrice || '',
             quantity: found.quantity || 1,
@@ -423,7 +424,8 @@ export const OrderEntryProvider = ({ children }) => {
         setFormData({
           orderNumber: found.orderNumber || '', customerName: found.customerName || '', customerPhone: found.customerPhone || '',
           address: found.address || '', city: found.city || '', type: found.type || 'STANDARD', priority: found.priority || 'NORMAL',
-          advancePaid: !!found.advancePaid, advanceAmount: found.advanceAmount || '', totalPrice: found.totalPrice || '',
+          advancePaid: !!found.advancePaid, advanceAmount: found.advanceAmount || '',
+          balanceAmount: found.balanceAmount != null ? found.balanceAmount : '', totalPrice: found.totalPrice || '',
           quantity: found.quantity || 1, productType: '', fabricType: '', color: '', size: '',
           logoDesign: found.logoDesign || '', logoName: found.logoName || '', nameSpelling: '', nameColor: '', customColor: '',
           logoColor: '', logoPlacement: '', logoCharges: found.logoCharges?.toString() || '',
@@ -555,6 +557,7 @@ export const OrderEntryProvider = ({ children }) => {
             customerName: formData.customerName, customerPhone: formData.customerPhone, address: formData.address,
             city: formData.city, type: formData.type, priority: formData.priority,
             advancePaid: formData.advancePaid, advanceAmount: parseFloat(formData.advanceAmount) || 0,
+            balanceAmount: (formData.paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? parseFloat(formData.balanceAmount) || 0 : null,
             paymentStatus: formData.paymentStatus || 'PENDING',
             items: finalItems, quantity: finalItems.reduce((s, i) => s + (i.quantity || 1), 0),
             totalPrice: (() => {
@@ -817,6 +820,7 @@ export const OrderEntryProvider = ({ children }) => {
         customerPhone: formData.customerPhone || firstItem.customerPhone, address: formData.address || firstItem.address, city: formData.city || firstItem.city,
         type: formData.type || firstItem.type, priority: formData.priority || firstItem.priority, advancePaid: firstItem.advancePaid,
         advanceAmount: parseFloat(formData.advanceAmount) || 0,
+        balanceAmount: (formData.paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? parseFloat(formData.balanceAmount) || 0 : null,
         paymentStatus: formData.paymentStatus || firstItem.paymentStatus || 'PENDING',
         logoDesign: firstItem.logoDesign, logoName: firstItem.logoName,
         logoCharges: cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0),
@@ -988,7 +992,9 @@ export const OrderEntryProvider = ({ children }) => {
       orderNumber: formData.orderNumber, customerName: formData.customerName, customerPhone: formData.customerPhone,
       address: formData.address, city: formData.city, type: formData.type, priority: formData.priority,
       quantity: parseInt(formData.quantity) || 1, advancePaid: formData.advancePaid,
-      advanceAmount: parseFloat(formData.advanceAmount) || 0, paymentStatus: formData.paymentStatus,
+      advanceAmount: parseFloat(formData.advanceAmount) || 0,
+      balanceAmount: (formData.paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? parseFloat(formData.balanceAmount) || 0 : null,
+      paymentStatus: formData.paymentStatus,
       logoDesign: formData.logoDesign, logoName: formData.logoName,
       logoCharges: parseFloat(formData.logoCharges) || 0,
       namePrintingCharges: parseFloat(formData.namePrintingCharges) || 0,

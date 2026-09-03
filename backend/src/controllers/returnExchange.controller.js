@@ -2,7 +2,7 @@ const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const { calculateDeadline } = require('../utils/deadline');
-const { classifyOrderItems } = require('./order-helpers');
+const { classifyOrderItems, DISPATCH_RESET_FIELDS, ensureSingleActiveDispatchStage } = require('./order-helpers');
 const { deductInventoryItems, getRolesForStage } = require('./order.controller');
 const { getPendingAudit } = require('../utils/auditLock');
 
@@ -1497,12 +1497,21 @@ const routeReplacement = async (req, res) => {
         where: { id: storeStage.id },
         data: { status: 'COMPLETED', completedAt: new Date() }
       });
-      await tx.orderStage.create({
-        data: { orderId: order.id, stageName: nextStage, status: 'PENDING', deadlineAt: deadline }
-      });
+      if (nextStage === 'DISPATCH') {
+        await ensureSingleActiveDispatchStage(order.id, order.priority, tx);
+      } else {
+        await tx.orderStage.create({
+          data: { orderId: order.id, stageName: nextStage, status: 'PENDING', deadlineAt: deadline }
+        });
+      }
+
+      const orderUpdateData = { currentStage: nextStage, status: 'PENDING' };
+      if (nextStage === 'DISPATCH') {
+        Object.assign(orderUpdateData, DISPATCH_RESET_FIELDS);
+      }
       await tx.order.update({
         where: { id: order.id },
-        data: { currentStage: nextStage, status: 'PENDING' }
+        data: orderUpdateData
       });
 
       const recipientUsers = await tx.user.findMany({
@@ -1849,33 +1858,13 @@ const redispatchOrder = async (req, res) => {
     const deadline = calculateDeadline(new Date(), durations['DISPATCH'] || 12);
 
     await prisma.$transaction(async (tx) => {
-      const activeStages = order.stages.filter(s => ['PENDING', 'IN_PROGRESS'].includes(s.status));
-      for (const stage of activeStages) {
-        await tx.orderStage.update({
-          where: { id: stage.id },
-          data: { status: 'COMPLETED', completedAt: new Date() }
-        });
-      }
+      // 1) Ensure single active DISPATCH stage and close any previous active stages
+      await ensureSingleActiveDispatchStage(orderId, order.priority, tx);
 
-      // 2) Create new DISPATCH stage in PENDING status
-      await tx.orderStage.create({
-        data: {
-          orderId,
-          stageName: 'DISPATCH',
-          status: 'PENDING',
-          deadlineAt: deadline
-        }
-      });
-
-      // 3) Update Order: currentStage = DISPATCH, status = PENDING, dispatchOfficer = null, dispatchStatus = PENDING
+      // 2) Update Order: cleanly reset all dispatch and historical delivery fields
       await tx.order.update({
         where: { id: orderId },
-        data: {
-          currentStage: 'DISPATCH',
-          status: 'PENDING',
-          dispatchOfficer: null,
-          dispatchStatus: 'PENDING'
-        }
+        data: DISPATCH_RESET_FIELDS
       });
 
       // 4) Add to Routing History
