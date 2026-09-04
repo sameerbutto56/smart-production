@@ -102,7 +102,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS'] },
     { name: 'Employee Management', path: '/software-settings?tab=employees', icon: UserCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'] },
-    { name: 'Product Data', path: '/product-data', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Product Data', path: '/product-data', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
@@ -613,7 +613,19 @@ const Layout = () => {
             >
               <Menu size={16} />
             </button>
-            
+            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'CEO') && (
+              <Link
+                to="/product-data"
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${
+                  location.pathname === '/product-data'
+                    ? 'bg-purple-600 text-white shadow-purple-900/40'
+                    : 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/30'
+                }`}
+              >
+                <BarChart3 size={15} />
+                <span className="hidden sm:inline">Product Data</span>
+              </Link>
+            )}
           </div>
 
           <div className="flex items-center gap-3">

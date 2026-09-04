@@ -584,6 +584,16 @@ const AdminDashboard = () => {
           <div className="flex flex-col items-center text-center gap-2 pt-4">
             <h1 className="text-2xl md:text-4xl font-black theme-text-primary tracking-tight uppercase">Admin Dashboard</h1>
             <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-[0.3em]">Select a department to view analytics</p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => navigate('/product-data')}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-600/30 active:scale-95"
+              >
+                <BarChart3 size={16} />
+                <span>Open Product Data</span>
+                <ArrowUpRight size={14} />
+              </button>
+            </div>
           </div>
 
           {/* Delay Orders Analysis — per-stage breakdown with drill-down filters */}
