@@ -91,6 +91,18 @@ const POSCart = () => {
                 Logo Design (+₨300)
               </button>
             </div>
+            {item.nameEngrave && (
+              <div className="mt-1.5 flex items-center gap-1.5 bg-purple-950/30 border border-purple-800/40 rounded-lg p-1.5">
+                <span className="text-[10px] font-black text-purple-400 whitespace-nowrap">Engrave Text:</span>
+                <input
+                  type="text"
+                  placeholder="Enter name/text to engrave..."
+                  value={item.engravingText || ''}
+                  onChange={e => updateCartCustomization(i, 'engravingText', e.target.value)}
+                  className="flex-1 bg-gray-900 border border-purple-700/60 rounded px-2 py-0.5 text-[10px] font-medium text-white focus:border-purple-400 outline-none"
+                />
+              </div>
+            )}
             <div className="mt-1.5">
               <button onClick={() => updateCartExchange(i)}
                 className={`w-full px-2 py-1 rounded-lg text-[9px] font-bold border ${item.isExchange ? 'border-amber-500 bg-amber-600/20 text-amber-300' : 'border-gray-700 text-gray-500'}`}>

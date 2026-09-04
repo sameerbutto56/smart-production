@@ -227,6 +227,7 @@ model RevenueRecord {
   logoCharges     Float    @default(0)
   namePrintingCharges Float @default(0)
   customizationCharges Float @default(0)
+  engravingCharges  Float    @default(0)
   productionCost  Float    @default(0)
   totalRevenue    Float    @default(0)
   totalProfit     Float    @default(0)
@@ -796,6 +797,9 @@ model PosSaleItem {
   logoDesign        Boolean  @default(false)
   customizationCharges Float @default(0)
   engravingCharges  Float    @default(0)
+  engravingText     String?
+  engravingDetails  Json?
+  engravingCount    Int?
   logoCharges       Float    @default(0)
   otherCharges      Float    @default(0)
   discountPct       Float    @default(0)

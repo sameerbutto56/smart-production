@@ -69,6 +69,7 @@ const DemandDeliveriesHistory = lazy(() => import('./pages/DemandDeliveriesHisto
 const AsmPage = lazy(() => import('./pages/AsmPage'));
 const VendorsPage = lazy(() => import('./pages/VendorsPage'));
 const AsmAllowedStorePage = lazy(() => import('./pages/AsmAllowedStorePage'));
+const ProductDataPage = lazy(() => import('./pages/ProductDataPage'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -142,6 +143,7 @@ function App() {
                     <AuthRedirectHandler />
                   } />
                   <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="product-data" element={<ProductDataPage />} />
                   <Route path="inventory" element={<InventoryManagement />} />
                   <Route path="tasks" element={<MyTasks />} />
                   <Route path="order-entry" element={<OrderEntry />} />

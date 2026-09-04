@@ -127,6 +127,7 @@ const orderControlRoutes = require('./routes/orderControl.routes');
 const wrongAttemptRoutes = require('./routes/wrongAttempt.routes');
 const deliveryTaskRoutes = require('./routes/deliveryTask.routes');
 const vendorRoutes = require('./routes/vendor.routes');
+const productDataRoutes = require('./routes/productData.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);
@@ -141,6 +142,7 @@ app.use('/api/dispatch', dispatchRoutes);
 app.use('/api/dispatch-profile', require('./routes/dispatch-profile.routes'));
 app.use('/api/edit-requests', editRequestRoutes);
 app.use('/api/production', productionRoutes);
+app.use('/api/analytics/product-data', productDataRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/demand', outletDemandRoutes);
 app.use('/api/clients', clientRoutes);

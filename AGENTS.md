@@ -1,4 +1,20 @@
 ## Goals
+### Implemented This Session — Admin Profile: Product Data Module & Detailed POS Engraving Tracking
+- **Requirement**: Build a dedicated Product Data reporting module in Admin Profile (`/product-data`) to analyze outlet-wise product sales, discounts, customizations, standard/custom sizes, engravings, and employee activity based on selected dates and filters. Ensure POS product-level engraving selections are captured with engraving text and line quantity count, saving directly to `PosSaleItem` and creating linked `EngravingRequest` records for the workshop.
+- **Backend**:
+  - `schema.prisma`: Added `engravingText String?`, `engravingDetails Json?`, and `engravingCount Int?` to `PosSaleItem`. Pushed to DB via `prisma db push` and generated client.
+  - `pos.controller.js`: In `createSale`, persisted `nameEngrave`, `engravingText`, and `engravingCount` on `PosSaleItem`. When `nameEngrave` is true, automatically creates an `EngravingRequest` with `sourceModule: 'POS'`.
+  - `productData.controller.js` & `productData.routes.js`: Implemented `GET /api/analytics/product-data/outlets`, `/products`, `/summary`, and `/orders` (paginated drilldown). Handled strict PKT boundaries via `workingHours.js` `dateBoundToMs`, excluded cancelled/rejected records, and aggregated sales from both `Order` and `PosSale`.
+  - `app.js`: Mounted at `/api/analytics/product-data` with `authorize(['SUPER_ADMIN', 'ADMIN', 'CEO'])`.
+- **Frontend**:
+  - `ProductDataPage.jsx`: Full dashboard with Outlet selector, Date presets (Today, Yesterday, Weekly, Monthly, Custom Range, All), Product search, Active context banner, 8 summary metric cards, 7 tabs (Product Sales, Discounts, Customization, Sizes, Detailed Engraving Analytics, Employee Activity, Order Drill-Down), and CSV Export.
+  - `POSContext.jsx` & `POSCart.jsx`: Added inline Engrave Text input when *Name Engrave* is toggled, sending `engravingText` and `engravingCount` with checkout payload.
+  - `Layout.jsx`, `AdminDashboard.jsx`, `App.jsx`: Added "Product Data" sidebar item, dashboard module card, and `/product-data` route.
+- **Verification**:
+  - `prisma validate` + `prisma db push` + `prisma generate`: Passed with 0 errors.
+  - `node --check`: Passed on all backend files.
+  - `npm run build`: Production build succeeded (3,191 modules bundled, `ProductDataPage-DjtpNGbx.js.br` generated).
+
 ### Implemented This Session — Quotation & Invoice A4 Print Redesign: Pre-printed Letterhead (Pic 1) + Word Document Layout (Pic 2) with Compact Footprint (commit `4a83f48`, deployed & live-verified)
 - **Requirement**: Redesign Quotation and Invoice A4 print templates across both the ASM profile (`/asm`) and Admin profile (`/vendors-admin`) matching:
   1. Picture 1: Authentic Enamels letterhead branding with top logo, purple & gold divider rule, bottom-left geometric royal purple (`#4D3A86`) and gold (`#C59B27`) triangles with diagonal accent stripes, and bottom-right contact details with icons for WhatsApp (`030 11 33 11 33`), Facebook (`ENAMELSOFFICIAL`), Instagram (`ENAMELS_OFFICIAL`), Email (`info@enamelsonline.com`), and Web (`www.enamelsonline.com`).

@@ -549,7 +549,7 @@ export function POSProvider({ children }) {
   const updateQty = (i, qty) => { if (qty < 1) return; const copy = [...cart]; copy[i] = { ...copy[i], qty }; setCart(copy); };
   const updateAlteration = (i, label, amount) => { const copy = [...cart]; copy[i] = { ...copy[i], alterationLabel: label, alterationAmount: amount }; setCart(copy); };
   const updateCartDiscount = (i, field, value) => { const copy = [...cart]; copy[i] = { ...copy[i], [field]: value }; setCart(copy); };
-  const updateCartCustomization = (i, field) => { const copy = [...cart]; copy[i] = { ...copy[i], [field]: !copy[i][field] }; setCart(copy); };
+  const updateCartCustomization = (i, field, value) => { const copy = [...cart]; copy[i] = { ...copy[i], [field]: value !== undefined ? value : !copy[i][field] }; setCart(copy); };
   const updateCartExchange = (i) => { const copy = [...cart]; copy[i] = { ...copy[i], isExchange: !copy[i].isExchange }; setCart(copy); };
 
   const cardChargesPct = paymentMethod === 'CARD' ? 2 : 0;
@@ -671,7 +671,7 @@ export function POSProvider({ children }) {
       } catch { /* proceed without engraving number */ }
     }
     const payload = {
-      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0, isExchange: i.isExchange || false })),
+      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, engravingText: i.engravingText || null, engravingCount: i.nameEngrave ? (i.qty || 1) : 0, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0, isExchange: i.isExchange || false })),
       customerName: customerName || null, customerPhone: customerPhone || null,
       extraCharges: 0, discountPercent: discountPct, discountFixed: discountFixed,
       advanceAmount: parseFloat(advanceAmount) || 0, deliveryCharges: deliveryCharge,

@@ -526,9 +526,12 @@ const createSale = async (req, res) => {
         customization1: item.customization1 || false,
         customization2: item.customization2 || false,
         nameEngrave: item.nameEngrave || false,
+        engravingCharges,
+        engravingText: item.engravingText || null,
+        engravingDetails: item.engravingDetails || null,
+        engravingCount: item.nameEngrave ? (parseInt(item.engravingCount || item.quantity || 1, 10)) : 0,
         logoDesign: item.logoDesign || false,
         customizationCharges: custCharges,
-        engravingCharges,
         logoCharges,
         otherCharges,
         discountPct: dpct,
@@ -630,6 +633,47 @@ const createSale = async (req, res) => {
       cache.delPattern(`${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
       cache.delPattern(`outlet:analytics:${outletName}`);
       if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
+      // If sale contains engraved items, create an EngravingRequest for the workshop
+      const engravedItems = (sale.items || []).filter(it => it.nameEngrave);
+      if (engravedItems.length > 0) {
+        (async () => {
+          try {
+            await prisma.engravingRequest.create({
+              data: {
+                engravingNumber: `ENG-${sale.receiptNumber}`,
+                sourceModule: 'POS',
+                sourceOutlet: outletName,
+                sourceOrderId: sale.id,
+                orderNumber: sale.receiptNumber,
+                customerName: customerName || null,
+                customerPhone: customerPhone || null,
+                outletName: outletName || 'Johar Town',
+                products: engravedItems.map(it => ({
+                  name: it.productName,
+                  size: it.size,
+                  color: it.color,
+                  quantity: it.quantity,
+                  engravingText: it.engravingText || null,
+                  engravingCount: it.engravingCount || it.quantity || 1
+                })),
+                status: 'PENDING',
+                currentStage: 'ENGRAVING_PENDING',
+                stages: {
+                  create: {
+                    stageName: 'ENGRAVING_PENDING',
+                    status: 'PENDING',
+                    startedAt: new Date()
+                  }
+                }
+              }
+            });
+            const io = req.app.get('io');
+            if (io) io.emit('engraving-created', { source: 'pos', receiptNumber: sale.receiptNumber });
+          } catch (e) {
+            console.error('[createSale] Error creating EngravingRequest:', e.message);
+          }
+        })();
+      }
     });
   } catch (error) {
     errorLogger.logError({

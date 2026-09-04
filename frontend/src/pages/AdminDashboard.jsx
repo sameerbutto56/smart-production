@@ -874,6 +874,7 @@ const AdminDashboard = () => {
               { id: 'postex', label: 'PostEx Courier', desc: 'Courier shipment tracking, delivery analytics, COD collection & status sync', icon: Truck, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20', path: '/postex-dashboard' },
               { id: 'vendors', label: 'Vendors', desc: 'Vendor accounts, purchase orders, approvals, production-ready stock, payments & document printing', icon: Building, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20', path: '/vendors-admin' },
               { id: 'asm', label: 'ASM', desc: 'Area Sales Manager orders, approvals, analytics & delivery tracking', icon: Users, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20', path: '/asm' },
+              { id: 'product_data', label: 'Product Data', desc: 'Outlet-wise product sales, discounts, customizations, standard/custom sizes, POS engravings & employee activity', icon: BarChart3, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', path: '/product-data' },
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
