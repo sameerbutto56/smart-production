@@ -6,10 +6,10 @@ import toast from 'react-hot-toast';
 import {
   Search, RefreshCcw, Plus, X, Building2, Phone, Mail, MapPin, Users, User,
   ClipboardList, TrendingUp, CreditCard, Package, CheckCircle2, Ban, Truck, Eye, Hash,
-  ArrowDownToLine, Printer, FileText, Receipt, Trash2,
+  ArrowDownToLine, Printer, FileText, Receipt, Trash2, BarChart3,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
-import { printOrderDocument, printThermalReceipt } from '../utils/vendorDocumentPrint';
+import { printOrderDocument, printThermalReceipt, printDataDocument } from '../utils/vendorDocumentPrint';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
@@ -215,6 +215,8 @@ const VendorsPage = () => {
     }
     if (kind === 'quotation') printOrderDocument(docOrder, 'quotation');
     else if (kind === 'invoice') printOrderDocument(docOrder, 'invoice');
+    else if (kind === 'quotation-data') printDataDocument(docOrder, 'quotation-data');
+    else if (kind === 'invoice-data') printDataDocument(docOrder, 'invoice-data');
     else printThermalReceipt(docOrder);
   };
 
@@ -588,6 +590,8 @@ const VendorDetailModal = ({ vendor, onClose, onCreateOrder, catalog, t }) => {
   const printOrder = (order, kind) => {
     if (kind === 'quotation') printOrderDocument(order, 'quotation');
     else if (kind === 'invoice') printOrderDocument(order, 'invoice');
+    else if (kind === 'quotation-data') printDataDocument(order, 'quotation-data');
+    else if (kind === 'invoice-data') printDataDocument(order, 'invoice-data');
     else printThermalReceipt(order);
   };
 
@@ -745,6 +749,8 @@ const VendorDetailModal = ({ vendor, onClose, onCreateOrder, catalog, t }) => {
                 <div key={order.id} className="flex gap-1">
                   <button onClick={() => printOrder(order, 'quotation')} className="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs">{t('Quotation')}</button>
                   <button onClick={() => printOrder(order, 'invoice')} className="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs">{t('Invoice')}</button>
+                  <button onClick={() => printOrder(order, 'quotation-data')} className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs">{t('Quo. Data')}</button>
+                  <button onClick={() => printOrder(order, 'invoice-data')} className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs">{t('Inv. Data')}</button>
                   <button onClick={() => printOrder(order, 'thermal')} className="px-2 py-1 rounded bg-slate-600 hover:bg-slate-500 text-white text-xs">{t('Thermal')}</button>
                 </div>
               ))}
@@ -1194,6 +1200,8 @@ const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t 
         <div className="flex gap-2 flex-wrap mt-3 pt-3 border-t border-slate-700/50">
           <ActionBtn color="bg-indigo-600 hover:bg-indigo-500" onClick={() => handlePrint(order, 'quotation')} icon={Printer} label={t('Print Quotation')} />
           <ActionBtn color="bg-indigo-600 hover:bg-indigo-500" onClick={() => handlePrint(order, 'invoice')} icon={FileText} label={t('Print Invoice')} />
+          <ActionBtn color="bg-emerald-600 hover:bg-emerald-500" onClick={() => handlePrint(order, 'quotation-data')} icon={BarChart3} label={t('Quotation Data')} />
+          <ActionBtn color="bg-emerald-600 hover:bg-emerald-500" onClick={() => handlePrint(order, 'invoice-data')} icon={BarChart3} label={t('Invoice Data')} />
           <ActionBtn color="bg-slate-600 hover:bg-slate-500" onClick={() => handlePrint(order, 'thermal')} icon={Receipt} label={t('Thermal')} />
         </div>
       </div>

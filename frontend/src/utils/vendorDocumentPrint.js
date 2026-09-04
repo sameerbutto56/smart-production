@@ -1,10 +1,12 @@
 // Shared Quotation & Invoice A4 printing utility for ASM and Admin profiles.
-// Implements:
-// 1. Single Enamels logo with authentic brand styling & purple/gold divider bar.
-// 2. Microsoft Word layout from Picture 2: centered title, subheaders, blue callout box, dark navy table.
-// 3. Professional financial summary table with integrated "Amount in Words" accent strip.
-// 4. Compact 2-row multi-column contact box at the very bottom taking minimal space without strange graphics.
+// Supports 5 print modes:
+// 1. Full Quotation  — Header (centered 2″ golden logo) + Body + Footer (company contacts)
+// 2. Full Invoice    — Header (centered 2″ golden logo) + Body + Footer (company contacts)
+// 3. Quotation Data  — Body only, A4, 3-inch top & bottom margins, no header/footer/logo
+// 4. Invoice Data    — Body only, A4, zero margins, no header/footer/logo
+// 5. Thermal Receipt — 58mm POS receipt
 
+// ── CSS for full documents (header + footer) ────────────────────────────────
 export const PRINT_CSS = `
 @page {
   size: A4 portrait;
@@ -36,6 +38,71 @@ th, td {
 }
 `;
 
+// ── CSS for Quotation Data (3-inch top/bottom margins) ──────────────────────
+const PRINT_CSS_DATA_QUOTATION = `
+@page {
+  size: A4 portrait;
+  margin: 3in 12mm 3in 12mm;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+  margin: 0;
+  padding: 0;
+  font-size: 9.5px;
+  line-height: 1.35;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.a4-container {
+  width: 100%;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 4px 6px;
+}
+`;
+
+// ── CSS for Invoice Data (zero margins) ─────────────────────────────────────
+const PRINT_CSS_DATA_INVOICE = `
+@page {
+  size: A4 portrait;
+  margin: 4mm 12mm 4mm 12mm;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+  margin: 0;
+  padding: 0;
+  font-size: 9.5px;
+  line-height: 1.35;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.a4-container {
+  width: 100%;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 4px 6px;
+}
+`;
+
+// ── Logo fetcher ────────────────────────────────────────────────────────────
 export async function fetchLogoUrl() {
   let logoUrl = window.location.origin + '/logo.png';
   try {
@@ -48,6 +115,7 @@ export async function fetchLogoUrl() {
   return logoUrl;
 }
 
+// ── Iframe print helper ─────────────────────────────────────────────────────
 export function printIframe(html, title, cleanups, style) {
   const iframe = document.createElement('iframe');
   iframe.style.width = '0';
@@ -70,6 +138,7 @@ export function printIframe(html, title, cleanups, style) {
   }, 350);
 }
 
+// ── Number to words ─────────────────────────────────────────────────────────
 // Converts number to uppercase English words for the "Amount in Words" section
 export function numberToWords(num) {
   const n = Math.floor(Math.abs(Number(num) || 0));
@@ -113,26 +182,26 @@ export function numberToWords(num) {
   return result.trim().replace(/\s+/g, ' ');
 }
 
-// Letterhead Header (Single Logo + sleek purple/gold divider bar)
+// ── Header: Centered 2-inch golden logo ─────────────────────────────────────
 function buildHeaderHTML(logoUrl) {
   return `
-  <div class="a4-header" style="margin-bottom: 6px;">
-    <div style="display: flex; align-items: flex-end; justify-content: space-between;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <img src="${logoUrl}" alt="ENAMELS" style="height: 40px; width: auto; object-fit: contain; display: block;">
-      </div>
-      <div style="font-size: 7.5px; font-weight: 700; letter-spacing: 1.8px; color: #b8860b; text-transform: uppercase; margin-bottom: 3px;">
+  <div class="a4-header" style="text-align: center; margin-bottom: 8px;">
+    <div style="display: flex; justify-content: center; align-items: center;">
+      <img src="${logoUrl}" alt="ENAMELS"
+        style="height: 192px; width: auto; object-fit: contain; display: block;
+               filter: sepia(1) saturate(2.5) hue-rotate(10deg) brightness(0.85);">
+    </div>
+    <div style="display: flex; align-items: center; width: 100%; margin-top: 4px;">
+      <div style="height: 3px; flex: 1; background: #4d3a86; border-radius: 1px;"></div>
+      <div style="padding: 0 10px; font-size: 7.5px; font-weight: 700; letter-spacing: 1.8px; color: #b8860b; text-transform: uppercase; white-space: nowrap;">
         FASHION | PROFESSION | SCRUBS
       </div>
-    </div>
-    <div style="display: flex; align-items: center; width: 100%; margin-top: 3px;">
-      <div style="height: 3px; width: 130px; background: #4d3a86; border-radius: 1px;"></div>
-      <div style="height: 1px; flex: 1; background: #c59b27;"></div>
+      <div style="height: 3px; flex: 1; background: #c59b27; border-radius: 1px;"></div>
     </div>
   </div>`;
 }
 
-// Letterhead Footer (Compact box form with phone, email, website, facebook, instagram)
+// ── Footer: Company contact details at the very end ─────────────────────────
 function buildFooterHTML() {
   return `
   <div class="a4-footer" style="margin-top: 14px; padding: 6px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 8px; color: #475569;">
@@ -166,9 +235,9 @@ function buildFooterHTML() {
   </div>`;
 }
 
-// Builds the full A4 document HTML matching Picture 2 (Body layout) with professional executive styling
-export function generateDocumentHTML(order, kind, logoUrl) {
-  const isInvoice = kind === 'invoice';
+// ── Body content builder (shared between full & data-only modes) ────────────
+function buildBodyHTML(order, kind) {
+  const isInvoice = kind === 'invoice' || kind === 'invoice-data';
   const totalPaid = (order.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const remaining = Math.max(0, (Number(order.grandTotal) || 0) - totalPaid);
 
@@ -228,10 +297,6 @@ export function generateDocumentHTML(order, kind, logoUrl) {
   });
 
   return `
-  <div class="a4-container">
-    <!-- TOP LETTERHEAD (Picture 1) -->
-    ${buildHeaderHTML(logoUrl)}
-
     <!-- DOCUMENT TITLE -->
     <div style="text-align: center; margin: 4px 0 6px 0;">
       <span style="font-size: 15px; font-weight: 900; letter-spacing: 2px; color: #0f172a; text-transform: uppercase; border-bottom: 2px solid #0f172a; padding-bottom: 1px;">
@@ -257,7 +322,7 @@ export function generateDocumentHTML(order, kind, logoUrl) {
       </div>
     </div>
 
-    <!-- BLUE CALLOUT BOX (Picture 2) -->
+    <!-- BLUE CALLOUT BOX -->
     <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 8.5px; line-height: 1.35;">
       <div style="font-weight: 900; font-size: 9px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px;">
         ${isInvoice ? 'INVOICE PREPARED FOR' : 'QUOTATION PREPARED FOR'}
@@ -289,7 +354,7 @@ export function generateDocumentHTML(order, kind, logoUrl) {
       </tbody>
     </table>
 
-    <!-- FINANCIAL TOTALS BOX (Right Aligned, Picture 2 Style) -->
+    <!-- FINANCIAL TOTALS BOX (Right Aligned) -->
     <div style="display: flex; justify-content: flex-end; margin-top: 4px; margin-bottom: 6px;">
       <table style="border-collapse: collapse; font-size: 8.5px; width: 260px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px;">
         <tr>
@@ -315,7 +380,7 @@ export function generateDocumentHTML(order, kind, logoUrl) {
           <td style="padding: 3px 8px; font-weight: 700; color: #334155; border-bottom: 1px solid #dbeafe;">Paid Amount / (PKR):</td>
           <td style="padding: 3px 8px; text-align: right; font-weight: 700; color: #0f172a; border-bottom: 1px solid #dbeafe;">Rs. ${totalPaid.toLocaleString()}</td>
         </tr>` : ''}
-        ${isInvoice || remaining > 0 ? `
+        ${(isInvoice || remaining > 0) ? `
         <tr>
           <td style="padding: 3px 8px; font-weight: 900; color: ${remaining > 0.01 ? '#b91c1c' : '#15803d'};">Remaining Balance / (PKR):</td>
           <td style="padding: 3px 8px; text-align: right; font-weight: 900; color: ${remaining > 0.01 ? '#b91c1c' : '#15803d'};">Rs. ${remaining.toLocaleString()}</td>
@@ -323,7 +388,7 @@ export function generateDocumentHTML(order, kind, logoUrl) {
       </table>
     </div>
 
-    <!-- AMOUNT IN WORDS (Directly under totals, executive left-accent strip) -->
+    <!-- AMOUNT IN WORDS -->
     <div style="margin: 6px 0 10px 0; padding: 4px 10px; background: #f1f5f9; border-left: 3px solid #1e3a8a; border-radius: 2px; font-size: 8.5px;">
       <strong style="color: #1e3a8a; text-transform: uppercase;">Amount in Words :</strong>
       <span style="font-weight: 700; font-style: italic; color: #0f172a; text-transform: uppercase; margin-left: 4px;">
@@ -337,7 +402,7 @@ export function generateDocumentHTML(order, kind, logoUrl) {
       <strong>Notes:</strong> ${order.notes}
     </div>` : ''}
 
-    <!-- DUAL SIGNATURES (Picture 2) -->
+    <!-- DUAL SIGNATURES -->
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 26px; margin-bottom: 10px; padding: 0 20px;">
       <div style="text-align: center;">
         <div style="width: 150px; border-top: 1.5px solid #0f172a; margin-bottom: 3px;"></div>
@@ -348,14 +413,30 @@ export function generateDocumentHTML(order, kind, logoUrl) {
         <div style="font-size: 8.5px; font-weight: 800; color: #0f172a;">Accepted &amp; Confirmed By</div>
       </div>
     </div>
+  `;
+}
 
-    <!-- BOTTOM CONTACT FOOTER (Clean 2-row multi-column box) -->
+// ── Full A4 document: Header + Body + Footer ────────────────────────────────
+export function generateDocumentHTML(order, kind, logoUrl) {
+  return `
+  <div class="a4-container">
+    ${buildHeaderHTML(logoUrl)}
+    ${buildBodyHTML(order, kind)}
     ${buildFooterHTML()}
   </div>
   `;
 }
 
-// A4 professional Quotation / Invoice document printer
+// ── Data-only A4 document: Body only (no header, no footer, no logo) ────────
+export function generateDataOnlyHTML(order, kind) {
+  return `
+  <div class="a4-container">
+    ${buildBodyHTML(order, kind)}
+  </div>
+  `;
+}
+
+// ── A4 professional Quotation / Invoice document printer (full) ─────────────
 export async function printOrderDocument(order, kind) {
   const isInvoice = kind === 'invoice';
   const logoUrl = await fetchLogoUrl();
@@ -364,7 +445,16 @@ export async function printOrderDocument(order, kind) {
   printIframe(html, title, [() => { if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }]);
 }
 
-// Thermal (58mm) receipt — compact vendor order summary (POS / counter)
+// ── Data-only printer (no header/footer/logo) ───────────────────────────────
+export function printDataDocument(order, kind) {
+  const isInvoice = kind === 'invoice-data';
+  const title = `${isInvoice ? 'INVOICE DATA' : 'QUOTATION DATA'} — ${order.orderNumber || ''}`;
+  const html = generateDataOnlyHTML(order, kind);
+  const css = isInvoice ? PRINT_CSS_DATA_INVOICE : PRINT_CSS_DATA_QUOTATION;
+  printIframe(html, title, [], css);
+}
+
+// ── Thermal (58mm) receipt — compact vendor order summary (POS / counter) ───
 export async function printThermalReceipt(order) {
   const logoUrl = await fetchLogoUrl();
   const totalPaid = (order.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);

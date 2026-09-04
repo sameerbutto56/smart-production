@@ -6,10 +6,10 @@ import toast from 'react-hot-toast';
 import {
   Search, RefreshCcw, FileText, X, User, Phone, MapPin, Calendar,
   Hash, CreditCard, Package, Truck, Plus, CheckCircle2, Printer, Receipt,
-  Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban, RotateCcw,
+  Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban, RotateCcw, BarChart3,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
-import { printOrderDocument, printThermalReceipt } from '../utils/vendorDocumentPrint';
+import { printOrderDocument, printThermalReceipt, printDataDocument } from '../utils/vendorDocumentPrint';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
@@ -166,6 +166,8 @@ const AsmPage = () => {
     }
     if (kind === 'quotation') printOrderDocument(docOrder, 'quotation');
     else if (kind === 'invoice') printOrderDocument(docOrder, 'invoice');
+    else if (kind === 'quotation-data') printDataDocument(docOrder, 'quotation-data');
+    else if (kind === 'invoice-data') printDataDocument(docOrder, 'invoice-data');
     else printThermalReceipt(docOrder);
   };
 
@@ -781,6 +783,10 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, flexDi
                   onClick={() => onPrint(order, 'quotation')} />
                 <ActionBtn icon={FileText} color="bg-blue-600 hover:bg-blue-500" label={t('Print Invoice')}
                   onClick={() => onPrint(order, 'invoice')} />
+                <ActionBtn icon={BarChart3} color="bg-emerald-600 hover:bg-emerald-500" label={t('Quotation Data')}
+                  onClick={() => onPrint(order, 'quotation-data')} />
+                <ActionBtn icon={BarChart3} color="bg-emerald-600 hover:bg-emerald-500" label={t('Invoice Data')}
+                  onClick={() => onPrint(order, 'invoice-data')} />
                 <ActionBtn icon={Receipt} color="bg-slate-700 hover:bg-slate-600" label={t('Thermal')}
                   onClick={() => onPrint(order, 'thermal')} />
 
