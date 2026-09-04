@@ -1,4 +1,19 @@
 ## Goals
+### Implemented This Session — Quotation & Invoice A4 Print Redesign: Pre-printed Letterhead (Pic 1) + Word Document Layout (Pic 2) with Compact Footprint (commit `4a83f48`, deployed & live-verified)
+- **Requirement**: Redesign Quotation and Invoice A4 print templates across both the ASM profile (`/asm`) and Admin profile (`/vendors-admin`) matching:
+  1. Picture 1: Authentic Enamels letterhead branding with top logo, purple & gold divider rule, bottom-left geometric royal purple (`#4D3A86`) and gold (`#C59B27`) triangles with diagonal accent stripes, and bottom-right contact details with icons for WhatsApp (`030 11 33 11 33`), Facebook (`ENAMELSOFFICIAL`), Instagram (`ENAMELS_OFFICIAL`), Email (`info@enamelsonline.com`), and Web (`www.enamelsonline.com`).
+  2. Compact Footprint (User Constraint): Sleek header (~46px) and footer (~48px) taking minimal vertical space to leave maximum vertical room for body items.
+  3. Picture 2: Microsoft Word document layout with centered bold title (`QUOTATION` / `INVOICE`), company address/contact on left, quote/invoice ref # & date on right, light-blue shaded callout box (`QUOTATION PREPARED FOR` / `INVOICE PREPARED FOR`, client name, location, subject), dark navy table header (`#1E293B`) with 2-digit serial numbers (`01`, `02`), item description with article/specs/variant/unit details, qty, unit price, total, right-aligned shaded financial totals box (`Net Total`, `Delivery Charges`, `Discount`, `Grand Total`, `Paid Amount`, `Remaining Balance`), centered `Amount in Words : [WORDS] ONLY.`, and dual bottom signatures (`Issued & Authorized By` and `Accepted & Confirmed By`).
+- **Implementation**:
+  - `frontend/src/utils/vendorDocumentPrint.js`: Created shared utility module containing `PRINT_CSS`, `fetchLogoUrl`, `printIframe`, `numberToWords`, `generateDocumentHTML`, `printOrderDocument`, and `printThermalReceipt`.
+  - `frontend/src/pages/VendorsPage.jsx` & `frontend/src/pages/AsmPage.jsx`: Replaced duplicate local print logic with imports from `../utils/vendorDocumentPrint`, ensuring a single source of truth across ASM and Admin profiles.
+- **Verification & Deployment**:
+  - Local production build `npm run build`: 3,189 modules bundled with 0 errors (`dist/assets/vendorDocumentPrint-BJBzzBBF.js`).
+  - Git commit `4a83f48` pushed to `origin/main`.
+  - Vercel production deployment `dpl_4cwZigtCvpAAstUUfH8R2BhxcaDT` ready.
+  - Re-aliased `smart-production-v2.vercel.app` -> `smart-production-v2-lrh65flmv-sameerbutt056-1019s-projects.vercel.app` (Success).
+  - Live probe verification: `GET https://smart-production-v2.vercel.app/` 200 (no `data-dpl-id` intercept), `/assets/index-DbJWJEIr.js` 200, `/assets/vendorDocumentPrint-BJBzzBBF.js` 200, `/api/health` 200.
+
 ### Implemented This Session — Store → Head Dispatch → Dispatch Profile Architecture Fix: Single Source of Truth + Clean Dispatch Reset
 - **Requirement**: Fix serious inconsistencies in Store → Head Dispatch → Dispatch Profile workflow at backend/API/database levels. Orders marked for Head Dispatch must immediately appear in Dispatch Profile (Unseen Tasks); edited/completed and replacement orders must cleanly start new dispatch cycles without being blocked or discarded by historical stamps; loading/refresh must be 100% deterministic (no phantom records or vanishing orders); duplicate store routing must be idempotent.
 - **Root Causes Fixed**:
