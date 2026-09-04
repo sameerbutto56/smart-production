@@ -4,7 +4,7 @@ import useCache from '../hooks/useCache';
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 import {
-  Search, RefreshCcw, Plus, X, Building2, Phone, Mail, MapPin, Users,
+  Search, RefreshCcw, Plus, X, Building2, Phone, Mail, MapPin, Users, User,
   ClipboardList, TrendingUp, CreditCard, Package, CheckCircle2, Ban, Truck, Eye, Hash,
   ArrowDownToLine, Printer, FileText, Receipt, Trash2,
 } from 'lucide-react';
