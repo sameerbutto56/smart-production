@@ -11,7 +11,8 @@ const STAGE_LABELS = {
   PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
   DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery',
   OUTLET_RECEIVE: 'Outlet Receive', IN_DISPATCH: 'In Dispatch',
-  VERIFICATION: 'Verification', RETURNED_FROM_VERIFICATION: 'Returned from Verification', DELIVERED: 'Delivered'
+  VERIFICATION: 'Verification', RETURNED_FROM_VERIFICATION: 'Returned from Verification', DELIVERED: 'Delivered',
+  RETURN: 'Return Exchange'
 };
 
 // Department for each workflow stage (shown alongside the responsible user)
@@ -19,17 +20,25 @@ const STAGE_DEPARTMENTS = {
   ORDER_ENTRY: 'Order Entry', VERIFICATION: 'Verification', STORE: 'Store', STORE_RECEIVE: 'Store',
   WORKERS: 'Production', LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production', PRODUCTION: 'Production',
   DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out of Delivery', OUTLET_RECEIVE: 'Outlet', IN_DISPATCH: 'In Dispatch',
-  ENAMELS_DELIVERY: 'Delivery', DELIVERED: 'Completed'
+  ENAMELS_DELIVERY: 'Delivery', DELIVERED: 'Completed', RETURN: 'Return Exchange'
 };
 
-const STAGE_ORDER = ['ORDER_ENTRY', 'VERIFICATION', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'DELIVERED'];
+const STAGE_ORDER = ['ORDER_ENTRY', 'VERIFICATION', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'IN_DISPATCH', 'DELIVERED', 'RETURN'];
 
 const STAGE_ICONS = {
   ORDER_ENTRY: Package, VERIFICATION: ShieldCheck, STORE: Package, WORKERS: Package,
   LOGO_DESIGN: Package, PRODUCTION_ACCEPTANCE: Package,
   PRODUCTION: Package, STORE_RECEIVE: Package,
   DISPATCH: Truck, OUT_FOR_DELIVERY: Truck,
-  OUTLET_RECEIVE: MapPin, IN_DISPATCH: Truck, DELIVERED: CheckCircle2
+  OUTLET_RECEIVE: MapPin, IN_DISPATCH: Truck, DELIVERED: CheckCircle2, RETURN: PackageCheck
+};
+
+const RETURN_TYPE_LABELS = { RETURN: 'Return', REPLACEMENT: 'Replacement' };
+const RETURN_ROUTED_LABELS = { STORE: 'Store', FAISAL: 'Faisal Review', FAISAL_APPROVED: 'Store' };
+const RETURN_STATUS_LABELS = {
+  PENDING: 'Pending', FAISAL_APPROVED: 'Faisal Approved', ACCEPTED: 'Accepted',
+  IN_PRODUCTION: 'In Production', STORE_RECEIVE: 'Store Receive', DISPATCH_READY: 'Dispatch Ready',
+  WAREHOUSE_REJECTED: 'Warehouse Rejected', STORE_REJECTED: 'Store Rejected',
 };
 
 const ENTRY_COLORS = {
@@ -176,6 +185,7 @@ const OrderTrack = () => {
   const isReturnedFromVerification = trackingStatus === 'RETURNED_FROM_VERIFICATION';
   const isInVerification = trackingStatus === 'VERIFICATION';
   const activeStage = isReturnedFromVerification ? 'ORDER_ENTRY' : trackingStatus;
+  const isReturnActive = !!order?.returnExchange;
 
   return (
     <div className="p-2 md:p-4 max-w-4xl mx-auto space-y-4">
@@ -346,6 +356,56 @@ const OrderTrack = () => {
             </div>
           )}
 
+          {/* Active return / replacement exchange */}
+          {order.returnExchange && (
+            <div className="bg-gradient-to-r from-purple-950/40 to-indigo-950/40 rounded-2xl border border-purple-500/30 p-4">
+              <p className="text-xs font-black text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                <PackageCheck size={12} />
+                Active {RETURN_TYPE_LABELS[order.returnExchange.type] || order.returnExchange.type || 'Return Exchange'}
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="bg-gray-900/70 border border-purple-500/40 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-black uppercase">Status</p>
+                  <p className="text-sm font-black text-white mt-0.5">{RETURN_STATUS_LABELS[order.returnExchange.status] || order.returnExchange.status || '—'}</p>
+                </div>
+                <div className="bg-gray-900/70 border border-purple-500/40 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-black uppercase">Routed To</p>
+                  <p className="text-sm font-black text-white mt-0.5">{RETURN_ROUTED_LABELS[order.returnExchange.routedTo] || order.returnExchange.routedTo || '—'}</p>
+                </div>
+                <div className="bg-gray-900/70 border border-purple-500/40 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-black uppercase">Type</p>
+                  <p className="text-sm font-black text-white mt-0.5">{RETURN_TYPE_LABELS[order.returnExchange.type] || order.returnExchange.type || '—'}</p>
+                </div>
+                <div className="bg-gray-900/70 border border-purple-500/40 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-black uppercase">Requested</p>
+                  <p className="text-sm font-black text-white mt-0.5">{formatDate(order.returnExchange.createdAt)}{' '}<span className="text-gray-400 font-bold">{formatTime(order.returnExchange.createdAt)}</span></p>
+                </div>
+              </div>
+              {(order.returnExchange.faisalApprovedAt || order.returnExchange.storeProcessedAt) && (
+                <div className="mt-3 bg-gray-900/70 border border-purple-500/40 rounded-xl p-3 flex flex-wrap gap-x-6 gap-y-1 text-[10px] text-gray-400 font-bold">
+                  {order.returnExchange.faisalApprovedAt && (
+                    <span>Faisal Approved: {formatDate(order.returnExchange.faisalApprovedAt)} at {formatTime(order.returnExchange.faisalApprovedAt)}</span>
+                  )}
+                  {order.returnExchange.storeProcessedAt && (
+                    <span>Store Processed: {formatDate(order.returnExchange.storeProcessedAt)} at {formatTime(order.returnExchange.storeProcessedAt)}</span>
+                  )}
+                </div>
+              )}
+              {order.returnExchange.returnReason && (
+                <div className="mt-2 bg-gray-900/70 border border-purple-500/40 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-black uppercase">Return Reason</p>
+                  <p className="text-xs text-gray-300 font-bold mt-0.5">{order.returnExchange.returnReason}</p>
+                </div>
+              )}
+              {order.returnExchange.specialNote && (
+                <div className="mt-2 bg-gray-900/70 border border-purple-500/40 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-black uppercase">Special Note</p>
+                  <p className="text-xs text-gray-300 font-bold mt-0.5">{order.returnExchange.specialNote}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Returned from Verification banner */}
           {isReturnedFromVerification && (
             <div className="bg-red-500/10 border-2 border-red-500/40 rounded-2xl p-4 flex items-start gap-3">
@@ -375,12 +435,13 @@ const OrderTrack = () => {
                 const completed = completedStages.has(stage);
                 const active = activeStage === stage && order.status !== 'COMPLETED';
                 const returnedChip = isReturnedFromVerification && stage === 'VERIFICATION';
+                const returnChip = isReturnActive && stage === 'RETURN';
                 const Icon = STAGE_ICONS[stage] || Package;
                 return (
                   <React.Fragment key={stage}>
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-all ${completed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : active ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse' : returnedChip ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-gray-800/40 text-gray-600'}`}>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-all ${completed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : active ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse' : returnedChip ? 'bg-red-500/20 text-red-400 border border-red-500/40' : returnChip ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40 animate-pulse' : 'bg-gray-800/40 text-gray-600'}`}>
                       <Icon size={10} />
-                      {STAGE_LABELS[stage]}{returnedChip ? ' (Returned)' : ''}
+                      {STAGE_LABELS[stage]}{returnedChip ? ' (Returned)' : returnChip ? ' (Active)' : ''}
                     </div>
                     {idx < STAGE_ORDER.length - 1 && <ArrowRight size={10} className="text-gray-700 mx-0.5 shrink-0" />}
                   </React.Fragment>

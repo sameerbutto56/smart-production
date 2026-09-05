@@ -4718,6 +4718,31 @@ const trackOrder = async (req, res) => {
       console.error('[trackOrder] link resolution failed (non-critical):', linkErr.message);
     }
 
+    // Surface the active Return/Replacement Exchange case so tracking shows the
+    // "Return Exchange" phase (reason + status) alongside the linear pipeline.
+    // Terminal cases (COMPLETED/CANCELLED) are intentionally not attached — a
+    // finished return must never look active or block a NEW return cycle.
+    try {
+      const returnCase = await prisma.returnExchange.findFirst({
+        where: {
+          orderId: order.id,
+          status: { notIn: ['COMPLETED', 'CANCELLED'] }
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, orderNumber: true, type: true, status: true, routedTo: true,
+          returnReason: true, specialNote: true, orderType: true,
+          createdAt: true,
+          storeProcessedBy: true, storeProcessedAt: true,
+          faisalApprovedBy: true, faisalApprovedAt: true,
+          originalProducts: true, replacementItems: true
+        }
+      });
+      if (returnCase) order.returnExchange = returnCase;
+    } catch (returnErr) {
+      console.error('[trackOrder] return exchange fetch failed (non-critical):', returnErr.message);
+    }
+
     res.json(order);
   } catch (error) {
     console.error('[trackOrder] error:', error.message);

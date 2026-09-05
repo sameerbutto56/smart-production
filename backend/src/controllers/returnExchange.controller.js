@@ -148,17 +148,8 @@ const createReturnExchange = async (req, res) => {
         });
       }
 
-      // Also block if a COMPLETED return already exists for this order
-      const completedReturn = await prisma.returnExchange.findFirst({
-        where: { orderId, type: 'RETURN', status: 'COMPLETED' },
-        orderBy: { updatedAt: 'desc' }
-      });
-      if (completedReturn) {
-        return res.status(409).json({
-          message: 'Return Already Completed — this order has already been returned and the return workflow has been completed.',
-          existingCase: completedReturn
-        });
-      }
+      // NOTE: only ACTIVE (non-terminal) returns block a new cycle — a completed
+      // return is historical and must never prevent a fresh Return cycle.
     }
 
     // RETURN → Store takes over; REPLACEMENT → Faisal reviews first, then Store
