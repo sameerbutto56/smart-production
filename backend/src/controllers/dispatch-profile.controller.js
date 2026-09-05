@@ -127,12 +127,34 @@ const getDispatchProfileOrders = async (req, res) => {
       // else: accepted by another dispatcher — shown in that dispatcher's seen queue.
     }
 
+    // ACTIVE (out for delivery) is EMPLOYEE-SPECIFIC: the orders THIS employee has
+    // already dispatched (dispatching moves them DISPATCH -> OUT_FOR_DELIVERY while
+    // leaving dispatchOfficer = employee). Show the in-flight deliveries that still
+    // need tracking (BOOKED -> Mark Dispatched -> In Transit -> Deliver / Return / Reject).
+    // Enamels deliveries are tracked on the delivery-boy profile, not dispatch.
+    const TERMINAL_DISPATCH = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
+    const rawActive = await prisma.order.findMany({
+      where: {
+        currentStage: 'OUT_FOR_DELIVERY',
+        dispatchOfficer: employeeName,
+        dispatchStatus: { notIn: TERMINAL_DISPATCH },
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] }
+      },
+      select: baseSelect,
+      orderBy: baseOrder
+    });
+    const active = rawActive.filter(o => !(
+      o.deliveryType === 'ENAMELS' ||
+      o.deliveryMethod === 'Enamels Delivery' ||
+      o.currentStage === 'ENAMELS_DELIVERY'
+    ));
+
     res.json({
       unseen,
       seen,
-      active: [],
+      active,
       alreadyStarted: [],
-      counts: { unseen: unseen.length, seen: seen.length, active: 0, alreadyStarted: 0 }
+      counts: { unseen: unseen.length, seen: seen.length, active: active.length, alreadyStarted: 0 }
     });
 
   } catch (error) {
