@@ -146,7 +146,11 @@ async function run() {
     // Cleanup: delete the case + its audit logs; delete disposable order
     const caseRows = await prisma.returnExchange.findMany({ where: { orderId: order.id, type: 'RETURN' } });
     await prisma.returnExchange.deleteMany({ where: { orderId: order.id, type: 'RETURN' } });
-    await prisma.auditLog.deleteMany({ where: { orderId: order.id } });
+    // Scope audit-log cleanup to only the two actions this test creates — never wipe a reused
+    // real order's pre-existing audit history.
+    await prisma.auditLog.deleteMany({
+      where: { orderId: order.id, action: { in: ['RETURN_ACCEPTED_BY_INVENTORY', 'RETURN_SENT_TO_STORE'] } }
+    });
     if (disposable) await prisma.order.delete({ where: { id: order.id } });
     console.log(`Cleanup: removed ${caseRows.length} return case(s) for order ${order.id}`);
   }
