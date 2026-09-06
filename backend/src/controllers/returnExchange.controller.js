@@ -2255,11 +2255,22 @@ const getIncomingReturns = async (req, res) => {
 
     const where = { type: 'RETURN' };
 
-    if (status) {
+if (status) {
       where.status = status;
     } else {
-      where.status = { notIn: ['COMPLETED', 'CANCELLED'] };
+      where.status = { notIn: ['COMPLETED', 'CANCELLED', 'RESTOCKED', 'ROUTED_TO_PRODUCTION', 'DISPATCH_READY'] };
     }
+
+    // Post-acceptance handoff exclusion: once a return has been accepted (acceptedById set)
+    // AND is no longer in the ACCEPTED state, it has been sent to Store / routed onward /
+    // processed — it must leave the incoming list and only be visible in All Cases / history.
+    // Fresh PENDING returns (acceptedById null) and currently-ACCEPTED returns (still awaiting
+    // "Send to Store") stay visible.
+    where.AND = [
+      {
+        OR: [{ acceptedById: null }, { status: 'ACCEPTED' }]
+      }
+    ];
 
     if (search && search.trim()) {
       const q = search.trim();

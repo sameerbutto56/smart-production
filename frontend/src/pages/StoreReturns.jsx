@@ -47,7 +47,6 @@ const StoreReturns = ({ refreshKey }) => {
         api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ROUTED_TO_PRODUCTION', limit: 100 } })
       ]);
       const list = [...(pendingRes.data.cases || []), ...(acceptedRes.data.cases || []), ...(restockedRes.data.cases || []), ...(routedRes.data.cases || [])]
-        .filter(c => c.routedTo === 'STORE')
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setReturns(list);
     } catch { toast.error('Failed to load requests'); }
