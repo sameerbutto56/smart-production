@@ -1,6 +1,6 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
-const { computeSalesSummary } = require('./pos.controller');
+const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
@@ -111,9 +111,9 @@ const computeBookSummary = async (session) => {
     ]);
 
     // Canonical totals shared with POS History / Excel export — guaranteed identical by construction
-    const shared = await computeSalesSummary(prisma, {
+    // Unified summary (outlet dashboard source, Faisal Takes excluded from revenue buckets)
+    const shared = await computeUnifiedSalesSummary(prisma, {
       outlet, start: dayStart, end: endTime,
-      _sales: allSales, _returns: returns, _journals: journals, _balancePayments: balancePayments,
     });
 
     // All sales (incl. Faisal Takes + refunded) — revenue counts on the SALE day; the refund
@@ -254,7 +254,7 @@ const computeBookSummary = async (session) => {
     const totalCashSales = paymentSummary.CASH;
     const totalCardSales = paymentSummary.CARD;
     const totalOnlineSales = paymentSummary.ONLINE;
-    const totalRevenueSales = shared.grandTotal;
+    const totalRevenueSales = shared.totalSales - (shared.totalDiscount || 0);
 
     // Cash actually collected — count sales cash + balance payments cash
     const rawCashCollected = sales
@@ -339,9 +339,9 @@ const computeBookSummary = async (session) => {
       totalBankDeposits,
       bankDeposits,
       sales, // all sales (incl. Faisal Takes + refunded) for drill-down
-      grossSales: shared.grandTotal + (shared.discountTotal || 0),
-      discountTotal: shared.discountTotal,
-      netSales: shared.netSales,
+      grossSales: shared.grossSales,
+      discountTotal: shared.totalDiscount,
+      netSales: shared.netRevenue,
     };
 
   return summary;
