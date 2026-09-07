@@ -786,6 +786,12 @@ const urduDictionary = {
   'Sneakers': 'اسنیکرز',
   'Uni': 'یونی',
   'X': 'ایکس',
+  'SHADOW': 'شیڈو',
+  'CHARCOL': 'چارکول',
+  'BUN': 'بن',
+  'MUSTARD': 'مسٹرڈ',
+  'SLASH': 'سلیش',
+  'MARBLE': 'ماربل',
 };
 
 /**
