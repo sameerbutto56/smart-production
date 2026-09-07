@@ -40,6 +40,8 @@ const WOMEN_SCRUBS_SIZE_CHART = {
 
 const WOMEN_SHORT_SHIRT_LENGTHS = { XS: '28', S: '28', M: '28', L: '30', XL: '30', XXL: '31' };
 
+const DEFAULT_FEMALE_OPTIONS = { dupatta: false, sleeves: '', shirtLength: '', zip: false };
+
 const OrderEntryContext = createContext(null);
 
 const INITIAL_FORM_DATA = {
@@ -59,7 +61,7 @@ const INITIAL_FORM_DATA = {
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
     shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
   gender: 'Male',
-  femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+  femaleOptions: DEFAULT_FEMALE_OPTIONS,
   adjProductPrice: '', adjLogoCharges: '', adjNamePrinting: '', adjCustomization: '', adjCapCharges: '', adjDiscount: ''
 };
 
@@ -72,7 +74,7 @@ const CLEAR_FORM_AFTER_CART = {
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
     shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
   gender: 'Male',
-  femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+  femaleOptions: DEFAULT_FEMALE_OPTIONS,
   fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
   customProductName: '', customFabric: '', customMaterial: '', customDesign: '',
     customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: true, engravingInstructions: ''
@@ -251,7 +253,7 @@ export const OrderEntryProvider = ({ children }) => {
             color: firstPd.color || '',
             size: firstPd.size || '',
             gender: firstPd.gender || found.gender || 'Male',
-            femaleOptions: firstPd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+            femaleOptions: firstPd.femaleOptions || DEFAULT_FEMALE_OPTIONS,
             sleeveLength: firstPd.sleeveLength || '',
             shirtLength: firstPd.shirtLength || '',
             matchingCap: firstPd.matchingCap || false,
@@ -435,7 +437,7 @@ export const OrderEntryProvider = ({ children }) => {
           measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
             shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
           gender: found.gender || 'Male',
-          femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+          femaleOptions: DEFAULT_FEMALE_OPTIONS,
           matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '', instructionNotes: '',
           shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
           adjProductPrice: found.financialSummary?.productPrice != null ? String(found.financialSummary.productPrice) : '',
@@ -720,7 +722,7 @@ export const OrderEntryProvider = ({ children }) => {
       ...prev,
       productType: pd.productType || '', fabricType: pd.fabricType || '', color: pd.color || '', size: pd.size || '',
       gender: pd.gender || 'Male',
-      femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+      femaleOptions: pd.femaleOptions || DEFAULT_FEMALE_OPTIONS,
       matchingCap: pd.matchingCap || false, matchingCapQty: pd.matchingCapQty || 0,
       sleeveLength: pd.sleeveLength || '', shirtLength: pd.shirtLength || '',
       alteration: pd.alteration || { trouserLength: '', shirtLength: '', sleeveLength: '' },
