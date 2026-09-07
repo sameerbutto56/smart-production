@@ -1235,8 +1235,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const lengthLabel = isUrdu ? 'لمبائی' : 'Length';
   win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
   // Helper to extract sleeve/length value from product
-  const getSleeveVal = (p) => p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
-  const getLengthVal = (p) => p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
+  const getSleeveVal = (p) => p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full' ? p.femaleOptions.sleeves : null);
+  const getLengthVal = (p) => p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long' ? p.femaleOptions.shirtLength : null);
   if (isMultiItem) {
     const showCap = orderType !== 'STANDARD';
     const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sleeveLabel, lengthLabel]);

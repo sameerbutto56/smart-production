@@ -1436,8 +1436,8 @@ const AllOrders = () => {
                                 : (outletS && Object.values(outletS).some(v => v)) ? outletS
                                 : (orderS && Object.values(orderS).some(v => v)) ? orderS
                                 : chartS;
-                              const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves);
-                              const hasShirtLength = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength);
+                              const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full');
+                              const hasShirtLength = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
                               const hasSizeValues = Object.keys(s).length > 0 && Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
                               const hasSpecialNote = !!(s?.specialNote);
 

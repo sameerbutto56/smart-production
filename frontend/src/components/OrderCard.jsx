@@ -970,8 +970,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     const shmp = { 'long':'Long','short':'Short','regular':'Regular' };
                     const fsl = { 'full':'Full','half':'Half','medium':'Medium' };
                     const fsh = { 'long':'Long','short':'Short' };
-                    const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
-                    const shl = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
+                    const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full' ? p.femaleOptions.sleeves : null);
+                    const shl = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long' ? p.femaleOptions.shirtLength : null);
                     return (
                       <div key={idx} className="border border-gray-800 rounded-xl p-2.5 space-y-2">
                         <div className="flex items-center justify-between">
@@ -1043,8 +1043,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       const shmp = { 'long':'Long','short':'Short','regular':'Regular' };
                       const fsl = { 'full':'Full','half':'Half','medium':'Medium' };
                       const fsh = { 'long':'Long','short':'Short' };
-                      const slv = product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves ? product.femaleOptions.sleeves : null);
-                      const shl = product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength ? product.femaleOptions.shirtLength : null);
+                      const slv = product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves && product.femaleOptions.sleeves !== 'full' ? product.femaleOptions.sleeves : null);
+                      const shl = product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength && product.femaleOptions.shirtLength !== 'long' ? product.femaleOptions.shirtLength : null);
                       return (slv || shl) ? (
                         <div className="flex flex-wrap gap-1">
                           {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(slip[slv] || fsl[slv] || slv) : (slip[slv] || fsl[slv] || slv)}</span>}
