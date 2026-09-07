@@ -67,12 +67,16 @@ const StoreReturns = ({ refreshKey }) => {
   };
 
   const processCase = async (record, action, notes = '') => {
+    if (processingId) return; // block concurrent actions / double-fires on other records
+    if (record.status !== 'ACCEPTED') { toast.error('This request is no longer in an acceptable state. Refreshing...'); await fetchCases(); return; }
     setProcessingId(record.id);
     try {
       await api.post(`/api/return-exchange/${record.id}/store-process`, { action, notes });
       toast.success(action === 'restock' ? 'Returned goods restocked into inventory' : 'Routed to Production');
-      await fetchCases();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed to process'); }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to process');
+      await fetchCases(); // sync to authoritative server state so stale buttons don't re-fire 400s
+    }
     setProcessingId(null);
   };
 
@@ -87,14 +91,18 @@ const StoreReturns = ({ refreshKey }) => {
   };
 
   const completeReturnCase = async (record) => {
+    if (completingId) return;
+    if (record.status !== 'RESTOCKED') { toast.error('Returned goods must be restocked first. Refreshing...'); await fetchCases(); return; }
     if (!window.confirm(`Complete return of order ${record.orderNumber}? The returned goods have been restocked and this return will be marked completed.`)) return;
     if (completingId === record.id) return;
     setCompletingId(record.id);
     try {
       const res = await api.post(`/api/return-exchange/${record.id}/complete-return`);
       toast.success(res.data?.message || 'Return completed');
-      await fetchCases();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed to complete return'); }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to complete return');
+      await fetchCases(); // sync to authoritative server state so a stale button can't re-fire 400s
+    }
     setCompletingId(null);
   };
 

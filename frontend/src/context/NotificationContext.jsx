@@ -120,12 +120,21 @@ export const NotificationProvider = ({ children }) => {
         console.log('[Notif] delta:', totalBefore, '→', totalAfter, counts);
       }
 
-      // Merge poll results with current state — KEEP the higher count per path
-      // This prevents polling from overwriting socket-driven increments
+      // The poll response is the AUTHORITATIVE server truth for unread counts.
+      // Overwrite each path rather than Math.max against the previous state —
+      // Math.max can only grow and drift high, causing the counts to stick at
+      // stale high values and flicker (e.g. 49→48, 53→48) instead of settling
+      // down to the real server counts when notifications get read elsewhere.
+      //
+      // Socket-driven increments (real-time) that are still sitting in the
+      // pending batch queue need the server value as their base so a read
+      // landing mid-poll isn't lost — add the queued deltas on top afterward.
+      // (On Vercel there is no socket, so this path is equivalent to a plain
+      // authoritative overwrite.)
       setUnreadCounts(prev => {
-        const merged = { ...prev };
-        for (const [path, count] of Object.entries(counts)) {
-          merged[path] = Math.max(prev[path] || 0, count);
+        const merged = { ...counts };
+        for (const item of notifQueueRef.current) {
+          merged[item.path] = (merged[item.path] || 0) + 1;
         }
         prevCountsRef.current = merged;
         return merged;
