@@ -82,6 +82,7 @@ const CLEAR_FORM_AFTER_CART = {
 };
 
 export const OrderEntryProvider = ({ children }) => {
+  const [searchParams] = useSearchParams();
   const { user, dateFormatPreference, updateDateFormatPreference } = useAuth();
   const activeDateFormat = dateFormatPreference || user?.dateFormatPreference || 'DD/MM/YYYY';
   const { isUrdu, LanguageToggle } = useLanguage();
