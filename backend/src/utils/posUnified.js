@@ -37,10 +37,13 @@ const saleRevenue = (s) => (s && s.advanceAmount > 0 ? Math.min(s.advanceAmount,
  * netRevenue = totalSales − totalDiscount − refundAmount − totalJournalExpenses
  * (the discount is subtracted exactly once).
  */
-const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier }) => {
+const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier, isHalfOpen = true }) => {
   const dayFilter = {};
   if (start) dayFilter.gte = start;
-  if (end) dayFilter.lte = end;
+  if (end) {
+    if (isHalfOpen) dayFilter.lt = end;
+    else dayFilter.lte = end;
+  }
 
   const saleWhere = { faisalTake: { not: true } };
   if (outlet) saleWhere.outletName = outlet;
@@ -59,21 +62,40 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
   const [sales, balancePayments, returns, journalAgg, bankDepAgg, discountAgg, saleItems] = await Promise.all([
     prisma.posSale.findMany({
       where: saleWhere,
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true,
-        outletName: true, paymentMethod: true, orderId: true, orderNumber: true, cashierName: true,
-        cashAmount: true, onlineAmount: true, discountAmount: true,
-      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: true,
+        returns: true,
+        balancePayments: { select: { amountPaidNow: true, paidAt: true } }
+      }
     }),
     prisma.posBalancePayment.findMany({
       where: bpWhere,
-      orderBy: { paidAt: 'asc' },
-      select: { posSaleId: true, amountPaidNow: true, paidAt: true, paymentMethod: true, cashAmount: true, onlineAmount: true, posSale: { select: { outletName: true } } },
+      orderBy: { paidAt: 'desc' },
+      include: {
+        posSale: {
+          select: {
+            id: true, receiptNumber: true, orderId: true, orderNumber: true,
+            customerName: true, customerPhone: true, grandTotal: true,
+            advanceAmount: true, outletName: true, cashierName: true
+          }
+        }
+      }
     }),
     prisma.posReturn.findMany({
       where: returnWhere,
-      include: { sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sale: {
+          select: {
+            id: true, receiptNumber: true, orderId: true, orderNumber: true,
+            customerName: true, customerPhone: true, paymentMethod: true,
+            cashierName: true, cashAmount: true, onlineAmount: true, grandTotal: true,
+            subtotal: true, cardChargesAmount: true, createdAt: true,
+            items: true
+          }
+        }
+      }
     }),
     prisma.journalEntry.aggregate({ where: jbWhere, _sum: { amount: true } }),
     prisma.bankDeposit.aggregate({ where: jbWhere, _sum: { amount: true } }),
@@ -81,22 +103,25 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
     prisma.posSaleItem.findMany({ where: { sale: saleWhere }, select: { productName: true, quantity: true } }),
   ]);
 
-  let receivedTotal = 0;
-  sales.forEach((s) => { receivedTotal += saleRevenue(s); });
+  let salesReceived = 0;
+  sales.forEach((s) => { salesReceived += saleRevenue(s); });
 
   const balancePaymentTotal = balancePayments.reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
-  receivedTotal += balancePaymentTotal;
+  const totalReceived = salesReceived + balancePaymentTotal;
 
   const refundAmount = returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
   const totalDiscount = discountAgg._sum.discountAmount || 0;
   const totalJournalExpenses = journalAgg._sum.amount || 0;
-  // Total Sales is the GROSS value BEFORE discounts: the received (post-discount)
-  // total plus the discount given back. The discount is then deducted EXACTLY ONCE
-  // when deriving Net Revenue — never from the already-discounted received total.
-  const totalSales = receivedTotal + totalDiscount;
-  const grossSales = totalSales;
-  const netRevenue = Math.max(0, totalSales - totalDiscount - refundAmount - totalJournalExpenses);
   const totalBankDeposits = bankDepAgg._sum.amount || 0;
+
+  // Authoritative definitions:
+  // Gross Sales: Total value of goods sold in this window before discounts
+  const grossSales = salesReceived + totalDiscount;
+  const totalSales = grossSales;
+  // Net Sales: Merchandise sales minus discounts and returns
+  const netSales = Math.max(0, salesReceived - refundAmount);
+  // Net Revenue: Actual net money earned from all operations (sales + balance collections - returns - journal expenses)
+  const netRevenue = Math.max(0, totalReceived - refundAmount - totalJournalExpenses);
 
   // Payment totals — split CASH_ONLINE into CASH and ONLINE buckets
   const paymentTotals = { CASH: 0, CARD: 0, ONLINE: 0 };
@@ -148,6 +173,23 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
     return { method, gross, returns: ret, net };
   });
 
+  const paymentSummary = {
+    cash: paymentTotals['CASH'] || 0,
+    card: paymentTotals['CARD'] || 0,
+    online: paymentTotals['ONLINE'] || 0,
+    cashOnlineTotal: (sales.filter(s => s.paymentMethod === 'CASH_ONLINE').reduce((sum, s) => sum + saleRevenue(s), 0)
+      + balancePayments.filter(b => b.paymentMethod === 'CASH_ONLINE').reduce((sum, b) => sum + (b.amountPaidNow || 0), 0)),
+    cashCollected: paymentTotals['CASH'] || 0,
+    grandTotal: totalReceived,
+  };
+
+  const returnSummary = {
+    cash: returnsByMethod['CASH'] || 0,
+    card: returnsByMethod['CARD'] || 0,
+    online: returnsByMethod['ONLINE'] || 0,
+    total: refundAmount,
+  };
+
   const salesByDay = {};
   const ordersByDay = {};
   sales.forEach((s) => {
@@ -173,13 +215,23 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier 
   return {
     grossSales,
     totalSales,
+    salesReceived,
+    totalReceived,
     totalOrders: sales.length,
+    invoiceCount: sales.length,
     refundAmount,
+    totalReturns: refundAmount,
+    netSales,
     netRevenue,
     totalDiscount,
+    discountTotal: totalDiscount,
     totalBalanceCollections: balancePaymentTotal,
+    totalBalanceCleared: balancePaymentTotal,
     totalJournalExpenses,
     totalBankDeposits,
+    paymentTotals,
+    paymentSummary,
+    returnSummary,
     paymentBreakdown,
     salesByDay,
     ordersByDay,

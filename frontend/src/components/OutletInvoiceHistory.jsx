@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
@@ -32,6 +32,10 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [cashier, setCashier] = useState('');
   const [employees, setEmployees] = useState([]);
   const [sales, setSales] = useState([]);
+  const [returns, setReturns] = useState([]);
+  const [balancePayments, setBalancePayments] = useState([]);
+  const [backendSummary, setBackendSummary] = useState(null);
+  const [transactionTab, setTransactionTab] = useState('all'); // 'all', 'sales', 'returns', 'balance'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -61,13 +65,23 @@ const OutletInvoiceHistory = ({ outlet }) => {
     setLoading(true);
     setError(null);
     try {
-      let url = `/api/pos/sales?outlet=${outlet}&range=${range}`;
+      let url = `/api/pos/sales?outlet=${outlet}&range=${range}&includeTransactions=true`;
       if (dateFrom) url += `&dateFrom=${dateFrom}`;
       if (dateTo) url += `&dateTo=${dateTo}`;
       if (statusFilter !== 'all') url += `&statusFilter=${statusFilter}`;
       if (cashier) url += `&cashier=${encodeURIComponent(cashier)}`;
       const res = await api.get(url);
-      setSales(res.data);
+      if (res.data && res.data.sales) {
+        setSales(res.data.sales);
+        setReturns(res.data.returns || []);
+        setBalancePayments(res.data.balancePayments || []);
+        setBackendSummary(res.data.summary || null);
+      } else {
+        setSales(Array.isArray(res.data) ? res.data : []);
+        setReturns([]);
+        setBalancePayments([]);
+        setBackendSummary(null);
+      }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load sales');
     } finally {
@@ -279,7 +293,43 @@ const OutletInvoiceHistory = ({ outlet }) => {
         { 'Receipt #': 'Net Sales', 'Grand Total': Math.round(netSales) },
       ];
 
-      const allRows = [...data, ...journalDataRows, ...summaryRows];
+      const returnRows = filteredReturns.map(r => ({
+        'Receipt #': r.receiptNumber || `RET-${r.id?.slice(0, 8)}`,
+        'Date': formatDateTime(r.createdAt),
+        'Cashier': r.processedBy || r.cashierName || r.sale?.cashierName || '',
+        'Customer': r.customerName || r.sale?.customerName || '',
+        'Phone': r.sale?.customerPhone || '',
+        'Items': (r.sale?.items || []).map(i => `${i.productName} x${i.quantity}`).join(', '),
+        'Subtotal': 0,
+        'Discount': 0,
+        'Card Charges': 0,
+        'Grand Total': -(r.refundAmount || 0),
+        'Invoice Total': -(r.refundAmount || 0),
+        'Payment': r.refundPaymentMethod || 'CARD',
+        'Advance': 0,
+        'Balance': 0,
+        'Status': 'RETURN / REFUND'
+      }));
+
+      const balanceRows = filteredBalancePayments.map(bp => ({
+        'Receipt #': bp.receiptNumber || `BP-${bp.id?.slice(0, 8)}`,
+        'Date': formatDateTime(bp.paidAt),
+        'Cashier': bp.cashierName || '',
+        'Customer': bp.posSale?.customerName || '',
+        'Phone': '',
+        'Items': `Balance clearance for ${bp.originalInvoiceNumber || ''}`,
+        'Subtotal': 0,
+        'Discount': 0,
+        'Card Charges': 0,
+        'Grand Total': bp.amountPaidNow || 0,
+        'Invoice Total': bp.amountPaidNow || 0,
+        'Payment': bp.paymentMethod || 'CASH',
+        'Advance': 0,
+        'Balance': bp.outstandingBalanceAfterPayment || 0,
+        'Status': 'BALANCE CLEARANCE'
+      }));
+
+      const allRows = [...data, ...returnRows, ...balanceRows, ...journalDataRows, ...summaryRows];
       const ws = XLSX.utils.json_to_sheet(allRows);
 
       const colWidths = [
@@ -308,29 +358,79 @@ const OutletInvoiceHistory = ({ outlet }) => {
     }
   };
 
-  /* ─── Derived ─── */
-  const filteredSales = sales.filter(s => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (s.receiptNumber || '').toLowerCase().includes(q)
-        || (s.customerName || '').toLowerCase().includes(q)
-        || (s.cashierName || '').toLowerCase().includes(q);
-  });
+  /* ─── Derived Filters ─── */
+  const filteredSales = useMemo(() => {
+    return sales.filter(s => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (s.receiptNumber || '').toLowerCase().includes(q)
+          || (s.customerName || '').toLowerCase().includes(q)
+          || (s.cashierName || '').toLowerCase().includes(q);
+    });
+  }, [sales, search]);
 
-  /* ─── Payment Summary (matches Register / Excel — received-based, all invoices incl. refunded,
-         non-overlapping: CASH_ONLINE goes to its own bucket, matching the canonical summary) ─── */
-  const paymentSummary = filteredSales.reduce((acc, s) => {
-    const received = s._amountReceived || 0;
-    const method = s.paymentMethod || 'CASH';
-    if (method === 'CASH_ONLINE') {
-      acc.CASH_ONLINE = (acc.CASH_ONLINE || 0) + received;
-    } else if (['CASH', 'ONLINE', 'CARD'].includes(method)) {
-      acc[method] = (acc[method] || 0) + received;
-    } else {
-      acc.CASH = (acc.CASH || 0) + received;
+  const filteredReturns = useMemo(() => {
+    return returns.filter(r => {
+      if (statusFilter === 'balance') return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (r.receiptNumber || '').toLowerCase().includes(q)
+          || (r.sale?.receiptNumber || '').toLowerCase().includes(q)
+          || (r.sale?.orderNumber || '').toLowerCase().includes(q)
+          || (r.customerName || r.sale?.customerName || '').toLowerCase().includes(q)
+          || (r.cashierName || r.processedBy || r.sale?.cashierName || '').toLowerCase().includes(q)
+          || (r.reason || '').toLowerCase().includes(q);
+    });
+  }, [returns, search, statusFilter]);
+
+  const filteredBalancePayments = useMemo(() => {
+    return balancePayments.filter(bp => {
+      if (statusFilter === 'paid') return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (bp.receiptNumber || '').toLowerCase().includes(q)
+          || (bp.originalInvoiceNumber || '').toLowerCase().includes(q)
+          || (bp.posSale?.customerName || '').toLowerCase().includes(q)
+          || (bp.cashierName || '').toLowerCase().includes(q);
+    });
+  }, [balancePayments, search, statusFilter]);
+
+  /* ─── Unified Transaction List ─── */
+  const allTransactions = useMemo(() => {
+    const list = [];
+    if (transactionTab === 'all' || transactionTab === 'sales') {
+      filteredSales.forEach(s => list.push({ type: 'SALE', id: `sale-${s.id}`, date: new Date(s.createdAt).getTime(), data: s }));
     }
-    return acc;
-  }, {});
+    if (transactionTab === 'all' || transactionTab === 'returns') {
+      filteredReturns.forEach(r => list.push({ type: 'RETURN', id: `return-${r.id}`, date: new Date(r.createdAt).getTime(), data: r }));
+    }
+    if (transactionTab === 'all' || transactionTab === 'balance') {
+      filteredBalancePayments.forEach(bp => list.push({ type: 'BALANCE', id: `balance-${bp.id}`, date: new Date(bp.paidAt).getTime(), data: bp }));
+    }
+    return list.sort((a, b) => b.date - a.date);
+  }, [filteredSales, filteredReturns, filteredBalancePayments, transactionTab]);
+
+  /* ─── Authoritative Summary Figures ─── */
+  const grossSalesVal = backendSummary?.grossSales ?? (
+    filteredSales.reduce((sum, s) => sum + (s._amountReceived || 0) + (s.discountAmount || 0), 0)
+  );
+  const discountTotalVal = backendSummary?.totalDiscount ?? (
+    filteredSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0)
+  );
+  const salesReceivedVal = backendSummary?.salesReceived ?? (
+    filteredSales.reduce((sum, s) => sum + (s._amountReceived || 0), 0)
+  );
+  const totalReturnsVal = backendSummary?.totalReturns ?? (
+    filteredReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0)
+  );
+  const netRevenueVal = backendSummary?.netRevenue ?? (salesReceivedVal - totalReturnsVal);
+
+  const paymentSummary = {
+    CASH: backendSummary?.paymentSummary?.cash ?? filteredSales.filter(s => s.paymentMethod === 'CASH').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
+    CARD: backendSummary?.paymentSummary?.card ?? filteredSales.filter(s => s.paymentMethod === 'CARD').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
+    ONLINE: backendSummary?.paymentSummary?.online ?? filteredSales.filter(s => s.paymentMethod === 'ONLINE').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
+    CASH_ONLINE: backendSummary?.paymentSummary?.cashOnlineTotal ?? filteredSales.filter(s => s.paymentMethod === 'CASH_ONLINE').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
+  };
 
   const paymentMethods = [
     { key: 'CASH', label: 'Cash', color: 'from-emerald-600 to-green-600' },
@@ -364,7 +464,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
-          <input type="text" placeholder="Search receipt, customer, cashier..." value={search}
+          <input type="text" placeholder="Search receipt, customer, cashier, order #..." value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full bg-gray-800 border border-gray-700 rounded-xl py-2 pl-9 pr-4 text-xs text-white font-bold focus:outline-none focus:border-blue-500/50" />
         </div>
@@ -393,20 +493,36 @@ const OutletInvoiceHistory = ({ outlet }) => {
         </button>
       </div>
 
-      {/* Summary counts */}
-      {!loading && !error && filteredSales.length > 0 && (
-        <div className="flex items-center gap-3 text-[10px] text-gray-500">
-          <span>{filteredSales.length} invoice{filteredSales.length !== 1 ? 's' : ''}</span>
-          <span className="text-gray-700">|</span>
-          <span className="text-emerald-400 font-bold">{filteredSales.filter(s => s._balanceStatus === 'paid').length} Paid</span>
-          <span className="text-gray-700">|</span>
-          <span className="text-amber-400 font-bold">{filteredSales.filter(s => s._balanceStatus === 'balance').length} Balance</span>
-        </div>
-      )}
+      {/* Authoritative Financial KPI Cards */}
+      {!loading && !error && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Gross Sales</p>
+              <p className="text-sm font-black text-white mt-1">{formatCurrency(grossSalesVal)}</p>
+            </div>
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Discounts</p>
+              <p className="text-sm font-black text-amber-400 mt-1">-{formatCurrency(discountTotalVal)}</p>
+            </div>
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Received</p>
+              <p className="text-sm font-black text-cyan-400 mt-1">{formatCurrency(salesReceivedVal)}</p>
+            </div>
+            <div className="bg-gray-950 border border-red-500/30 rounded-xl p-3">
+              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Returns / Refunds</p>
+              <p className="text-sm font-black text-red-400 mt-1">-{formatCurrency(totalReturnsVal)}</p>
+            </div>
+            <div className="bg-gradient-to-br from-emerald-950/60 to-gray-950 border border-emerald-500/40 rounded-xl p-3 col-span-2 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Net Revenue / Sales</p>
+                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Exact Rupee</span>
+              </div>
+              <p className="text-base font-black text-emerald-400 mt-1">{formatCurrency(netRevenueVal)}</p>
+            </div>
+          </div>
 
-      {/* Payment Method Summary */}
-      {!loading && !error && filteredSales.length > 0 && (
-        <div className="space-y-2">
+          {/* Payment Method Breakdown */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {paymentMethods.map(pm => {
               const total = paymentSummary[pm.key] || 0;
@@ -420,21 +536,60 @@ const OutletInvoiceHistory = ({ outlet }) => {
               );
             })}
           </div>
-          {(() => {
-            const received = (paymentSummary.CASH || 0) + (paymentSummary.ONLINE || 0) + (paymentSummary.CARD || 0) + (paymentSummary.CASH_ONLINE || 0);
-            const discount = filteredSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
-            return (
-              <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-400 px-1">
-                <span>Gross Sales: <b className="text-white">{formatCurrency(received + discount)}</b></span>
-                <span className="text-gray-700">|</span>
-                <span>Discount: <b className="text-amber-400">-{formatCurrency(discount)}</b></span>
-                <span className="text-gray-700">|</span>
-                <span>Received (Net): <b className="text-emerald-400">{formatCurrency(received)}</b></span>
-              </div>
-            );
-          })()}
         </div>
       )}
+
+      {/* Transaction View Tabs */}
+      <div className="flex flex-wrap gap-1 bg-gray-900/80 p-1.5 rounded-2xl border border-gray-800">
+        <button
+          onClick={() => setTransactionTab('all')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            transactionTab === 'all' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>All Transactions</span>
+          <span className="text-[10px] bg-gray-800 px-1.5 py-0.5 rounded-full">
+            {filteredSales.length + filteredReturns.length + filteredBalancePayments.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setTransactionTab('sales')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            transactionTab === 'sales' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>Sales Invoices</span>
+          <span className="text-[10px] bg-emerald-900/60 text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">
+            {filteredSales.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setTransactionTab('returns')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            transactionTab === 'returns' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>Returns & Refunds</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+            filteredReturns.length > 0 ? 'bg-red-950 text-red-400' : 'bg-gray-800 text-gray-500'
+          }`}>
+            {filteredReturns.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setTransactionTab('balance')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            transactionTab === 'balance' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>Balance Clearances</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+            filteredBalancePayments.length > 0 ? 'bg-purple-950 text-purple-400' : 'bg-gray-800 text-gray-500'
+          }`}>
+            {filteredBalancePayments.length}
+          </span>
+        </button>
+      </div>
 
       {/* Loading / Error / Empty */}
       {loading ? (
@@ -445,139 +600,239 @@ const OutletInvoiceHistory = ({ outlet }) => {
           <p className="text-red-400 font-black text-sm mb-2">{error}</p>
           <button onClick={fetchSales} className="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-xs">Retry</button>
         </div>
-      ) : filteredSales.length === 0 ? (
+      ) : allTransactions.length === 0 ? (
         <div className="py-16 text-center">
           <Clock className="mx-auto text-gray-600 mb-3" size={40} />
-          <p className="text-gray-500 font-bold">No invoices found</p>
+          <p className="text-gray-500 font-bold">No transactions found</p>
         </div>
       ) : (
-        /* Sales list */
+        /* Unified Transaction List */
         <div className="space-y-3">
-          {filteredSales.map(sale => {
-            const isExpanded = expandedId === sale.id;
-            const isBalance = sale._balanceStatus === 'balance';
-            const adv = parseFloat(sale.advanceAmount) || 0;
-            return (
-              <div key={sale.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                {/* Header row */}
-                <div className="p-4 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : sale.id)}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-black text-white truncate">{sale.receiptNumber}</span>
-                        {sale.faisalTake && <span className="text-[9px] bg-red-600 text-white px-1.5 py-0.5 rounded-full font-bold">FT</span>}
-                        {isBalance && <span className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded-full font-bold">BAL</span>}
-                        {!isBalance && <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-full font-bold">PAID</span>}
-                        {!!sale.orderId && <span className="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded-full font-bold">ORD</span>}
+          {allTransactions.map(tx => {
+            if (tx.type === 'SALE') {
+              const sale = tx.data;
+              const isExpanded = expandedId === sale.id;
+              const isBalance = sale._balanceStatus === 'balance';
+              const adv = parseFloat(sale.advanceAmount) || 0;
+              return (
+                <div key={tx.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                  {/* Header row */}
+                  <div className="p-4 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : sale.id)}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-black text-white truncate">{sale.receiptNumber}</span>
+                          {sale.faisalTake && <span className="text-[9px] bg-red-600 text-white px-1.5 py-0.5 rounded-full font-bold">FT</span>}
+                          {isBalance && <span className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded-full font-bold">BAL</span>}
+                          {!isBalance && <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-full font-bold">PAID</span>}
+                          {!!sale.orderId && <span className="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded-full font-bold">ORD</span>}
+                        </div>
+                        <p className="text-xs text-gray-400">{sale.customerName || 'Walk-in'} {sale.customerPhone ? `(${sale.customerPhone})` : ''}</p>
+                        <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-1">
+                          <span>{formatDateOnly(sale.createdAt)}</span>
+                          <span>{sale.cashierName || ''}</span>
+                          <span>{sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</span>
+                          <span>{(sale.items || []).length} items</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-400">{sale.customerName || 'Walk-in'} {sale.customerPhone ? `(${sale.customerPhone})` : ''}</p>
-                      <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-1">
-                        <span>{formatDateOnly(sale.createdAt)}</span>
-                        <span>{sale.cashierName || ''}</span>
-                        <span>{sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</span>
-                        <span>{(sale.items || []).length} items</span>
+                      <div className="text-right ml-4">
+                        <p className="text-base font-black text-white">{formatCurrency(sale.grandTotal)}</p>
+                        {isBalance && <p className="text-[10px] text-amber-400 font-bold">Rem: {formatCurrency(sale._balanceRemaining)}</p>}
                       </div>
                     </div>
-                    <div className="text-right ml-4">
-                      <p className="text-base font-black text-white">{formatCurrency(sale.grandTotal)}</p>
-                      {isBalance && <p className="text-[10px] text-amber-400 font-bold">Rem: {formatCurrency(sale._balanceRemaining)}</p>}
+                  </div>
+
+                  {/* Expanded detail */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 border-t border-gray-800 pt-3 space-y-3">
+                      {/* Items */}
+                      {(sale.items || []).map((item, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                          <div>
+                            <p className="font-black text-white">{item.productName}</p>
+                            <p className="text-[10px] text-gray-500">{[isUrdu ? toUrduName(item.color) : item.color, item.size].filter(Boolean).join(' / ')}{item.alterationCharges ? ` +Alt:${item.alterationCharges}` : ''}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-white">{item.quantity} × {formatCurrency(item.unitPrice)}</p>
+                            <p className="text-[10px] text-gray-500">{formatCurrency(item.lineTotal)}</p>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Summary */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                          <p className="text-gray-500">Subtotal</p>
+                          <p className="font-bold text-white">{formatCurrency(sale.subtotal)}</p>
+                        </div>
+                        {sale.alterationCharges > 0 && (
+                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                            <p className="text-gray-500">Alteration</p>
+                            <p className="font-bold text-white">{formatCurrency(sale.alterationCharges)}</p>
+                          </div>
+                        )}
+                        {sale.discountAmount > 0 && (
+                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                            <p className="text-gray-500">Discount</p>
+                            <p className="font-bold text-red-400">-{formatCurrency(sale.discountAmount)}</p>
+                          </div>
+                        )}
+                        {sale.cardChargesAmount > 0 && (
+                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                            <p className="text-gray-500">Card Charges</p>
+                            <p className="font-bold text-amber-400">+{formatCurrency(sale.cardChargesAmount)}</p>
+                          </div>
+                        )}
+                        {adv > 0 && (
+                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                            <p className="text-gray-500">Advance Paid</p>
+                            <p className="font-bold text-emerald-400">{formatCurrency(adv)}</p>
+                          </div>
+                        )}
+                        {sale.paymentMethod === 'CASH_ONLINE' && (
+                          <>
+                            <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                              <p className="text-gray-500">Cash Amount</p>
+                              <p className="font-bold text-emerald-400">{formatCurrency(sale.cashAmount)}</p>
+                            </div>
+                            <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                              <p className="text-gray-500">Online Amount</p>
+                              <p className="font-bold text-blue-400">{formatCurrency(sale.onlineAmount)}</p>
+                            </div>
+                          </>
+                        )}
+                        <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 col-span-2">
+                          <p className="text-gray-500">Grand Total</p>
+                          <p className="text-base font-black text-white">{formatCurrency(sale.grandTotal)}</p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        <button onClick={() => printReceipt(sale)} disabled={printing === sale.id}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                          {printing === sale.id ? <RefreshCw className="animate-spin" size={12} /> : <Printer size={12} />} Print
+                        </button>
+                        {!sale.refundedAt && !sale.faisalTake && (
+                          <button onClick={() => handleReturnInvoice(sale)} disabled={refunding === sale.id}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                            {refunding === sale.id ? <RefreshCw className="animate-spin" size={12} /> : <RotateCcw size={12} />} Return
+                          </button>
+                        )}
+                        {sale.refundedAt && <span className="text-[10px] text-red-400 font-bold flex items-center gap-1"><RotateCcw size={12} /> Refunded</span>}
+                        {isBalance && (
+                          <button onClick={() => handlePayOpen(sale)}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all">
+                            <DollarSign size={12} /> Pay Balance
+                          </button>
+                        )}
+                        <button onClick={() => openPayHistory(sale)}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-xl transition-all">
+                          <Clock size={12} /> Payment History
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (tx.type === 'RETURN') {
+              const ret = tx.data;
+              return (
+                <div key={tx.id} className="bg-gray-900 border border-red-500/30 rounded-2xl overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-black text-red-400 truncate">
+                            {ret.receiptNumber || `RET-${ret.id?.slice(0, 8)}`}
+                          </span>
+                          <span className="text-[9px] bg-red-600 text-white px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                            <RotateCcw size={10} /> RETURN / REFUND
+                          </span>
+                          {ret.sale?.receiptNumber && (
+                            <span className="text-[10px] text-gray-400 bg-gray-800 px-2 py-0.5 rounded-md font-bold">
+                              Orig Sale: {ret.sale.receiptNumber}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-300">
+                          Customer: <span className="font-bold text-white">{ret.customerName || ret.sale?.customerName || 'Walk-in'}</span>
+                          {ret.sale?.customerPhone ? ` (${ret.sale.customerPhone})` : ''}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-500 mt-1">
+                          <span>{formatDateTime(ret.createdAt)}</span>
+                          <span>Cashier: <b className="text-gray-300">{ret.processedBy || ret.cashierName || ret.sale?.cashierName || 'N/A'}</b></span>
+                          <span className="text-purple-400 font-bold">Refund Method: {ret.refundPaymentMethod || 'CARD'}</span>
+                          {ret.reason && <span className="text-amber-400 font-medium">Reason: {ret.reason}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-base font-black text-red-400">-{formatCurrency(ret.refundAmount || ret.amount)}</p>
+                        <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">Inventory Restocked</span>
+                      </div>
+                    </div>
+                    {/* If returned items exist */}
+                    {ret.sale?.items && ret.sale.items.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-800/80 space-y-1">
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Returned Product Items:</p>
+                        {ret.sale.items.map((item, i) => (
+                          <div key={i} className="flex justify-between text-xs bg-gray-950 px-3 py-1.5 rounded-lg text-gray-300 border border-gray-800/60">
+                            <span>{item.productName} {item.color ? `(${item.color})` : ''} {item.size || ''} × {item.quantity}</span>
+                            <span className="font-bold text-red-400">-{formatCurrency(item.lineTotal || (item.unitPrice * item.quantity))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (tx.type === 'BALANCE') {
+              const bp = tx.data;
+              return (
+                <div key={tx.id} className="bg-gray-900 border border-emerald-500/30 rounded-2xl overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-black text-emerald-400 truncate">
+                            {bp.receiptNumber || `BP-${bp.id?.slice(0, 8)}`}
+                          </span>
+                          <span className="text-[9px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                            <DollarSign size={10} /> BALANCE CLEARANCE
+                          </span>
+                          {bp.originalInvoiceNumber && (
+                            <span className="text-[10px] text-gray-400 bg-gray-800 px-2 py-0.5 rounded-md font-bold">
+                              Orig Invoice: {bp.originalInvoiceNumber}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-300">
+                          Customer: <span className="font-bold text-white">{bp.posSale?.customerName || 'Customer'}</span>
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-500 mt-1">
+                          <span>{formatDateTime(bp.paidAt)}</span>
+                          <span>Cashier: <b className="text-gray-300">{bp.cashierName || 'N/A'}</b></span>
+                          <span className="text-cyan-400 font-bold">Payment Method: {bp.paymentMethod}</span>
+                          {bp.outstandingBalanceAfterPayment !== undefined && (
+                            <span className="text-gray-400">Remaining Balance: <b className="text-amber-400">{formatCurrency(bp.outstandingBalanceAfterPayment)}</b></span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-base font-black text-emerald-400">+{formatCurrency(bp.amountPaidNow)}</p>
+                        <span className="text-[9px] text-gray-400">Paid Now</span>
+                      </div>
                     </div>
                   </div>
                 </div>
+              );
+            }
 
-                {/* Expanded detail */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-gray-800 pt-3 space-y-3">
-                    {/* Items */}
-                    {(sale.items || []).map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                        <div>
-                          <p className="font-black text-white">{item.productName}</p>
-                          <p className="text-[10px] text-gray-500">{[isUrdu ? toUrduName(item.color) : item.color, item.size].filter(Boolean).join(' / ')}{item.alterationCharges ? ` +Alt:${item.alterationCharges}` : ''}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-white">{item.quantity} × {formatCurrency(item.unitPrice)}</p>
-                          <p className="text-[10px] text-gray-500">{formatCurrency(item.lineTotal)}</p>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Summary */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                        <p className="text-gray-500">Subtotal</p>
-                        <p className="font-bold text-white">{formatCurrency(sale.subtotal)}</p>
-                      </div>
-                      {sale.alterationCharges > 0 && (
-                        <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                          <p className="text-gray-500">Alteration</p>
-                          <p className="font-bold text-white">{formatCurrency(sale.alterationCharges)}</p>
-                        </div>
-                      )}
-                      {sale.discountAmount > 0 && (
-                        <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                          <p className="text-gray-500">Discount</p>
-                          <p className="font-bold text-red-400">-{formatCurrency(sale.discountAmount)}</p>
-                        </div>
-                      )}
-                      {sale.cardChargesAmount > 0 && (
-                        <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                          <p className="text-gray-500">Card Charges</p>
-                          <p className="font-bold text-amber-400">+{formatCurrency(sale.cardChargesAmount)}</p>
-                        </div>
-                      )}
-                      {adv > 0 && (
-                        <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                          <p className="text-gray-500">Advance Paid</p>
-                          <p className="font-bold text-emerald-400">{formatCurrency(adv)}</p>
-                        </div>
-                      )}
-                      {sale.paymentMethod === 'CASH_ONLINE' && (
-                        <>
-                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                            <p className="text-gray-500">Cash Amount</p>
-                            <p className="font-bold text-emerald-400">{formatCurrency(sale.cashAmount)}</p>
-                          </div>
-                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                            <p className="text-gray-500">Online Amount</p>
-                            <p className="font-bold text-blue-400">{formatCurrency(sale.onlineAmount)}</p>
-                          </div>
-                        </>
-                      )}
-                      <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 col-span-2">
-                        <p className="text-gray-500">Grand Total</p>
-                        <p className="text-base font-black text-white">{formatCurrency(sale.grandTotal)}</p>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      <button onClick={() => printReceipt(sale)} disabled={printing === sale.id}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
-                        {printing === sale.id ? <RefreshCcw className="animate-spin" size={12} /> : <Printer size={12} />} Print
-                      </button>
-                      {!sale.refundedAt && !sale.faisalTake && (
-                        <button onClick={() => handleReturnInvoice(sale)} disabled={refunding === sale.id}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
-                          {refunding === sale.id ? <RefreshCcw className="animate-spin" size={12} /> : <RotateCcw size={12} />} Return
-                        </button>
-                      )}
-                      {sale.refundedAt && <span className="text-[10px] text-red-400 font-bold flex items-center gap-1"><RotateCcw size={12} /> Refunded</span>}
-                      {isBalance && (
-                        <button onClick={() => handlePayOpen(sale)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all">
-                          <DollarSign size={12} /> Pay Balance
-                        </button>
-                      )}
-                      <button onClick={() => openPayHistory(sale)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-xl transition-all">
-                        <Clock size={12} /> Payment History
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
+            return null;
           })}
         </div>
       )}

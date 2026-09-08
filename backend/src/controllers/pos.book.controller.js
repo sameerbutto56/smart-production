@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
+const { resolvePktDateRange, pktDayStart } = require('../utils/workingHours');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
@@ -69,26 +70,36 @@ const getBookById = async (req, res) => {
 const computeBookSummary = async (session) => {
   const outlet = session.outletName;
   const startTime = session.openedAt;
-  // A CLOSED register covers the full business day (00:00 → 23:59:59.999) so its figures
+  // A CLOSED register covers the full business day [PKT 00:00:00 → PKT 24:00:00) so its figures
   // exactly match POS History / Excel export for the same date. An OPEN register runs to now.
-  let endTime = session.closedAt ? new Date(startTime) : new Date();
-  if (session.closedAt) endTime.setHours(23, 59, 59, 999);
-  const dayStart = new Date(startTime);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayFilter = { gte: dayStart, lte: endTime };
+  const sessionDayStartMs = pktDayStart(startTime);
+  const dayStart = new Date(sessionDayStartMs);
+  const dayEnd = session.closedAt ? new Date(sessionDayStartMs + 86400000) : new Date();
+  const dayFilter = { gte: dayStart, lt: dayEnd };
 
     // Parallel queries
     const [allSales, returns, journals, balancePayments, bankDeposits] = await Promise.all([
       // ALL sales in day range (incl. Faisal Takes + refunded) — matches POS History invoice list
       prisma.posSale.findMany({
         where: { outletName: outlet, createdAt: dayFilter },
+        include: { items: true, returns: true },
         orderBy: { createdAt: 'asc' },
       }),
       // Returns in day range — ALL returns (incl. those not linked to a POS sale) so the register
       // matches POS History / Excel / Dashboard, which count every refund in the range.
       prisma.posReturn.findMany({
         where: { outletName: outlet, createdAt: dayFilter },
-        include: { sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } },
+        include: {
+          sale: {
+            select: {
+              id: true, receiptNumber: true, orderId: true, orderNumber: true,
+              customerName: true, customerPhone: true, paymentMethod: true,
+              cashierName: true, cashAmount: true, onlineAmount: true, grandTotal: true,
+              subtotal: true, cardChargesAmount: true, createdAt: true, items: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
       }),
       // Journal entries from start of day (match Dashboard's getCashSummary range)
       prisma.journalEntry.findMany({
@@ -101,7 +112,15 @@ const computeBookSummary = async (session) => {
           posSale: { outletName: outlet },
           paidAt: dayFilter,
         },
-        orderBy: { paidAt: 'asc' },
+        include: {
+          posSale: {
+            select: {
+              id: true, receiptNumber: true, orderNumber: true, customerName: true,
+              customerPhone: true, grandTotal: true, advanceAmount: true, outletName: true, cashierName: true
+            }
+          }
+        },
+        orderBy: { paidAt: 'desc' },
       }),
       // Bank deposits in day range
       prisma.bankDeposit.findMany({
@@ -113,7 +132,7 @@ const computeBookSummary = async (session) => {
     // Canonical totals shared with POS History / Excel export — guaranteed identical by construction
     // Unified summary (outlet dashboard source, Faisal Takes excluded from revenue buckets)
     const shared = await computeUnifiedSalesSummary(prisma, {
-      outlet, start: dayStart, end: endTime,
+      outlet, start: dayStart, end: dayEnd, isHalfOpen: true,
     });
 
     // All sales (incl. Faisal Takes + refunded) — revenue counts on the SALE day; the refund
@@ -339,9 +358,14 @@ const computeBookSummary = async (session) => {
       totalBankDeposits,
       bankDeposits,
       sales, // all sales (incl. Faisal Takes + refunded) for drill-down
+      returns,
+      balancePayments,
       grossSales: shared.grossSales,
       discountTotal: shared.totalDiscount,
-      netSales: shared.netRevenue,
+      totalSalesAmount: shared.totalSales,
+      salesReceived: shared.salesReceived,
+      netSales: shared.netSales,
+      netRevenue: shared.netRevenue,
     };
 
   return summary;
@@ -392,20 +416,20 @@ const closeBook = async (req, res) => {
 const getBookHistory = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const { dateFrom, dateTo } = req.query;
+    const { range, dateFrom, dateTo } = req.query;
     const where = { outletName: outlet, status: 'CLOSED' };
-    if (dateFrom || dateTo) {
-      where.closedAt = {};
-      if (dateFrom) where.closedAt.gte = new Date(dateFrom);
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        where.closedAt.lte = to;
+    if (range || dateFrom || dateTo) {
+      const { start, end } = resolvePktDateRange({ range, dateFrom, dateTo });
+      if (start && end) {
+        where.OR = [
+          { openedAt: { gte: start, lt: end } },
+          { closedAt: { gte: start, lt: end } },
+        ];
       }
     }
     const sessions = await prisma.posBookSession.findMany({
       where,
-      orderBy: { closedAt: 'desc' },
+      orderBy: { openedAt: 'desc' },
     });
     const result = sessions.map(s => {
       const summary = typeof s.summary === 'string' ? JSON.parse(s.summary) : (s.summary || {});

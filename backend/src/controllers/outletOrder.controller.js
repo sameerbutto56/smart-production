@@ -3,6 +3,7 @@ const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const bcrypt = require('bcryptjs');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
+const { resolvePktDateRange } = require('../utils/workingHours');
 const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 const { createAuditLog } = require('./order-helpers');
 const { attachDelayInfoToOrders, DEFAULT_DELAY_CONFIG } = require('../utils/orderDelay');
@@ -533,13 +534,15 @@ const receiveOutletReturn = async (req, res) => {
 const getOutletDashboardStats = async (req, res) => {
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    const { dateFrom, dateTo } = req.query;
+    const { range, dateFrom, dateTo } = req.query;
 
+    const { start, end } = resolvePktDateRange({ range, dateFrom, dateTo });
     const dateFilter = {};
-    if (dateFrom) dateFilter.createdAt = { ...dateFilter.createdAt, gte: new Date(dateFrom) };
-    if (dateTo) dateFilter.createdAt = { ...dateFilter.createdAt, lte: new Date(dateTo) };
+    if (start) dateFilter.gte = start;
+    if (end) dateFilter.lt = end;
 
-    const where = { source: 'OUTLET', outletName, ...dateFilter };
+    const where = { source: 'OUTLET', outletName };
+    if (start || end) where.createdAt = dateFilter;
 
     const [totalOrders, pendingOrders, completedOrders, cancelledOrders] = await Promise.all([
       prisma.order.count({ where }),
@@ -943,25 +946,14 @@ const getOutletAnalytics = async (req, res) => {
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const now = new Date();
-    let startDate = null;
-    let endDate = null;
-    if (dateFrom) startDate = new Date(dateFrom);
-    if (dateTo) { endDate = new Date(dateTo); endDate.setHours(23, 59, 59, 999); }
-    if (!startDate && !endDate) {
-      if (range === 'today') { startDate = new Date(now); startDate.setHours(0, 0, 0, 0); }
-      else if (range === 'yesterday') { startDate = new Date(now); startDate.setDate(startDate.getDate() - 1); startDate.setHours(0, 0, 0, 0); endDate = new Date(startDate); endDate.setHours(23, 59, 59, 999); }
-      else if (range === 'week') { startDate = new Date(now); startDate.setDate(startDate.getDate() - 7); startDate.setHours(0, 0, 0, 0); }
-      else if (range === 'month') { startDate = new Date(now); startDate.setMonth(startDate.getMonth() - 1); startDate.setHours(0, 0, 0, 0); }
-      else if (range === 'year') { startDate = new Date(now); startDate.setFullYear(startDate.getFullYear() - 1); startDate.setHours(0, 0, 0, 0); }
-    }
+    const { start: startDate, end: endDate } = resolvePktDateRange({ range, dateFrom, dateTo });
 
     const dateFilter = {};
     if (startDate) dateFilter.gte = startDate;
-    if (endDate) dateFilter.lte = endDate;
+    if (endDate) dateFilter.lt = endDate;
 
     const orderWhere = { source: 'OUTLET', outletName };
-    if (startDate || endDate) orderWhere.createdAt = { ...dateFilter };
+    if (startDate || endDate) orderWhere.createdAt = dateFilter;
 
     // 1. Order KPIs
     const [totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders] = await Promise.all([

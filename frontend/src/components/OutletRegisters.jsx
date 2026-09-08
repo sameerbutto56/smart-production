@@ -9,12 +9,12 @@ import * as XLSX from 'xlsx';
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const PRESETS = [
-  { label: 'Today', getRange: () => { const d = new Date(); const y = d.getFullYear(), m = d.getMonth(), dd = d.getDate(); return { from: new Date(y, m, dd).toISOString(), to: new Date(y, m, dd + 1).toISOString() }; } },
-  { label: 'Yesterday', getRange: () => { const d = new Date(); d.setDate(d.getDate() - 1); const y = d.getFullYear(), m = d.getMonth(), dd = d.getDate(); return { from: new Date(y, m, dd).toISOString(), to: new Date(y, m, dd + 1).toISOString() }; } },
-  { label: 'Last 7 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 6); const y1 = from.getFullYear(), m1 = from.getMonth(), d1 = from.getDate(); const y2 = to.getFullYear(), m2 = to.getMonth(), d2 = to.getDate(); return { from: new Date(y1, m1, d1).toISOString(), to: new Date(y2, m2, d2 + 1).toISOString() }; } },
-  { label: 'Last 30 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 29); const y1 = from.getFullYear(), m1 = from.getMonth(), d1 = from.getDate(); const y2 = to.getFullYear(), m2 = to.getMonth(), d2 = to.getDate(); return { from: new Date(y1, m1, d1).toISOString(), to: new Date(y2, m2, d2 + 1).toISOString() }; } },
-  { label: 'This Month', getRange: () => { const now = new Date(); return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(), to: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString() }; } },
-  { label: 'All Time', getRange: () => ({ from: '', to: '' }) },
+  { label: 'Today', range: 'today' },
+  { label: 'Yesterday', range: 'yesterday' },
+  { label: 'Last 7 Days', range: 'week' },
+  { label: 'Last 30 Days', range: 'month' },
+  { label: 'This Month', range: 'month' },
+  { label: 'All Time', range: 'all' },
 ];
 
 const OutletRegisters = ({ outlet }) => {
@@ -25,35 +25,41 @@ const OutletRegisters = ({ outlet }) => {
 
   // Date filter state
   const [activePreset, setActivePreset] = useState('All Time');
+  const [activeRange, setActiveRange] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const applyPreset = (preset) => {
-    const range = preset.getRange();
     setActivePreset(preset.label);
-    setDateFrom(range.from);
-    setDateTo(range.to);
+    setActiveRange(preset.range);
+    setDateFrom('');
+    setDateTo('');
     setShowDatePicker(false);
   };
 
   const applyCustomDates = () => {
     setActivePreset('Custom');
+    setActiveRange('custom');
     setShowDatePicker(false);
   };
 
   const clearDateFilter = () => {
     setActivePreset('All Time');
+    setActiveRange('all');
     setDateFrom('');
     setDateTo('');
   };
 
-  const isFiltered = dateFrom || dateTo;
+  const isFiltered = activeRange !== 'all' || dateFrom || dateTo;
 
   const fetchRegisters = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ outlet, _: Date.now() });
+      if (activeRange && activeRange !== 'all' && activeRange !== 'custom') {
+        params.set('range', activeRange);
+      }
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
       const res = await api.get(`/api/pos/book/history?${params.toString()}`);
@@ -63,7 +69,7 @@ const OutletRegisters = ({ outlet }) => {
       toast.error('Failed to load register history');
     }
     setLoading(false);
-  }, [outlet, dateFrom, dateTo]);
+  }, [outlet, activeRange, dateFrom, dateTo]);
 
   useEffect(() => { fetchRegisters(); }, [fetchRegisters]);
 
@@ -517,8 +523,18 @@ const OutletRegisters = ({ outlet }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-black text-emerald-400">{formatCurrency(reg.summary?.paymentSummary?.grandTotal || 0)}</span>
-                  <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-2 py-1 rounded-lg">{formatCurrency(reg.summary?.availableCash || 0)} cash</span>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-emerald-400">
+                      {formatCurrency(reg.summary?.netRevenue ?? reg.summary?.netSales ?? reg.summary?.paymentSummary?.grandTotal ?? 0)}
+                    </span>
+                    <p className="text-[10px] text-gray-500 font-bold">Net Sales</p>
+                  </div>
+                  <div className="text-right hidden sm:block">
+                    <span className="text-xs font-bold text-gray-400">
+                      {formatCurrency(reg.summary?.availableCash || 0)}
+                    </span>
+                    <p className="text-[10px] text-gray-600 font-bold">Avail Cash</p>
+                  </div>
                   {expandedId === reg.id ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
                 </div>
               </div>
@@ -526,6 +542,26 @@ const OutletRegisters = ({ outlet }) => {
               {/* Expanded detail */}
               {expandedId === reg.id && (
                 <div className="border-t border-gray-800 p-4 space-y-4">
+                  {/* Reconciled Financial Summary */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="bg-gray-950 p-3 rounded-xl border border-gray-800">
+                      <span className="text-[10px] font-black text-gray-500 uppercase">Gross Sales</span>
+                      <p className="text-sm font-black text-white">{formatCurrency(reg.summary?.grossSales ?? (reg.summary?.paymentSummary?.grandTotal || 0))}</p>
+                    </div>
+                    <div className="bg-gray-950 p-3 rounded-xl border border-gray-800">
+                      <span className="text-[10px] font-black text-gray-500 uppercase">Discounts</span>
+                      <p className="text-sm font-black text-amber-400">-{formatCurrency(reg.summary?.discountTotal || 0)}</p>
+                    </div>
+                    <div className="bg-gray-950 p-3 rounded-xl border border-red-500/30">
+                      <span className="text-[10px] font-black text-red-400 uppercase">Returns</span>
+                      <p className="text-sm font-black text-red-400">-{formatCurrency(reg.summary?.totalReturns ?? (reg.summary?.returnSummary?.total || 0))}</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-emerald-950/60 to-gray-950 p-3 rounded-xl border border-emerald-500/40">
+                      <span className="text-[10px] font-black text-emerald-400 uppercase">Net Revenue</span>
+                      <p className="text-sm font-black text-emerald-400">{formatCurrency(reg.summary?.netRevenue ?? reg.summary?.netSales ?? (reg.summary?.paymentSummary?.grandTotal || 0))}</p>
+                    </div>
+                  </div>
+
                   {/* Payment Summary */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div className="bg-gray-950 p-3 rounded-xl border border-gray-800">
@@ -560,6 +596,27 @@ const OutletRegisters = ({ outlet }) => {
                               <span className="text-blue-400 font-bold">{formatCurrency(e.online)}</span>
                               <span className="text-white font-black">{formatCurrency(e.total)}</span>
                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Returns & Refunds */}
+                  {(reg.summary?.returns || []).length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <RotateCcw size={12} /> Returns & Refunds ({(reg.summary.returns).length})
+                      </h4>
+                      <div className="space-y-1">
+                        {reg.summary.returns.map((r, i) => (
+                          <div key={i} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-red-500/20 text-xs">
+                            <div>
+                              <span className="font-bold text-white">{r.sale?.receiptNumber || `RET-${r.id?.slice(0, 8)}`}</span>
+                              {r.reason && <span className="text-gray-500 ml-2">— {r.reason}</span>}
+                              <span className="text-purple-400 ml-2 font-bold">{r.refundPaymentMethod || 'CARD'}</span>
+                            </div>
+                            <span className="font-bold text-red-400">-{formatCurrency(r.refundAmount || 0)}</span>
                           </div>
                         ))}
                       </div>

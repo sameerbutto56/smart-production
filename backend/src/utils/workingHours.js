@@ -74,6 +74,90 @@ const dateBoundToMs = (value, bound = 'start') => {
   return bound === 'start' ? pktDayStart(base) : pktDayEnd(base);
 };
 
+/**
+ * Standardize Pakistan-local date ranges with strict half-open boundaries:
+ * [start, end) where event.timestamp >= start AND event.timestamp < end.
+ *
+ * Guaranteed PKT (UTC+5) calendar day precision:
+ * - 'yesterday': [start of yesterday PKT, start of today PKT)
+ * - 'today': [start of today PKT, start of tomorrow PKT)
+ * - 'week': [start of 6 days ago PKT, start of tomorrow PKT)
+ * - 'month': [1st of current month PKT, start of tomorrow PKT)
+ * - 'year': [Jan 1st of current year PKT, start of tomorrow PKT)
+ * - Custom dateFrom / dateTo: [start of dateFrom PKT, start of day after dateTo PKT)
+ *
+ * @param {{ range?: string, dateFrom?: string|Date, dateTo?: string|Date, nowMs?: number }} params
+ * @returns {{ start: Date|null, end: Date|null }}
+ */
+const resolvePktDateRange = ({ range, dateFrom, dateTo, nowMs = Date.now() }) => {
+  if (dateFrom || dateTo) {
+    let startMs = null;
+    let endMs = null;
+    if (dateFrom) {
+      const str = String(dateFrom).trim();
+      if (/[T:Z]/.test(str)) {
+        startMs = new Date(str).getTime();
+      } else {
+        startMs = pktDayStart(str);
+      }
+    }
+    if (dateTo) {
+      const str = String(dateTo).trim();
+      if (/[T:Z]/.test(str)) {
+        endMs = new Date(str).getTime();
+      } else {
+        // Half-open bound: include the full day by stopping at the start of next PKT calendar day
+        endMs = pktDayStart(str) + 86400000;
+      }
+    }
+    return {
+      start: startMs != null && Number.isFinite(startMs) ? new Date(startMs) : null,
+      end: endMs != null && Number.isFinite(endMs) ? new Date(endMs) : null,
+    };
+  }
+
+  const todayPktStart = pktDayStart(nowMs);
+  if (range === 'today') {
+    return {
+      start: new Date(todayPktStart),
+      end: new Date(todayPktStart + 86400000),
+    };
+  }
+  if (range === 'yesterday') {
+    const yesterdayPktStart = todayPktStart - 86400000;
+    return {
+      start: new Date(yesterdayPktStart),
+      end: new Date(todayPktStart),
+    };
+  }
+  if (range === 'week') {
+    return {
+      start: new Date(todayPktStart - 6 * 86400000),
+      end: new Date(todayPktStart + 86400000),
+    };
+  }
+  if (range === 'month') {
+    const p = new Date(todayPktStart + PK_OFFSET);
+    const mStart = pktDayStart(Date.UTC(p.getUTCFullYear(), p.getUTCMonth(), 1));
+    return {
+      start: new Date(mStart),
+      end: new Date(todayPktStart + 86400000),
+    };
+  }
+  if (range === 'year') {
+    const p = new Date(todayPktStart + PK_OFFSET);
+    const yStart = pktDayStart(Date.UTC(p.getUTCFullYear(), 0, 1));
+    return {
+      start: new Date(yStart),
+      end: new Date(todayPktStart + 86400000),
+    };
+  }
+
+  // default 'all'
+  return { start: null, end: null };
+};
+
+
 // Sunday = 0 in JS getUTCDay()
 const isSunday = (ms) => toPKT(ms).getUTCDay() === 0;
 
@@ -302,5 +386,6 @@ module.exports = {
   pktDayStart,
   pktDayEnd,
   dateBoundToMs,
+  resolvePktDateRange,
 };
 

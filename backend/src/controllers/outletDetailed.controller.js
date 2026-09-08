@@ -1,6 +1,6 @@
 const prisma = require('../prisma');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
-const { pktDayStart, pktDayEnd, dateBoundToMs } = require('../utils/workingHours');
+const { resolvePktDateRange } = require('../utils/workingHours');
 const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
 
 const getOutletDetailed = async (req, res) => {
@@ -9,22 +9,11 @@ const getOutletDetailed = async (req, res) => {
     if (!outlet) return res.status(400).json({ message: 'outletName param required' });
 
     const { range = 'all', dateFrom, dateTo } = req.query;
+    const { start: startLimit, end: endLimit } = resolvePktDateRange({ range, dateFrom, dateTo });
 
-    const nowMs = Date.now();
-    let startLimit = new Date(0);
-    let endLimit;
-    if (dateFrom || dateTo) {
-      // Full ISO timestamp strings (PKT-converted by the frontend hook) are used
-      // as-is; bare YYYY-MM-DD dates are expanded to a full PKT calendar day.
-      startLimit = dateFrom ? new Date(dateBoundToMs(dateFrom, 'start')) : new Date(0);
-      endLimit = new Date(dateTo ? dateBoundToMs(dateTo, 'end') : nowMs);
-    } else if (range === 'today') { startLimit = new Date(pktDayStart(nowMs)); endLimit = new Date(nowMs); }
-    else if (range === 'yesterday') { const s = pktDayStart(nowMs - 86400000); startLimit = new Date(s); endLimit = new Date(pktDayEnd(s)); }
-    else if (range === 'week') { startLimit = new Date(pktDayStart(nowMs - 6 * 86400000)); endLimit = new Date(nowMs); }
-    else if (range === 'month' || range === 'year') { const p = new Date(pktDayStart(nowMs) + 5 * 3600000); const mo = range === 'month' ? p.getUTCMonth() : 0; startLimit = new Date(pktDayStart(Date.UTC(p.getUTCFullYear(), mo, 1))); endLimit = new Date(nowMs); }
-    else { endLimit = new Date(nowMs); }
-
-    const dateWhere = { gte: startLimit, lte: endLimit };
+    const dateWhere = {};
+    if (startLimit) dateWhere.gte = startLimit;
+    if (endLimit) dateWhere.lt = endLimit;
 
     const [
       salesAll, returnsAll,
