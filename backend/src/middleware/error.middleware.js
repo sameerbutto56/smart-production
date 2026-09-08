@@ -8,10 +8,15 @@ class AppError extends Error {
 }
 
 const errorHandler = (err, req, res, _next) => {
-  const statusCode = err.statusCode || 500;
-  const message = err.isOperational ? err.message : 'Internal server error';
+  let statusCode = err.statusCode || 500;
+  let message = err.isOperational ? err.message : 'Internal server error';
 
-  if (!err.isOperational) {
+  if (err.type === 'entity.parse.failed') {
+    statusCode = 400;
+    message = 'Invalid JSON in request body. Please send valid JSON.';
+  }
+
+  if (message === 'Internal server error') {
     console.error('Unhandled error:', err);
   }
 
