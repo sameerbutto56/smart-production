@@ -1,4 +1,35 @@
 ## Goals
+### Implemented This Session — End-to-End Financial Reconciliation across Closed Register, POS History & Dashboards
+- **Requirement**: Complete end-to-end financial reconciliation and fix root causes across `Closed Register == POS History == POS Dashboard == Admin Outlet Detailed == Outlet Dashboard == Reports`:
+  1. "Yesterday" means strictly the Pakistan calendar date `[PKT 00:00:00, PKT 24:00:00)` via a half-open UTC range: `[2026-09-06T19:00:00.000Z, 2026-09-07T19:00:00.000Z)`. No UTC midnight leaks or adjacent day overlap.
+  2. POS History must list every financial transaction of that date: Sales, Returns (with full details: receipt #, order #, reason, cashier, amount, time, method, items), and Balance Clearances.
+  3. Single authoritative formulation of Gross Sales, Discounts, Received Amount, Returns, Net Sales, and Net Revenue across all modules without frontend patches.
+- **Root Cause & Mathematical Reconciliation for Jail Road (07/09/2026)**:
+  - 11 PosSale rows totaled ₨90,038 received, ₨1,600 discount, ₨91,638 gross sales.
+  - 2 Return events occurred on 07/09/2026 totaling ₨42,050:
+    - Event 1 (10:52 AM PKT): Cross-day return on `RCP-20260906-00025` (sold 06/09) for ₨30,750.
+    - Event 2 (06:15 PM PKT): Return on `RCP-20260907-00018` (sold 07/09) for ₨11,300.
+  - Previously, POS History queried *only* `PosSale.createdAt`, making the ₨30,750 return completely invisible! Closed Register deducted all ₨42,050 returns, resulting in `90,038 - 42,050 = ₨47,988` Net Revenue.
+  - Surfacing all returns in POS History and standardizing `computeUnifiedSalesSummary` reconciles all modules to the exact rupee:
+    `Gross: ₨91,638 | Discounts: ₨1,600 | Received: ₨90,038 | Returns: ₨42,050 | Net Sales: ₨47,988 | Net Revenue: ₨47,988 | Cash: ₨27,000 | Card Net: ₨13,438 | Online: ₨7,550`.
+- **Backend**:
+  - `workingHours.js`: Added `resolvePktDateRange({ range, dateFrom, dateTo, nowMs })` computing strict half-open Pakistan calendar boundaries `[start, end)`.
+  - `posUnified.js`: Modernized `computeUnifiedSalesSummary` with half-open queries `{ gte: start, lt: end }` for sales, returns, and balance payments, exporting uniform authoritative metrics.
+  - `pos.controller.js`: Delegated `resolveSalesDateRange` to `resolvePktDateRange`. Added `includeTransactions=true` returning `{ sales, returns, balancePayments, summary }`.
+  - `pos.book.controller.js`: Standardized `computeBookSummary` day boundary to strict half-open PKT day, returning `netSales`, `netRevenue`, `totalReturns`, `returns`, and `balancePayments`. Updated `getBookHistory` to use `resolvePktDateRange`.
+  - `outletDetailed.controller.js` & `outletOrder.controller.js`: Standardized date range parsing to `resolvePktDateRange` with half-open boundaries.
+- **Frontend**:
+  - `OutletInvoiceHistory.jsx`: Requests `includeTransactions=true` in `fetchSales`. Renders authoritative KPI cards (`Gross Sales`, `Discounts`, `Total Received`, `Returns / Refunds`, `Net Revenue / Sales`, payment breakdown). Added View tabs (`All Transactions`, `Sales Invoices`, `Returns & Refunds`, `Balance Clearances`). Added rich Return cards and Balance Clearance cards. Updated Excel export to include sales, returns, balance clearances, and expenses.
+  - `OutletRegisters.jsx`: Updated presets (`Today`, `Yesterday`, etc.) to pass `range` directly to the backend. Added `Net Sales` to register summary rows and expanded detail, along with a Returns breakdown list.
+- **Verification & Deployment**:
+  - `node --check` passed on all modified backend controllers and utilities.
+  - `verify-financial-reconciliation.cjs` passed (duration exactly 24.0 hours, exact rupee match across all metrics).
+  - Frontend production build `npm run build`: 0 errors (3,193 modules bundled).
+  - Git commit `7ccc7e1` pushed to `origin/main`.
+  - Vercel production deployment `dpl_CjZymgYdmhUEoqx48ywQhHYog9CL` (`READY`).
+  - Re-aliased `smart-production-v2.vercel.app` -> `smart-production-v2-auc58azuw-sameerbutt056-1019s-projects.vercel.app`.
+  - Live probe verification: `GET https://smart-production-v2.vercel.app/` 200, `GET /api/health` 200 `{"status":"ok","message":"Backend is alive!"}`.
+
 ### Implemented This Session — Store Returns Restock Fix & Order Entry PR Sequential Order Option
 - **Requirement 1: Store Profile — Accepted Returns Must Be Restockable**:
   - In `Store Profile → Returns`, accepted return cases (even if accepted in Inventory View or with `routedTo: 'INVENTORY_VIEW'`) must be restockable without throwing "This case is not with the Store".
