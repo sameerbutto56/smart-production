@@ -387,7 +387,7 @@ const StoreOrderTracker = () => {
           </div>
 
           {order.productDetails && (() => {
-            let items = [];
+            let items;
             try {
               const parsed = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
               items = Array.isArray(parsed) ? parsed : [];

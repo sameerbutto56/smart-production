@@ -6,7 +6,7 @@ import { PageLoader } from '../components/LoadingSpinner';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
-import { Truck, Package, CheckCircle2, XCircle, RotateCcw, Clock, RefreshCw, Search, Eye, MapPin, AlertTriangle, ArrowLeft, Loader2 } from 'lucide-react';
+import { Truck, Package, CheckCircle2, XCircle, RotateCcw, Clock, RefreshCw, Search, Eye, MapPin, AlertTriangle, ArrowLeft, Loader2, X } from 'lucide-react';
 
 const STATUS_COLORS = {
   CREATED: { bg: 'bg-gray-600/20', border: 'border-gray-500/50', text: 'text-gray-400', icon: Package },

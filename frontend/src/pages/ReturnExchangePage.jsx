@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck, Inbox } from 'lucide-react';
+import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck, Inbox, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 

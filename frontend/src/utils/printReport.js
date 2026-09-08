@@ -1602,8 +1602,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   closePrintWindow(win);
 }
 
-export function printDispatchSheet(order) {
+export function printDispatchSheet(order, options = {}) {
   const isUrdu = false;
+  const showPrice = options?.showPrice !== false;
+  const genDisplay = (g) => g ? (String(g).charAt(0).toUpperCase() + String(g).slice(1)) : '';
   const pu = (t) => t || '—';
   const vu = (t) => t || '—';
   const title = 'Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8));

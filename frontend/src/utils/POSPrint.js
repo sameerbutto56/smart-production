@@ -420,12 +420,9 @@ export async function printBalanceReceipt(lastBalancePayment, selectedBalanceInv
   const remainingBal = bp.outstandingBalanceAfterPayment ?? Math.max(0, prevBalance - amountCleared);
   const statusPaid = remainingBal <= 0.01;
 
-  let methodLabel = 'Cash';
-  if (bp.paymentMethod === 'CASH_ONLINE') {
-    methodLabel = `Cash + Online (Cash: ${formatCurrency(bp.cashAmount || 0)}, Online: ${formatCurrency(bp.onlineAmount || 0)})`;
-  } else {
-    methodLabel = formatPaymentMethod(bp.paymentMethod || 'CASH');
-  }
+  const methodLabel = bp.paymentMethod === 'CASH_ONLINE'
+    ? `Cash + Online (Cash: ${formatCurrency(bp.cashAmount || 0)}, Online: ${formatCurrency(bp.onlineAmount || 0)})`
+    : formatPaymentMethod(bp.paymentMethod || 'CASH');
 
   const items = Array.isArray(sale.items) ? sale.items : [];
 
@@ -519,12 +516,9 @@ export async function printBalanceGatePass(lastBalancePayment, selectedBalanceIn
   const remainingBal = bp.outstandingBalanceAfterPayment ?? Math.max(0, origTotal - prevPaid - amountCleared);
   const statusPaid = remainingBal <= 0.01;
 
-  let methodLabel = 'Cash';
-  if (bp.paymentMethod === 'CASH_ONLINE') {
-    methodLabel = `Cash + Online (${formatCurrency(bp.cashAmount || 0)} + ${formatCurrency(bp.onlineAmount || 0)})`;
-  } else {
-    methodLabel = formatPaymentMethod(bp.paymentMethod || 'CASH');
-  }
+  const methodLabel = bp.paymentMethod === 'CASH_ONLINE'
+    ? `Cash + Online (${formatCurrency(bp.cashAmount || 0)} + ${formatCurrency(bp.onlineAmount || 0)})`
+    : formatPaymentMethod(bp.paymentMethod || 'CASH');
 
   const items = Array.isArray(sale.items) ? sale.items : [];
   const totalQty = items.reduce((s, i) => s + (i.quantity || 0), 0);

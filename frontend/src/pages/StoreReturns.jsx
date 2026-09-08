@@ -110,7 +110,7 @@ const StoreReturns = ({ refreshKey }) => {
     (c.orderNumber || '').toLowerCase().includes(search.toLowerCase()) ||
     (c.customerName || '').toLowerCase().includes(search.toLowerCase());
 
-  const ReturnsSection = ({ title, icon, color, list, emptyText }) => (
+  const renderReturnsSection = ({ title, icon, color, list, emptyText }) => (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <div className={`p-2 rounded-xl ${color}`}>{icon}</div>
@@ -236,7 +236,7 @@ const StoreReturns = ({ refreshKey }) => {
         <div className="text-center py-16 text-gray-500 font-bold">Loading...</div>
       ) : (
         <div className="space-y-8">
-          <ReturnsSection title="Returns — Store" icon={<Box size={18} className="text-red-400" />} color="bg-red-500/20" list={returns} emptyText="No returns to process. Returned orders from Inventory View will appear here until they are completed." />
+          {renderReturnsSection({ title: "Returns — Store", icon: <Box size={18} className="text-red-400" />, color: "bg-red-500/20", list: returns, emptyText: "No returns to process. Returned orders from Inventory View will appear here until they are completed." })}
         </div>
       )}
     </div>

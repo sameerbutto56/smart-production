@@ -27,7 +27,7 @@ export function formatDateWithPreference(dateValue, formatPreference = DEFAULT_D
   const month = pad(d.getMonth() + 1);
   const year = d.getFullYear();
 
-  let datePart = `${day}/${month}/${year}`;
+  let datePart;
   const fmt = (formatPreference || DEFAULT_DATE_FORMAT).toUpperCase().replace(/\s+/g, '');
 
   if (fmt.startsWith('MM')) {
@@ -64,16 +64,16 @@ export function parseDateWithPreference(inputStr, formatPreference = DEFAULT_DAT
 
   // Regex matching date with optional time (HH:mm or HH:mm:ss)
   // Handles / or - or . as separators
-  const parts = trimmed.match(/^(\d{1,4})[./\-](\d{1,2})[./\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  const parts = trimmed.match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if (!parts) {
     // If standard ISO string was passed directly
     const fallback = new Date(trimmed);
     return isNaN(fallback.getTime()) ? '' : fallback.toISOString();
   }
 
-  let year = 0;
-  let month = 0;
-  let day = 0;
+  let year;
+  let month;
+  let day;
   const hours = parts[4] ? parseInt(parts[4], 10) : 0;
   const minutes = parts[5] ? parseInt(parts[5], 10) : 0;
   const seconds = parts[6] ? parseInt(parts[6], 10) : 0;
