@@ -375,7 +375,9 @@ const approveEditRequest = async (req, res) => {
         } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice', 'advanceAmount', 'deliveryCharges'].includes(field)) {
           updateData[field] = parseFloat(requestedChanges[field]) || 0;
         } else if (field === 'shopifyOrderDate') {
-          updateData[field] = requestedChanges[field] ? new Date(requestedChanges[field]) : null;
+          // Never overwrite existing shopifyOrderDate with null or empty value
+          const parsed = requestedChanges[field] ? new Date(requestedChanges[field]) : null;
+          updateData[field] = (parsed && !isNaN(parsed.getTime())) ? parsed : (order.shopifyOrderDate || null);
         } else {
           updateData[field] = requestedChanges[field];
         }

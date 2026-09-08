@@ -17,6 +17,7 @@ model User {
   role       String       @default("ORDER_ENTRY")
   employeeId String?      @unique
   theme      String?      @default("luxe")
+  dateFormatPreference String? @default("DD/MM/YYYY")
   isActive   Boolean      @default(true)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt

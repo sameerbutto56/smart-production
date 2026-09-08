@@ -29,6 +29,7 @@ import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTim
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { getDelayInfo, getStageDelays, getEffectiveStage, fmtDuration, stageLabel } from '../utils/delayUtils';
 import { useSystemPause } from '../context/SystemPauseContext';
+import { useDelay } from '../context/DelayContext';
 import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
@@ -303,11 +304,13 @@ const AllOrders = () => {
     socket.on('order-updated', onOrderUpdated);
     socket.on('new-order', onNewOrder);
     socket.on('stage-accepted', debouncedRefresh);
+    socket.on('delay-config-updated', debouncedRefresh);
 
     return () => {
       socket.off('order-updated', onOrderUpdated);
       socket.off('new-order', onNewOrder);
       socket.off('stage-accepted', debouncedRefresh);
+      socket.off('delay-config-updated', debouncedRefresh);
     };
   }, [location.state]);
 
@@ -463,13 +466,7 @@ const AllOrders = () => {
     }
   };
 
-  const [delayConfig, setDelayConfig] = useState(null);
-
-  useEffect(() => {
-    api.get('/api/software-settings/delay-config')
-      .then(res => { if (res.data) setDelayConfig(res.data); })
-      .catch(() => {});
-  }, []);
+  const { delayConfig } = useDelay();
 
   const delayMap = useMemo(() => {
     const map = {};

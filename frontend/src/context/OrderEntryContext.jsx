@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatDateOnly } from '../utils/dateTime';
 import { hasEngravingData } from '../utils/engravingUtils';
+import { formatDateWithPreference, parseDateWithPreference, SUPPORTED_DATE_FORMATS } from '../utils/dateFormat';
 
 const URDU_LABELS = {
   identity: 'شناختی معلومات', orderNo: 'آرڈر نمبر', customerName: 'کسٹمر کا نام', customerPhone: 'فون نمبر',
@@ -81,8 +82,8 @@ const CLEAR_FORM_AFTER_CART = {
 };
 
 export const OrderEntryProvider = ({ children }) => {
-  const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, dateFormatPreference, updateDateFormatPreference } = useAuth();
+  const activeDateFormat = dateFormatPreference || user?.dateFormatPreference || 'DD/MM/YYYY';
   const { isUrdu, LanguageToggle } = useLanguage();
   const useUrdu = isUrdu;
   const isOutlet = user?.role === 'OUTLET';
@@ -659,10 +660,18 @@ export const OrderEntryProvider = ({ children }) => {
     if (!String(formData.customerPhone || '').trim()) errs.customerPhone = t('customerPhone') + ' ' + t('required');
     if (!String(formData.city || '').trim()) errs.city = useUrdu ? 'شہر لازمی ہے' : 'City is required';
     if (!String(formData.address || '').trim()) errs.address = useUrdu ? 'پتہ لازمی ہے' : 'Address is required';
+
+    // Shopify Order Date is mandatory for Faisal Profile / Online Order Entry
+    if (!isOutlet) {
+      if (!formData.shopifyOrderDate || isNaN(new Date(formData.shopifyOrderDate).getTime())) {
+        errs.shopifyOrderDate = useUrdu ? 'شاپیفائے آرڈر کی تاریخ لازمی ہے' : 'Shopify Order Date is required.';
+      }
+    }
+
     setRequiredErrors(errs);
     if (Object.keys(errs).length > 0) return useUrdu ? 'براہ کرم تمام لازمی خانے پُر کریں' : 'Please fill all required fields correctly.';
     return null;
-  }, [formData, t, useUrdu]);
+  }, [formData, t, useUrdu, isOutlet]);
 
   const validateProductConfig = useCallback(() => {
     const basicErr = validateBasicInfo();
@@ -691,20 +700,13 @@ export const OrderEntryProvider = ({ children }) => {
 
   const preventEnterSubmit = useCallback((e) => { if (e.key === 'Enter') e.preventDefault(); }, []);
 
-  const fmtDate = useCallback((iso) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '';
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }, []);
+  const fmtDate = useCallback((iso, includeTime = true) => {
+    return formatDateWithPreference(iso, activeDateFormat, includeTime);
+  }, [activeDateFormat]);
 
   const parseDate = useCallback((str) => {
-    if (!str) return '';
-    const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
-    if (!m) return '';
-    const d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
-    return isNaN(d.getTime()) ? '' : d.toISOString();
-  }, []);
+    return parseDateWithPreference(str, activeDateFormat);
+  }, [activeDateFormat]);
 
   const capUnitPrice = 500;
   const capCharges = (formData.matchingCap ? (formData.matchingCapQty || 0) : 0) * capUnitPrice;
@@ -1077,6 +1079,7 @@ export const OrderEntryProvider = ({ children }) => {
     fetchInventory, toggleEditMode, fetchOrderByNumber, lookupOrderByNumber, submitOrderEditRequest,
     getSizeChart, handleSizeSelect, validateProductConfig, validateCurrentTab, validateBasicInfo,
     preventEnterSubmit, fmtDate, parseDate,
+    activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS,
     handleAddToCart, removeCartItem, editCartItem, handleAddMoreProducts, handleCheckout,
     openDuplicateOrder,
     hasChanged, hasChangedBool,

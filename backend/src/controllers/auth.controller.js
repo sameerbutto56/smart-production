@@ -88,7 +88,16 @@ const login = async (req, res) => {
       console.error('LOGIN SESSION RECORD ERROR:', sessionErr.message);
     }
 
-    res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        theme: user.theme || 'luxe',
+        dateFormatPreference: user.dateFormatPreference || 'DD/MM/YYYY'
+      }
+    });
   } catch (error) {
     console.error('LOGIN ERROR:', error.message, error.stack);
     const msg = error.message?.includes('connect')

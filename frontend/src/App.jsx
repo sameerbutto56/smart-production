@@ -6,6 +6,7 @@ import { SearchProvider } from './context/SearchContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { SystemPauseProvider } from './context/SystemPauseContext';
+import { DelayProvider } from './context/DelayContext';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './context/ThemeContext';
@@ -108,6 +109,7 @@ function App() {
           <SearchProvider>
             <NotificationProvider>
             <SystemPauseProvider>
+            <DelayProvider>
             <Toaster position="top-right" toastOptions={{ className: 'glass text-white font-black', style: { background: '#111827', border: '1px solid #1f2937' } }} />
             <Router>
               <ErrorBoundary>
@@ -203,6 +205,7 @@ function App() {
               </Routes>
               </ErrorBoundary>
             </Router>
+            </DelayProvider>
             </SystemPauseProvider>
             </NotificationProvider>
           </SearchProvider>

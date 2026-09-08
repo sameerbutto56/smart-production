@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const bcrypt = require('bcryptjs');
 const cache = require('../utils/cache');
 const { computeBookSummary } = require('./pos.book.controller');
+const { DEFAULT_DELAY_CONFIG, computeStageDeadline } = require('../utils/orderDelay');
 
 const PROFILE_OPTIONS = ['POS', 'OUTLET_ORDER_ENTRY', 'DISPATCH', 'FAISAL_PROFILE', 'INVENTORY_VIEW', 'STORE', 'PRODUCTION'];
 
@@ -446,22 +447,6 @@ const changePaymentMethod = async (req, res) => {
   }
 };
 
-const DEFAULT_DELAY_CONFIG = {
-  ORDER_ENTRY: 4,
-  VERIFICATION: 4,
-  STORE: 24,
-  STORE_RECEIVE: 12,
-  WORKERS: 24,
-  PRODUCTION_ACCEPTANCE: 4,
-  PRODUCTION: 48,
-  LOGO_DESIGN: 24,
-  DISPATCH: 12,
-  IN_DISPATCH: 24,
-  OUTLET_RECEIVE: 48,
-  ENAMELS_DELIVERY: 24,
-  OUT_FOR_DELIVERY: 12,
-};
-
 const getDelayConfig = async (req, res) => {
   try {
     const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
@@ -486,12 +471,56 @@ const updateDelayConfig = async (req, res) => {
       update: { value: JSON.stringify(newConfig) },
       create: { key: 'DEADLINE_CONFIG', value: JSON.stringify(newConfig) }
     });
+
+    const parsedConfig = JSON.parse(updated.value);
+
+    // Atomically recalculate and update deadlineAt on all active stages in the database
+    try {
+      const activeStages = await prisma.orderStage.findMany({
+        where: {
+          status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
+          order: { status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] } }
+        },
+        select: { id: true, stageName: true, createdAt: true, startedAt: true }
+      });
+
+      if (activeStages.length > 0) {
+        const updatePromises = activeStages.map((s) => {
+          const startMs = s.startedAt ? new Date(s.startedAt).getTime() : new Date(s.createdAt).getTime();
+          const newDeadlineMs = computeStageDeadline(s.stageName, startMs, parsedConfig);
+          return prisma.orderStage.update({
+            where: { id: s.id },
+            data: { deadlineAt: new Date(newDeadlineMs) }
+          });
+        });
+        await Promise.all(updatePromises);
+      }
+    } catch (stageUpdateErr) {
+      console.error('[updateDelayConfig] Error recalculating active stage deadlines:', stageUpdateErr.message);
+    }
+
+    // Invalidate caches
     cache.delPattern('orders');
-    res.json({ ok: true, message: 'Delay configuration saved successfully', config: JSON.parse(updated.value) });
+    cache.delPattern('pos');
+    cache.delPattern('analytics');
+
+    // Broadcast WebSocket updates so open browser profiles update immediately
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('delay-config-updated', { delayConfig: parsedConfig });
+        io.emit('order-updated');
+      }
+    } catch (socketErr) {
+      console.error('[updateDelayConfig] Socket broadcast error:', socketErr.message);
+    }
+
+    res.json({ ok: true, message: 'Delay configuration saved successfully', config: parsedConfig });
   } catch (error) {
     res.status(500).json({ message: 'Failed to save delay configuration', error: error.message });
   }
 };
+
 
 const getOrderRange = async (req, res) => {
   try {

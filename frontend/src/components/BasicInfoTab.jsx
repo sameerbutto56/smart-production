@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Hash, User, Phone, Star, Layout, Search, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
+import { getDateFormatPlaceholder, formatDateWithPreference } from '../utils/dateFormat';
 
 const BasicInfoTab = () => {
   const {
@@ -10,7 +11,8 @@ const BasicInfoTab = () => {
     preventEnterSubmit, dateInputRef, fmtDate, parseDate, cartItems,
     requiredErrors, setRequiredErrors,
     orderLookupResult, orderLookupLoading, lookupOrderByNumber,
-    setCartItems, setOriginalOrder
+    setCartItems, setOriginalOrder,
+    activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS
   } = useOrderEntry();
 
   const [shopifyInput, setShopifyInput] = useState(() => fmtDate(formData.shopifyOrderDate));
@@ -220,26 +222,72 @@ const BasicInfoTab = () => {
           </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شاپیفائے آرڈر کی تاریخ' : 'Shopify Order Date (Optional)'}</label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>
+                {useUrdu ? 'شاپیفائے آرڈر کی تاریخ' : 'Shopify Order Date'} {!isOutlet && <span className="text-red-500">*</span>}
+              </label>
+              <div className="flex items-center gap-1 bg-gray-950/80 p-1 rounded-xl border border-gray-800">
+                <span className="text-[10px] font-black text-gray-500 uppercase px-1.5">{useUrdu ? 'فارمیٹ:' : 'Format:'}</span>
+                {(SUPPORTED_DATE_FORMATS || ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY/MM/DD']).map(fmt => {
+                  const isSelected = activeDateFormat === fmt;
+                  return (
+                    <button
+                      key={fmt}
+                      type="button"
+                      onClick={async () => {
+                        if (isSelected) return;
+                        await updateDateFormatPreference(fmt);
+                        if (formData.shopifyOrderDate) {
+                          setShopifyInput(formatDateWithPreference(formData.shopifyOrderDate, fmt, true));
+                        }
+                      }}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                        isSelected
+                          ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                          : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+                      }`}
+                      title={`Select ${fmt} format`}
+                    >
+                      {fmt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="relative group">
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/10 text-purple-500`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </div>
-               <input ref={dateInputRef} type="text" onKeyDown={preventEnterSubmit}
+              <input
+                ref={dateInputRef}
+                type="text"
+                onKeyDown={preventEnterSubmit}
                 value={shopifyInput}
                 onChange={(e) => {
                   const val = e.target.value;
                   setShopifyInput(val);
+                  clearFieldError('shopifyOrderDate');
                   const iso = parseDate(val);
                   if (iso) setFormData(s => ({ ...s, shopifyOrderDate: iso }));
                 }}
                 onBlur={() => {
                   const iso = parseDate(shopifyInput);
-                  if (!iso) setShopifyInput(fmtDate(formData.shopifyOrderDate));
+                  if (iso) {
+                    setFormData(s => ({ ...s, shopifyOrderDate: iso }));
+                    setShopifyInput(fmtDate(iso));
+                  } else if (formData.shopifyOrderDate) {
+                    setShopifyInput(fmtDate(formData.shopifyOrderDate));
+                  }
                 }}
-                placeholder="DD/MM/YYYY HH:mm"
-                className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`} />
+                style={errStyle(requiredErrors?.shopifyOrderDate)}
+                placeholder={getDateFormatPlaceholder(activeDateFormat, true)}
+                className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
+                required={!isOutlet}
+              />
             </div>
+            {requiredErrors?.shopifyOrderDate && (
+              <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.shopifyOrderDate}</p>
+            )}
           </div>
           <div className="space-y-4">
             {(() => {

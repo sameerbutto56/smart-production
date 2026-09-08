@@ -5,6 +5,17 @@ const bcrypt = require('bcryptjs');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 const { createAuditLog } = require('./order-helpers');
+const { attachDelayInfoToOrders, DEFAULT_DELAY_CONFIG } = require('../utils/orderDelay');
+
+const loadDelayConfig = async () => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+    if (setting?.value) {
+      return { ...DEFAULT_DELAY_CONFIG, ...JSON.parse(setting.value) };
+    }
+  } catch (e) {}
+  return { ...DEFAULT_DELAY_CONFIG };
+};
 
 const getOutletName = (req) => {
   let name = req.user?.name || req.query.outlet || '';
@@ -1346,6 +1357,8 @@ const getInDispatchOrders = async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    const delayConfig = await loadDelayConfig();
+    attachDelayInfoToOrders(orders, delayConfig);
     res.json(orders);
   } catch (error) {
     console.error('getInDispatchOrders error:', error);
@@ -1412,6 +1425,9 @@ const getComeFromProduction = async (req, res) => {
       orderBy: { createdAt: 'desc' },
       take: 250
     });
+
+    const delayConfig = await loadDelayConfig();
+    attachDelayInfoToOrders(orders, delayConfig);
 
     const seenRecords = await prisma.seenTask.findMany({
       where: { userId, orderId: { in: orders.map(o => o.id) }, stageName: 'OUTLET_RECEIVE' }

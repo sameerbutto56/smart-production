@@ -7,9 +7,11 @@ import { Shield, Search, CheckCircle, Clock, User, Phone, Package, FileText, Che
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 import { getDelayInfo, fmtDuration } from '../utils/delayUtils';
+import { useDelay } from '../context/DelayContext';
 
 const VerificationPage = () => {
   const { user } = useAuth();
+  const { getOrderDelay } = useDelay();
   const [activeTab, setActiveTab] = useState('pending');
   const [pendingOrders, setPendingOrders] = useState([]);
   const [historyOrders, setHistoryOrders] = useState([]);
@@ -306,12 +308,12 @@ const VerificationPage = () => {
             {orders.map(order => {
               const products = parseProducts(order.productDetails);
               const isExpanded = expandedOrder === order.id;
-              const delayInfo = getDelayInfo(order);
+              const delayInfo = activeTab === 'pending' ? getOrderDelay(order) : null;
               const isDelayed = !!delayInfo;
               return (
                 <div key={order.id} className={`rounded-xl border overflow-hidden transition-all ${
                   isDelayed
-                    ? 'bg-gray-800 border-2 border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.25)] bg-red-950/20'
+                    ? 'card-delayed animate-delayed-row bg-red-950/20'
                     : 'bg-gray-800 border-gray-700'
                 }`}>
                   {/* Order Header */}

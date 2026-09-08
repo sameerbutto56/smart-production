@@ -81,6 +81,7 @@ const fmtDate = (d) => {
 const DEFAULT_DELAY_CONFIG = {
   ORDER_ENTRY: 4,
   VERIFICATION: 4,
+  RETURN_VERIFICATION: 4,
   STORE: 24,
   STORE_RECEIVE: 12,
   WORKERS: 24,
@@ -257,13 +258,14 @@ const SoftwareSettings = () => {
     try {
       const res = await api.get('/api/software-settings/delay-config');
       if (res.data) {
+        const dataObj = res.data.config || res.data;
         // Convert any legacy nested config format to new flat number format;
         // also include any extra keys stored by the backend (forward compat).
         const normalized = {};
-        const allKeys = new Set([...Object.keys(DEFAULT_DELAY_CONFIG), ...Object.keys(res.data)]);
+        const allKeys = new Set([...Object.keys(DEFAULT_DELAY_CONFIG), ...Object.keys(dataObj)]);
         allKeys.forEach(k => {
-          if (k === 'saved') return;
-          const val = res.data[k] ?? DEFAULT_DELAY_CONFIG[k];
+          if (k === 'saved' || k === 'config') return;
+          const val = dataObj[k] ?? DEFAULT_DELAY_CONFIG[k];
           if (typeof val === 'number') {
             normalized[k] = val;
           } else if (val && typeof val.totalHours === 'number') {
@@ -954,6 +956,7 @@ const SoftwareSettings = () => {
               {[
                 { key: 'ORDER_ENTRY', title: 'Order Entry', color: 'from-slate-900/40 to-gray-900/40', border: 'border-slate-700/50' },
                 { key: 'VERIFICATION', title: 'Verification', color: 'from-purple-900/40 to-indigo-900/40', border: 'border-purple-700/50' },
+                { key: 'RETURN_VERIFICATION', title: 'Return from Verification', color: 'from-amber-900/40 to-rose-900/40', border: 'border-amber-700/50' },
                 { key: 'STORE', title: 'Store', color: 'from-blue-900/40 to-cyan-900/40', border: 'border-blue-700/50' },
                 { key: 'STORE_RECEIVE', title: 'Store Receive', color: 'from-sky-900/40 to-blue-900/40', border: 'border-sky-700/50' },
                 { key: 'WORKERS', title: 'Workers', color: 'from-teal-900/40 to-cyan-900/40', border: 'border-teal-700/50' },

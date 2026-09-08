@@ -9,11 +9,13 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
+import { formatDateWithPreference } from '../utils/dateFormat';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import { computeWorkingMs, fmtWorkingDuration, getTimerState, isWorkingTime } from '../utils/workingHours';
 import { getAllowedHours, STAGE_CONFIG_MAP, computeActiveWorkingMs } from '../utils/delayUtils';
 import { useSystemPause } from '../context/SystemPauseContext';
+import { useDelay } from '../context/DelayContext';
 import toast from 'react-hot-toast';
 
 // Detect whether a product object carries direct per-product outlet engraving.
@@ -49,6 +51,7 @@ const normalizeOutletEngraving = (p, c) => {
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
+  const { delayConfig, getOrderDelay, computeStageDeadline, getEffectiveStage } = useDelay();
   const [localInventoryAdded, setLocalInventoryAdded] = useState(false);
   const activeStageFromDb = order.stages?.find(s => s.stageName === order.currentStage && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status));
   const stageFromDb = activeStageFromDb || order.stages?.find(s => s.stageName === order.currentStage);
@@ -91,7 +94,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const outletName = (order.outletName || '').toLowerCase();
   // JT actions apply when the order belongs to Johar Town OR the current user is a Johar Town
   // outlet user — JT manages both JT and Jail Road orders end-to-end (Come From Production → In Dispatch).
-  const { user: authUser } = useAuth();
+  const { user: authUser, dateFormatPreference } = useAuth();
   const isJoharTown = outletName.includes('johar') || (authUser?.name || '').toLowerCase().includes('johar');
   const isJailRoad = outletName.includes('jail');
   const isAbbottabad = outletName.includes('abbottabad');
@@ -205,87 +208,86 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   };
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const evaluateTimer = () => {
       const isOrderFinished = ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].includes(order.status) || ['COMPLETED', 'DELIVERED'].includes(order.currentStage);
       if (isOrderFinished) {
         setTimeLeft('--:--');
         setUrgencyColor('text-gray-600');
         setDeadlineStatus('COMPLETED');
+        setIsDelayed(false);
         return;
       }
 
-      if (!currentStage?.deadlineAt || currentStage.status === 'COMPLETED') {
-        setTimeLeft('--:--');
-        setUrgencyColor('text-gray-600');
-        setDeadlineStatus('ON_TIME');
-        return;
-      }
-
-      const now = Date.now();
-      const timerState = getTimerState(now);
-
-      // If timer is stopped (evening/sunday/before-9), show frozen status
-      if (timerState.status === 'stopped_evening' || timerState.status === 'stopped_sunday' || timerState.status === 'stopped_morning') {
-        // Still show the delay status if already delayed
-        const deadline = new Date(currentStage.deadlineAt).getTime();
-        const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
-        if (remaining > 0) {
-          setTimeLeft(fmtWorkingDuration(remaining));
-          setUrgencyColor('text-blue-400');
-          setIsDelayed(false);
-          setDeadlineStatus('PAUSED');
-        } else {
-          const delayed = computeActiveWorkingMs(deadline, now, pausePeriods, pauseProfile);
-          setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)}`);
-          setUrgencyColor('text-red-500 font-black animate-pulse');
-          setIsDelayed(true);
-          setDeadlineStatus('OVERDUE');
-        }
-        return;
-      }
-
-      // Warning state (6:50 PM – 7:00 PM)
-      if (timerState.status === 'warning') {
-        const deadline = new Date(currentStage.deadlineAt).getTime();
-        const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
-        if (remaining > 0) {
-          setTimeLeft(`${fmtWorkingDuration(remaining)} ⏸`);
-          setUrgencyColor('text-amber-400 font-bold');
-          setDeadlineStatus('APPROACHING');
-        } else {
-          const delayed = computeActiveWorkingMs(deadline, now, pausePeriods, pauseProfile);
-          setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)} ⏸`);
-          setUrgencyColor('text-red-500 font-black animate-pulse');
-          setIsDelayed(true);
-          setDeadlineStatus('OVERDUE');
-        }
-        return;
-      }
-
-      // Timer running — use working-hours computation
-      const deadline = new Date(currentStage.deadlineAt).getTime();
-      const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
-
-      if (remaining <= 0) {
-        const delayed = computeActiveWorkingMs(deadline, now, pausePeriods, pauseProfile);
-        setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed)}`);
+      // Check real-time dynamic delay calculation
+      const delayInfo = getOrderDelay(order);
+      if (delayInfo?.isDelayed) {
+        setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayInfo.delayDuration || 60000)}`);
         setUrgencyColor('text-red-500 font-black animate-pulse');
         setIsDelayed(true);
         setDeadlineStatus('OVERDUE');
         return;
       }
 
-      setTimeLeft(fmtWorkingDuration(remaining));
+      const effStage = getEffectiveStage(order) || currentStage?.stageName;
+      const isStageCompleted = currentStage?.status === 'COMPLETED';
+      if (!effStage || isStageCompleted) {
+        setTimeLeft('--:--');
+        setUrgencyColor('text-gray-600');
+        setDeadlineStatus('ON_TIME');
+        setIsDelayed(false);
+        return;
+      }
+
+      // Entry time reference for active stage
+      let enteredMs;
+      if (effStage === 'ORDER_ENTRY') {
+        enteredMs = new Date(order.shopifyOrderDate || order.createdAt).getTime();
+      } else if (effStage === 'RETURN_VERIFICATION') {
+        enteredMs = new Date(order.verificationReturnedAt || order.updatedAt || order.createdAt).getTime();
+      } else if (effStage === 'VERIFICATION') {
+        const entryStage = order.stages?.find(s => s.stageName === 'ORDER_ENTRY');
+        enteredMs = new Date(entryStage?.completedAt || entryStage?.updatedAt || order.createdAt).getTime();
+      } else {
+        enteredMs = currentStage?.createdAt ? new Date(currentStage.createdAt).getTime() : new Date(order.createdAt).getTime();
+      }
+
+      const deadline = currentStage?.deadlineAt
+        ? new Date(currentStage.deadlineAt).getTime()
+        : computeStageDeadline(effStage, enteredMs);
+
+      const now = Date.now();
+      const remaining = computeActiveWorkingMs(now, deadline, pausePeriods, pauseProfile);
+
+      if (remaining <= 0) {
+        const delayed = computeActiveWorkingMs(deadline, now, pausePeriods, pauseProfile);
+        setTimeLeft(`${t('Delayed')}: ${fmtWorkingDuration(delayed || 60000)}`);
+        setUrgencyColor('text-red-500 font-black animate-pulse');
+        setIsDelayed(true);
+        setDeadlineStatus('OVERDUE');
+        return;
+      }
+
+      const timerState = getTimerState(now);
+      const isPausedOrWarning = timerState.status === 'stopped_evening' || timerState.status === 'stopped_sunday' || timerState.status === 'stopped_morning' || timerState.status === 'warning';
+
+      setTimeLeft(isPausedOrWarning ? `${fmtWorkingDuration(remaining)} ⏸` : fmtWorkingDuration(remaining));
       setIsDelayed(false);
 
-      const hours = remaining / 3600000;
-      if (hours < 1) { setUrgencyColor('text-red-400 font-black'); setDeadlineStatus('APPROACHING'); }
-      else if (hours < 4) { setUrgencyColor('text-amber-400 font-bold'); setDeadlineStatus('APPROACHING'); }
-      else { setUrgencyColor('text-emerald-400'); setDeadlineStatus('ON_TIME'); }
-    }, 5000); // 5-second tick (working-hours countdown is less volatile than wall-clock)
+      if (timerState.status === 'warning') {
+        setUrgencyColor('text-amber-400 font-bold');
+        setDeadlineStatus('APPROACHING');
+      } else {
+        const hours = remaining / 3600000;
+        if (hours < 1) { setUrgencyColor('text-red-400 font-black'); setDeadlineStatus('APPROACHING'); }
+        else if (hours < 4) { setUrgencyColor('text-amber-400 font-bold'); setDeadlineStatus('APPROACHING'); }
+        else { setUrgencyColor('text-emerald-400'); setDeadlineStatus('ON_TIME'); }
+      }
+    };
 
+    evaluateTimer();
+    const timer = setInterval(evaluateTimer, 5000);
     return () => clearInterval(timer);
-  }, [currentStage, pausePeriods, pauseProfile]);
+  }, [order, currentStage, pausePeriods, pauseProfile, delayConfig, getOrderDelay, computeStageDeadline, getEffectiveStage, t]);
 
   useEffect(() => {
     if (!showTimelineModal || !order?.id) return;
@@ -2467,7 +2469,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   )}
                   {order.shopifyOrderDate && (
                     <span className="text-purple-400 ml-3 font-black text-xs md:text-sm">
-                      Shopify: {formatDateOnly(order.shopifyOrderDate)}
+                      Shopify: {formatDateWithPreference(order.shopifyOrderDate, dateFormatPreference || authUser?.dateFormatPreference || 'DD/MM/YYYY')}
                     </span>
                   )}
                 </p>
@@ -2912,7 +2914,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => { printJobSheet({...order, productVerification}, userRole, printLang, printSections); setShowPrintFilter(false); }}
+                onClick={() => { printJobSheet({...order, productVerification}, userRole, printLang, { ...printSections, dateFormatPreference: dateFormatPreference || authUser?.dateFormatPreference }); setShowPrintFilter(false); }}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all"
               >
                 {t('Print')}

@@ -4,42 +4,53 @@
 // (phase entry) / stage.startedAt (acceptance). Delay = working time in phase beyond
 // the configured threshold.
 
-const { computeWorkingMs, computeWorkingHours } = require('./workingHours');
+const {
+  computeWorkingMs,
+  computeWorkingHours,
+  computeWorkingDeadline,
+  WORK_HOURS_PER_DAY
+} = require('./workingHours');
 
 const STAGE_DEPARTMENTS = {
   STORE: 'Store',
-  STORE_RECEIVE: 'Store',
+  STORE_RECEIVE: 'Store Receive',
   WORKERS: 'Production',
-  PRODUCTION_ACCEPTANCE: 'Production',
-  PRODUCTION: 'Production',
+  PRODUCTION_ACCEPTANCE: 'Production Acceptance',
+  PRODUCTION: 'Production Out',
   LOGO_DESIGN: 'Logo',
   DISPATCH: 'Dispatch',
   IN_DISPATCH: 'In Dispatch',
-  OUTLET_RECEIVE: 'Dispatch',
+  OUTLET_RECEIVE: 'Production Receive Outlet',
   ENAMELS_DELIVERY: 'Delivery',
   OUT_FOR_DELIVERY: 'Out of Delivery',
-  ORDER_ENTRY: 'Inventory Verification',
+  ORDER_ENTRY: 'Order Entry',
   VERIFICATION: 'Verification',
-  RETURN_VERIFICATION: 'Return Verification',
+  RETURN_VERIFICATION: 'Return from Verification',
   DELIVERED: 'Completed',
 };
 
 const DELAY_REASONS = {
   'Store': 'Delayed in Store',
+  'Store Receive': 'Delayed in Store Receive',
   'Production': 'Delayed in Production',
+  'Production Acceptance': 'Delayed in Production Acceptance',
+  'Production Out': 'Delayed in Production Out',
   'Logo': 'Delayed in Logo Department',
   'Dispatch': 'Delayed in Dispatch',
   'In Dispatch': 'Delayed in In Dispatch',
   'Out of Delivery': 'Delayed in Out of Delivery',
+  'Production Receive Outlet': 'Delayed in Production Receive Outlet',
+  'Delivery': 'Delayed in Delivery',
+  'Order Entry': 'Delayed in Order Entry',
   'Inventory Verification': 'Delayed in Inventory Verification',
   'Verification': 'Delayed in Verification',
-  'Return Verification': 'Delayed in Return Verification',
+  'Return from Verification': 'Delayed in Return from Verification',
 };
 
 const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry',
   VERIFICATION: 'Verification',
-  RETURN_VERIFICATION: 'Return Verification',
+  RETURN_VERIFICATION: 'Return from Verification',
   STORE: 'Store',
   STORE_RECEIVE: 'Store Receive',
   WORKERS: 'Production In',
@@ -48,7 +59,7 @@ const STAGE_LABELS = {
   LOGO_DESIGN: 'Logo',
   DISPATCH: 'Dispatch',
   IN_DISPATCH: 'In Dispatch',
-  OUTLET_RECEIVE: 'Outlet Receive',
+  OUTLET_RECEIVE: 'Production Receive Outlet',
   ENAMELS_DELIVERY: 'Delivery',
   OUT_FOR_DELIVERY: 'Out of Delivery',
   DELIVERED: 'Completed',
@@ -72,11 +83,29 @@ const FALLBACK_STAGE_HOURS = {
   OUT_FOR_DELIVERY: 12,
 };
 
+// Default delay config for Software Settings (all phases, hours).
+const DEFAULT_DELAY_CONFIG = {
+  ORDER_ENTRY: 4,
+  VERIFICATION: 4,
+  RETURN_VERIFICATION: 4,
+  STORE: 24,
+  STORE_RECEIVE: 12,
+  WORKERS: 24,
+  PRODUCTION_ACCEPTANCE: 4,
+  PRODUCTION: 48,
+  LOGO_DESIGN: 24,
+  DISPATCH: 12,
+  IN_DISPATCH: 24,
+  OUTLET_RECEIVE: 48,
+  ENAMELS_DELIVERY: 24,
+  OUT_FOR_DELIVERY: 12,
+};
+
 // Each phase maps to a config key in the Software Settings delay config.
 const STAGE_CONFIG_MAP = {
   ORDER_ENTRY: 'ORDER_ENTRY',
   VERIFICATION: 'VERIFICATION',
-  RETURN_VERIFICATION: 'VERIFICATION',
+  RETURN_VERIFICATION: 'RETURN_VERIFICATION',
   STORE: 'STORE',
   STORE_RECEIVE: 'STORE_RECEIVE',
   WORKERS: 'WORKERS',
@@ -94,10 +123,15 @@ const stageLabel = (stageName) =>
   STAGE_LABELS[stageName] || String(stageName || '').replace(/_/g, ' ') || '';
 
 const fmtDuration = (ms) => {
-  const h = Math.floor((ms || 0) / 3600000);
-  if (h < 24) return `${Math.max(h, 1)} Hour${Math.max(h, 1) === 1 ? '' : 's'}`;
-  const d = Math.floor(h / 24);
-  return `${d} Day${d === 1 ? '' : 's'}`;
+  if (!ms || ms <= 0) return '0m';
+  const totalMin = Math.floor(ms / 60000);
+  const days = Math.floor(totalMin / (WORK_HOURS_PER_DAY * 60));
+  const remainingMin = totalMin % (WORK_HOURS_PER_DAY * 60);
+  const hours = Math.floor(remainingMin / 60);
+  const minutes = remainingMin % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours} Hour${hours === 1 ? '' : 's'}`;
+  return `${minutes} Min`;
 };
 
 const getEffectiveStage = (order) => {
@@ -111,28 +145,48 @@ const getEffectiveStage = (order) => {
  * Falls back to FALLBACK_STAGE_HOURS when config is missing.
  */
 const getAllowedHours = (stageName, delayConfig = null) => {
-  const configKey = STAGE_CONFIG_MAP[stageName] || stageName;
-  if (delayConfig) {
-    const rawVal = delayConfig[configKey];
-    if (typeof rawVal === 'number' && rawVal > 0) return rawVal;
-    if (rawVal && typeof rawVal.totalHours === 'number' && rawVal.totalHours > 0) return rawVal.totalHours;
+  if (delayConfig && typeof delayConfig === 'object') {
+    // 1. Direct key match
+    const directVal = delayConfig[stageName];
+    if (typeof directVal === 'number' && directVal > 0) return directVal;
+    if (directVal && typeof directVal.totalHours === 'number' && directVal.totalHours > 0) return directVal.totalHours;
+
+    // 2. Mapped key match
+    const configKey = STAGE_CONFIG_MAP[stageName] || stageName;
+    const mappedVal = delayConfig[configKey];
+    if (typeof mappedVal === 'number' && mappedVal > 0) return mappedVal;
+    if (mappedVal && typeof mappedVal.totalHours === 'number' && mappedVal.totalHours > 0) return mappedVal.totalHours;
+
+    // 3. Special fallback for RETURN_VERIFICATION -> VERIFICATION
+    if (stageName === 'RETURN_VERIFICATION') {
+      const verVal = delayConfig['VERIFICATION'];
+      if (typeof verVal === 'number' && verVal > 0) return verVal;
+    }
   }
   return FALLBACK_STAGE_HOURS[stageName] || 24;
 };
 
 /**
+ * Compute the exact deadline timestamp for a given stage starting at startMs.
+ */
+const computeStageDeadline = (stageName, startMs, delayConfig = null) => {
+  const allowedHours = getAllowedHours(stageName, delayConfig);
+  return computeWorkingDeadline(startMs, allowedHours);
+};
+
+/**
  * Get comprehensive delay info for a single order.
  * Uses working-hours computation (9AM-7PM PKT, Mon-Sat) to determine elapsed time,
- * and system-pause awareness via the combined computeWorkingMs which already handles
- * pause-period overlaps.
+ * and system-pause awareness via computeWorkingMs which handles pause-period overlaps.
  *
  * @param {Object} order - Order with stages array
  * @param {Object|null} delayConfig - Phase config { VERIFICATION: 2, STORE: 24, ... }
  * @param {Array|null} pausePeriods - System pause periods
  * @param {string|null} profileKey - Caller's pause profile
+ * @param {number|null} nowMs - Current timestamp (default Date.now())
  * @returns {Object|null} Delay info or null if on time
  */
-const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey = null) => {
+const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey = null, nowMs = null) => {
   if (!order) return null;
   const status = String(order.status || '').toUpperCase();
   if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'].includes(status)) return null;
@@ -147,9 +201,20 @@ const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey
 
   // Phase entry time: when the order entered this phase
   let phaseEnteredAt;
-  if (!active && effectiveStage === 'VERIFICATION') {
+  if (effectiveStage === 'ORDER_ENTRY') {
+    // When Faisal creates an order, we capture shopifyOrderDate.
+    // That Shopify date must be used as the starting reference for Order Entry delay.
+    phaseEnteredAt = order.shopifyOrderDate || order.createdAt;
+  } else if (effectiveStage === 'RETURN_VERIFICATION') {
+    // Returned from verification: actual return timestamp
+    phaseEnteredAt = order.verificationReturnedAt || order.updatedAt || order.createdAt;
+  } else if (effectiveStage === 'VERIFICATION') {
+    // In Verification: time when sent to verification
     const entryStage = stages.find((s) => s.stageName === 'ORDER_ENTRY');
     phaseEnteredAt = (entryStage && (entryStage.completedAt || entryStage.updatedAt || entryStage.createdAt)) || order.createdAt;
+  } else if (effectiveStage === 'OUTLET_RECEIVE') {
+    // Come from Production: time when routed/created in OUTLET_RECEIVE
+    phaseEnteredAt = active?.createdAt || order.updatedAt || order.createdAt;
   } else if (!active) {
     phaseEnteredAt = order.updatedAt || order.createdAt;
   } else {
@@ -157,8 +222,10 @@ const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey
   }
   if (!phaseEnteredAt) return null;
 
-  const now = Date.now();
+  const now = nowMs || Date.now();
   const enteredMs = new Date(phaseEnteredAt).getTime();
+  if (!Number.isFinite(enteredMs)) return null;
+
   const allowedHours = getAllowedHours(effectiveStage, delayConfig);
   const allowedMs = allowedHours * 3600 * 1000;
 
@@ -178,24 +245,24 @@ const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey
         : computeActiveWorkingMsSafe(acceptedAt, now, pausePeriods, profileKey))
     : 0;
 
-  // Total order elapsed (from order creation)
-  const orderCreatedMs = order.createdAt ? new Date(order.createdAt).getTime() : enteredMs;
+  // Total order elapsed (from order creation or shopifyOrderDate)
+  const orderStartRef = order.shopifyOrderDate || order.createdAt;
+  const orderCreatedMs = orderStartRef ? new Date(orderStartRef).getTime() : enteredMs;
   const totalElapsedMs = computeActiveWorkingMsSafe(orderCreatedMs, now, pausePeriods, profileKey);
 
   const department = STAGE_DEPARTMENTS[effectiveStage] || 'Store';
   const reasonLabel = DELAY_REASONS[department] || `Delayed in ${department}`;
 
+  // Calculate deadline: either from active.deadlineAt if consistent with working deadline, or computeWorkingDeadline
+  const deadlineAt = active?.deadlineAt
+    ? new Date(active.deadlineAt).getTime()
+    : computeWorkingDeadline(enteredMs, allowedHours);
+
   // On time when working time in phase hasn't exceeded threshold
-  if (phaseWorkingMs < allowedMs) return null;
+  if (phaseWorkingMs <= allowedMs) return null;
 
-  const deadlineAt = active?.deadlineAt ? new Date(active.deadlineAt).getTime() : null;
-  // For the delay duration, use working time past the allowed threshold
+  // Working time past allowed threshold
   const delayDuration = Math.max(0, phaseWorkingMs - allowedMs);
-
-  // Working time remaining until deadline (if deadline exists)
-  const workingTimeRemainingMs = deadlineAt
-    ? computeActiveWorkingMsSafe(now, deadlineAt, pausePeriods, profileKey)
-    : Math.max(0, allowedMs - phaseWorkingMs);
 
   return {
     orderId: order.id,
@@ -204,6 +271,7 @@ const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey
     department,
     reason: reasonLabel,
     isAcceptanceDelay: !acceptedAt,
+    isDelayed: true,
     phaseEnteredAt: enteredMs,
     acceptedAt,
     phaseWorkingMs,
@@ -214,7 +282,7 @@ const getDelayInfo = (order, delayConfig = null, pausePeriods = null, profileKey
     allowedMs,
     delayDuration,
     deadlineAt,
-    workingTimeRemainingMs,
+    workingTimeRemainingMs: 0,
   };
 };
 
@@ -236,7 +304,7 @@ const computeActiveWorkingMsSafe = (startMs, endMs, pausePeriods = null, profile
   return Math.max(0, workingMs);
 };
 
-// Builds a { orderId: delayInfo } map for a list of orders (used by exports).
+// Builds a { orderId: delayInfo } map for a list of orders (used by exports and admin orders).
 const getDelayMap = (orders, delayConfig = null, pausePeriods = null, profileKey = null) => {
   const map = {};
   (orders || []).forEach((o) => {
@@ -246,18 +314,41 @@ const getDelayMap = (orders, delayConfig = null, pausePeriods = null, profileKey
   return map;
 };
 
+/**
+ * Mutates/attaches delayInfo and isDelayed to an array of orders.
+ * Provides a uniform API interface so all backend endpoints return pre-computed delay states.
+ */
+const attachDelayInfoToOrders = (orders, delayConfig = null, pausePeriods = null) => {
+  if (!Array.isArray(orders)) return orders;
+  const now = Date.now();
+  orders.forEach((o) => {
+    if (!o) return;
+    const d = getDelayInfo(o, delayConfig, pausePeriods, null, now);
+    o.delayInfo = d || null;
+    o.isDelayed = !!d;
+    if (d && !o.currentStageDeadline) {
+      o.currentStageDeadline = d.deadlineAt ? new Date(d.deadlineAt).toISOString() : null;
+    }
+  });
+  return orders;
+};
+
 module.exports = {
   STAGE_DEPARTMENTS,
   DELAY_REASONS,
   STAGE_LABELS,
   FALLBACK_STAGE_HOURS,
+  DEFAULT_DELAY_CONFIG,
   STAGE_CONFIG_MAP,
   stageLabel,
   fmtDuration,
   getEffectiveStage,
   getAllowedHours,
+  computeStageDeadline,
   getDelayInfo,
   getDelayMap,
+  attachDelayInfoToOrders,
   computeWorkingMs,
   computeWorkingHours,
+  computeWorkingDeadline,
 };

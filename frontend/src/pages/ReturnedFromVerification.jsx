@@ -7,9 +7,11 @@ import { ArrowLeft, Search, Clock, User, Phone, Package, MessageSquare, FileEdit
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 import { getDelayInfo, fmtDuration } from '../utils/delayUtils';
+import { useDelay } from '../context/DelayContext';
 
 const ReturnedFromVerification = () => {
   const { user } = useAuth();
+  const { getOrderDelay } = useDelay();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,13 +68,13 @@ const ReturnedFromVerification = () => {
         ) : (
           <div className="space-y-3">
             {orders.map(order => {
-              const delayInfo = getDelayInfo(order);
+              const delayInfo = getOrderDelay(order);
               const isDelayed = !!delayInfo;
               return (
                 <motion.div key={order.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className={`rounded-xl border overflow-hidden transition-all ${
                     isDelayed
-                      ? 'bg-gray-800 border-2 border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.25)] bg-red-950/20'
+                      ? 'card-delayed animate-delayed-row bg-red-950/20'
                       : 'bg-gray-800 border-amber-500/30'
                   }`}>
                   <div className="p-4">

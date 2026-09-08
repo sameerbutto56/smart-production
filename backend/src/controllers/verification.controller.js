@@ -1,6 +1,17 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const { getRolesForStage } = require('./order.controller');
+const { attachDelayInfoToOrders, DEFAULT_DELAY_CONFIG } = require('../utils/orderDelay');
+
+const loadDelayConfig = async () => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+    if (setting?.value) {
+      return { ...DEFAULT_DELAY_CONFIG, ...JSON.parse(setting.value) };
+    }
+  } catch (e) {}
+  return { ...DEFAULT_DELAY_CONFIG };
+};
 
 const getPendingVerifications = async (req, res) => {
   try {
@@ -26,6 +37,8 @@ const getPendingVerifications = async (req, res) => {
       }),
       prisma.order.count({ where })
     ]);
+    const delayConfig = await loadDelayConfig();
+    attachDelayInfoToOrders(orders, delayConfig);
     res.json({ orders, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
   } catch (error) {
     console.error('Error fetching pending verifications:', error);
@@ -270,6 +283,8 @@ const getReturnedToFaisal = async (req, res) => {
       }),
       prisma.order.count({ where })
     ]);
+    const delayConfig = await loadDelayConfig();
+    attachDelayInfoToOrders(orders, delayConfig);
     res.json({ orders, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
   } catch (error) {
     console.error('Error fetching returned orders:', error);
@@ -306,7 +321,14 @@ const resubmitFromVerification = async (req, res) => {
       'shopifyOrderDate'
     ];
     updatableFields.forEach(f => {
-      if (updateData[f] !== undefined) payload[f] = updateData[f];
+      if (updateData[f] !== undefined) {
+        if (f === 'shopifyOrderDate') {
+          const parsed = updateData[f] ? new Date(updateData[f]) : null;
+          payload[f] = (parsed && !isNaN(parsed.getTime())) ? parsed : (order.shopifyOrderDate || null);
+        } else {
+          payload[f] = updateData[f];
+        }
+      }
     });
 
     // If financialSummary is provided, use its total as the effective totalPrice

@@ -20,9 +20,39 @@ export const AuthProvider = ({ children }) => {
       const saved = JSON.parse(savedUser);
       setUser(saved);
       joinRoleRoom(saved.role);
+      // Synchronize latest preferences from DB in the background
+      api.get('/api/users/me/preferences')
+        .then(res => {
+          if (res.data?.dateFormatPreference) {
+            setUser(prev => {
+              if (!prev) return prev;
+              const updated = { ...prev, dateFormatPreference: res.data.dateFormatPreference };
+              sessionStorage.setItem('user', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        })
+        .catch(() => {});
     }
     setLoading(false);
   }, [joinRoleRoom]);
+
+  const updateDateFormatPreference = useCallback(async (format) => {
+    try {
+      const res = await api.put('/api/users/me/preferences', { dateFormatPreference: format });
+      const newFmt = res.data?.dateFormatPreference || format;
+      setUser(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, dateFormatPreference: newFmt };
+        sessionStorage.setItem('user', JSON.stringify(updated));
+        return updated;
+      });
+      return { success: true, dateFormatPreference: newFmt };
+    } catch (err) {
+      console.error('Failed to update date format preference:', err);
+      return { success: false, error: err.response?.data?.message || err.message };
+    }
+  }, []);
 
   const login = useCallback(async (email, password, extra = {}) => {
     try {
@@ -63,7 +93,16 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, login, logout, loading }), [user, login, logout, loading]);
+  const dateFormatPreference = user?.dateFormatPreference || 'DD/MM/YYYY';
+
+  const value = useMemo(() => ({
+    user,
+    login,
+    logout,
+    loading,
+    dateFormatPreference,
+    updateDateFormatPreference
+  }), [user, login, logout, loading, dateFormatPreference, updateDateFormatPreference]);
 
   return (
     <AuthContext.Provider value={value}>

@@ -249,12 +249,53 @@ const computeActiveWorkingMs = (startMs, endMs, pausePeriods = [], profileKey = 
   return Math.max(0, workingMs);
 };
 
+/**
+ * Compute the exact deadline timestamp (UTC ms) given a start timestamp and allowed working hours.
+ * Advances through PKT working windows (9 AM - 7 PM Mon-Sat) skipping non-working and overnight hours.
+ *
+ * @param {number} startMs - Start timestamp in UTC ms
+ * @param {number} allowedHours - Allowed working hours (> 0)
+ * @returns {number} Deadline timestamp in UTC ms
+ */
+const computeWorkingDeadline = (startMs, allowedHours) => {
+  if (!Number.isFinite(startMs) || allowedHours <= 0) return startMs;
+  let remainingMs = Math.round(allowedHours * 3600000);
+  let currentMs = startMs;
+
+  while (remainingMs > 0) {
+    const dayStart = dayStartUTC(currentMs);
+    const window = getWorkingWindow(dayStart);
+
+    if (!window || currentMs >= window.end) {
+      // It's Sunday or after 7 PM: jump to next working day at 9 AM
+      const next = nextDay(dayStart);
+      currentMs = next + WORK_START_HOUR * 3600000;
+      continue;
+    }
+
+    // If currentMs is before 9 AM on this day, jump to 9 AM
+    const effStart = Math.max(currentMs, window.start);
+    const availableInWindow = window.end - effStart;
+
+    if (remainingMs <= availableInWindow) {
+      return effStart + remainingMs;
+    }
+
+    remainingMs -= availableInWindow;
+    // Move to next working day at 9 AM
+    const next = nextDay(dayStart);
+    currentMs = next + WORK_START_HOUR * 3600000;
+  }
+  return currentMs;
+};
+
 module.exports = {
   WORK_START_HOUR,
   WORK_END_HOUR,
   WORK_HOURS_PER_DAY,
   computeWorkingMs,
   computeWorkingHours,
+  computeWorkingDeadline,
   isWorkingTime,
   getTimerState,
   computeActiveWorkingMs,
@@ -262,3 +303,4 @@ module.exports = {
   pktDayEnd,
   dateBoundToMs,
 };
+

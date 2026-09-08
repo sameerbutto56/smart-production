@@ -1,7 +1,7 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion, DISPATCH_RESET_FIELDS, ensureSingleActiveDispatchStage } = require('./order-helpers');
-const { getDelayMap, fmtDuration } = require('../utils/orderDelay');
+const { getDelayInfo, getDelayMap, attachDelayInfoToOrders, getAllowedHours, fmtDuration, DEFAULT_DELAY_CONFIG, computeWorkingMs } = require('../utils/orderDelay');
 const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
@@ -274,7 +274,19 @@ const createOrder = async (req, res) => {
   const finalUrgent = finalPriority !== 'NORMAL';
 
   if (!customerPhone) {
-    return res.status(400).json({ error: 'Customer phone number is required' });
+    return res.status(400).json({ message: 'Customer phone number is required', error: 'Customer phone number is required' });
+  }
+
+  // Shopify Order Date is mandatory for Faisal Profile / Online Order Entry
+  const isOutletOrder = req.user?.role === 'OUTLET' || !!req.body.isOutlet || (requestedOrderNumber && String(requestedOrderNumber).startsWith('OUT-'));
+  if (!isOutletOrder) {
+    if (!shopifyOrderDate || (typeof shopifyOrderDate === 'string' && !shopifyOrderDate.trim())) {
+      return res.status(400).json({ message: 'Shopify Order Date is required.', error: 'Shopify Order Date is required.' });
+    }
+    const parsedShopifyDate = new Date(shopifyOrderDate);
+    if (isNaN(parsedShopifyDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid Shopify Order Date.', error: 'Invalid Shopify Order Date.' });
+    }
   }
 
   try {
@@ -603,11 +615,22 @@ const createOrder = async (req, res) => {
   }
 };
 
+const loadDelayConfig = async () => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+    if (setting?.value) {
+      return { ...DEFAULT_DELAY_CONFIG, ...JSON.parse(setting.value) };
+    }
+  } catch (e) {}
+  return { ...DEFAULT_DELAY_CONFIG };
+};
+
 const getOrders = async (req, res) => {
   try {
     const role = String(req.user.role || '').toUpperCase().trim();
     const id = req.user.id;
     const { status: filterStatus, limit, skip, page } = req.query;
+    const delayConfig = await loadDelayConfig();
 
     // Escalation check: auto-log overdue priority stages.
     // Throttled to once per 5 min per instance and skipped for delivery queries —
@@ -670,6 +693,7 @@ const getOrders = async (req, res) => {
         orderBy: { createdAt: 'desc' },
         take: 100
       });
+      attachDelayInfoToOrders(searchResults, delayConfig);
       return res.json(sortByPriority(searchResults));
     }
 
@@ -750,7 +774,9 @@ const getOrders = async (req, res) => {
           })
         ]);
 
-        return res.json(sortByPriority([...activeOrders, ...completedOrders]));
+        const combined = [...activeOrders, ...completedOrders];
+        attachDelayInfoToOrders(combined, delayConfig);
+        return res.json(sortByPriority(combined));
       }
     }
 
@@ -782,6 +808,8 @@ const getOrders = async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     
+    attachDelayInfoToOrders(orders, delayConfig);
+
     // When pagination is requested, include total count
     if (pageNum > 0 || skipVal > 0) {
       const total = await prisma.order.count({ where });
@@ -3444,6 +3472,10 @@ const getUnseenOrders = async (req, res) => {
     // combined list always contains every unaccepted order across all sources. Once
     // accepted, the order routes to PRODUCTION and leaves this list entirely (the
     // stage mapping for PRODUCTION_IN excludes PRODUCTION).
+    const delayConfig = await loadDelayConfig();
+    attachDelayInfoToOrders(unseen, delayConfig);
+    attachDelayInfoToOrders(seen, delayConfig);
+
     res.json({
       unseen: sortOrders(unseen).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) })),
       seen: sortOrders(seen).map(o => ({ ...o, stages: dedupeOrderStages(o.stages) }))
@@ -3634,10 +3666,12 @@ const getOrderTimeline = async (req, res) => {
           currentStage: true, goForVerification: true, verifiedAt: true,
           verificationReturnedAt: true, verificationReturnNote: true,
           verifiedByName: true, source: true, createdAt: true, createdById: true,
-          replacementCaseId: true
+          replacementCaseId: true, shopifyOrderDate: true
         }
       })
     ]);
+
+    const delayConfig = await loadDelayConfig();
 
     // Build actor lookup: stageName -> { actor, timestamp } from audit logs
     const stageActorMap = {};
@@ -3715,9 +3749,48 @@ const getOrderTimeline = async (req, res) => {
     const stageEntries = stages.map(s => {
       const derivedActor = s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null;
       let delay = null;
-      if (s.startedAt && s.completedAt) {
-        delay = Math.round((new Date(s.completedAt) - new Date(s.startedAt)) / 60000);
+      let wasDelayed = false;
+      let delayDuration = 0;
+      let delayNote = null;
+
+      const allowedHours = getAllowedHours(s.stageName, delayConfig);
+      const allowedMs = allowedHours * 3600000;
+
+      if (s.stageName === 'ORDER_ENTRY') {
+        const startMs = order?.shopifyOrderDate ? new Date(order.shopifyOrderDate).getTime() : new Date(s.createdAt).getTime();
+        const endMs = s.completedAt ? new Date(s.completedAt).getTime() : (s.status === 'COMPLETED' ? new Date(s.updatedAt).getTime() : Date.now());
+        const workingMs = computeWorkingMs(startMs, endMs);
+        if (workingMs > allowedMs) {
+          wasDelayed = true;
+          delayDuration = workingMs - allowedMs;
+          delay = Math.round(delayDuration / 60000);
+          delayNote = order?.shopifyOrderDate
+            ? `Delayed in Order Entry by ${fmtDuration(delayDuration)} (Shopify Date: ${new Date(order.shopifyOrderDate).toLocaleDateString('en-GB')})`
+            : `Delayed in Order Entry by ${fmtDuration(delayDuration)}`;
+        }
+      } else if (s.completedAt) {
+        const startMs = new Date(s.createdAt).getTime();
+        const endMs = new Date(s.completedAt).getTime();
+        const workingMs = computeWorkingMs(startMs, endMs);
+        if (workingMs > allowedMs) {
+          wasDelayed = true;
+          delayDuration = workingMs - allowedMs;
+          delay = Math.round(delayDuration / 60000);
+          delayNote = `Exceeded allowed ${allowedHours}h by ${fmtDuration(delayDuration)}`;
+        } else if (s.startedAt) {
+          delay = Math.round((endMs - new Date(s.startedAt).getTime()) / 60000);
+        }
+      } else if (['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status) && s.stageName === order?.currentStage) {
+        const startMs = new Date(s.createdAt).getTime();
+        const workingMs = computeWorkingMs(startMs, Date.now());
+        if (workingMs > allowedMs) {
+          wasDelayed = true;
+          delayDuration = workingMs - allowedMs;
+          delay = Math.round(delayDuration / 60000);
+          delayNote = `Currently overdue by ${fmtDuration(delayDuration)}`;
+        }
       }
+
       return {
         id: s.id,
         type: 'stage',
@@ -3729,6 +3802,9 @@ const getOrderTimeline = async (req, res) => {
         completedAt: s.completedAt || null,
         actor: derivedActor,
         delay,
+        wasDelayed,
+        delayDuration,
+        delayNote,
         returnedFrom: s.returnedFrom || null,
         returnReason: s.returnReason || null
       };
@@ -3888,6 +3964,35 @@ const getOrderTimeline = async (req, res) => {
           status: 'COMPLETED', details: null, remarks: null, returnReason: null,
           from: null, to: s.stageName
         });
+      }
+      if (s.stageName === 'ORDER_ENTRY') {
+        const oeStartMs = order?.shopifyOrderDate ? new Date(order.shopifyOrderDate).getTime() : new Date(s.createdAt).getTime();
+        const oeEndMs = s.completedAt ? new Date(s.completedAt).getTime() : (s.status === 'COMPLETED' ? new Date(s.updatedAt).getTime() : Date.now());
+        const oeWorkingMs = computeWorkingMs(oeStartMs, oeEndMs);
+        const oeAllowedMs = getAllowedHours('ORDER_ENTRY', delayConfig) * 3600000;
+        if (oeWorkingMs > oeAllowedMs) {
+          const oeDelayDuration = oeWorkingMs - oeAllowedMs;
+          flatEntries.push({
+            id: `${s.id}-oe-delay`,
+            type: 'delay',
+            stage: 'ORDER_ENTRY',
+            stageLabel: 'Order Entry',
+            timestamp: new Date(s.completedAt || s.createdAt),
+            action: 'DELAY_AUDIT',
+            label: order?.shopifyOrderDate
+              ? `Order Entry Delayed by ${fmtDuration(oeDelayDuration)}`
+              : `Order Entry Delayed by ${fmtDuration(oeDelayDuration)}`,
+            actor: recvActor || 'System',
+            status: 'DELAYED',
+            details: order?.shopifyOrderDate
+              ? `Shopify Order Date: ${new Date(order.shopifyOrderDate).toLocaleDateString('en-GB')}. Allowed: ${getAllowedHours('ORDER_ENTRY', delayConfig)}h. Delayed by: ${fmtDuration(oeDelayDuration)}`
+              : `Allowed: ${getAllowedHours('ORDER_ENTRY', delayConfig)}h. Delayed by: ${fmtDuration(oeDelayDuration)}`,
+            remarks: null,
+            returnReason: null,
+            from: null,
+            to: 'ORDER_ENTRY'
+          });
+        }
       }
     });
 

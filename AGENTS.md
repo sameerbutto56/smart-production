@@ -1,4 +1,59 @@
 ## Goals
+### Implemented This Session — Faisal Profile → Order Entry: Compulsory Shopify Date, Persistent Date Format Preference & Dual-Date Job Sheet Printing
+- **Requirement**: Implement Shopify Order Date properly inside the **Faisal Profile → Order Entry** workflow without external dependencies:
+  1. Shopify Date Compulsory: Mandatory in Order Entry. User cannot proceed to next tab, save, or submit without entering a valid Shopify date ("Shopify Order Date is required."). Enforced on both frontend and backend (`createOrder`).
+  2. Date Format Option: User can select format (`DD / MM / YYYY`, `MM / DD / YYYY`, `YYYY / MM / DD`).
+  3. Persistent Preference: Selected format is permanently saved in the database against the user profile (`User.dateFormatPreference`), surviving refresh, logout, and long periods of inactivity.
+  4. Delay Reference Date: Shopify Order Date is the authoritative start reference for Order Entry delay calculation.
+  5. Accurate & Unchanged: Stored normalized in DB, never auto-replaced by system/invoice date, preserved through edit requests against null overwrites.
+  6. Dual-Date Job Sheet Printing: Job Sheet clearly prints BOTH **Shopify Order Date (Delay Reference)** and **Order Entry Date (ERP Creation)**, formatted according to the user's saved preference.
+- **Backend**:
+  - `schema.prisma`: Added `dateFormatPreference String? @default("DD/MM/YYYY")` to `User`. Applied to DB and generated Prisma client.
+  - `user.controller.js` & `user.routes.js`: Added `GET /api/users/me/preferences` and `PUT /api/users/me/preferences` for user date format and theme preferences.
+  - `auth.controller.js`: Returned `dateFormatPreference` in login response payload.
+  - `order.controller.js`: Enforced mandatory `shopifyOrderDate` validation in `createOrder` for non-outlet online orders, returning 400 `"Shopify Order Date is required."` if missing or invalid.
+  - `editRequest.controller.js` & `verification.controller.js`: Protected `shopifyOrderDate` during edit and verification updates so existing Shopify dates are never cleared to null.
+- **Frontend**:
+  - `dateFormat.js`: Created reusable utility (`formatDateWithPreference`, `parseDateWithPreference`, `getDateFormatPlaceholder`, `SUPPORTED_DATE_FORMATS`) supporting `DD/MM/YYYY`, `MM/DD/YYYY`, and `YYYY/MM/DD`.
+  - `AuthContext.jsx`: Exposed `dateFormatPreference` and `updateDateFormatPreference(format)` communicating with preferences API.
+  - `OrderEntryContext.jsx`: Updated `validateBasicInfo` to mandate `shopifyOrderDate` for online orders; updated `fmtDate` and `parseDate` to dynamically respect `activeDateFormat`.
+  - `BasicInfoTab.jsx`: Added mandatory `*` badge, inline date format toggle (`DD / MM / YYYY`, `MM / DD / YYYY`, `YYYY / MM / DD`), immediate preference persistence, dynamic reformatting, and error highlight.
+  - `printReport.js`: In `printJobSheet`, formatted and displayed both **Shopify Order Date (Delay Ref)** and **Order Entry Date** alongside Entry Time using the user's saved preference.
+  - `OrderCard.jsx`: Updated modal header and print trigger to format `shopifyOrderDate` using `dateFormatPreference`.
+- **Verification**:
+  - `node --check` passed on all backend controllers and routes.
+  - `verify-shopify-date.cjs`: 14/14 automated tests passed (preference persistence, compulsory validation, accurate ISO storage, null overwrite protection, delay calculation).
+  - Production frontend build `npm run build`: Exit code 0, all 3,191 modules bundled with 0 errors.
+
+### Implemented This Session — Order Delay System Root-Level Fix: Unified Real-Time Synchronization Across All Profiles
+- **Requirement**: Fix the Order Delay system end-to-end at the root level across backend, database, and all profiles (`OrderCard`, `VerificationPage`, `ReturnedFromVerification`, `MyTasks`, `AllOrders`, `SoftwareSettings`).
+  1. Software Settings updates (`/api/software-settings/delay-config`) must automatically propagate to all profiles and order lists in real-time, recalculating DB stage deadlines, broadcasting via socket (`delay-config-updated`), and turning overdue orders RED + BLINKING without manual refreshes.
+  2. Phase-specific delay: An order is only evaluated against and displayed in the delay list of its current active phase (`ORDER_ENTRY`, `VERIFICATION`, `RETURN_VERIFICATION`, `STORE`, `STORE_RECEIVE`, `WORKERS`, `PRODUCTION_ACCEPTANCE`, `PRODUCTION`, `LOGO_DESIGN`, `DISPATCH`, `IN_DISPATCH`, `OUTLET_RECEIVE`, `ENAMELS_DELIVERY`, `OUT_FOR_DELIVERY`).
+  3. Order Entry delay logic: Uses `order.shopifyOrderDate` (fallback `createdAt`) as start reference. Historical delay in Order Entry is preserved in the order's timeline when it moves to subsequent phases.
+  4. Current Phase vs Historical Delay: Current delay only reflects the active stage; completed stages show historical delay in the timeline audit and never keep the order counted in completed phases.
+  5. Delayed orders show RED + BLINKING prominently across all profiles.
+  6. Backend is the authoritative source of truth.
+- **Backend**:
+  - `workingHours.js`: Implemented `computeWorkingDeadline(startMs, allowedHours)` to compute exact UTC deadlines adhering to Pakistan working hours (9 AM - 7 PM PKT, Mon-Sat, Sundays excluded).
+  - `orderDelay.js`: Completely modernized to support all 14 phases, `shopifyOrderDate` reference for `ORDER_ENTRY`, `verificationReturnedAt` for `RETURN_VERIFICATION`, dynamic deadline calculation, and `attachDelayInfoToOrders(orders, delayConfig)`.
+  - `softwareSettings.controller.js`: In `updateDelayConfig`, added atomic recalculation and update of `deadlineAt` on all active (PENDING / IN_PROGRESS / WAITING_APPROVAL) `OrderStage` records, cache invalidation, and WebSocket emission (`delay-config-updated` + `order-updated`).
+  - `order.controller.js`: Loaded `delayConfig` and wired `attachDelayInfoToOrders` into `getOrders` and `getUnseenOrders`. In `getOrderTimeline`, computed historical delay info for each stage and injected a `DELAY_AUDIT` entry for Order Entry delay against Shopify date.
+  - `verification.controller.js`: Wired `attachDelayInfoToOrders` into `getPendingVerifications` and `getReturnedToFaisal`.
+  - `outletOrder.controller.js`: Wired `attachDelayInfoToOrders` into `getInDispatchOrders` and `getComeFromProduction`.
+- **Frontend**:
+  - `workingHours.js`: Exported `computeWorkingDeadline(startMs, allowedHours)`.
+  - `delayUtils.js`: Synchronized with `orderDelay.js` (`STAGE_CONFIG_MAP`, `STAGE_LABELS`, `shopifyOrderDate`, `computeStageDeadline`).
+  - `DelayContext.jsx`: Created application-wide `DelayProvider` that listens to `delay-config-updated` socket events, re-fetches on window focus/reconnect, and provides `delayConfig`, `getOrderDelay`, and `isOrderDelayed`.
+  - `App.jsx`: Mounted `DelayProvider` around the app routes.
+  - `OrderCard.jsx`: Replaced brittle timer evaluation with dynamic working-hours deadline calculation via `useDelay()`. Overdue orders immediately apply `card-delayed` (red border + blinking animation) and red blinking text (`text-red-500 font-black animate-pulse`).
+  - `VerificationPage.jsx` & `ReturnedFromVerification.jsx`: Integrated `useDelay()` and applied `card-delayed animate-delayed-row` to delayed orders.
+  - `AllOrders.jsx`: Wired `useDelay()` so delay maps, counts, and stage filters update dynamically on `delay-config-updated`.
+  - `SoftwareSettings.jsx`: Added `RETURN_VERIFICATION` to delay config thresholds grid and fixed response parsing.
+- **Verification**:
+  - `node --check` passed on all modified backend files.
+  - `verify-order-delay-system.cjs`: 5/5 automated tests passed (computeWorkingDeadline Sunday bridge, Order Entry shopifyOrderDate delay, Return from Verification delay, dynamic threshold reconfiguration, bulk attachment).
+  - Production frontend build `npm run build`: Exit code 0, all 3,191 modules bundled with 0 errors.
+
 ### Implemented This Session — Admin Profile: Product Data Module & Detailed POS Engraving Tracking
 - **Requirement**: Build a dedicated Product Data reporting module in Admin Profile (`/product-data`) to analyze outlet-wise product sales, discounts, customizations, standard/custom sizes, engravings, and employee activity based on selected dates and filters. Ensure POS product-level engraving selections are captured with engraving text and line quantity count, saving directly to `PosSaleItem` and creating linked `EngravingRequest` records for the workshop.
 - **Backend**:

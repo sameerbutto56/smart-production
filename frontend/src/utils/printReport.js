@@ -2,6 +2,7 @@ import { toUrduName } from './urduDictionary';
 import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from './dateTime';
 import { hasEngravingData, getFilledArticleNames, getFilledEngravingLines } from './engravingUtils';
+import { formatDateWithPreference, DEFAULT_DATE_FORMAT } from './dateFormat';
 
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
@@ -1125,15 +1126,29 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const now = new Date();
   const generatedAt = formatDateTime(now);
 
+  // ─── USER DATE FORMAT PREFERENCE ───
+  let userPrefFmt = DEFAULT_DATE_FORMAT;
+  try {
+    const savedUserStr = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
+    if (savedUserStr) {
+      const u = JSON.parse(savedUserStr);
+      if (u.dateFormatPreference) userPrefFmt = u.dateFormatPreference;
+    }
+  } catch (e) {}
+  const fmtPref = sections?.dateFormatPreference || order?.dateFormatPreference || userPrefFmt;
+
   // ─── ENTRY DATE/TIME & SHOPIFY DATE ───
   const entryDt = order.createdAt ? new Date(order.createdAt) : null;
   const entryDate = entryDt && !isNaN(entryDt.getTime())
-    ? formatDateOnly(entryDt)
+    ? formatDateWithPreference(entryDt, fmtPref, false)
     : '—';
   const entryTime = entryDt && !isNaN(entryDt.getTime())
-    ? formatDateTime(entryDt)
+    ? formatTimeOnly(entryDt)
     : '—';
-  const shopifyDate = order.shopifyOrderDate ? fmtDate(order.shopifyOrderDate) : null;
+  const shopifyDt = order.shopifyOrderDate ? new Date(order.shopifyOrderDate) : null;
+  const shopifyDate = shopifyDt && !isNaN(shopifyDt.getTime())
+    ? formatDateWithPreference(shopifyDt, fmtPref, false)
+    : null;
 
   // ─── HEADER ───
   win.document.write(`<div style="text-align:center;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
@@ -1145,8 +1160,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`<p style="font-size:18px;color:#555;font-weight:600;margin-top:2px">ENAMELS Production</p>`);
   win.document.write(`<p style="font-size:15px;color:#999;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedAt}</p>`);
   if (order.createdAt) {
-    const createdDisplay = formatDateTime(order.createdAt);
-    const createdLabel = isUrdu ? 'آرڈر کی تاریخ:' : 'Order Created:';
+    const createdDisplay = `${entryDate}, ${entryTime}`;
+    const createdLabel = isUrdu ? 'آرڈر اندراج کی تاریخ:' : 'Order Entry Date:';
     win.document.write(`<p style="font-size:15px;color:#333;font-weight:700;margin-top:2px">${createdLabel} ${createdDisplay}</p>`);
   }
   win.document.write(`</div>`);
@@ -1167,12 +1182,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`</div>`);
 
   // ─── DATES ROW (always LTR — date values are English) ───
-  win.document.write(`<div dir="ltr" style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;flex-wrap:wrap">`);
-  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.orderEntryDate}:</span> <span style="font-size:18px;font-weight:900;color:#111">${entryDate}</span></div>`);
-  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${isUrdu ? 'اندراج کا وقت:' : 'Entry Time:'}</span> <span style="font-size:18px;font-weight:900;color:#111">${entryTime}</span></div>`);
-  if (shopifyDate) {
-    win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.shopifyDate}:</span> <span style="font-size:18px;font-weight:900;color:#111">${shopifyDate}</span></div>`);
-  }
+  win.document.write(`<div dir="ltr" style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 12px;flex-wrap:wrap;gap:8px">`);
+  win.document.write(`<div><span style="font-size:15px;font-weight:700;color:#000">${isUrdu ? 'شاپیفائے آرڈر کی تاریخ (تاخیر کا حوالہ):' : 'Shopify Order Date (Delay Ref):'}</span> <span style="font-size:18px;font-weight:900;color:#7c3aed;margin-left:4px">${shopifyDate || entryDate}</span></div>`);
+  win.document.write(`<div><span style="font-size:15px;font-weight:700;color:#000">${isUrdu ? 'آرڈر اندراج کی تاریخ:' : 'Order Entry Date:'}</span> <span style="font-size:18px;font-weight:900;color:#111;margin-left:4px">${entryDate}</span></div>`);
+  win.document.write(`<div><span style="font-size:15px;font-weight:700;color:#000">${isUrdu ? 'اندراج کا وقت:' : 'Entry Time:'}</span> <span style="font-size:18px;font-weight:900;color:#111;margin-left:4px">${entryTime}</span></div>`);
   win.document.write(`</div>`);
 
   // ─── ORDER PLACED BY ───
