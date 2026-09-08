@@ -555,13 +555,31 @@ const getDispatchDashboard = async (req, res) => {
       o.currentStage === 'ENAMELS_DELIVERY'
     ));
 
-    // Summary stats
+    // Single delivery-domain classification per order — the ONE source of truth for
+    // both the summary buckets and the trackingData deliveryStatus. Buckets are
+    // disjoint by precedence (rejected > delivered > returned > active >
+    // pending), so no order is ever counted in two buckets. 'other' = dispatched
+    // but not yet out (e.g. DISPATCH stage with ACCEPTED/BOOKED dispatchStatus) —
+    // counted in totalOrders but in no chip.
+    const classifyDelivery = (o) => {
+      if (o.status === 'REJECTED') return 'rejected';
+      if (o.dispatchStatus === 'DELIVERED') return 'delivered';
+      if (o.dispatchStatus === 'RETURNED') return 'returned';
+      if (o.currentStage === 'OUT_FOR_DELIVERY') return 'active';
+      if (o.currentStage === 'DISPATCH' && !o.dispatchStatus) return 'pending';
+      if (o.dispatchStatus === 'PENDING' || o.dispatchStatus === 'COURIER_REQUIRED') return 'pending';
+      return 'other';
+    };
+
+    // Summary stats — derived from classifyDelivery so chips and counts always agree
     const totalOrders = orders.length;
-    const pending = orders.filter(o => o.currentStage === 'DISPATCH' && !o.dispatchStatus || o.dispatchStatus === 'PENDING' || o.dispatchStatus === 'COURIER_REQUIRED').length;
-    const active = orders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && o.dispatchStatus !== 'DELIVERED' && o.dispatchStatus !== 'RETURNED').length;
-    const delivered = orders.filter(o => o.dispatchStatus === 'DELIVERED').length;
-    const returned = orders.filter(o => o.dispatchStatus === 'RETURNED').length;
-    const rejected = orders.filter(o => o.status === 'REJECTED').length;
+    const bucketCounts = { pending: 0, active: 0, delivered: 0, returned: 0, rejected: 0, other: 0 };
+    for (const o of orders) bucketCounts[classifyDelivery(o)]++;
+    const pending = bucketCounts.pending;
+    const active = bucketCounts.active;
+    const delivered = bucketCounts.delivered;
+    const returned = bucketCounts.returned;
+    const rejected = bucketCounts.rejected;
     const cod = orders.filter(o => o.paymentStatus !== 'PAID' && o.paymentStatus !== 'REFUNDED').length;
     const paid = orders.filter(o => o.paymentStatus === 'PAID').length;
 
@@ -615,7 +633,8 @@ const getDispatchDashboard = async (req, res) => {
       employeeStats[name] = buildEmployeeStats(name);
     }
 
-    // Tracking data for the table
+    // Tracking data for the table (deliveryStatus comes from the hoisted
+    // classifyDelivery above — the ONE source of truth for chips and counts)
     const trackingData = orders.map(o => {
       const dispatchStages = (o.stages || []).filter(s => s.stageName === 'DISPATCH');
       const dispatchStage = dispatchStages[dispatchStages.length - 1];
@@ -630,6 +649,7 @@ const getDispatchDashboard = async (req, res) => {
         dispatchMethod: o.deliveryType || dispatchLogEntry?.dispatchMethod || '—',
         currentStage: o.currentStage,
         dispatchStatus: o.dispatchStatus,
+        deliveryStatus: classifyDelivery(o),
         paymentStatus: o.paymentStatus,
         assignedAt: dispatchStage?.startedAt || null,
         dispatchedAt: dispatchStage?.completedAt || null,

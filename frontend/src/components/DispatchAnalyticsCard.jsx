@@ -160,11 +160,11 @@ const DispatchAnalyticsCard = ({ activeTab }) => {
   const filteredOrdersByStatus = useMemo(() => {
     if (!data?.trackingData || !selectedFilter) return [];
     return data.trackingData.filter(t => {
-      if (selectedFilter === 'pending') return !t.dispatchStatus || t.dispatchStatus === 'PENDING';
-      if (selectedFilter === 'active') return ['DISPATCHED', 'IN_TRANSIT', 'BOOKED'].includes(t.dispatchStatus);
-      if (selectedFilter === 'delivered') return t.dispatchStatus === 'DELIVERED';
-      if (selectedFilter === 'returned') return t.dispatchStatus === 'RETURNED';
-      if (selectedFilter === 'rejected') return t.dispatchStatus === 'REJECTED';
+      if (selectedFilter === 'pending') return t.deliveryStatus === 'pending';
+      if (selectedFilter === 'active') return t.deliveryStatus === 'active';
+      if (selectedFilter === 'delivered') return t.deliveryStatus === 'delivered';
+      if (selectedFilter === 'returned') return t.deliveryStatus === 'returned';
+      if (selectedFilter === 'rejected') return t.deliveryStatus === 'rejected';
       return false;
     });
   }, [data, selectedFilter]);
