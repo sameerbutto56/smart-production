@@ -20,10 +20,14 @@
   - `BasicInfoTab.jsx`: Added mandatory `*` badge, inline date format toggle (`DD / MM / YYYY`, `MM / DD / YYYY`, `YYYY / MM / DD`), immediate preference persistence, dynamic reformatting, and error highlight.
   - `printReport.js`: In `printJobSheet`, formatted and displayed both **Shopify Order Date (Delay Ref)** and **Order Entry Date** alongside Entry Time using the user's saved preference.
   - `OrderCard.jsx`: Updated modal header and print trigger to format `shopifyOrderDate` using `dateFormatPreference`.
-- **Verification**:
+- **Verification & Deployment**:
   - `node --check` passed on all backend controllers and routes.
   - `verify-shopify-date.cjs`: 14/14 automated tests passed (preference persistence, compulsory validation, accurate ISO storage, null overwrite protection, delay calculation).
   - Production frontend build `npm run build`: Exit code 0, all 3,191 modules bundled with 0 errors.
+  - Git commit `66d8211` pushed to `origin/main`.
+  - Vercel production deployment: `dpl_agbZvBAjFRjTSxUNWG8LPMMHeSXT` READY.
+  - Re-aliased `smart-production-v2.vercel.app` -> `smart-production-v2-ovs0q8mmt-sameerbutt056-1019s-projects.vercel.app` (Success).
+  - Live probe verification: `GET https://smart-production-v2.vercel.app/` 200, `GET /api/health` 200 `{"status":"ok","message":"Backend is alive!"}`, `GET /api/users/me/preferences` 401 (live & auth-guarded).
 
 ### Implemented This Session — Order Delay System Root-Level Fix: Unified Real-Time Synchronization Across All Profiles
 - **Requirement**: Fix the Order Delay system end-to-end at the root level across backend, database, and all profiles (`OrderCard`, `VerificationPage`, `ReturnedFromVerification`, `MyTasks`, `AllOrders`, `SoftwareSettings`).
