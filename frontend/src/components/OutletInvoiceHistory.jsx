@@ -3,7 +3,7 @@ import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { getPrintFooterHTML } from '../utils/printTemplate';
-import { printBalanceReceipt, printBalanceGatePass } from '../utils/POSPrint';
+import { printReceipt, printBalanceReceipt, printBalanceGatePass, printReturnReceipt } from '../utils/POSPrint';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -77,154 +77,6 @@ const OutletInvoiceHistory = ({ outlet }) => {
 
   useEffect(() => { fetchSales(); }, [fetchSales]);
 
-  /* ─── Print Receipt ─── */
-  const printReceipt = async (sale) => {
-    setPrinting(sale.id);
-    try {
-    const isFT = sale.faisalTake;
-    let logoUrl = window.location.origin + '/logo.png';
-    try {
-      const logoResp = await fetch(logoUrl);
-      const logoBlob = await logoResp.blob();
-      logoUrl = URL.createObjectURL(logoBlob);
-    } catch {}
-    const reviewUrls = {
-      'Johar Town': 'https://www.google.com/maps/search/Enamels+375+A2+Block+A+2+Phase+1+Johar+Town+Lahore',
-      'Jail Road': 'https://www.google.com/maps/search/Enamels+Jail+Road+7+sharahe+Shahrah+Aiwan-e-Sanat-o-Tijarat+Lahore',
-      'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
-    };
-    const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
-    let qrDataUrl = '';
-    try { qrDataUrl = await QRCode.toDataURL(reviewUrl, { width: 150, margin: 1 }); } catch {}
-    const phones = { 'Johar Town': '0325-6666063', 'Jail Road': '(042) 36282641', 'Abbottabad': '' };
-    const phone = phones[sale.outletName] || '';
-    const pf = (n) => (n || 0).toLocaleString();
-    const adv = parseFloat(sale.advanceAmount) || 0;
-    const isOrderSale = !!sale.orderId;
-    let gpPaid, gpBalance;
-    if (isFT) { gpPaid = 0; gpBalance = 0; }
-    else if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
-    else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
-    else { gpPaid = sale.grandTotal; gpBalance = 0; }
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '-9999px';
-    iframe.style.bottom = '-9999px';
-    iframe.style.width = '80mm';
-    iframe.style.height = '0';
-    iframe.title = 'Receipt Print';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    const style = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/NotoNaskhArabic-Regular.ttf')format('truetype');}
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/NotoNaskhArabic-Medium.ttf')format('truetype');}
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/NotoNaskhArabic-SemiBold.ttf')format('truetype');}
-      @font-face{font-family:'Noto Naskh Arabic';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/NotoNaskhArabic-Bold.ttf')format('truetype');}
-      @page{margin:0;size:80mm auto;}
-      body{font-family:'Noto Naskh Arabic',monospace;font-size:16px;padding:4mm 6mm;color:#000;line-height:1.5;background:#fff;margin:0;}
-      .header{text-align:center;margin-bottom:6px;}
-      .header h1{font-size:26px;font-weight:900;margin:0;}
-      .header p{font-size:14px;margin:2px 0;font-weight:bold;}
-      hr{border:none;border-top:2px solid #000;margin:6px 0;}
-      .items{margin:4px 0;}
-      .items-heading{display:flex;font-size:12px;font-weight:900;text-transform:uppercase;padding:2px 0 4px;border-bottom:3px solid #000;margin-bottom:2px;}
-      .items-heading .col-item{flex:1;text-align:left;}
-      .items-heading .col-qty{min-width:90px;text-align:right;}
-      .items-heading .col-total{min-width:75px;text-align:right;}
-      .item{margin-bottom:8px;padding:4px 0;border-bottom:1px solid #000;}
-      .item-name{font-size:16px;font-weight:900;word-break:break-word;}
-      .item-variant{font-size:13px;font-weight:bold;color:#444;margin-top:1px;}
-      .item-line{display:flex;justify-content:flex-end;gap:12px;font-size:15px;font-weight:bold;margin-top:2px;}
-      .item-total{font-weight:900;min-width:75px;text-align:right;}
-      .section-label{font-size:13px;font-weight:900;text-align:center;letter-spacing:2px;margin:4px 0 2px;padding:3px 0;border-bottom:2px solid #000;}
-      .summary{width:100%;font-size:15px;margin:4px 0;border-collapse:collapse;}
-      .summary tr td{padding:4px 0;font-weight:bold;}
-      .summary .value{text-align:right;}
-      .summary .sub td{padding-top:6px;border-top:1px solid #000;}
-      .summary .final td{font-size:19px;font-weight:900;padding-top:8px;border-top:3px solid #000;}
-      .footer{text-align:center;font-size:14px;margin-top:10px;font-weight:bold;}
-    </style></head><body>`;
-    doc.write(style);
-    doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#000;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${formatDateTime(sale.createdAt)}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
-    doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
-    (sale.items || []).forEach(item => {
-      const name = item.productName || '';
-      const variantParts = [isUrdu ? toUrduName(item.color) : item.color, item.size].filter(Boolean);
-      doc.write('<div class="item">');
-      doc.write(`<div class="item-name">${name}</div>`);
-      if (variantParts.length > 0) doc.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
-      doc.write(`<div class="item-line"><span>${item.quantity} × ${pf(isFT ? 0 : item.unitPrice)}</span><span class="item-total">${pf(isFT ? 0 : item.lineTotal)}</span></div>`);
-      if (!isFT && item.alterationCharges > 0) {
-        doc.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges * (item.quantity || 1))}</span></div>`);
-      }
-      if (!isFT) {
-        const custParts = [];
-        if (item.customization1) custParts.push('Custom 1');
-        if (item.customization2) custParts.push('Custom 2');
-        const custAmt = ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0)) * (item.quantity || 1);
-        const engraveAmt = (item.engravingCharges || (item.nameEngrave ? 300 : 0)) * (item.quantity || 1);
-        const logoAmt = (item.logoCharges || (item.logoDesign ? 300 : 0)) * (item.quantity || 1);
-        if (custParts.length > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:2px;">${custParts.join(' + ')} (+${pf(custAmt)})</div>`);
-        }
-        if (engraveAmt > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Engraving (+${pf(engraveAmt)})</div>`);
-        }
-        if (logoAmt > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Logo Design (+${pf(logoAmt)})</div>`);
-        }
-        if (item.otherCharges > 0) {
-          doc.write(`<div style="font-size:11px;font-weight:bold;color:#000;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
-        }
-      }
-      doc.write('</div>');
-    });
-    if (isFT) {
-      doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#000;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
-    } else {
-      doc.write('</div><div class="section-label">SUMMARY</div>');
-      doc.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
-      if (sale.alterationCharges > 0) doc.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
-      const rcust = (sale.items || []).reduce((s, i) => s + ((i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0)) * (i.quantity || 1), 0);
-      if (rcust > 0) doc.write(`<tr><td>Customization</td><td class="value">${pf(rcust)}</td></tr>`);
-      const rengr = (sale.items || []).reduce((s, i) => s + (i.engravingCharges || (i.nameEngrave ? 300 : 0)) * (i.quantity || 1), 0);
-      if (rengr > 0) doc.write(`<tr><td>Engraving</td><td class="value">${pf(rengr)}</td></tr>`);
-      const rlogo = (sale.items || []).reduce((s, i) => s + (i.logoCharges || (i.logoDesign ? 300 : 0)) * (i.quantity || 1), 0);
-      if (rlogo > 0) doc.write(`<tr><td>Logo Design</td><td class="value">${pf(rlogo)}</td></tr>`);
-      const rother = (sale.items || []).reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0);
-      if (rother > 0) doc.write(`<tr><td>Other Charges</td><td class="value">${pf(rother)}</td></tr>`);
-      if (sale.extraCharges > 0) doc.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
-      if (sale.discountPercent > 0 || sale.discountAmount > 0) doc.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
-      if (sale.cardChargesPct > 0) doc.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
-      if (isOrderSale && adv > 0) {
-        doc.write(`<tr class="final"><td>Current Payment</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-        doc.write(`<tr><td>Advance (Order)</td><td class="value">${pf(adv)}</td></tr>`);
-        doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
-      } else {
-        const balance = sale.grandTotal - adv;
-        doc.write(`<tr class="final"><td>Final Amount</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-        if (adv > 0) doc.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
-        if (adv > 0) doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
-      }
-      if (sale.paymentMethod === 'CASH_ONLINE') {
-        doc.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
-        doc.write(`<tr><td>Online Amount</td><td class="value">${pf(sale.onlineAmount)}</td></tr>`);
-      }
-      doc.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</td></tr></table>`);
-    }
-    doc.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
-    doc.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
-    doc.write(getPrintFooterHTML());
-    doc.write('</body></html>');
-    doc.close();
-    setTimeout(() => {
-      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
-      setTimeout(() => { document.body.removeChild(iframe); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); setPrinting(null); }, 1000);
-    }, 500);
-    } catch (e) { toast.error('Print failed: ' + e.message); setPrinting(null); }
-  };
-
   /* ─── Refund Invoice ─── */
   const handleReturnInvoice = async (sale) => {
     if (sale.refundedAt) return toast.error('Invoice already refunded');
@@ -235,6 +87,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       await api.post(`/api/pos/sales/${sale.id}/refund`);
       toast.success('Invoice fully refunded');
       fetchSales();
+      printReturnReceipt({ ...sale, refundedAt: new Date() });
     } catch (e) {
       toast.error(e.response?.data?.message || 'Refund failed');
     }

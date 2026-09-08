@@ -6,8 +6,8 @@ import * as XLSX from 'xlsx';
 import useCache, { invalidateKey } from '../hooks/useCache';
 import { enqueue } from '../utils/syncQueue';
 import { debounce } from '../utils/debounce';
-import { formatDateTime } from '../utils/dateTime';
 import socket from '../socket';
+import { printReturnReceipt } from '../utils/POSPrint';
 
 const POSContext = createContext(null);
 
@@ -724,8 +724,18 @@ export function POSProvider({ children }) {
         await api.post(`/api/pos/returns?outlet=${selectedOutlet}`, { variantId: item.variantId, quantity: item.qty, reason: returnReason, saleId: item.saleId || undefined, refundPaymentMethod });
       }
       toast.success(`${returnCart.reduce((s, i) => s + i.qty, 0)} item(s) returned successfully`);
+      const returnSummary = {
+        outletName: selectedOutlet,
+        items: returnCart.map(i => ({ productName: i.productName, color: i.color, size: i.size, quantity: i.qty, unitPrice: i.unitPrice, lineTotal: i.unitPrice * i.qty })),
+        refundAmount: returnCart.reduce((s, i) => s + i.unitPrice * i.qty, 0),
+        reason: returnReason,
+        refundPaymentMethod,
+        cashierName: employeeName || user?.name || 'Cashier',
+        returnedAt: new Date()
+      };
       setReturnCart([]); setReturnReason('Customer return'); setRefundPaymentMethod('CASH');
       refreshProducts(); refreshDashboard(); refreshSales(); refreshReturns();
+      printReturnReceipt({ grandTotal: returnSummary.refundAmount, outletName: selectedOutlet }, returnSummary);
     } catch (err) { toast.error(err.response?.data?.message || 'Return failed'); }
     setReturnLoading(false);
   };
@@ -750,8 +760,10 @@ export function POSProvider({ children }) {
     try {
       await api.post(`/api/pos/sales/${sale.id}/refund`);
       toast.success('Invoice fully refunded');
+      const refundedSale = { ...sale, refundedAt: new Date(), refundReason: 'Full invoice refund' };
       setLookedUpReturnSale(null); setInvoiceReturnInput('');
       refreshProducts(); refreshDashboard(); refreshSales(); refreshReturns();
+      printReturnReceipt(refundedSale);
     } catch (e) { toast.error(e.response?.data?.message || 'Refund failed'); }
     setRefundLoading(false);
   };
@@ -762,6 +774,7 @@ export function POSProvider({ children }) {
       await api.post(`/api/pos/sales/${sale.id}/refund`);
       toast.success('Invoice fully refunded');
       refreshProducts(); refreshDashboard(); refreshSales(); refreshReturns();
+      printReturnReceipt({ ...sale, refundedAt: new Date(), refundReason: 'Full invoice refund' });
     } catch (e) { toast.error(e.response?.data?.message || 'Refund failed'); }
   };
 

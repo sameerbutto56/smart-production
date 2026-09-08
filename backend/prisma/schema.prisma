@@ -137,6 +137,7 @@ model Order {
     verificationNote    String?
     verificationReturnedAt DateTime?   // when order was returned to Faisal for corrections
     verificationReturnNote String?     // note from verifier about what changes needed
+    isPrOrder           Boolean   @default(false)
     auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
@@ -1256,6 +1257,13 @@ model AlterationSequence {
   nextValue  Int    @default(1)
 
   @@unique([prefix])
+}
+
+model PrOrderSequence {
+  id         String   @id @default(uuid())
+  prefix     String   @unique
+  nextValue  Int      @default(1)
+  updatedAt  DateTime @updatedAt
 }
 
 model Alteration {

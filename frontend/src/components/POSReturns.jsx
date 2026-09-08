@@ -2,9 +2,9 @@ import React from 'react';
 import { usePOS } from '../context/POSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
-import { formatCurrency } from '../utils/POSPrint';
+import { formatCurrency, printReturnReceipt } from '../utils/POSPrint';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
-import { Barcode, RotateCcw, Search, Minus, Plus, X } from 'lucide-react';
+import { Barcode, RotateCcw, Search, Minus, Plus, X, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const POSReturns = () => {
@@ -86,7 +86,13 @@ const POSReturns = () => {
                     ))}
                   </div>
                   {lookedUpReturnSale.refundedAt ? (
-                    <p className="text-center text-[10px] font-bold text-red-500 py-2">Already Refunded</p>
+                    <div className="space-y-2 pt-1">
+                      <p className="text-center text-xs font-bold text-red-500">Already Refunded</p>
+                      <button onClick={() => printReturnReceipt(lookedUpReturnSale)}
+                        className="w-full bg-gray-800 hover:bg-gray-700 text-purple-400 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                        <Printer size={14} /> Print Return Receipt
+                      </button>
+                    </div>
                   ) : (
                     <button onClick={() => handleRefundInvoice(lookedUpReturnSale)}
                       className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">

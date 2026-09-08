@@ -12,7 +12,8 @@ const BasicInfoTab = () => {
     requiredErrors, setRequiredErrors,
     orderLookupResult, orderLookupLoading, lookupOrderByNumber,
     setCartItems, setOriginalOrder,
-    activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS
+    activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS,
+    togglePrMode, prLoading
   } = useOrderEntry();
 
   const [shopifyInput, setShopifyInput] = useState(() => fmtDate(formData.shopifyOrderDate));
@@ -70,14 +71,60 @@ const BasicInfoTab = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           <div className="space-y-4">
-            <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ml-4">Order No. <span className="text-red-500">*</span></label>
+            <div className="flex items-center justify-between ml-4">
+              <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em]">
+                Order No. <span className="text-red-500">*</span>
+              </label>
+              {/* PR Checkbox Toggle */}
+              {!isOutlet && (
+                <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-1 rounded-xl transition-all border ${
+                  formData.isPr
+                    ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-900/30'
+                    : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={!!formData.isPr}
+                    disabled={isEditMode || prLoading}
+                    onChange={(e) => togglePrMode(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                  />
+                  <span className="text-xs font-black uppercase tracking-wider">
+                    {prLoading ? 'Generating...' : 'PR'}
+                  </span>
+                </label>
+              )}
+            </div>
             <div className="relative group">
-              <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
-              <input type="text" inputMode="numeric" onKeyDown={preventEnterSubmit} value={formData.orderNumber}
-                onChange={(e) => { setFormData({ ...formData, orderNumber: e.target.value.replace(/\D/g, '') }); clearFieldError('orderNumber'); }}
+              <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 ${formData.isPr ? 'text-purple-400' : 'text-gray-600 group-focus-within:text-blue-500'} transition-all duration-300`} size={16} />
+              <input
+                type="text"
+                inputMode={formData.isPr ? "text" : "numeric"}
+                readOnly={!!formData.isPr}
+                onKeyDown={preventEnterSubmit}
+                value={formData.orderNumber}
+                onChange={(e) => {
+                  if (formData.isPr) return;
+                  setFormData({ ...formData, orderNumber: e.target.value.replace(/\D/g, '') });
+                  clearFieldError('orderNumber');
+                }}
                 style={errStyle(requiredErrors?.orderNumber)}
-                className={`w-full theme-input rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} transition-all text-2xl font-black shadow-inner`}
-                placeholder="772" required />
+                className={`w-full theme-input rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} transition-all text-2xl font-black shadow-inner ${
+                  formData.isPr
+                    ? 'bg-purple-500/10 border-2 border-purple-500/50 text-purple-300 cursor-not-allowed select-none font-mono'
+                    : ''
+                }`}
+                placeholder={formData.isPr ? "Generating PR #..." : "772"}
+                required
+              />
+              {formData.isPr && (
+                <div className={`absolute ${useUrdu ? 'left-6' : 'right-6'} top-1/2 -translate-y-1/2 flex items-center gap-1.5`}>
+                  {prLoading && <Loader2 size={16} className="animate-spin text-purple-400" />}
+                  <span className="bg-purple-600 text-white text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow">
+                    PR Locked
+                  </span>
+                </div>
+              )}
             </div>
             {requiredErrors?.orderNumber && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.orderNumber}</p>}
             {/* Order lookup status — shows financial status of existing order */}

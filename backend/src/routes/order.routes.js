@@ -48,7 +48,8 @@ const {
   getCancellationRequestByOrder,
   approveCancellationRequest,
   rejectCancellationRequest,
-  editProductAmount
+  editProductAmount,
+  generatePrNumberEndpoint
 } = require('../controllers/order.controller');
 const {
   updateDeliveryStatus,
@@ -97,6 +98,10 @@ router.get('/deleted-check', authenticate, checkDeletedOrder);
 
 // Central Order Number Registry (read-only) — must be registered before /:orderId.
 router.get('/number-registry', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getOrderNumberRegistry);
+
+// Next PR Order Number endpoint (Faisal / Online Order Entry)
+router.get('/next-pr-number', authenticate, generatePrNumberEndpoint);
+router.get('/generate-pr-number', authenticate, generatePrNumberEndpoint);
 
 // Control Center: Update payment status
 router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), updatePaymentStatus);

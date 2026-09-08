@@ -46,7 +46,7 @@ const DEFAULT_FEMALE_OPTIONS = { dupatta: false, sleeves: '', shirtLength: '', z
 const OrderEntryContext = createContext(null);
 
 const INITIAL_FORM_DATA = {
-  orderNumber: '', customerName: '', customerPhone: '', address: '', type: 'STANDARD', priority: 'NORMAL',
+  orderNumber: '', isPr: false, customerName: '', customerPhone: '', address: '', type: 'STANDARD', priority: 'NORMAL',
   advancePaid: false, advanceAmount: '', balanceAmount: '', paymentStatus: '', totalPrice: '', quantity: 1,
   matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
   alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
@@ -217,6 +217,7 @@ export const OrderEntryProvider = ({ children }) => {
           setFormData(prev => ({
             ...prev,
             orderNumber: found.orderNumber || '',
+            isPr: !!found.isPrOrder || (found.orderNumber ? String(found.orderNumber).toUpperCase().startsWith('PR') : false),
             customerName: found.customerName || '',
             customerPhone: found.customerPhone || '',
             address: found.address || '',
@@ -559,6 +560,7 @@ export const OrderEntryProvider = ({ children }) => {
           requestedChanges: {
             customerName: formData.customerName, customerPhone: formData.customerPhone, address: formData.address,
             city: formData.city, type: formData.type, priority: formData.priority,
+            isPr: !!formData.isPr, isPrOrder: !!formData.isPr,
             advancePaid: formData.advancePaid, advanceAmount: parseFloat(formData.advanceAmount) || 0,
             balanceAmount: (formData.paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? parseFloat(formData.balanceAmount) || 0 : null,
             paymentStatus: formData.paymentStatus || 'PENDING',
@@ -653,6 +655,10 @@ export const OrderEntryProvider = ({ children }) => {
     const orderNo = String(formData.orderNumber || '').trim();
     if (!orderNo) {
       errs.orderNumber = t('orderNo') + ' ' + t('required');
+    } else if (formData.isPr || orderNo.toUpperCase().startsWith('PR')) {
+      if (!orderNo.toUpperCase().startsWith('PR')) {
+        errs.orderNumber = 'PR order number must start with PR';
+      }
     } else if (/[^\d]/.test(orderNo)) {
       errs.orderNumber = useUrdu ? 'آرڈر نمبر صرف نمبر (0-9) ہو سکتا ہے' : 'Order number must be numbers only (0-9)';
     }
@@ -762,6 +768,41 @@ export const OrderEntryProvider = ({ children }) => {
     setActiveTab('product');
   }, []);
 
+  const [prLoading, setPrLoading] = useState(false);
+
+  const togglePrMode = useCallback(async (enable) => {
+    if (enable) {
+      setPrLoading(true);
+      setFormData(prev => ({ ...prev, isPr: true, orderNumber: 'PR-GENERATING...' }));
+      try {
+        const res = await api.get('/api/orders/next-pr-number');
+        const num = res.data?.orderNumber;
+        if (num) {
+          setFormData(prev => ({ ...prev, isPr: true, orderNumber: num }));
+          setRequiredErrors(prev => {
+            if (!prev?.orderNumber) return prev;
+            const next = { ...prev };
+            delete next.orderNumber;
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error('Error generating PR number:', err);
+        setFormData(prev => ({ ...prev, isPr: true, orderNumber: '' }));
+      } finally {
+        setPrLoading(false);
+      }
+    } else {
+      setFormData(prev => ({ ...prev, isPr: false, orderNumber: '' }));
+      setRequiredErrors(prev => {
+        if (!prev?.orderNumber) return prev;
+        const next = { ...prev };
+        delete next.orderNumber;
+        return next;
+      });
+    }
+  }, []);
+
   const handleCheckout = useCallback(async () => {
     if (cartItems.length === 0 || isSubmitting) return;
     const basicErr = validateBasicInfo();
@@ -774,9 +815,10 @@ export const OrderEntryProvider = ({ children }) => {
     }
     setIsSubmitting(true); setLoading(true); setError('');
     try {
-      // Client-side order range validation (non-edit, manual order number only)
+      // Client-side order range validation (non-edit, manual order number only — bypassed for PR orders)
       const submittedOrderNumber = String(formData.orderNumber || cartItems[0]?.orderNumber || '').trim();
-      if (!isEditMode && submittedOrderNumber) {
+      const isPrActive = !!formData.isPr || submittedOrderNumber.toUpperCase().startsWith('PR');
+      if (!isEditMode && submittedOrderNumber && !isPrActive) {
         try {
           const rangeRes = await api.get('/api/software-settings/order-range');
           const rc = rangeRes.data;
@@ -826,6 +868,8 @@ export const OrderEntryProvider = ({ children }) => {
         advanceAmount: parseFloat(formData.advanceAmount) || 0,
         balanceAmount: (formData.paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? parseFloat(formData.balanceAmount) || 0 : null,
         paymentStatus: formData.paymentStatus || firstItem.paymentStatus || 'PENDING',
+        isPr: !!formData.isPr,
+        isPrOrder: !!formData.isPr,
         logoDesign: firstItem.logoDesign, logoName: firstItem.logoName,
         logoCharges: cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0),
         namePrintingCharges: cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0),
@@ -1081,6 +1125,7 @@ export const OrderEntryProvider = ({ children }) => {
     preventEnterSubmit, fmtDate, parseDate,
     activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS,
     handleAddToCart, removeCartItem, editCartItem, handleAddMoreProducts, handleCheckout,
+    togglePrMode, prLoading,
     openDuplicateOrder,
     hasChanged, hasChangedBool,
     // Derived data

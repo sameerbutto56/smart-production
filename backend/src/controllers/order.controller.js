@@ -266,8 +266,64 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
 
 
+const getNextPrNumber = async () => {
+  const now = new Date();
+  const pktDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(now).replace(/-/g, '');
+  const prefix = `PR-${pktDateStr}`;
+
+  // Find the highest existing order with this prefix in Order table
+  let nextSeq = 1;
+  const highestOrder = await prisma.order.findFirst({
+    where: {
+      OR: [
+        { orderNumber: { startsWith: `${prefix}-` } },
+        { orderNumber: { startsWith: `#${prefix}-` } }
+      ]
+    },
+    orderBy: { orderNumber: 'desc' },
+    select: { orderNumber: true }
+  });
+
+  if (highestOrder && highestOrder.orderNumber) {
+    const parts = highestOrder.orderNumber.replace(/^#/, '').split('-');
+    const lastNum = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(lastNum)) {
+      nextSeq = lastNum + 1;
+    }
+  }
+
+  // Also check against PrOrderSequence if present
+  try {
+    const seq = await prisma.prOrderSequence.findUnique({ where: { prefix } });
+    if (seq && seq.nextValue >= nextSeq) {
+      nextSeq = seq.nextValue;
+    }
+  } catch (seqErr) {}
+
+  // Also check in-memory recent orders
+  let candidate = `${prefix}-${String(nextSeq).padStart(5, '0')}`;
+  while (_recentOrders.has(candidate) || _recentOrders.has(`#${candidate}`)) {
+    nextSeq++;
+    candidate = `${prefix}-${String(nextSeq).padStart(5, '0')}`;
+  }
+
+  return candidate;
+};
+
+const generatePrNumberEndpoint = async (req, res) => {
+  try {
+    const orderNumber = await getNextPrNumber();
+    res.json({ orderNumber, success: true });
+  } catch (error) {
+    console.error('Error generating PR number:', error);
+    res.status(500).json({ message: 'Failed to generate PR order number', error: error.message });
+  }
+};
+
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification, discount, engravingRequired, engravingText, engravingType, logoRequired, engravingNames, engravingLogos } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification, discount, engravingRequired, engravingText, engravingType, logoRequired, engravingNames, engravingLogos, isPr, isPrOrder } = req.body;
+
+  const isPrOrderFinal = !!isPr || !!isPrOrder || (requestedOrderNumber && String(requestedOrderNumber).toUpperCase().startsWith('PR'));
 
   // Derive priority and urgent
   const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
@@ -295,8 +351,19 @@ const createOrder = async (req, res) => {
     }
     let orderNumber = requestedOrderNumber;
 
-    // Handle Order Number Generation for Outlets or if missing
-    if (!orderNumber || req.user?.role === 'OUTLET') {
+    // Handle Order Number Generation for PR, Outlets, or if missing
+    if (isPrOrderFinal) {
+      if (!orderNumber || !String(orderNumber).toUpperCase().startsWith('PR')) {
+        orderNumber = await getNextPrNumber();
+      } else {
+        // Verify requested PR order number is available; if duplicate, auto-assign next sequential PR number
+        const { checkOrderNumberAvailable } = require('../utils/orderNumber');
+        const chk = await checkOrderNumberAvailable(prisma, orderNumber);
+        if (!chk.available) {
+          orderNumber = await getNextPrNumber();
+        }
+      }
+    } else if (!orderNumber || req.user?.role === 'OUTLET') {
       const prefix = req.user?.role === 'OUTLET' ? 'OUT-' : 'ORD-';
       // Generate a unique random number
       let isUnique = false;
@@ -326,7 +393,7 @@ const createOrder = async (req, res) => {
         return res.status(400).json({ message: chk.reason });
       }
 
-      // Order range validation: only for manually entered order numbers (Faisal/Online Order Entry)
+      // Order range validation: only for manually entered numeric order numbers (Faisal/Online Order Entry)
       try {
         const rangeSetting = await prisma.systemSetting.findUnique({ where: { key: 'ORDER_RANGE_CONFIG' } });
         if (rangeSetting && rangeSetting.value) {
@@ -519,6 +586,7 @@ const createOrder = async (req, res) => {
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
         placedBy: placedBy || null,
         goForVerification: !!goForVerification,
+        isPrOrder: isPrOrderFinal,
         currentStage: 'ORDER_ENTRY',
         status: initialStatus
       }
@@ -526,6 +594,26 @@ const createOrder = async (req, res) => {
 
     // Stamp the dedup map so rapid double-submits are rejected
     if (orderNumber) _recentOrders.set(orderNumber, Date.now());
+
+    // Update PR sequence in DB if PR order
+    if (isPrOrderFinal && orderNumber) {
+      try {
+        const parts = orderNumber.replace(/^#/, '').split('-');
+        if (parts.length >= 3) {
+          const prefix = `${parts[0]}-${parts[1]}`;
+          const num = parseInt(parts[2], 10);
+          if (!isNaN(num)) {
+            await prisma.prOrderSequence.upsert({
+              where: { prefix },
+              update: { nextValue: num + 1 },
+              create: { prefix, nextValue: num + 1 }
+            });
+          }
+        }
+      } catch (seqErr) {
+        console.error('Error updating PrOrderSequence:', seqErr.message);
+      }
+    }
 
     // Initial stage is Faisal's review after Order Entry
     await prisma.orderStage.create({
@@ -5115,5 +5203,7 @@ module.exports = {
   getCancellationRequestByOrder,
   approveCancellationRequest,
   rejectCancellationRequest,
-  editProductAmount
+  editProductAmount,
+  generatePrNumberEndpoint,
+  getNextPrNumber
 };

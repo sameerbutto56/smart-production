@@ -288,8 +288,21 @@ const processByStore = async (req, res) => {
     const { action, productAvailability, notes } = req.body;
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
-    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
-    if (!record.storeAcceptedAt) return res.status(400).json({ message: 'This case must be accepted by the Store first' });
+
+    // Store authority guard:
+    // Any case explicitly routed to STORE is with Store.
+    // In addition, any RETURN case that is ACCEPTED or has store/inventory acceptance
+    // is with Store and must be processable without "This case is not with the Store" errors.
+    const isStoreAuthorized = record.routedTo === 'STORE' ||
+      (record.type === 'RETURN' && (record.status === 'ACCEPTED' || record.status === 'RESTOCKED' || record.storeAcceptedAt || record.acceptedAt));
+    if (!isStoreAuthorized) return res.status(400).json({ message: 'This case is not with the Store' });
+
+    const effectiveStoreAcceptedAt = record.storeAcceptedAt || record.acceptedAt || new Date();
+    const effectiveStoreAcceptedBy = record.storeAcceptedBy || record.acceptedBy || req.user?.name || 'Store';
+
+    if (!effectiveStoreAcceptedAt && record.status !== 'ACCEPTED') {
+      return res.status(400).json({ message: 'This case must be accepted by the Store first' });
+    }
 
     // Validate per-type actions
     if (record.type === 'RETURN' && !['restock', 'route_to_production'].includes(action)) {
@@ -297,6 +310,11 @@ const processByStore = async (req, res) => {
     }
     if (record.type === 'REPLACEMENT' && !['deduct', 'route_to_production'].includes(action)) {
       return res.status(400).json({ message: 'Replacement can be deducted from stock or routed to Production' });
+    }
+
+    // Prevent double restock
+    if (action === 'restock' && (record.status === 'RESTOCKED' || record.originalRestocked)) {
+      return res.status(400).json({ message: 'Returned goods have already been restocked into inventory' });
     }
 
     let newStatus;
@@ -309,22 +327,51 @@ const processByStore = async (req, res) => {
       const originals = typeof record.originalProducts === 'string' ? JSON.parse(record.originalProducts) : (record.originalProducts || []);
       for (const item of originals) {
         const pd = item.productDetails || item;
-        const name = pd.name || pd.productType || '';
+        const name = pd.name || pd.productType || pd.articleName || '';
         if (!name) continue;
-        const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+        const invItems = await prisma.inventoryItem.findMany({
+          where: {
+            OR: [
+              { name: { contains: name, mode: 'insensitive' } },
+              { name: { contains: (pd.articleName || name), mode: 'insensitive' } }
+            ]
+          }
+        });
+        const color = (pd.color || '').trim().toLowerCase();
+        const size = (pd.size || '').trim().toLowerCase();
+        const qty = parseInt(item.quantity || item.qty || 1, 10) || 1;
+
         for (const inv of invItems) {
           const variants = inv.variants || [];
-          const color = pd.color || '';
-          const size = pd.size || '';
-          const updatedVariants = variants.map(v => {
-            const colorMatch = color ? v.color === color : true;
-            const sizeMatch = size ? v.size === size : true;
+          let updatedVariants = Array.isArray(variants) ? [...variants] : [];
+          let variantMatched = false;
+
+          updatedVariants = updatedVariants.map(v => {
+            const vColor = (v.color || '').trim().toLowerCase();
+            const vSize = (v.size || '').trim().toLowerCase();
+            const colorMatch = color ? vColor === color : true;
+            const sizeMatch = size ? vSize === size : true;
             if (colorMatch && sizeMatch) {
-              return { ...v, stock: (v.stock || 0) + (item.quantity || 1) };
+              variantMatched = true;
+              return { ...v, stock: (v.stock || 0) + qty };
             }
             return v;
           });
-          const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+
+          // If no variant matched but product has variants or color/size specified, append variant
+          if (!variantMatched && (pd.color || pd.size)) {
+            updatedVariants.push({
+              color: pd.color || '',
+              size: pd.size || '',
+              stock: qty,
+              price: pd.price || inv.price || 0
+            });
+          }
+
+          const newTotal = updatedVariants.length > 0
+            ? updatedVariants.reduce((s, v) => s + (v.stock || 0), 0)
+            : (inv.stock || 0) + qty;
+
           await prisma.inventoryItem.update({
             where: { id: inv.id },
             data: { variants: updatedVariants, stock: newTotal }
@@ -372,23 +419,34 @@ const processByStore = async (req, res) => {
         data: {
           status: newStatus,
           routedTo: 'STORE',
+          storeAcceptedAt: record.storeAcceptedAt || effectiveStoreAcceptedAt,
+          storeAcceptedBy: record.storeAcceptedBy || effectiveStoreAcceptedBy,
           storeProcessedBy: req.user?.name || 'Store',
           storeProcessedById: req.user?.id || null,
           storeProcessedAt: new Date(),
+          originalRestocked: action === 'restock' ? true : record.originalRestocked,
+          originalRestockedAt: action === 'restock' ? new Date() : record.originalRestockedAt,
+          originalRestockedBy: action === 'restock' ? (req.user?.name || 'Store') : record.originalRestockedBy,
           inventoryAdjusted: action !== 'route_to_production',
           productionRouted: action === 'route_to_production',
           productionRoutedAt: action === 'route_to_production' ? new Date() : null,
           warehouseNotes: notes || record.warehouseNotes
         }
       });
-      await tx.auditLog.create({
-        data: {
-          orderId: record.orderId,
-          action: actionLabel,
-          details: actionDetail,
-          performedBy: req.user?.id || 'SYSTEM'
+      if (req.user?.id) {
+        try {
+          await tx.auditLog.create({
+            data: {
+              orderId: record.orderId,
+              action: actionLabel,
+              details: actionDetail,
+              performedBy: req.user.id
+            }
+          });
+        } catch (e) {
+          console.warn('AuditLog creation skipped in processByStore:', e.message);
         }
-      });
+      }
       return tx.returnExchange.findUnique({ where: { id } });
     });
 
@@ -427,7 +485,9 @@ const completeReturn = async (req, res) => {
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
     if (record.type !== 'RETURN') return res.status(400).json({ message: 'Only Return cases can be completed here' });
-    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This return is not with the Store' });
+    
+    const isStoreAuthorized = record.routedTo === 'STORE' || record.status === 'RESTOCKED' || record.storeAcceptedAt || record.acceptedAt;
+    if (!isStoreAuthorized) return res.status(400).json({ message: 'This return is not with the Store' });
     if (record.status !== 'RESTOCKED') {
       return res.status(400).json({ message: record.status === 'COMPLETED' ? 'This return has already been completed' : 'Returned goods must be restocked into inventory before completing' });
     }
@@ -437,18 +497,25 @@ const completeReturn = async (req, res) => {
         where: { id },
         data: {
           status: 'COMPLETED',
+          routedTo: 'STORE',
           completedBy: req.user?.name || 'Store',
           completedAt: new Date()
         }
       });
-      await tx.auditLog.create({
-        data: {
-          orderId: record.orderId,
-          action: 'RETURN_COMPLETED',
-          details: `Return for ${record.orderNumber || ''} completed by ${req.user?.name || 'Store'} — returned goods restocked into inventory. Completed: ${new Date().toLocaleString()}.`,
-          performedBy: req.user?.id || 'SYSTEM'
+      if (req.user?.id) {
+        try {
+          await tx.auditLog.create({
+            data: {
+              orderId: record.orderId,
+              action: 'RETURN_COMPLETED',
+              details: `Return for ${record.orderNumber || ''} completed by ${req.user?.name || 'Store'} — returned goods restocked into inventory. Completed: ${new Date().toLocaleString()}.`,
+              performedBy: req.user.id
+            }
+          });
+        } catch (e) {
+          console.warn('AuditLog creation skipped in completeReturn:', e.message);
         }
-      });
+      }
       return tx.returnExchange.findUnique({ where: { id } });
     });
 
@@ -472,7 +539,9 @@ const storeAccept = async (req, res) => {
     const { id } = req.params;
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
-    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    
+    const isStoreAuthorized = record.routedTo === 'STORE' || record.type === 'RETURN' || req.user?.role === 'STORE' || req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN';
+    if (!isStoreAuthorized) return res.status(400).json({ message: 'This case is not with the Store' });
     if (record.storeAcceptedAt) return res.status(400).json({ message: 'This case has already been accepted by the Store' });
     if (!['RETURN', 'REPLACEMENT'].includes(record.type)) return res.status(400).json({ message: 'Only Return and Replacement cases can be accepted by the Store' });
 
@@ -482,6 +551,7 @@ const storeAccept = async (req, res) => {
         where: { id },
         data: {
           status: 'ACCEPTED',
+          routedTo: 'STORE',
           storeAcceptedBy: req.user?.name || 'Store',
           storeAcceptedById: req.user?.id || null,
           storeAcceptedAt: new Date()
@@ -1242,7 +1312,8 @@ const acceptProduct = async (req, res) => {
 
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
-    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    const isStoreAuthorized = record.routedTo === 'STORE' || (record.type === 'RETURN' && (record.status === 'ACCEPTED' || record.status === 'RESTOCKED' || record.storeAcceptedAt || record.acceptedAt));
+    if (!isStoreAuthorized) return res.status(400).json({ message: 'This case is not with the Store' });
     if (!record.storeAcceptedAt && !record.acceptedProducts) return res.status(400).json({ message: 'Case must be accepted by the Store first' });
 
     const originals = parseOriginalProducts(record);
@@ -1319,7 +1390,8 @@ const restockProduct = async (req, res) => {
 
     const record = await prisma.returnExchange.findUnique({ where: { id } });
     if (!record) return res.status(404).json({ message: 'Record not found' });
-    if (record.routedTo !== 'STORE') return res.status(400).json({ message: 'This case is not with the Store' });
+    const isStoreAuthorized = record.routedTo === 'STORE' || (record.type === 'RETURN' && (record.status === 'ACCEPTED' || record.status === 'RESTOCKED' || record.storeAcceptedAt || record.acceptedAt));
+    if (!isStoreAuthorized) return res.status(400).json({ message: 'This case is not with the Store' });
 
     const originals = parseOriginalProducts(record);
     if (idx >= originals.length) return res.status(400).json({ message: `Product index ${idx} out of range` });
@@ -1331,23 +1403,45 @@ const restockProduct = async (req, res) => {
 
     const product = originals[idx];
     const pd = product.productDetails || product;
-    const name = pd.name || pd.productType || '';
+    const name = pd.name || pd.productType || pd.articleName || '';
 
     if (restockedQty > 0 && name) {
-      const invItems = await prisma.inventoryItem.findMany({ where: { name: { contains: name, mode: 'insensitive' } } });
+      const invItems = await prisma.inventoryItem.findMany({
+        where: {
+          OR: [
+            { name: { contains: name, mode: 'insensitive' } },
+            { name: { contains: (pd.articleName || name), mode: 'insensitive' } }
+          ]
+        }
+      });
       for (const inv of invItems) {
         const variants = inv.variants || [];
-        const color = pd.color || '';
-        const size = pd.size || '';
-        const updatedVariants = variants.map(v => {
-          const colorMatch = color ? v.color === color : true;
-          const sizeMatch = size ? v.size === size : true;
+        const color = (pd.color || '').trim().toLowerCase();
+        const size = (pd.size || '').trim().toLowerCase();
+        let updatedVariants = Array.isArray(variants) ? [...variants] : [];
+        let variantMatched = false;
+        updatedVariants = updatedVariants.map(v => {
+          const vColor = (v.color || '').trim().toLowerCase();
+          const vSize = (v.size || '').trim().toLowerCase();
+          const colorMatch = color ? vColor === color : true;
+          const sizeMatch = size ? vSize === size : true;
           if (colorMatch && sizeMatch) {
+            variantMatched = true;
             return { ...v, stock: (v.stock || 0) + restockedQty };
           }
           return v;
         });
-        const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+        if (!variantMatched && (pd.color || pd.size)) {
+          updatedVariants.push({
+            color: pd.color || '',
+            size: pd.size || '',
+            stock: restockedQty,
+            price: pd.price || inv.price || 0
+          });
+        }
+        const newTotal = updatedVariants.length > 0
+          ? updatedVariants.reduce((s, v) => s + (v.stock || 0), 0)
+          : (inv.stock || 0) + restockedQty;
         await prisma.inventoryItem.update({
           where: { id: inv.id },
           data: { variants: updatedVariants, stock: newTotal }

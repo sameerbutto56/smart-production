@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePOS } from '../context/POSContext';
 import { ShoppingCart, X, Check, Printer, Minus, Plus, CheckCircle2, Book, BookOpen, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { printReceipt, printBalanceReceipt, formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
+import { printReceipt, printBalanceReceipt, printBalanceGatePass, formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
 import { formatDateTime } from '../utils/dateTime';
 
 const POSModals = () => {
@@ -328,10 +328,13 @@ const POSModals = () => {
               <p className="text-xs font-bold text-emerald-500 mb-4">✓ Invoice Fully Paid</p>
             )}
             <div className="flex gap-2">
-              <button onClick={handlePrintBalanceReceipt} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
-                <Printer size={16} />Print Receipt
+              <button onClick={handlePrintBalanceReceipt} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                <Printer size={14} />Receipt
               </button>
-              <button onClick={() => setLastBalancePayment(null)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-sm">Done</button>
+              <button onClick={() => { printBalanceGatePass(lastBalancePayment, selectedBalanceInvoice); setLastBalancePayment(null); }} className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black py-3 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                <Printer size={14} />Gate Pass
+              </button>
+              <button onClick={() => setLastBalancePayment(null)} className="px-4 bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-xs">Done</button>
             </div>
           </div>
         </div>

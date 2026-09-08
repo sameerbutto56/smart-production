@@ -1151,9 +1151,11 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     : null;
 
   // ─── HEADER ───
+  const isPr = !!order.isPrOrder || (order.orderNumber && String(order.orderNumber).toUpperCase().startsWith('PR'));
+  const prBadge = isPr ? `<span style="background:#7c3aed;color:#fff;font-size:14px;font-weight:900;padding:2px 10px;border-radius:6px;margin-left:8px;letter-spacing:1px;vertical-align:middle">PR ORDER</span>` : '';
   win.document.write(`<div style="text-align:center;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
   win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#000">${sec.jobSheet}</h1>`);
-  win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'آرڈر #' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</p>`);
+  win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'آرڈر #' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}${prBadge}</p>`);
   if (order.editedByAdmin) {
     win.document.write(`<p style="font-size:14px;color:#fff;background:#f59e0b;display:inline-block;padding:4px 14px;border-radius:20px;margin-top:4px;font-weight:900;letter-spacing:1px;text-transform:uppercase">✏️ ADMIN EDITED ORDER</p>`);
   }

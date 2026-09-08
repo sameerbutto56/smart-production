@@ -1,4 +1,27 @@
 ## Goals
+### Implemented This Session — Store Returns Restock Fix & Order Entry PR Sequential Order Option
+- **Requirement 1: Store Profile — Accepted Returns Must Be Restockable**:
+  - In `Store Profile → Returns`, accepted return cases (even if accepted in Inventory View or with `routedTo: 'INVENTORY_VIEW'`) must be restockable without throwing "This case is not with the Store".
+  - Exact returned product, article, color, size, variant, and quantity must be restocked into `InventoryItem`.
+  - Double restock must be prevented.
+  - After restock, Store must be able to Complete Return (`status: 'COMPLETED'`), removing it from the active queue while preserving historical logs.
+- **Requirement 2: Faisal Profile → Order Entry — PR Option**:
+  - Add `PR` checkbox to Order Entry (`BasicInfoTab.jsx`).
+  - When unchecked: standard order entry logic continues 100% untouched.
+  - When checked: fetches next sequential PR order number (`PR-YYYYMMDD-XXXXX`) safely from DB sequence (`PrOrderSequence`), locks input read-only with purple PR badge, bypasses numeric order range validations, persists `isPrOrder: true`, carries throughout entire lifecycle, and prints `[PR ORDER]` badge on Job Sheet.
+- **Backend**:
+  - `schema.prisma`: Added `isPrOrder Boolean @default(false)` to `Order` and new model `PrOrderSequence { id String @id, prefix String @unique, nextValue Int @default(1), updatedAt DateTime }`. Pushed to DB via `prisma db push` and generated Prisma client.
+  - `returnExchange.controller.js`: Relaxed store authority guard across `processByStore`, `completeReturn`, `storeAccept`, `acceptProduct`, and `restockProduct` to recognize any accepted return case (`routedTo === 'STORE' || record.status === 'ACCEPTED' || record.status === 'RESTOCKED' || record.storeAcceptedAt || record.acceptedAt`). Used correct `originalRestockedAt` and `originalRestockedBy` Prisma fields. Wrapped `auditLog.create` in try/catch guards.
+  - `order.controller.js`: Added `getNextPrNumber()`, `generatePrNumberEndpoint`, and updated `createOrder` to detect `isPrOrder`, allocate/validate PR numbers, bypass numeric range checks, and record `isPrOrder: true`.
+  - `order.routes.js`: Added `GET /api/orders/next-pr-number` route.
+- **Frontend**:
+  - `OrderEntryContext.jsx`: Added `isPr: false` to initial form state, `togglePrMode` callback to fetch PR number, bypassed numeric regex validation when PR mode is active.
+  - `BasicInfoTab.jsx`: Added PR toggle checkbox, auto-fetch, read-only locking, and purple PR styling badge.
+  - `printReport.js`: Added `[PR ORDER]` badge to printed Job Sheet header.
+- **Verification**:
+  - `verify-store-return-and-pr.cjs`: 15/15 automated tests passed (PR generation, sequential increments, collision safety, store authority for accepted returns, inventory variant restock, double-restock block, complete return).
+  - Frontend production build `npm run build`: 0 errors (3,193 modules bundled).
+
 ### Implemented This Session — Faisal Profile → Order Entry: Compulsory Shopify Date, Persistent Date Format Preference & Dual-Date Job Sheet Printing
 - **Requirement**: Implement Shopify Order Date properly inside the **Faisal Profile → Order Entry** workflow without external dependencies:
   1. Shopify Date Compulsory: Mandatory in Order Entry. User cannot proceed to next tab, save, or submit without entering a valid Shopify date ("Shopify Order Date is required."). Enforced on both frontend and backend (`createOrder`).
