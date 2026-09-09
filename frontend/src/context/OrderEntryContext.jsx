@@ -83,7 +83,7 @@ const CLEAR_FORM_AFTER_CART = {
 
 export const OrderEntryProvider = ({ children }) => {
   const [searchParams] = useSearchParams();
-  const { user, dateFormatPreference, updateDateFormatPreference } = useAuth();
+  const { user, dateFormatPreference, shopifyMonthPreference, shopifyYearPreference, updateDateFormatPreference, updateShopifyMonthYearPreference } = useAuth();
   const activeDateFormat = dateFormatPreference || user?.dateFormatPreference || 'DD/MM/YYYY';
   const { isUrdu, LanguageToggle } = useLanguage();
   const useUrdu = isUrdu;
@@ -707,7 +707,7 @@ export const OrderEntryProvider = ({ children }) => {
 
   const preventEnterSubmit = useCallback((e) => { if (e.key === 'Enter') e.preventDefault(); }, []);
 
-  const fmtDate = useCallback((iso, includeTime = true) => {
+  const fmtDate = useCallback((iso, includeTime = false) => {
     return formatDateWithPreference(iso, activeDateFormat, includeTime);
   }, [activeDateFormat]);
 
@@ -1125,6 +1125,7 @@ export const OrderEntryProvider = ({ children }) => {
     getSizeChart, handleSizeSelect, validateProductConfig, validateCurrentTab, validateBasicInfo,
     preventEnterSubmit, fmtDate, parseDate,
     activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS,
+    shopifyMonthPreference, shopifyYearPreference, updateShopifyMonthYearPreference,
     handleAddToCart, removeCartItem, editCartItem, handleAddMoreProducts, handleCheckout,
     togglePrMode, prLoading,
     openDuplicateOrder,

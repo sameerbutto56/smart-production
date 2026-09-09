@@ -5,7 +5,7 @@ const { getDelayInfo, getDelayMap, attachDelayInfoToOrders, getAllowedHours, fmt
 const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
-const { dateBoundToMs } = require('../utils/workingHours');
+const { dateBoundToMs, normalizeDateOnly } = require('../utils/workingHours');
 const XLSX = require('xlsx');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
@@ -321,7 +321,7 @@ const generatePrNumberEndpoint = async (req, res) => {
 };
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification, discount, engravingRequired, engravingText, engravingType, logoRequired, engravingNames, engravingLogos, isPr, isPrOrder } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, balanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification, discount, engravingRequired, engravingText, engravingType, logoRequired, engravingNames, engravingLogos, isPr, isPrOrder } = req.body;
 
   const isPrOrderFinal = !!isPr || !!isPrOrder || (requestedOrderNumber && String(requestedOrderNumber).toUpperCase().startsWith('PR'));
 
@@ -334,15 +334,18 @@ const createOrder = async (req, res) => {
   }
 
   // Shopify Order Date is mandatory for Faisal Profile / Online Order Entry
+  let finalShopifyOrderDate = null;
   const isOutletOrder = req.user?.role === 'OUTLET' || !!req.body.isOutlet || (requestedOrderNumber && String(requestedOrderNumber).startsWith('OUT-'));
   if (!isOutletOrder) {
     if (!shopifyOrderDate || (typeof shopifyOrderDate === 'string' && !shopifyOrderDate.trim())) {
       return res.status(400).json({ message: 'Shopify Order Date is required.', error: 'Shopify Order Date is required.' });
     }
-    const parsedShopifyDate = new Date(shopifyOrderDate);
-    if (isNaN(parsedShopifyDate.getTime())) {
+    finalShopifyOrderDate = normalizeDateOnly(shopifyOrderDate);
+    if (!finalShopifyOrderDate || isNaN(finalShopifyOrderDate.getTime())) {
       return res.status(400).json({ message: 'Invalid Shopify Order Date.', error: 'Invalid Shopify Order Date.' });
     }
+  } else if (shopifyOrderDate) {
+    finalShopifyOrderDate = normalizeDateOnly(shopifyOrderDate);
   }
 
   try {
@@ -567,6 +570,7 @@ const createOrder = async (req, res) => {
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
         advancePaid: advancePaid || (advanceAmount > 0) || false,
         advanceAmount: advanceAmount || 0,
+        balanceAmount: (paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? (parseFloat(balanceAmount) || 0) : null,
         paymentStatus: paymentStatus || 'PENDING',
         instructionNotes: instructionNotes || null,
         engravingInstructions: engravingRequired ? (engravingInstructions || null) : null,
@@ -576,7 +580,7 @@ const createOrder = async (req, res) => {
         logoRequired: engravingRequired ? (logoRequired || false) : false,
         engravingNames: engravingRequired ? (engravingNames ? (typeof engravingNames === 'string' ? engravingNames : JSON.stringify(engravingNames)) : null) : null,
         engravingLogos: engravingRequired ? (engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null) : null,
-        shopifyOrderDate: shopifyOrderDate ? new Date(shopifyOrderDate) : null,
+        shopifyOrderDate: finalShopifyOrderDate,
         productImage,
         totalPrice: effectiveTotalPrice,
         baseProductAmount,

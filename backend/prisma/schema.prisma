@@ -18,6 +18,8 @@ model User {
   employeeId String?      @unique
   theme      String?      @default("luxe")
   dateFormatPreference String? @default("DD/MM/YYYY")
+  shopifyMonthPreference Int?
+  shopifyYearPreference  Int?
   isActive   Boolean      @default(true)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt

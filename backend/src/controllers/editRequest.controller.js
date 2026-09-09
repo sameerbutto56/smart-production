@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const notify = require('../utils/notify');
+const { normalizeDateOnly } = require('../utils/workingHours');
 
 const getStoreDeadline = async (priority = 'NORMAL') => {
   const slaMultiplier = { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }[priority] || 1;
@@ -355,7 +356,8 @@ const approveEditRequest = async (req, res) => {
     // Map other order-level properties if present
     const fieldsToMap = [
       'customerName', 'customerPhone', 'address', 'city', 'type',
-      'priority', 'advancePaid', 'advanceAmount', 'logoDesign', 'logoName',
+      'priority', 'isPr', 'isPrOrder', 'advancePaid', 'advanceAmount', 'paymentStatus', 'balanceAmount',
+      'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
       'deliveryCharges', 'instructionNotes',
       'engravingInstructions', 'engravingRequired',
@@ -370,13 +372,15 @@ const approveEditRequest = async (req, res) => {
         if (String(oldVal) !== String(newVal)) {
           changedFields.push(`${field}: "${oldVal}" → "${newVal}"`);
         }
-        if (field === 'advancePaid') {
+        if (field === 'advancePaid' || field === 'isPr' || field === 'isPrOrder' || field === 'engravingRequired') {
           updateData[field] = !!requestedChanges[field];
         } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice', 'advanceAmount', 'deliveryCharges'].includes(field)) {
           updateData[field] = parseFloat(requestedChanges[field]) || 0;
+        } else if (field === 'balanceAmount') {
+          updateData[field] = requestedChanges[field] != null ? (parseFloat(requestedChanges[field]) || 0) : null;
         } else if (field === 'shopifyOrderDate') {
           // Never overwrite existing shopifyOrderDate with null or empty value
-          const parsed = requestedChanges[field] ? new Date(requestedChanges[field]) : null;
+          const parsed = requestedChanges[field] ? normalizeDateOnly(requestedChanges[field]) : null;
           updateData[field] = (parsed && !isNaN(parsed.getTime())) ? parsed : (order.shopifyOrderDate || null);
         } else {
           updateData[field] = requestedChanges[field];

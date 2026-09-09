@@ -95,7 +95,9 @@ const login = async (req, res) => {
         name: user.name,
         role: user.role,
         theme: user.theme || 'luxe',
-        dateFormatPreference: user.dateFormatPreference || 'DD/MM/YYYY'
+        dateFormatPreference: user.dateFormatPreference || 'DD/MM/YYYY',
+        shopifyMonthPreference: user.shopifyMonthPreference ?? null,
+        shopifyYearPreference: user.shopifyYearPreference ?? null
       }
     });
   } catch (error) {

@@ -1208,7 +1208,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   // ─── ORDER META BADGES ───
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">`);
   const badgeLabels = {
-    'PAID': isUrdu ? 'ادا شدہ' : 'PAID',
+    'PAID': isUrdu ? 'آرڈر ادا شدہ' : 'ORDER PAID',
+    'ORDER PAID': isUrdu ? 'آرڈر ادا شدہ' : 'ORDER PAID',
     'FULL_CUSTOM': isUrdu ? 'فل کسٹم' : 'FULL CUSTOM',
     'STANDARD': isUrdu ? 'اسٹینڈرڈ' : 'STANDARD',
     'READY_LOGO': isUrdu ? 'ریڈی لوگو' : 'READY LOGO',
@@ -1219,13 +1220,28 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     'DELIVERY': isUrdu ? 'ڈلیوری' : 'DELIVERY',
     'SELF_COLLECTION': isUrdu ? 'خود لینا' : 'SELF COLLECTION',
   };
-  const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(order.advanceAmount || 0) > 0 ? `COD: ${currency(Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)))}` : 'CASH ON DELIVERY';
+  const isPaidStatus = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
+  const isBalanceStatus = order.paymentStatus === 'BALANCE';
+  
+  let _payLabel;
+  if (isPaidStatus) {
+    _payLabel = 'ORDER PAID';
+  } else if (isBalanceStatus) {
+    const balAmt = order.balanceAmount != null ? order.balanceAmount : Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+    _payLabel = `ORDER BALANCE: ${currency(balAmt)}`;
+  } else if (parseFloat(order.advanceAmount || 0) > 0) {
+    _payLabel = `COD: ${currency(Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)))}`;
+  } else {
+    _payLabel = 'CASH ON DELIVERY';
+  }
+
   [order.type, order.priority, order.outletName || order.source, _payLabel, order.deliveryType].filter(Boolean).forEach(label => {
     let color = '#6b7280';
-    if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
+    if (label === 'ORDER PAID' || label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
     else if (label === 'SUPER_URGENT') color = '#dc2626';
     else if (label === 'URGENT') color = '#d97706';
     else if (label === 'OUTLET') color = '#7c3aed';
+    else if (typeof label === 'string' && label.startsWith('ORDER BALANCE')) color = '#dc2626';
     else if (label === 'CASH ON DELIVERY') color = '#dc2626';
     else if (label === 'DELIVERY') color = '#2563eb';
     else if (label === 'SELF_COLLECTION') color = '#8b5cf6';
@@ -1699,7 +1715,16 @@ export function printDispatchSheet(order, options = {}) {
     win.document.write(`<span style="font-weight:900">Grand Total</span>`);
     win.document.write(`<span style="font-weight:900">${currency(totalOrd)}</span>`);
     win.document.write(`</div>`);
-    if (advPay > 0) {
+    if (!isPaidStatus && isBalanceStatus) {
+      const bal = order.balanceAmount != null ? order.balanceAmount : Math.max(0, totalOrd - advPay);
+      if (advPay > 0) {
+        win.document.write(summaryRow('Advance Received', currency(advPay)));
+      }
+      win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
+      win.document.write(`<span style="font-weight:900">Remaining Balance</span>`);
+      win.document.write(`<span style="font-weight:900;color:#dc2626">${currency(bal)}</span>`);
+      win.document.write(`</div>`);
+    } else if (!isPaidStatus && advPay > 0) {
       win.document.write(summaryRow('Advance Received', currency(advPay)));
       const remaining = Math.max(0, totalOrd - advPay);
       win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
@@ -1707,11 +1732,11 @@ export function printDispatchSheet(order, options = {}) {
       win.document.write(`<span style="font-weight:900;color:#dc2626">${currency(remaining)}</span>`);
       win.document.write(`</div>`);
     }
-    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
-      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓ — No COD Due</div>`);
-    } else if (order.paymentStatus === 'BALANCE') {
+    if (isPaidStatus) {
+      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">ORDER PAID</div>`);
+    } else if (isBalanceStatus) {
       const bal = order.balanceAmount != null ? order.balanceAmount : Math.max(0, totalOrd - advPay);
-      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:20px;font-weight:900;color:#d97706">ORDER BALANCE: ${currency(bal)} — Partial Payment Remaining</div>`);
+      win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626">ORDER BALANCE: ${currency(bal)}</div>`);
     } else if (advPay > 0) {
       const codAmt = Math.max(0, totalOrd - advPay);
       win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:20px;font-weight:900;color:#d97706">COD: ${currency(codAmt)}</div>`);

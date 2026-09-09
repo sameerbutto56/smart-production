@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const notify = require('../utils/notify');
 const { getRolesForStage } = require('./order.controller');
 const { attachDelayInfoToOrders, DEFAULT_DELAY_CONFIG } = require('../utils/orderDelay');
+const { normalizeDateOnly } = require('../utils/workingHours');
 
 const loadDelayConfig = async () => {
   try {
@@ -313,7 +314,7 @@ const resubmitFromVerification = async (req, res) => {
     const updatableFields = [
       'productDetails', 'quantity', 'totalPrice', 'customization', 'sizeData',
       'customerName', 'customerPhone', 'address', 'city', 'type', 'priority',
-      'advancePaid', 'advanceAmount', 'paymentStatus',
+      'isPr', 'isPrOrder', 'advancePaid', 'advanceAmount', 'paymentStatus', 'balanceAmount',
       'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
       'deliveryCharges', 'deliveryType', 'instructionNotes',
@@ -323,8 +324,10 @@ const resubmitFromVerification = async (req, res) => {
     updatableFields.forEach(f => {
       if (updateData[f] !== undefined) {
         if (f === 'shopifyOrderDate') {
-          const parsed = updateData[f] ? new Date(updateData[f]) : null;
+          const parsed = updateData[f] ? normalizeDateOnly(updateData[f]) : null;
           payload[f] = (parsed && !isNaN(parsed.getTime())) ? parsed : (order.shopifyOrderDate || null);
+        } else if (f === 'balanceAmount') {
+          payload[f] = updateData[f] != null ? (parseFloat(updateData[f]) || 0) : null;
         } else {
           payload[f] = updateData[f];
         }

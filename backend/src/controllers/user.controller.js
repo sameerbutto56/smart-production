@@ -47,10 +47,18 @@ const getUserPreferences = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, dateFormatPreference: true, theme: true }
+      select: {
+        id: true,
+        dateFormatPreference: true,
+        shopifyMonthPreference: true,
+        shopifyYearPreference: true,
+        theme: true
+      }
     });
     res.json({
       dateFormatPreference: user?.dateFormatPreference || 'DD/MM/YYYY',
+      shopifyMonthPreference: user?.shopifyMonthPreference ?? null,
+      shopifyYearPreference: user?.shopifyYearPreference ?? null,
       theme: user?.theme || 'luxe'
     });
   } catch (error) {
@@ -60,7 +68,7 @@ const getUserPreferences = async (req, res) => {
 
 const updateUserPreferences = async (req, res) => {
   try {
-    const { dateFormatPreference, theme } = req.body;
+    const { dateFormatPreference, shopifyMonthPreference, shopifyYearPreference, theme } = req.body;
     const allowedFormats = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY/MM/DD'];
     if (dateFormatPreference && !allowedFormats.includes(dateFormatPreference)) {
       return res.status(400).json({
@@ -72,15 +80,40 @@ const updateUserPreferences = async (req, res) => {
     if (dateFormatPreference) data.dateFormatPreference = dateFormatPreference;
     if (theme) data.theme = theme;
 
+    if (shopifyMonthPreference !== undefined && shopifyMonthPreference !== null) {
+      const m = parseInt(shopifyMonthPreference, 10);
+      if (isNaN(m) || m < 1 || m > 12) {
+        return res.status(400).json({ message: 'Month preference must be an integer between 1 and 12.' });
+      }
+      data.shopifyMonthPreference = m;
+    }
+
+    if (shopifyYearPreference !== undefined && shopifyYearPreference !== null) {
+      const y = parseInt(shopifyYearPreference, 10);
+      if (isNaN(y) || y < 2000 || y > 2100) {
+        return res.status(400).json({ message: 'Year preference must be an integer between 2000 and 2100.' });
+      }
+      data.shopifyYearPreference = y;
+    }
+
     const updated = await prisma.user.update({
       where: { id: req.user.id },
       data,
-      select: { id: true, name: true, dateFormatPreference: true, theme: true }
+      select: {
+        id: true,
+        name: true,
+        dateFormatPreference: true,
+        shopifyMonthPreference: true,
+        shopifyYearPreference: true,
+        theme: true
+      }
     });
 
     res.json({
       message: 'Preferences updated successfully',
       dateFormatPreference: updated.dateFormatPreference,
+      shopifyMonthPreference: updated.shopifyMonthPreference,
+      shopifyYearPreference: updated.shopifyYearPreference,
       theme: updated.theme
     });
   } catch (error) {

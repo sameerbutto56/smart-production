@@ -23,10 +23,15 @@ export const AuthProvider = ({ children }) => {
       // Synchronize latest preferences from DB in the background
       api.get('/api/users/me/preferences')
         .then(res => {
-          if (res.data?.dateFormatPreference) {
+          if (res.data) {
             setUser(prev => {
               if (!prev) return prev;
-              const updated = { ...prev, dateFormatPreference: res.data.dateFormatPreference };
+              const updated = {
+                ...prev,
+                ...(res.data.dateFormatPreference ? { dateFormatPreference: res.data.dateFormatPreference } : {}),
+                ...(res.data.shopifyMonthPreference !== undefined ? { shopifyMonthPreference: res.data.shopifyMonthPreference } : {}),
+                ...(res.data.shopifyYearPreference !== undefined ? { shopifyYearPreference: res.data.shopifyYearPreference } : {})
+              };
               sessionStorage.setItem('user', JSON.stringify(updated));
               return updated;
             });
@@ -54,6 +59,33 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const updateShopifyMonthYearPreference = useCallback(async (month, year) => {
+    try {
+      const payload = {};
+      if (month != null) payload.shopifyMonthPreference = parseInt(month, 10);
+      if (year != null) payload.shopifyYearPreference = parseInt(year, 10);
+
+      const res = await api.put('/api/users/me/preferences', payload);
+      const newMonth = res.data?.shopifyMonthPreference ?? payload.shopifyMonthPreference;
+      const newYear = res.data?.shopifyYearPreference ?? payload.shopifyYearPreference;
+
+      setUser(prev => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          shopifyMonthPreference: newMonth,
+          shopifyYearPreference: newYear
+        };
+        sessionStorage.setItem('user', JSON.stringify(updated));
+        return updated;
+      });
+      return { success: true, shopifyMonthPreference: newMonth, shopifyYearPreference: newYear };
+    } catch (err) {
+      console.error('Failed to update shopify month/year preference:', err);
+      return { success: false, error: err.response?.data?.message || err.message };
+    }
+  }, []);
+
   const login = useCallback(async (email, password, extra = {}) => {
     try {
       const device = getDeviceInfo();
@@ -77,9 +109,6 @@ export const AuthProvider = ({ children }) => {
   }, [joinRoleRoom]);
 
   const logout = useCallback(() => {
-    // Fire-and-forget: tell the backend to close the active login session so
-    // Admin Dashboard / Software Settings login-time records show LOGGED_OUT.
-    // Never blocks sign-out if the call fails.
     try {
       const token = sessionStorage.getItem('token');
       if (token) {
@@ -94,6 +123,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const dateFormatPreference = user?.dateFormatPreference || 'DD/MM/YYYY';
+  const shopifyMonthPreference = user?.shopifyMonthPreference ?? null;
+  const shopifyYearPreference = user?.shopifyYearPreference ?? null;
 
   const value = useMemo(() => ({
     user,
@@ -101,8 +132,11 @@ export const AuthProvider = ({ children }) => {
     logout,
     loading,
     dateFormatPreference,
-    updateDateFormatPreference
-  }), [user, login, logout, loading, dateFormatPreference, updateDateFormatPreference]);
+    shopifyMonthPreference,
+    shopifyYearPreference,
+    updateDateFormatPreference,
+    updateShopifyMonthYearPreference
+  }), [user, login, logout, loading, dateFormatPreference, shopifyMonthPreference, shopifyYearPreference, updateDateFormatPreference, updateShopifyMonthYearPreference]);
 
   return (
     <AuthContext.Provider value={value}>

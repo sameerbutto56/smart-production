@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Hash, User, Phone, Star, Layout, Search, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
-import { getDateFormatPlaceholder, formatDateWithPreference } from '../utils/dateFormat';
+import { getDateFormatPlaceholder, formatDateWithPreference, MONTHS_LIST, YEARS_LIST, getDaysInMonth } from '../utils/dateFormat';
 
 const BasicInfoTab = () => {
   const {
@@ -13,12 +13,57 @@ const BasicInfoTab = () => {
     orderLookupResult, orderLookupLoading, lookupOrderByNumber,
     setCartItems, setOriginalOrder,
     activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS,
+    shopifyMonthPreference, shopifyYearPreference, updateShopifyMonthYearPreference,
     togglePrMode, prLoading
   } = useOrderEntry();
 
   const [shopifyInput, setShopifyInput] = useState(() => fmtDate(formData.shopifyOrderDate));
   const orderNumberDebounceRef = useRef(null);
   const lastLookupRef = useRef('');
+
+  const curMonth = formData.shopifyOrderDate
+    ? (new Date(formData.shopifyOrderDate).getUTCMonth() + 1)
+    : (shopifyMonthPreference || (new Date().getUTCMonth() + 1));
+  const curYear = formData.shopifyOrderDate
+    ? new Date(formData.shopifyOrderDate).getUTCFullYear()
+    : (shopifyYearPreference || new Date().getUTCFullYear());
+
+  // Prefill default date if empty using saved Month & Year preference
+  useEffect(() => {
+    if (!formData.shopifyOrderDate && !isOutlet && shopifyMonthPreference && shopifyYearPreference) {
+      const today = new Date();
+      const safeDay = Math.min(today.getUTCDate(), getDaysInMonth(shopifyMonthPreference, shopifyYearPreference));
+      const initIso = new Date(Date.UTC(shopifyYearPreference, shopifyMonthPreference - 1, safeDay, 0, 0, 0, 0)).toISOString();
+      setFormData(s => ({ ...s, shopifyOrderDate: initIso }));
+      setShopifyInput(fmtDate(initIso));
+    }
+  }, [shopifyMonthPreference, shopifyYearPreference, isOutlet, formData.shopifyOrderDate, fmtDate, setFormData]);
+
+  const handleMonthChange = async (newM) => {
+    const m = parseInt(newM, 10);
+    if (isNaN(m) || m < 1 || m > 12) return;
+    const y = curYear;
+    await updateShopifyMonthYearPreference(m, y);
+    const curDay = formData.shopifyOrderDate ? new Date(formData.shopifyOrderDate).getUTCDate() : new Date().getUTCDate();
+    const safeDay = Math.min(curDay, getDaysInMonth(m, y));
+    const newIso = new Date(Date.UTC(y, m - 1, safeDay, 0, 0, 0, 0)).toISOString();
+    setFormData(s => ({ ...s, shopifyOrderDate: newIso }));
+    setShopifyInput(fmtDate(newIso));
+    clearFieldError('shopifyOrderDate');
+  };
+
+  const handleYearChange = async (newY) => {
+    const y = parseInt(newY, 10);
+    if (isNaN(y) || y < 2000 || y > 2100) return;
+    const m = curMonth;
+    await updateShopifyMonthYearPreference(m, y);
+    const curDay = formData.shopifyOrderDate ? new Date(formData.shopifyOrderDate).getUTCDate() : new Date().getUTCDate();
+    const safeDay = Math.min(curDay, getDaysInMonth(m, y));
+    const newIso = new Date(Date.UTC(y, m - 1, safeDay, 0, 0, 0, 0)).toISOString();
+    setFormData(s => ({ ...s, shopifyOrderDate: newIso }));
+    setShopifyInput(fmtDate(newIso));
+    clearFieldError('shopifyOrderDate');
+  };
 
   useEffect(() => {
     setShopifyInput(fmtDate(formData.shopifyOrderDate));
@@ -273,32 +318,67 @@ const BasicInfoTab = () => {
               <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>
                 {useUrdu ? 'شاپیفائے آرڈر کی تاریخ' : 'Shopify Order Date'} {!isOutlet && <span className="text-red-500">*</span>}
               </label>
-              <div className="flex items-center gap-1 bg-gray-950/80 p-1 rounded-xl border border-gray-800">
-                <span className="text-[10px] font-black text-gray-500 uppercase px-1.5">{useUrdu ? 'فارمیٹ:' : 'Format:'}</span>
-                {(SUPPORTED_DATE_FORMATS || ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY/MM/DD']).map(fmt => {
-                  const isSelected = activeDateFormat === fmt;
-                  return (
-                    <button
-                      key={fmt}
-                      type="button"
-                      onClick={async () => {
-                        if (isSelected) return;
-                        await updateDateFormatPreference(fmt);
-                        if (formData.shopifyOrderDate) {
-                          setShopifyInput(formatDateWithPreference(formData.shopifyOrderDate, fmt, true));
-                        }
-                      }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                        isSelected
-                          ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
-                          : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
-                      }`}
-                      title={`Select ${fmt} format`}
-                    >
-                      {fmt}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-wrap items-center gap-1.5 bg-gray-950/80 p-1 rounded-xl border border-gray-800">
+                {/* Month Dropdown */}
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-900 border border-gray-700/60">
+                  <span className="text-[10px] font-black text-purple-400 uppercase">{useUrdu ? 'مہینہ:' : 'Month:'}</span>
+                  <select
+                    value={curMonth}
+                    onChange={(e) => handleMonthChange(e.target.value)}
+                    className="bg-transparent text-[11px] font-black text-white outline-none cursor-pointer pr-1 py-0.5"
+                  >
+                    {MONTHS_LIST.map(m => (
+                      <option key={m.value} value={m.value} className="bg-gray-900 text-white">
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Year Dropdown */}
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-900 border border-gray-700/60">
+                  <span className="text-[10px] font-black text-purple-400 uppercase">{useUrdu ? 'سال:' : 'Year:'}</span>
+                  <select
+                    value={curYear}
+                    onChange={(e) => handleYearChange(e.target.value)}
+                    className="bg-transparent text-[11px] font-black text-white outline-none cursor-pointer pr-1 py-0.5"
+                  >
+                    {YEARS_LIST.map(y => (
+                      <option key={y} value={y} className="bg-gray-900 text-white">
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Formats */}
+                <div className="flex items-center gap-1 pl-1 border-l border-gray-800">
+                  <span className="text-[10px] font-black text-gray-500 uppercase px-1">{useUrdu ? 'فارمیٹ:' : 'Format:'}</span>
+                  {(SUPPORTED_DATE_FORMATS || ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY/MM/DD']).map(fmt => {
+                    const isSelected = activeDateFormat === fmt;
+                    return (
+                      <button
+                        key={fmt}
+                        type="button"
+                        onClick={async () => {
+                          if (isSelected) return;
+                          await updateDateFormatPreference(fmt);
+                          if (formData.shopifyOrderDate) {
+                            setShopifyInput(formatDateWithPreference(formData.shopifyOrderDate, fmt, false));
+                          }
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                          isSelected
+                            ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+                        }`}
+                        title={`Select ${fmt} format`}
+                      >
+                        {fmt}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <div className="relative group">
@@ -315,19 +395,33 @@ const BasicInfoTab = () => {
                   setShopifyInput(val);
                   clearFieldError('shopifyOrderDate');
                   const iso = parseDate(val);
-                  if (iso) setFormData(s => ({ ...s, shopifyOrderDate: iso }));
+                  if (iso) {
+                    setFormData(s => ({ ...s, shopifyOrderDate: iso }));
+                    const d = new Date(iso);
+                    const m = d.getUTCMonth() + 1;
+                    const y = d.getUTCFullYear();
+                    if (m !== shopifyMonthPreference || y !== shopifyYearPreference) {
+                      updateShopifyMonthYearPreference(m, y);
+                    }
+                  }
                 }}
                 onBlur={() => {
                   const iso = parseDate(shopifyInput);
                   if (iso) {
                     setFormData(s => ({ ...s, shopifyOrderDate: iso }));
                     setShopifyInput(fmtDate(iso));
+                    const d = new Date(iso);
+                    const m = d.getUTCMonth() + 1;
+                    const y = d.getUTCFullYear();
+                    if (m !== shopifyMonthPreference || y !== shopifyYearPreference) {
+                      updateShopifyMonthYearPreference(m, y);
+                    }
                   } else if (formData.shopifyOrderDate) {
                     setShopifyInput(fmtDate(formData.shopifyOrderDate));
                   }
                 }}
                 style={errStyle(requiredErrors?.shopifyOrderDate)}
-                placeholder={getDateFormatPlaceholder(activeDateFormat, true)}
+                placeholder={getDateFormatPlaceholder(activeDateFormat, false)}
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
                 required={!isOutlet}
               />

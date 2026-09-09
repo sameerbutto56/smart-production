@@ -373,6 +373,29 @@ const computeWorkingDeadline = (startMs, allowedHours) => {
   return currentMs;
 };
 
+/**
+ * Normalizes an arbitrary date value into a pure UTC midnight Date instance (00:00:00.000Z).
+ * Strips any time component and prevents timezone conversion drift.
+ * @param {Date|string|number} val
+ * @returns {Date|null}
+ */
+const normalizeDateOnly = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const match = trimmed.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10);
+      const day = parseInt(match[3], 10);
+      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    }
+  }
+  const d = val instanceof Date ? val : new Date(val);
+  if (isNaN(d.getTime())) return null;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+};
+
 module.exports = {
   WORK_START_HOUR,
   WORK_END_HOUR,
@@ -387,5 +410,6 @@ module.exports = {
   pktDayEnd,
   dateBoundToMs,
   resolvePktDateRange,
+  normalizeDateOnly,
 };
 
