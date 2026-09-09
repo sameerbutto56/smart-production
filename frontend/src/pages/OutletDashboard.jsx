@@ -49,7 +49,7 @@ const DatePresetButtons = ({ value, onChange }) => {
     { label: '7 Days', value: 'week' },
     { label: '30 Days', value: 'month' },
     { label: '3 Months', value: '3m' },
-    { label: 'All Time', value: '' }
+    { label: 'All Time', value: 'all' }
   ];
   return (
     <div className="flex flex-wrap gap-2">
@@ -148,7 +148,7 @@ const OutletDashboard = () => {
   const outletName = getOutletName(user);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showTabDropdown, setShowTabDropdown] = useState(false);
-  const [datePreset, setDatePreset] = useState('');
+  const [datePreset, setDatePreset] = useState('today');
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState(null);
@@ -173,8 +173,9 @@ const OutletDashboard = () => {
     setAnalyticsLoading(true);
     setAnalyticsError(null);
     try {
-      const { dateFrom, dateTo } = getDateRange(preset);
-      const params = { range: preset || 'all' };
+      const activePreset = preset || 'today';
+      const { dateFrom, dateTo } = getDateRange(activePreset);
+      const params = { range: activePreset };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
       const res = await api.get('/api/outlet-orders/analytics', { params });
@@ -281,7 +282,7 @@ const OutletDashboard = () => {
     const now = new Date();
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
-    if (!preset) return { dateFrom: undefined, dateTo: undefined };
+    if (!preset || preset === 'all') return { dateFrom: undefined, dateTo: undefined };
     if (preset === 'today') return { dateFrom: start.toISOString(), dateTo: now.toISOString() };
     if (preset === 'yesterday') { start.setDate(start.getDate() - 1); const end = new Date(start); end.setHours(23, 59, 59, 999); return { dateFrom: start.toISOString(), dateTo: end.toISOString() }; }
     if (preset === 'week') { start.setDate(start.getDate() - 7); return { dateFrom: start.toISOString(), dateTo: now.toISOString() }; }
@@ -490,8 +491,8 @@ const OutletDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <ChartCard title="Revenue Trend" icon={TrendingUp}>
               {salesTrend.length > 0 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <AreaChart data={salesTrend} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4}/><stop offset="100%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
@@ -512,8 +513,8 @@ const OutletDashboard = () => {
 
             <ChartCard title="Orders Trend" icon={ShoppingCart}>
               {ordersTrend.length > 0 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <AreaChart data={ordersTrend} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="ordGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.4}/><stop offset="100%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
@@ -535,8 +536,8 @@ const OutletDashboard = () => {
           {/* Three Column: Payment Status, Order Status, Inventory */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <ChartCard title="Payment Status" icon={CreditCard}>
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-52 min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie data={[
                       { name: 'Paid', value: paymentBD.paidOrders || 0 },
@@ -553,9 +554,9 @@ const OutletDashboard = () => {
             </ChartCard>
 
             <ChartCard title="Order Status" icon={Layers}>
-              <div className="h-52">
+              <div className="h-52 min-w-0">
                 {statusData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <PieChart>
                       <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
                         {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
@@ -603,8 +604,8 @@ const OutletDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <ChartCard title="Top Selling Products" icon={Award} className="md:col-span-1">
               {topProducts.length > 0 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={topProducts.slice(0, 8)} layout="vertical" margin={{ left: 70, right: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" strokeOpacity={0.5} horizontal={false} />
                       <XAxis type="number" stroke="#4b5563" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />

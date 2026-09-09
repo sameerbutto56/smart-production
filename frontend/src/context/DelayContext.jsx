@@ -41,8 +41,9 @@ export const DelayProvider = ({ children }) => {
   const refreshDelayConfig = useCallback(async () => {
     try {
       const res = await api.get('/api/software-settings/delay-config');
-      if (res.data?.config) {
-        setDelayConfig((prev) => ({ ...prev, ...res.data.config }));
+      const cfg = res.data?.config || (res.data && typeof res.data === 'object' && !Array.isArray(res.data) ? res.data : null);
+      if (cfg) {
+        setDelayConfig((prev) => ({ ...prev, ...cfg }));
       }
     } catch (e) {
       // Non-critical, keep fallback default

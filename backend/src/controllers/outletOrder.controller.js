@@ -940,7 +940,7 @@ const lookupOrderWithFinancials = async (req, res) => {
 const getOutletAnalytics = async (req, res) => {
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    const { range = 'all', dateFrom, dateTo } = req.query;
+    const { range = 'today', dateFrom, dateTo } = req.query;
 
     const cacheKey = `outlet:analytics:${outletName}:${range}:${dateFrom || ''}:${dateTo || ''}`;
     const cached = cache.get(cacheKey);
@@ -955,44 +955,80 @@ const getOutletAnalytics = async (req, res) => {
     const orderWhere = { source: 'OUTLET', outletName };
     if (startDate || endDate) orderWhere.createdAt = dateFilter;
 
-    // 1. Order KPIs
-    const [totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders] = await Promise.all([
+    // Concurrently fetch counts, orders, linked sales, POS summary, and inventory
+    const [
+      totalOrders,
+      pendingOrders,
+      inProgressOrders,
+      completedOrders,
+      cancelledOrders,
+      orders,
+      linkedPosSales,
+      posUnified,
+      inventory
+    ] = await Promise.all([
       prisma.order.count({ where: orderWhere }),
       prisma.order.count({ where: { ...orderWhere, status: 'PENDING' } }),
       prisma.order.count({ where: { ...orderWhere, status: 'IN_PROGRESS' } }),
       prisma.order.count({ where: { ...orderWhere, status: 'COMPLETED' } }),
-      prisma.order.count({ where: { ...orderWhere, status: { in: ['CANCELLED', 'REJECTED'] } } })
+      prisma.order.count({ where: { ...orderWhere, status: { in: ['CANCELLED', 'REJECTED'] } } }),
+      prisma.order.findMany({
+        where: orderWhere,
+        select: {
+          id: true,
+          createdAt: true,
+          totalPrice: true,
+          paymentStatus: true,
+          type: true,
+          productDetails: true
+        },
+        orderBy: { createdAt: 'desc' },
+        take: (startDate || endDate) ? undefined : 1500
+      }),
+      prisma.posSale.findMany({
+        where: {
+          outletName,
+          orderId: { not: null },
+          ...(startDate || endDate ? { createdAt: dateFilter } : {})
+        },
+        select: {
+          id: true,
+          orderId: true,
+          grandTotal: true,
+          advanceAmount: true,
+          balancePayments: { select: { amountPaidNow: true } }
+        }
+      }),
+      computeUnifiedSalesSummary(prisma, {
+        outlet: outletName,
+        start: startDate,
+        end: endDate,
+      }),
+      prisma.outletInventory.findMany({
+        where: outletName ? { outletName } : {},
+        select: { stock: true, name: true }
+      })
     ]);
 
-    // 2. Payment status breakdown — use real data from linked PosSales
-    const orderIds = (await prisma.order.findMany({
-      where: orderWhere,
-      select: { id: true, paymentStatus: true, totalPrice: true }
-    }));
-
-    const linkedPosSales = await prisma.posSale.findMany({
-      where: { orderId: { in: orderIds.map(o => o.id).filter(Boolean) } },
-      select: { id: true, orderId: true, grandTotal: true, advanceAmount: true }
-    });
+    // Build PosSale and Balance map
     const linkedPosMap = {};
-    linkedPosSales.forEach(ps => { linkedPosMap[ps.orderId] = ps; });
-
-    // Also fetch balance payments for linked PosSales
-    const bpSales = await prisma.posBalancePayment.findMany({
-      where: { posSaleId: { in: linkedPosSales.map(ps => ps.id) } },
-      select: { posSaleId: true, amountPaidNow: true }
-    });
     const bpMap = {};
-    bpSales.forEach(bp => {
-      if (!bpMap[bp.posSaleId]) bpMap[bp.posSaleId] = 0;
-      bpMap[bp.posSaleId] += Number(bp.amountPaidNow || 0);
+    linkedPosSales.forEach(ps => {
+      if (ps.orderId) linkedPosMap[ps.orderId] = ps;
+      const bpSum = (ps.balancePayments || []).reduce((sum, bp) => sum + Number(bp.amountPaidNow || 0), 0);
+      bpMap[ps.id] = bpSum;
     });
 
     let paidOrders = 0;
     let pendingPaymentOrders = 0;
     let totalRevenue = 0;
+    const typeDist = {};
+    const dailyTrend = {};
+    const orderTrend = {};
+    const productCounts = {};
 
-    orderIds.forEach(o => {
+    orders.forEach(o => {
+      // Payment status
       const ps = linkedPosMap[o.id];
       const totalPaid = (ps ? Number(ps.advanceAmount || 0) + (bpMap[ps.id] || 0) : 0);
       const isPaid = ['PAID', 'FULL_PAID'].includes(o.paymentStatus) ||
@@ -1006,41 +1042,33 @@ const getOutletAnalytics = async (req, res) => {
       } else {
         pendingPaymentOrders++;
       }
-    });
 
-    // 3. Order type distribution
-    const orders = await prisma.order.findMany({
-      where: orderWhere,
-      select: { createdAt: true, totalPrice: true, paymentStatus: true, type: true }
-    });
-
-    // Order type distribution
-    const typeDist = {};
-    orders.forEach(o => {
+      // Order type distribution
       const t = o.type || 'STANDARD';
       typeDist[t] = (typeDist[t] || 0) + 1;
-    });
-    const orderTypeDistribution = Object.entries(typeDist).map(([name, count]) => ({ name, count }));
 
-    // 4. Daily revenue + order trends
-    const paymentStatusMap = {};
-    orderIds.forEach(o => {
-      const ps = linkedPosMap[o.id];
-      const totalPaid = (ps ? Number(ps.advanceAmount || 0) + (bpMap[ps.id] || 0) : 0);
-      paymentStatusMap[o.id] = ['PAID', 'FULL_PAID'].includes(o.paymentStatus) ||
-        (ps && totalPaid >= Number(o.totalPrice || 0));
-    });
-
-    const dailyTrend = {};
-    const orderTrend = {};
-    orders.forEach(o => {
-      if (o.totalPrice && paymentStatusMap[o.id]) {
-        const day = o.createdAt.toISOString().split('T')[0];
-        dailyTrend[day] = (dailyTrend[day] || 0) + Number(o.totalPrice);
+      // Daily trends
+      const day = o.createdAt ? o.createdAt.toISOString().split('T')[0] : '';
+      if (day) {
+        if (o.totalPrice && isPaid) {
+          dailyTrend[day] = (dailyTrend[day] || 0) + Number(o.totalPrice);
+        }
+        orderTrend[day] = (orderTrend[day] || 0) + 1;
       }
-      const day = o.createdAt.toISOString().split('T')[0];
-      orderTrend[day] = (orderTrend[day] || 0) + 1;
+
+      // Product counts from productDetails JSON
+      if (o.productDetails) {
+        try {
+          const details = o.productDetails;
+          (Array.isArray(details) ? details : [details]).forEach(p => {
+            const name = p.name || p.productName || 'Unknown';
+            productCounts[name] = (productCounts[name] || 0) + (parseInt(p.quantity) || 1);
+          });
+        } catch (e) { /* skip malformed */ }
+      }
     });
+
+    const orderTypeDistribution = Object.entries(typeDist).map(([name, count]) => ({ name, count }));
 
     const salesTrend = Object.entries(dailyTrend)
       .map(([date, revenue]) => ({ date, revenue: Math.round(revenue) }))
@@ -1050,50 +1078,20 @@ const getOutletAnalytics = async (req, res) => {
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // 5. Top products from outlet orders (productDetails JSON)
-    const ordersWithProducts = await prisma.order.findMany({
-      where: { ...orderWhere, productDetails: { not: null } },
-      select: { productDetails: true }
-    });
-    const productCounts = {};
-    ordersWithProducts.forEach(o => {
-      try {
-        const details = o.productDetails;
-        (Array.isArray(details) ? details : [details]).forEach(p => {
-          const name = p.name || p.productName || 'Unknown';
-          productCounts[name] = (productCounts[name] || 0) + (parseInt(p.quantity) || 1);
-        });
-      } catch (e) { /* skip malformed */ }
-    });
     const topProducts = Object.entries(productCounts)
       .map(([name, qty]) => ({ name, qty }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 10);
 
-    // 6. POS summary — UNIFIED calculation (same source as POS Dashboard + Admin
-    //    Outlet Detailed). Faisal Takes excluded, balance payments on paidAt.
-    const posUnified = await computeUnifiedSalesSummary(prisma, {
-      outlet: outletName,
-      start: startDate,
-      end: endDate,
-    });
-    const posTotal = posUnified.totalSales;
-    const posCount = posUnified.totalOrders;
+    const posTotal = posUnified.totalSales || 0;
+    const posCount = posUnified.totalOrders || 0;
     const posGross = posUnified.grossSales || posTotal;
 
-    // 7. Inventory overview
-    const invWhere = outletName ? { outletName } : {};
-    const inventory = await prisma.outletInventory.findMany({
-      where: invWhere,
-      select: { stock: true, name: true }
-    });
     const inStock = inventory.filter(i => i.stock > 5).length;
     const lowStock = inventory.filter(i => i.stock > 0 && i.stock <= 5).length;
     const outOfStock = inventory.filter(i => i.stock === 0).length;
 
-    // Cache — longer for 'all' since aggregate data rarely changes
-    const ttl = range === 'all' ? 600000 : 120000;
-    cache.set(cacheKey, {
+    const payload = {
       orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
       paymentBreakdown: { paidOrders, pendingPaymentOrders },
       orderTypeDistribution,
@@ -1102,18 +1100,12 @@ const getOutletAnalytics = async (req, res) => {
       topProducts,
       posSummary: { totalSales: posTotal, grossSales: posGross, totalDiscount: posUnified.totalDiscount || 0, orderCount: posCount },
       inventoryOverview: { inStock, lowStock, outOfStock, total: inventory.length }
-    }, ttl);
+    };
 
-    res.json({
-      orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
-      paymentBreakdown: { paidOrders, pendingPaymentOrders },
-      orderTypeDistribution,
-      salesTrend,
-      ordersTrend,
-      topProducts,
-      posSummary: { totalSales: posTotal, grossSales: posGross, totalDiscount: posUnified.totalDiscount || 0, orderCount: posCount },
-      inventoryOverview: { inStock, lowStock, outOfStock, total: inventory.length }
-    });
+    const ttl = range === 'all' ? 600000 : 120000;
+    cache.set(cacheKey, payload, ttl);
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching outlet analytics', error: error.message });
   }

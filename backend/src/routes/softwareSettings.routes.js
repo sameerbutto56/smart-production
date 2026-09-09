@@ -39,8 +39,8 @@ router.post('/payment-change', authenticate, authorize('SOFTWARE_SETTINGS'), cha
 router.get('/delete-invoice/lookup', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), lookupInvoiceForDeletion);
 router.post('/delete-invoice/permanent', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), deleteInvoicePermanently);
 
-// Delay threshold configuration — read: any authenticated user; write: SOFTWARE_SETTINGS only
-router.get('/delay-config', authenticate, getDelayConfig);
+// Delay threshold configuration — read: any user (public thresholds for real-time frontend calculations); write: SOFTWARE_SETTINGS only
+router.get('/delay-config', getDelayConfig);
 router.post('/delay-config', authenticate, authorize('SOFTWARE_SETTINGS'), updateDelayConfig);
 
 // Order range configuration — read: any authenticated user; write: SOFTWARE_SETTINGS only
