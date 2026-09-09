@@ -314,7 +314,7 @@ const resubmitFromVerification = async (req, res) => {
     const updatableFields = [
       'productDetails', 'quantity', 'totalPrice', 'customization', 'sizeData',
       'customerName', 'customerPhone', 'address', 'city', 'type', 'priority',
-      'isPr', 'isPrOrder', 'advancePaid', 'advanceAmount', 'paymentStatus', 'balanceAmount',
+      'advancePaid', 'advanceAmount', 'paymentStatus', 'balanceAmount',
       'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
       'deliveryCharges', 'deliveryType', 'instructionNotes',
@@ -328,11 +328,25 @@ const resubmitFromVerification = async (req, res) => {
           payload[f] = (parsed && !isNaN(parsed.getTime())) ? parsed : (order.shopifyOrderDate || null);
         } else if (f === 'balanceAmount') {
           payload[f] = updateData[f] != null ? (parseFloat(updateData[f]) || 0) : null;
+        } else if (f === 'customization' || f === 'sizeData') {
+          payload[f] = (typeof updateData[f] === 'object' && updateData[f] !== null)
+            ? JSON.stringify(updateData[f])
+            : (updateData[f] || null);
+        } else if (f === 'quantity') {
+          payload[f] = parseInt(updateData[f], 10) || 1;
+        } else if (['totalPrice', 'advanceAmount', 'logoCharges', 'namePrintingCharges', 'customizationPrice', 'deliveryCharges'].includes(f)) {
+          payload[f] = parseFloat(updateData[f]) || 0;
+        } else if (f === 'advancePaid' || f === 'engravingRequired') {
+          payload[f] = !!updateData[f];
         } else {
           payload[f] = updateData[f];
         }
       }
     });
+
+    if (updateData.isPrOrder !== undefined || updateData.isPr !== undefined) {
+      payload.isPrOrder = !!(updateData.isPrOrder ?? updateData.isPr);
+    }
 
     // If financialSummary is provided, use its total as the effective totalPrice
     if (updateData.financialSummary) {

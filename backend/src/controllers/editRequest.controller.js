@@ -356,7 +356,7 @@ const approveEditRequest = async (req, res) => {
     // Map other order-level properties if present
     const fieldsToMap = [
       'customerName', 'customerPhone', 'address', 'city', 'type',
-      'priority', 'isPr', 'isPrOrder', 'advancePaid', 'advanceAmount', 'paymentStatus', 'balanceAmount',
+      'priority', 'advancePaid', 'advanceAmount', 'paymentStatus', 'balanceAmount',
       'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
       'deliveryCharges', 'instructionNotes',
@@ -372,7 +372,7 @@ const approveEditRequest = async (req, res) => {
         if (String(oldVal) !== String(newVal)) {
           changedFields.push(`${field}: "${oldVal}" → "${newVal}"`);
         }
-        if (field === 'advancePaid' || field === 'isPr' || field === 'isPrOrder' || field === 'engravingRequired') {
+        if (field === 'advancePaid' || field === 'engravingRequired') {
           updateData[field] = !!requestedChanges[field];
         } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice', 'advanceAmount', 'deliveryCharges'].includes(field)) {
           updateData[field] = parseFloat(requestedChanges[field]) || 0;
@@ -387,6 +387,14 @@ const approveEditRequest = async (req, res) => {
         }
       }
     });
+
+    if (requestedChanges.isPrOrder !== undefined || requestedChanges.isPr !== undefined) {
+      const isPrVal = !!(requestedChanges.isPrOrder ?? requestedChanges.isPr);
+      if (order.isPrOrder !== isPrVal) {
+        changedFields.push(`isPrOrder: "${order.isPrOrder}" → "${isPrVal}"`);
+      }
+      updateData.isPrOrder = isPrVal;
+    }
 
     const updatedOrder = await prisma.order.update({
       where: { id: order.id },
