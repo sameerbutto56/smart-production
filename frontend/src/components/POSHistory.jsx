@@ -107,6 +107,66 @@ const POSHistory = () => {
   const totalBPSales = filteredSales?.length || 0;
   const anyLoading = salesLoading || bpLoading || geLoading;
 
+  // Real-time financial summary metrics for the active filtered timeline
+  const summaryMetrics = React.useMemo(() => {
+    let cash = 0, card = 0, online = 0, totalReceived = 0, totalReturns = 0;
+    (filteredSales || []).forEach(s => {
+      const rec = s._amountReceived != null ? s._amountReceived : (s.grandTotal || 0);
+      totalReceived += rec;
+      if (s.paymentMethod === 'CASH') cash += rec;
+      else if (s.paymentMethod === 'CARD') card += rec;
+      else if (s.paymentMethod === 'ONLINE') online += rec;
+      else if (s.paymentMethod === 'CASH_ONLINE') {
+        const c = s.cashAmount || 0;
+        const o = s.onlineAmount || 0;
+        const declared = c + o;
+        if (declared > 0 && Math.abs(declared - rec) > 0.5) {
+          const ratio = rec / declared;
+          const scaledCash = Math.round(c * ratio);
+          cash += scaledCash;
+          online += (rec - scaledCash);
+        } else if (declared === 0) {
+          const half = Math.round(rec / 2);
+          cash += half;
+          online += (rec - half);
+        } else {
+          cash += c;
+          online += o;
+        }
+      } else {
+        cash += rec;
+      }
+      (s.returns || []).forEach(r => { totalReturns += (r.refundAmount || 0); });
+    });
+
+    (filteredBalancePayments || []).forEach(bp => {
+      const amt = bp.amountPaidNow || 0;
+      totalReceived += amt;
+      if (bp.paymentMethod === 'CASH_ONLINE') {
+        const c = bp.cashAmount ?? Math.round(amt / 2);
+        const o = bp.onlineAmount ?? (amt - c);
+        cash += c;
+        online += o;
+      } else if (bp.paymentMethod === 'CARD') {
+        card += amt;
+      } else if (bp.paymentMethod === 'ONLINE') {
+        online += amt;
+      } else {
+        cash += amt;
+      }
+    });
+
+    return {
+      cash,
+      card,
+      online,
+      totalReceived,
+      totalReturns,
+      netRevenue: Math.max(0, totalReceived - totalReturns - totalGE),
+      netCash: cash - totalGE,
+    };
+  }, [filteredSales, filteredBalancePayments, totalGE]);
+
   const filterTabs = [
     { key: 'all', label: 'All', icon: ShoppingCart, badge: totalBPSales + filteredBalancePayments.length + filteredGeneralEntries.length, activeBg: 'bg-purple-700', activeBorder: 'border-purple-500' },
     { key: 'general', label: 'General', icon: FileText, badge: filteredGeneralEntries.length, activeBg: 'bg-orange-700', activeBorder: 'border-orange-500' },
@@ -152,6 +212,36 @@ const POSHistory = () => {
         </div>
         <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1"><Download size={14} />Excel</button>
       </div>
+
+      {/* Financial Summary KPI Banner */}
+      {!anyLoading && (summaryMetrics.totalReceived > 0 || totalGE > 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+          <div className="bg-gray-900/90 border border-purple-500/30 rounded-xl p-2.5">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Total Received</p>
+            <p className="text-sm font-black text-white mt-0.5">{formatCurrency(summaryMetrics.totalReceived)}</p>
+          </div>
+          <div className="bg-gray-900/90 border border-emerald-500/30 rounded-xl p-2.5">
+            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Cash</p>
+            <p className="text-sm font-black text-emerald-400 mt-0.5">{formatCurrency(summaryMetrics.cash)}</p>
+          </div>
+          <div className="bg-gray-900/90 border border-blue-500/30 rounded-xl p-2.5">
+            <p className="text-[9px] font-black text-blue-400 uppercase tracking-wider">Online</p>
+            <p className="text-sm font-black text-blue-400 mt-0.5">{formatCurrency(summaryMetrics.online)}</p>
+          </div>
+          <div className="bg-gray-900/90 border border-violet-500/30 rounded-xl p-2.5">
+            <p className="text-[9px] font-black text-violet-400 uppercase tracking-wider">Card</p>
+            <p className="text-sm font-black text-violet-400 mt-0.5">{formatCurrency(summaryMetrics.card)}</p>
+          </div>
+          <div className="bg-gray-900/90 border border-orange-500/30 rounded-xl p-2.5">
+            <p className="text-[9px] font-black text-orange-400 uppercase tracking-wider">Expenses</p>
+            <p className="text-sm font-black text-orange-400 mt-0.5">-{formatCurrency(totalGE)}</p>
+          </div>
+          <div className="bg-gray-900/90 border border-cyan-500/30 rounded-xl p-2.5">
+            <p className="text-[9px] font-black text-cyan-400 uppercase tracking-wider">Net Cash</p>
+            <p className="text-sm font-black text-cyan-400 mt-0.5">{formatCurrency(summaryMetrics.netCash)}</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         {filterTabs.map(tab => {
@@ -214,6 +304,9 @@ const POSHistory = () => {
                           <p className={`text-lg font-black ${hasReturn ? 'text-gray-500 line-through' : 'text-emerald-400'}`}>{formatCurrency(netAmount)}</p>
                           {hasReturn && <p className="text-[9px] text-red-400 font-bold">Returned: {formatCurrency(refundTotal)}</p>}
                           <p className="text-[10px] text-gray-500 font-bold">{formatPaymentMethod(s.paymentMethod)}</p>
+                          {s.paymentMethod === 'CASH_ONLINE' && (
+                            <p className="text-[9px] text-purple-400 font-bold">Cash: {formatCurrency(s.cashAmount || 0)} | Online: {formatCurrency(s.onlineAmount || 0)}</p>
+                          )}
                           {s._balanceStatus === 'balance' && <span className="text-[9px] bg-amber-600 text-white px-2 py-0.5 rounded-full mt-1 inline-block">BAL</span>}
                           {s._balanceStatus === 'paid' && s.advanceAmount > 0 && <span className="text-[9px] bg-emerald-600 text-white px-2 py-0.5 rounded-full mt-1 inline-block">PAID</span>}
                         </>
@@ -263,6 +356,9 @@ const POSHistory = () => {
                   <div className="text-right">
                     <p className="text-lg font-black text-cyan-400">+{formatCurrency(bp.amountPaidNow)}</p>
                     <p className="text-[10px] text-gray-500 font-bold">{formatPaymentMethod(bp.paymentMethod)}</p>
+                    {bp.paymentMethod === 'CASH_ONLINE' && (
+                      <p className="text-[9px] text-cyan-300 font-bold">Cash: {formatCurrency(bp.cashAmount ?? Math.round((bp.amountPaidNow || 0) / 2))} | Online: {formatCurrency(bp.onlineAmount ?? Math.round((bp.amountPaidNow || 0) / 2))}</p>
+                    )}
                     {bp.outstandingBalanceAfterPayment > 0.01 && (
                       <p className="text-[9px] text-amber-400 font-bold">Remaining: {formatCurrency(bp.outstandingBalanceAfterPayment)}</p>
                     )}
