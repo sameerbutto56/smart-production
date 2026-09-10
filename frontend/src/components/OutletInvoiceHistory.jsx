@@ -173,6 +173,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       const fmtPayment = (s) => s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '';
       const src = filteredSales;
 
+      // ── Fetch journal/expense entries ──
       let journalEntries = [];
       try {
         const params = { outlet };
@@ -185,51 +186,58 @@ const OutletInvoiceHistory = ({ outlet }) => {
 
       const totalGeneralEntries = journalEntries.reduce((sum, ge) => sum + (ge.amount || 0), 0);
 
-      const data = src.map(s => ({
-        'Receipt #': s.receiptNumber || '',
-        'Date': formatDateTime(s.createdAt),
-        'Cashier': s.cashierName || '',
-        'Customer': s.customerName || '',
-        'Phone': s.customerPhone || '',
-        'Items': (s.items || []).map(i => `${i.productName}${i.color ? ' ('+(isUrdu ? toUrduName(i.color) : i.color)+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
-        'Subtotal': s.subtotal || 0,
-        'Discount': s.discountAmount || 0,
-        'Card Charges': s.cardChargesAmount || 0,
-        'Grand Total': s._amountReceived || 0,
-        'Invoice Total': s.grandTotal || 0,
-        'Payment': fmtPayment(s),
-        'Advance': s.advanceAmount || 0,
-        'Balance': s._balanceRemaining || 0,
-        'Status': s.refundedAt ? 'RETURN' : (s._balanceStatus === 'balance' ? 'BALANCE' : '')
-      }));
-
-      // Canonical summary from the shared backend endpoint (same source & rules as the
-      // Register / Close Book and POS History). Search-mode exports filter a subset of rows
-      // client-side with no date window, so they fall back to a client-side canonical
-      // computation over the filtered rows instead. Revenue counts for ALL rows (incl.
-      // refunded — the refund is deducted via returnedAmount), matching the backend convention.
-      const canonicalSummary = (rows) => {
-        let CASH = 0, ONLINE = 0, CARD = 0, CASH_ONLINE = 0;
-        rows.forEach(s => {
-          const received = s._amountReceived || 0;
-          if (s.paymentMethod === 'CASH') CASH += received;
-          else if (s.paymentMethod === 'ONLINE') ONLINE += received;
-          else if (s.paymentMethod === 'CARD') CARD += received;
-          else if (s.paymentMethod === 'CASH_ONLINE') {
-            CASH_ONLINE += received;
-          } else CASH += received;
-        });
-        const returnedAmount = rows.flatMap(s => (s.returns || [])).reduce((sum, r) => sum + (r.refundAmount || 0), 0);
-        const discountTotal = rows.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
-        return {
-          cash: CASH, online: ONLINE, card: CARD, cashOnline: CASH_ONLINE,
-          returnedAmount,
-          grossSales: (CASH + ONLINE + CARD + CASH_ONLINE) + discountTotal,
-          discountTotal,
-          invoiceCount: rows.length,
-        };
+      // ── Helper: resolve per-invoice Cash / Online / Card amounts ──
+      const resolvePaymentAmounts = (s) => {
+        const received = s._amountReceived || 0;
+        let cash = 0, online = 0, card = 0;
+        if (s.paymentMethod === 'CASH_ONLINE') {
+          cash = s.cashAmount || 0;
+          online = s.onlineAmount || 0;
+          // Scale if advance/partial: e.g. grandTotal=10k, advance=5k → ratio=0.5
+          const declared = cash + online;
+          if (declared > 0 && Math.abs(declared - received) > 0.5) {
+            const ratio = received / declared;
+            cash = Math.round(cash * ratio);
+            online = received - cash; // remainder to avoid rounding drift
+          }
+        } else if (s.paymentMethod === 'CARD') {
+          card = received;
+        } else if (s.paymentMethod === 'ONLINE') {
+          online = received;
+        } else {
+          cash = received; // CASH or unknown → cash
+        }
+        return { cash, online, card };
       };
 
+      // ── Per-invoice data rows with full payment breakdown ──
+      const data = src.map(s => {
+        const pay = resolvePaymentAmounts(s);
+        return {
+          'Receipt #': s.receiptNumber || '',
+          'Date': formatDateTime(s.createdAt),
+          'Cashier': s.cashierName || '',
+          'Customer': s.customerName || '',
+          'Phone': s.customerPhone || '',
+          'Items': (s.items || []).map(i => `${i.productName}${i.color ? ' ('+(isUrdu ? toUrduName(i.color) : i.color)+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
+          'Subtotal': s.subtotal || 0,
+          'Discount': s.discountAmount || 0,
+          'Card Charges': s.cardChargesAmount || 0,
+          'Invoice Total': s.grandTotal || 0,
+          'Amount Received': s._amountReceived || 0,
+          'Payment Method': fmtPayment(s),
+          'Cash Amount': pay.cash,
+          'Card Amount': pay.card,
+          'Online Amount': pay.online,
+          'Advance': s.advanceAmount || 0,
+          'Balance Remaining': s._balanceRemaining || 0,
+          'Status': s.refundedAt ? 'RETURN' : (s._balanceStatus === 'balance' ? 'BALANCE' : 'PAID'),
+        };
+      });
+
+      // ── Authoritative summary from backend (same source as Register / Dashboard) ──
+      // The backend computeUnifiedSalesSummary already routes balance clearances to
+      // their actual payment method: Cash clearance → Cash total, Online → Online, etc.
       let summary = null;
       if (!(search || '').trim()) {
         try {
@@ -241,21 +249,81 @@ const OutletInvoiceHistory = ({ outlet }) => {
           summary = res.data || null;
         } catch (e) { /* silent fallback below */ }
       }
-      if (!summary) summary = canonicalSummary(src);
 
-      const cashPayments = Math.round(summary.cash || 0);
-      const onlinePayments = Math.round(summary.online || 0);
-      const cardPayments = Math.round(summary.card || 0);
-      const cashOnlinePayments = Math.round(summary.cashOnline || 0);
-      const grandTotalSales = cashPayments + onlinePayments + cardPayments + cashOnlinePayments;
-      const returnedAmount = summary.returnedAmount || 0;
-      const discountTotal = summary.discountTotal || 0;
+      // Client-side fallback only when no backend summary (e.g. search mode)
+      if (!summary) {
+        let CASH = 0, ONLINE = 0, CARD = 0;
+        src.forEach(s => {
+          const pay = resolvePaymentAmounts(s);
+          CASH += pay.cash; ONLINE += pay.online; CARD += pay.card;
+        });
+        const bpCash = filteredBalancePayments.filter(b => b.paymentMethod === 'CASH' || (!b.paymentMethod)).reduce((s, b) => s + (b.amountPaidNow || 0), 0);
+        const bpOnline = filteredBalancePayments.filter(b => b.paymentMethod === 'ONLINE').reduce((s, b) => s + (b.amountPaidNow || 0), 0);
+        const bpCard = filteredBalancePayments.filter(b => b.paymentMethod === 'CARD').reduce((s, b) => s + (b.amountPaidNow || 0), 0);
+        const bpCashOnline = filteredBalancePayments.filter(b => b.paymentMethod === 'CASH_ONLINE');
+        bpCashOnline.forEach(b => {
+          const c = b.cashAmount || ((b.amountPaidNow || 0) / 2);
+          const o = b.onlineAmount || ((b.amountPaidNow || 0) / 2);
+          CASH += c; ONLINE += o;
+        });
+        CASH += bpCash; ONLINE += bpOnline; CARD += bpCard;
+        const returnedAmount = filteredReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+        const discountTotal = src.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
+        const balTotal = filteredBalancePayments.reduce((sum, b) => sum + (b.amountPaidNow || 0), 0);
+        const salesReceived = src.reduce((sum, s) => sum + (s._amountReceived || 0), 0);
+        summary = {
+          paymentSummary: { cash: CASH, card: CARD, online: ONLINE, cashOnlineTotal: 0 },
+          paymentBreakdown: [
+            { method: 'CASH', gross: CASH, returns: 0, net: CASH - totalGeneralEntries },
+            { method: 'CARD', gross: CARD, returns: 0, net: CARD },
+            { method: 'ONLINE', gross: ONLINE, returns: 0, net: ONLINE },
+          ],
+          grossSales: salesReceived + discountTotal,
+          salesReceived,
+          totalReceived: salesReceived + balTotal,
+          refundAmount: returnedAmount,
+          totalReturns: returnedAmount,
+          totalDiscount: discountTotal,
+          discountTotal,
+          totalBalanceCollections: balTotal,
+          netSales: Math.max(0, salesReceived - returnedAmount),
+          netRevenue: Math.max(0, salesReceived + balTotal - returnedAmount - totalGeneralEntries),
+          invoiceCount: src.length,
+          totalJournalExpenses: totalGeneralEntries,
+          totalBankDeposits: 0,
+        };
+      }
+
+      // ── Extract authoritative figures from summary ──
+      const ps = summary.paymentSummary || {};
+      const pb = summary.paymentBreakdown || [];
+      const cashGross = Math.round(ps.cash ?? 0);
+      const cardGross = Math.round(ps.card ?? 0);
+      const onlineGross = Math.round(ps.online ?? 0);
+      const cashOnlineRaw = Math.round(ps.cashOnlineTotal ?? 0);
+      // Note: paymentSummary.cash already includes Cash+Online's cash portion,
+      // so grandTotalReceived = cash + card + online (no need to add cashOnlineTotal separately)
+      const salesReceived = Math.round(summary.salesReceived ?? (cashGross + cardGross + onlineGross));
+      const balanceCollections = Math.round(summary.totalBalanceCollections ?? summary.totalBalanceCleared ?? 0);
+      const totalReceived = Math.round(summary.totalReceived ?? (salesReceived + balanceCollections));
+      const grossSales = Math.round(summary.grossSales ?? 0);
+      const discountTotal = Math.round(summary.discountTotal ?? summary.totalDiscount ?? 0);
+      const returnedAmount = Math.round(summary.refundAmount ?? summary.totalReturns ?? summary.returnedAmount ?? 0);
       const invoiceCount = summary.invoiceCount ?? src.length;
+      const netSales = Math.round(summary.netSales ?? Math.max(0, salesReceived - returnedAmount));
+      const netRevenue = Math.round(summary.netRevenue ?? 0);
       const totalAdvancePayments = src.reduce((sum, s) => sum + (s.advanceAmount || 0), 0);
       const outstandingBalance = src.reduce((sum, s) => sum + (s._outstandingBalance || 0), 0);
-      const netCash = cashPayments - totalGeneralEntries;
-      const netSales = grandTotalSales - returnedAmount;
+      const bankDeposits = Math.round(summary.totalBankDeposits ?? 0);
 
+      // Per-method net (gross − returns − expenses for Cash)
+      const findPB = (m) => pb.find(p => p.method === m) || { gross: 0, returns: 0, net: 0 };
+      const cashPB = findPB('CASH');
+      const cardPB = findPB('CARD');
+      const onlinePB = findPB('ONLINE');
+
+      // ── Journal / Expense data rows ──
+      const emptyPayCols = { 'Cash Amount': '', 'Card Amount': '', 'Online Amount': '' };
       const journalDataRows = journalEntries.map(ge => ({
         'Receipt #': 'GENERAL ENTRY',
         'Date': formatDateTime(ge.createdAt),
@@ -266,33 +334,16 @@ const OutletInvoiceHistory = ({ outlet }) => {
         'Subtotal': '',
         'Discount': '',
         'Card Charges': '',
-        'Grand Total': -(ge.amount || 0),
         'Invoice Total': '',
-        'Payment': 'EXPENSE',
+        'Amount Received': -(ge.amount || 0),
+        'Payment Method': 'EXPENSE',
+        ...emptyPayCols,
         'Advance': '',
-        'Balance': '',
-        'Status': 'GENERAL'
+        'Balance Remaining': '',
+        'Status': 'GENERAL',
       }));
 
-      const summaryRows = [
-        {}, {},
-        { 'Receipt #': 'S U M M A R Y', 'Grand Total': '' },
-        { 'Receipt #': 'Invoice Count', 'Grand Total': invoiceCount },
-        { 'Receipt #': 'Gross Sales', 'Grand Total': Math.round(summary.grossSales || 0) },
-        { 'Receipt #': 'Grand Total Sales (Received)', 'Grand Total': grandTotalSales },
-        { 'Receipt #': 'Cash Payments', 'Grand Total': cashPayments },
-        { 'Receipt #': 'Online Payments', 'Grand Total': onlinePayments },
-        { 'Receipt #': 'Card Payments', 'Grand Total': cardPayments },
-        { 'Receipt #': 'Cash + Online Payments', 'Grand Total': cashOnlinePayments },
-        { 'Receipt #': 'Total Advance Payments', 'Grand Total': totalAdvancePayments },
-        { 'Receipt #': 'Discounts', 'Grand Total': Math.round(discountTotal) },
-        { 'Receipt #': 'Outstanding Balance', 'Grand Total': outstandingBalance },
-        { 'Receipt #': 'General Entries (Expenses)', 'Grand Total': totalGeneralEntries },
-        { 'Receipt #': 'Net Cash', 'Grand Total': netCash },
-        { 'Receipt #': 'Returned Amount', 'Grand Total': Math.round(returnedAmount) },
-        { 'Receipt #': 'Net Sales', 'Grand Total': Math.round(netSales) },
-      ];
-
+      // ── Return rows ──
       const returnRows = filteredReturns.map(r => ({
         'Receipt #': r.receiptNumber || `RET-${r.id?.slice(0, 8)}`,
         'Date': formatDateTime(r.createdAt),
@@ -303,50 +354,116 @@ const OutletInvoiceHistory = ({ outlet }) => {
         'Subtotal': 0,
         'Discount': 0,
         'Card Charges': 0,
-        'Grand Total': -(r.refundAmount || 0),
         'Invoice Total': -(r.refundAmount || 0),
-        'Payment': r.refundPaymentMethod || 'CARD',
+        'Amount Received': -(r.refundAmount || 0),
+        'Payment Method': r.refundPaymentMethod || r.sale?.paymentMethod || 'CASH',
+        'Cash Amount': '',
+        'Card Amount': '',
+        'Online Amount': '',
         'Advance': 0,
-        'Balance': 0,
-        'Status': 'RETURN / REFUND'
+        'Balance Remaining': 0,
+        'Status': 'RETURN / REFUND',
       }));
 
-      const balanceRows = filteredBalancePayments.map(bp => ({
-        'Receipt #': bp.receiptNumber || `BP-${bp.id?.slice(0, 8)}`,
-        'Date': formatDateTime(bp.paidAt),
-        'Cashier': bp.cashierName || '',
-        'Customer': bp.posSale?.customerName || '',
-        'Phone': '',
-        'Items': `Balance clearance for ${bp.originalInvoiceNumber || ''}`,
-        'Subtotal': 0,
-        'Discount': 0,
-        'Card Charges': 0,
-        'Grand Total': bp.amountPaidNow || 0,
-        'Invoice Total': bp.amountPaidNow || 0,
-        'Payment': bp.paymentMethod || 'CASH',
-        'Advance': 0,
-        'Balance': bp.outstandingBalanceAfterPayment || 0,
-        'Status': 'BALANCE CLEARANCE'
-      }));
+      // ── Balance Clearance rows — payment method shows actual method used ──
+      const balanceRows = filteredBalancePayments.map(bp => {
+        let bpCash = 0, bpCard = 0, bpOnline = 0;
+        const amt = bp.amountPaidNow || 0;
+        if (bp.paymentMethod === 'CASH_ONLINE') {
+          bpCash = bp.cashAmount ?? Math.round(amt / 2);
+          bpOnline = bp.onlineAmount ?? (amt - bpCash);
+        } else if (bp.paymentMethod === 'CARD') {
+          bpCard = amt;
+        } else if (bp.paymentMethod === 'ONLINE') {
+          bpOnline = amt;
+        } else {
+          bpCash = amt;
+        }
+        return {
+          'Receipt #': bp.receiptNumber || `BP-${bp.id?.slice(0, 8)}`,
+          'Date': formatDateTime(bp.paidAt),
+          'Cashier': bp.cashierName || '',
+          'Customer': bp.posSale?.customerName || '',
+          'Phone': '',
+          'Items': `Balance clearance for ${bp.originalInvoiceNumber || ''}`,
+          'Subtotal': 0,
+          'Discount': 0,
+          'Card Charges': 0,
+          'Invoice Total': amt,
+          'Amount Received': amt,
+          'Payment Method': fmtPayment(bp),
+          'Cash Amount': bpCash,
+          'Card Amount': bpCard,
+          'Online Amount': bpOnline,
+          'Advance': 0,
+          'Balance Remaining': bp.outstandingBalanceAfterPayment || 0,
+          'Status': 'BALANCE CLEARANCE',
+        };
+      });
 
+      // ── Comprehensive Summary Section ──
+      const S = (label, value) => ({ 'Receipt #': label, 'Amount Received': typeof value === 'number' ? value : '' });
+      const summaryRows = [
+        {}, {},
+        S('═══════════════════════════════', ''),
+        S('S U M M A R Y', ''),
+        S('═══════════════════════════════', ''),
+        {},
+        S('Invoice Count', invoiceCount),
+        S('Gross Sales (before discounts)', grossSales),
+        S('Discounts', discountTotal),
+        S('Sales Received (after discounts)', salesReceived),
+        S('Balance Collections', balanceCollections),
+        S('Total Received (Sales + Balance)', totalReceived),
+        {},
+        S('─── Payment Breakdown (Sales + Balance Collections) ───', ''),
+        S('Cash — Gross', cashGross),
+        S('Card — Gross', cardGross),
+        S('Online — Gross', onlineGross),
+        ...(cashOnlineRaw > 0 ? [S('Cash+Online (combined raw)', cashOnlineRaw)] : []),
+        {},
+        S('─── Returns / Refunds ───', ''),
+        S('Total Returns', returnedAmount),
+        S('Returns via Cash', Math.round(cashPB.returns || 0)),
+        S('Returns via Card', Math.round(cardPB.returns || 0)),
+        S('Returns via Online', Math.round(onlinePB.returns || 0)),
+        {},
+        S('─── Net per Payment Method ───', ''),
+        S('Cash Net (gross − returns − expenses − deposits)', Math.round(cashPB.net || 0)),
+        S('Card Net (gross − returns)', Math.round(cardPB.net || 0)),
+        S('Online Net (gross − returns)', Math.round(onlinePB.net || 0)),
+        {},
+        S('─── Other ───', ''),
+        S('Total Advance Payments', totalAdvancePayments),
+        S('Outstanding Balance', outstandingBalance),
+        S('General Entries (Expenses)', Math.round(totalGeneralEntries)),
+        S('Bank Deposits', bankDeposits),
+        {},
+        S('─── Final ───', ''),
+        S('Net Sales (received − returns)', netSales),
+        S('Net Revenue (total received − returns − expenses)', netRevenue),
+      ];
+
+      // ── Assemble workbook ──
       const allRows = [...data, ...returnRows, ...balanceRows, ...journalDataRows, ...summaryRows];
       const ws = XLSX.utils.json_to_sheet(allRows);
 
       const colWidths = [
-        { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
-        { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }
+        { wch: 20 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
+        { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+        { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+        { wch: 10 }, { wch: 14 }, { wch: 10 },
       ];
       ws['!cols'] = colWidths;
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+      XLSX.utils.book_append_sheet(wb, ws, 'POS History');
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([buf], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `sales_${outlet}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.download = `pos_history_${outlet}_${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
