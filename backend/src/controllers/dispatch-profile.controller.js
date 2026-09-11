@@ -1,7 +1,8 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
-const { recordAssignment } = require('./tahirSheet.controller');
+const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 const postexService = require('../services/postex.service');
+const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 
 // A dispatcher = an OutletEmployee whose `profiles` array contains "DISPATCH" AND
 // whose `isActive` is still true. This replaces the old hardcoded ['Khawar','Faisal']
@@ -327,14 +328,21 @@ const dispatchFromProfile = async (req, res) => {
     updateData.deliveryType = mappedDeliveryType;
     if (trackingUrl) updateData.trackingNumber = trackingUrl;
 
-    updateData.currentStage = 'OUT_FOR_DELIVERY';
-    updateData.status = 'IN_PROGRESS';
-    updateData.dispatchStatus = mappedDeliveryType === 'WALK_IN' ? 'DELIVERED' : 'BOOKED';
-    if (mappedDeliveryType === 'WALK_IN') {
+    // ─── CUSTOMER TAKEAWAY: immediate DELIVERED (customer has physically taken order) ───
+    const isCustomerTakeaway = dispatchMethod === 'CUSTOMER_TAKEAWAY';
+
+    if (isCustomerTakeaway) {
+      updateData.currentStage = 'DELIVERED';
+      updateData.status = 'COMPLETED';
+      updateData.dispatchStatus = 'DELIVERED';
       updateData.deliveredAt = new Date();
+    } else {
+      updateData.currentStage = 'OUT_FOR_DELIVERY';
+      updateData.status = 'IN_PROGRESS';
+      updateData.dispatchStatus = 'BOOKED';
     }
 
-    // Complete the DISPATCH stage → create OUT_FOR_DELIVERY → update order →
+    // Complete the DISPATCH stage → create next stage → update order →
     // routing history → reset seen → audit + dispatch log, all in ONE transaction so
     // the order can never be left half-dispatched.
     const currentStage = order.stages.find(s =>
@@ -351,19 +359,22 @@ const dispatchFromProfile = async (req, res) => {
       return map[stage] || ['ADMIN', 'FAISAL'];
     };
 
+    const nextStageName = isCustomerTakeaway ? 'DELIVERED' : 'OUT_FOR_DELIVERY';
     const recipientUsers = await prisma.user.findMany({
-      where: { role: { in: getRolesForStage('OUT_FOR_DELIVERY') } },
+      where: { role: { in: getRolesForStage(nextStageName) } },
       select: { id: true }
     });
 
-    const auditAction = dispatchMethod === 'ENAMELS' ? 'DISPATCHED_ENAMELS' : 'DISPATCHED_COURIER';
-    const dispatchRemarks = `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`;
+    const auditAction = isCustomerTakeaway ? 'CUSTOMER_TAKEAWAY_DELIVERED'
+      : (dispatchMethod === 'ENAMELS' ? 'DISPATCHED_ENAMELS' : 'DISPATCHED_COURIER');
+    const dispatchRemarks = isCustomerTakeaway
+      ? `Customer Takeaway — delivered immediately by ${employeeName}`
+      : `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`;
 
-    // Atomic claim of the DISPATCH -> OUT_FOR_DELIVERY transition. Only the recording
+    // Atomic claim of the DISPATCH -> next stage transition. Only the recording
     // employee (dispatchOfficer === employeeName) may dispatch, and only while the order
     // is still at DISPATCH for that officer. A concurrent or duplicate dispatch attempt
-    // matches 0 rows -> the whole transaction is skipped and no duplicate OUT_FOR_DELIVERY
-    // stage / admin assignment / log is ever created.
+    // matches 0 rows -> the whole transaction is skipped and no duplicate stage / log is created.
     const claimed = await prisma.order.updateMany({
       where: { id: orderId, currentStage: 'DISPATCH', dispatchOfficer: employeeName },
       data: { dispatchOfficer: employeeName }
@@ -383,10 +394,17 @@ const dispatchFromProfile = async (req, res) => {
         });
       }
 
-      // Create OUT_FOR_DELIVERY stage with appropriate deadline
-      await tx.orderStage.create({
-        data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
-      });
+      if (isCustomerTakeaway) {
+        // Customer Takeaway: create DELIVERED stage directly (no OUT_FOR_DELIVERY)
+        await tx.orderStage.create({
+          data: { orderId, stageName: 'DELIVERED', status: 'COMPLETED', completedAt: new Date() }
+        });
+      } else {
+        // Courier/Enamels: create OUT_FOR_DELIVERY stage with deadline
+        await tx.orderStage.create({
+          data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
+        });
+      }
 
       await tx.order.update({ where: { id: orderId }, data: updateData });
 
@@ -394,20 +412,20 @@ const dispatchFromProfile = async (req, res) => {
         data: {
           orderId,
           sentByUserId: req.user?.id || 'system',
-          sentToStage: 'OUT_FOR_DELIVERY',
+          sentToStage: nextStageName,
           sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
           previousStage: 'DISPATCH',
-          newStage: 'OUT_FOR_DELIVERY',
+          newStage: nextStageName,
           remarks: dispatchRemarks,
           createdAt: new Date()
         }
       }).catch(() => {});
       await tx.seenTask.deleteMany({
-        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: nextStageName }
       }).catch(() => {});
 
       // Audit + Dispatch log
-      await createAuditLog(orderId, auditAction, `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`, req.user?.id, tx);
+      await createAuditLog(orderId, auditAction, dispatchRemarks, req.user?.id, tx);
       await createDispatchLog({
         orderId,
         officerName: employeeName,
@@ -418,6 +436,12 @@ const dispatchFromProfile = async (req, res) => {
         city: order.city
       }, tx);
     }, { timeout: 30000 });
+
+    // Customer Takeaway: mark delivery assignment terminal + sync replacement cases
+    if (isCustomerTakeaway) {
+      await markAssignmentTerminal(orderId, { delivered: true }).catch(() => {});
+      await syncReplacementCaseOnOrderCompletion(order, req.user?.id).catch(() => {});
+    }
 
     const io = req.app?.get('io');
     if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
