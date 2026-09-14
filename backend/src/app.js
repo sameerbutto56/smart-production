@@ -177,6 +177,7 @@ app.use('/api/gate-pass', require('./routes/tahirSheet.routes'));
 app.use('/api/wrong-attempts', wrongAttemptRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/asm-stock', require('./routes/asmStock.routes'));
+app.use('/api/office-supply', require('./routes/officeSupply.routes'));
 
 
 // Global error handler (must be last)

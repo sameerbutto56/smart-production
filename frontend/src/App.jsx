@@ -28,6 +28,7 @@ const EditRequestDashboard = lazy(() => import('./pages/EditRequestDashboard'));
 const DeletedOrders = lazy(() => import('./pages/DeletedOrders'));
 const ProductionDashboard = lazy(() => import('./pages/ProductionDashboard'));
 const RefundManagement = lazy(() => import('./pages/RefundManagement'));
+const OfficeSupply = lazy(() => import('./pages/OfficeSupply'));
 const UnifiedAnalytics = lazy(() => import('./pages/UnifiedAnalytics'));
 const ClientRegistration = lazy(() => import('./pages/ClientRegistration'));
 const OutletPOS = lazy(() => import('./pages/OutletPOS'));
@@ -201,6 +202,7 @@ function App() {
                   <Route path="asm" element={<AsmPage />} />
                   <Route path="asm-allowed" element={<AsmAllowedStorePage />} />
                   <Route path="vendors-admin" element={<VendorsPage />} />
+                  <Route path="office-supply" element={<OfficeSupply />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

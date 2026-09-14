@@ -2095,3 +2095,160 @@ model AsmStockAuditLog {
 
   @@index([requestId])
 }
+
+// ─── Office Supply Module ──────────────────────────────────────────────────────
+// Completely isolated from Warehouse / POS / Product Inventory.
+// Two workflows: (A) Outlet demand → Store approve → Transfer → Accept,
+// (B) Direct Store transfer (no demand).
+
+model OfficeSupplyProduct {
+  id          String   @id @default(uuid())
+  name        String
+  sku         String?  @unique
+  unit        String   @default("Pcs")   // Pcs, Ream, Box, Packet, Roll, etc.
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stock         OfficeSupplyStock[]
+  movements     OfficeSupplyStockMovement[]
+  demandItems   OfficeSupplyDemandItem[]
+  transferItems OfficeSupplyTransferItem[]
+
+  @@index([isActive])
+}
+
+model OfficeSupplyStock {
+  id         String  @id @default(uuid())
+  productId  String
+  product    OfficeSupplyProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location   String              // "STORE" or outlet name e.g. "Johar Town"
+  locationType String            // "STORE" or "OUTLET"
+  quantity   Int     @default(0)
+  updatedAt  DateTime @updatedAt
+
+  movements OfficeSupplyStockMovement[]
+
+  @@unique([productId, location])
+  @@index([location])
+}
+
+model OfficeSupplyStockMovement {
+  id           String   @id @default(uuid())
+  productId    String
+  product      OfficeSupplyProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockId      String?
+  stock        OfficeSupplyStock?   @relation(fields: [stockId], references: [id], onDelete: SetNull)
+  fromLocation String?              // null for ADD, "Johar Town" for TRANSFER_OUT
+  toLocation   String?              // "Johar Town" for TRANSFER_IN, null for ADJUSTMENT
+  movementType String               // ADD, TRANSFER_OUT, TRANSFER_IN, RECEIVE, ADJUSTMENT
+  quantity     Int
+  referenceId  String?              // transferId or demandId for traceability
+  referenceType String?             // "TRANSFER" or "DEMAND"
+  notes        String?
+  performedBy  String
+  createdAt    DateTime @default(now())
+
+  @@index([productId])
+  @@index([fromLocation])
+  @@index([toLocation])
+  @@index([movementType])
+  @@index([createdAt])
+}
+
+model OfficeSupplyDemand {
+  id              String  @id @default(uuid())
+  demandNumber    String  @unique  // DEM-YYYYMMDD-XXXXX
+  outletName      String
+  outletRequestedBy String
+  outletRequestedById String?
+  status          String  @default("PENDING") // PENDING, PARTIALLY_APPROVED, APPROVED, REJECTED, FULFILLED, PARTIALLY_FULFILLED
+  notes           String?
+  storeNotes      String?
+  items           OfficeSupplyDemandItem[]
+  transferIds     String[] // linked transfer IDs
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  approvedAt      DateTime?
+  approvedById    String?
+  approvedByName  String?
+  rejectedAt      DateTime?
+  rejectedById    String?
+  rejectedByName  String?
+  fulfilledAt     DateTime?
+
+  @@index([outletName])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OfficeSupplyDemandItem {
+  id          String  @id @default(uuid())
+  demandId    String
+  demand      OfficeSupplyDemand @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  productId   String
+  product     OfficeSupplyProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productName String
+  requestedQty Int
+  approvedQty  Int?
+  sentQty      Int?
+  receivedQty  Int?
+  unit         String @default("Pcs")
+
+  @@index([demandId])
+  @@index([productId])
+}
+
+model OfficeSupplyTransfer {
+  id              String  @id @default(uuid())
+  transferNumber  String  @unique  // OSTR-YYYYMMDD-XXXXX
+  type            String  // DEMAND (linked to a demand) or DIRECT (no demand)
+  demandId        String? // linked demand ID (null for DIRECT)
+  fromLocation    String  // always "STORE"
+  toLocation      String  // outlet name
+  status          String  @default("PENDING") // PENDING, IN_TRANSIT, RECEIVED, CANCELLED
+  notes           String?
+  items           OfficeSupplyTransferItem[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sentAt          DateTime?
+  sentById        String?
+  sentByName      String?
+  receivedAt      DateTime?
+  receivedById    String?
+  receivedByName  String?
+  cancelledAt     DateTime?
+  cancelledById   String?
+
+  @@index([fromLocation])
+  @@index([toLocation])
+  @@index([status])
+  @@index([demandId])
+  @@index([createdAt])
+}
+
+model OfficeSupplyTransferItem {
+  id           String  @id @default(uuid())
+  transferId   String
+  transfer     OfficeSupplyTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productId    String
+  product      OfficeSupplyProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productName  String
+  quantity     Int
+  receivedQty  Int?
+  unit         String  @default("Pcs")
+
+  @@index([transferId])
+  @@index([productId])
+}
+
+model OfficeSupplySequence {
+  id        String   @id @default(uuid())
+  prefix    String   @unique // "OSTR" for transfers, "DEMOFF" for demands
+  year      Int
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@unique([prefix, year])
+}

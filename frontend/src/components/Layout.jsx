@@ -156,7 +156,8 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Bank Deposit', path: '/bank-deposit', icon: Landmark, roles: ['OUTLET'] },
     { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY', 'CEO'] },
     { name: 'Notifications', path: '/notifications', icon: Bell, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY', 'INVENTORY_VIEW', 'CEO'] },
-    { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] }
+    { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] },
+    { name: 'Office Supply', path: '/office-supply', icon: Package, roles: ['STORE', 'STORE_EMPLOYEE', 'OUTLET', 'SUPER_ADMIN', 'ADMIN'] }
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
@@ -180,7 +181,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
         const isJailRoad = n.includes('2') || n.includes('jail');
         return !isJailRoad;
       }
-      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch', 'Gate Pass'].includes(item.name);
+      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch', 'Gate Pass', 'Office Supply'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
