@@ -95,11 +95,11 @@ const btnDanger = 'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-
 const btnGhost = 'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold text-gray-300 bg-gray-800 hover:bg-gray-700 transition-all duration-200 disabled:opacity-50';
 
 export default function OfficeSupply() {
-  const { user, hasRole } = useAuth();
+  const { user } = useAuth();
   const role = String(user?.role || '').toUpperCase().trim();
-  const isStore = hasRole(ROLE_STORE);
-  const isOutlet = hasRole(ROLE_OUTLET);
-  const canManage = hasRole(ROLE_MANAGE);
+  const isStore = ROLE_STORE.includes(user?.role);
+  const isOutlet = ROLE_OUTLET.includes(user?.role);
+  const canManage = ROLE_MANAGE.includes(user?.role);
 
   const [tab, setTab] = useState('dashboard');
 
