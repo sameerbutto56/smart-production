@@ -18,7 +18,9 @@ const {
   getBalancePaymentHistory,
   getEmployees,
   getJournalEntries,
-  refundInvoice
+  refundInvoice,
+  mergeOutletDuplicates,
+  detectOutletDuplicates
 } = require('../controllers/pos.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 
@@ -79,5 +81,9 @@ router.get('/journal-entries', authenticate, getJournalEntries);
 
 // Employees
 router.get('/employees', authenticate, getEmployees);
+
+// Inventory Duplicate Management (Admin only)
+router.get('/inventory/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectOutletDuplicates);
+router.post('/inventory/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), mergeOutletDuplicates);
 
 module.exports = router;

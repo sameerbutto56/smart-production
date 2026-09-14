@@ -604,6 +604,164 @@ const getSales = async (req, res) => {
   }
 };
 
+/* ─── Safe Merge Warehouse Duplicate Inventory Records ─── */
+const mergeWarehouseDuplicates = async (req, res) => {
+  try {
+    const allItems = await prisma.inventoryItem.findMany({
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Group by canonical identity: lowercase trimmed name
+    const groups = {};
+    for (const item of allItems) {
+      const key = (item.name || '').trim().toLowerCase();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+
+    const mergeResults = [];
+    let totalMerged = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const [, records] of Object.entries(groups)) {
+        if (records.length <= 1) continue;
+
+        // Pick canonical: the one with the most stock, then oldest
+        records.sort((a, b) => (b.stock || 0) - (a.stock || 0) || new Date(a.createdAt) - new Date(b.createdAt));
+        const canonical = records[0];
+        const duplicates = records.slice(1);
+
+        let canonicalVariants = typeof canonical.variants === 'string'
+          ? JSON.parse(canonical.variants)
+          : (Array.isArray(canonical.variants) ? [...canonical.variants] : []);
+
+        for (const dup of duplicates) {
+          let dupVariants = typeof dup.variants === 'string'
+            ? JSON.parse(dup.variants)
+            : (Array.isArray(dup.variants) ? dup.variants : []);
+
+          // Merge each duplicate variant into canonical variants
+          for (const dv of dupVariants) {
+            const eqField = (a, b) => {
+              const na = (a || '').toString().trim().toLowerCase();
+              const nb = (b || '').toString().trim().toLowerCase();
+              if (!na && !nb) return true;
+              return na === nb;
+            };
+            const existingIdx = canonicalVariants.findIndex(cv =>
+              eqField(cv.color, dv.color) && eqField(cv.size, dv.size)
+            );
+            if (existingIdx >= 0) {
+              canonicalVariants[existingIdx] = {
+                ...canonicalVariants[existingIdx],
+                stock: (canonicalVariants[existingIdx].stock || 0) + (dv.stock || 0)
+              };
+            } else {
+              canonicalVariants.push({ ...dv });
+            }
+          }
+
+          // If the duplicate has no variants but has stock, add it as a variant
+          if (dupVariants.length === 0 && (dup.stock || 0) > 0) {
+            const existingIdx = canonicalVariants.findIndex(cv => {
+              const eqF = (a, b) => {
+                const na = (a || '').toString().trim().toLowerCase();
+                const nb = (b || '').toString().trim().toLowerCase();
+                if (!na && !nb) return true;
+                return na === nb;
+              };
+              return eqF(cv.color, dup.color) && eqF(cv.size, dup.size);
+            });
+            if (existingIdx >= 0) {
+              canonicalVariants[existingIdx].stock = (canonicalVariants[existingIdx].stock || 0) + (dup.stock || 0);
+            } else {
+              canonicalVariants.push({
+                color: dup.color || null,
+                size: dup.size || null,
+                stock: dup.stock || 0,
+                price: dup.price || canonical.price || 0
+              });
+            }
+          }
+
+          // Delete the duplicate InventoryItem
+          await tx.inventoryItem.delete({ where: { id: dup.id } });
+          totalMerged++;
+        }
+
+        // Update canonical with merged variants and recomputed stock
+        const newTotal = canonicalVariants.reduce((s, v) => s + (v.stock || 0), 0);
+        await tx.inventoryItem.update({
+          where: { id: canonical.id },
+          data: { stock: newTotal, variants: canonicalVariants }
+        });
+
+        mergeResults.push({
+          product: canonical.name,
+          canonicalId: canonical.id,
+          duplicatesRemoved: duplicates.length,
+          variantsCount: canonicalVariants.length,
+          finalStock: newTotal
+        });
+      }
+    }, { timeout: 60000 });
+
+    cache.delPattern(CACHE_KEY_PREFIX);
+    res.json({
+      message: `Merged ${totalMerged} duplicate warehouse records`,
+      mergedGroups: mergeResults.length,
+      totalDuplicatesRemoved: totalMerged,
+      details: mergeResults
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to merge warehouse duplicates', error: error.message });
+  }
+};
+
+/* ─── Detect Warehouse Duplicate Inventory Records (dry-run) ─── */
+const detectWarehouseDuplicates = async (req, res) => {
+  try {
+    const allItems = await prisma.inventoryItem.findMany({
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const groups = {};
+    for (const item of allItems) {
+      const key = (item.name || '').trim().toLowerCase();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+
+    const duplicates = [];
+    for (const [, records] of Object.entries(groups)) {
+      if (records.length <= 1) continue;
+      duplicates.push({
+        product: records[0].name,
+        count: records.length,
+        totalStock: records.reduce((s, r) => s + (r.stock || 0), 0),
+        records: records.map(r => ({
+          id: r.id,
+          name: r.name,
+          color: r.color,
+          size: r.size,
+          stock: r.stock,
+          variantsCount: Array.isArray(r.variants) ? r.variants.length : 0,
+          createdAt: r.createdAt
+        }))
+      });
+    }
+
+    res.json({
+      totalProducts: allItems.length,
+      duplicateGroups: duplicates.length,
+      totalDuplicateRecords: duplicates.reduce((s, d) => s + d.count - 1, 0),
+      duplicates
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to detect warehouse duplicates', error: error.message });
+  }
+};
+
 module.exports = {
   addToInventory,
   getProducts,
@@ -611,5 +769,7 @@ module.exports = {
   createSale,
   createReturn,
   refundInvoice,
-  getSales
+  getSales,
+  mergeWarehouseDuplicates,
+  detectWarehouseDuplicates
 };

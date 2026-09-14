@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Trash2, Eye, Database, Download, UploadCloud, Printer, RotateCcw, RefreshCw as RefreshIcon, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Trash2, Eye, Database, Download, UploadCloud, Printer, RotateCcw, RefreshCw as RefreshIcon, ArrowRight, AlertTriangle, GitMerge } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
@@ -464,6 +464,27 @@ const ManagementInventory = () => {
   const backupJsonRef = React.useRef(null);
   const backupExcelRef = React.useRef(null);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [mergeLoading, setMergeLoading] = useState(false);
+
+  const handleMergeDuplicates = async () => {
+    const targetDesc = isWarehouseTab ? 'Warehouse inventory' : `${selectedOutlet} inventory`;
+    if (!window.confirm(`Are you sure you want to scan and merge all duplicate items in ${targetDesc}?\n\nThis will combine duplicate records by item name, color, and size into single canonical entries with consolidated stock and safely re-link historical sales and transfers.`)) {
+      return;
+    }
+    setMergeLoading(true);
+    try {
+      const endpoint = isWarehouseTab ? '/api/warehouse/merge-duplicates' : '/api/pos/merge-duplicates';
+      const payload = isWarehouseTab ? {} : { outletName: selectedOutlet };
+      const res = await api.post(endpoint, payload);
+      toast.success(res.data?.message || 'Duplicates merged successfully!');
+      refresh();
+    } catch (err) {
+      console.error('Merge duplicates failed:', err);
+      toast.error(err.response?.data?.message || 'Failed to merge duplicates');
+    } finally {
+      setMergeLoading(false);
+    }
+  };
 
   /* ─── Available Stock helpers ─── */
   const getAvailableStock = () => items.filter(i => (i.stock || 0) >= 1);
@@ -899,6 +920,12 @@ const ManagementInventory = () => {
           <button onClick={handleOpenModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm">
             <PlusCircle size={16} />Add Product
           </button>
+          <button onClick={handleMergeDuplicates} disabled={mergeLoading || loading}
+            title={`Merge duplicate items for ${selectedOutlet}`}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
+            <GitMerge size={16} className={mergeLoading ? 'animate-spin' : ''} />
+            {mergeLoading ? 'Merging...' : 'Merge Duplicates'}
+          </button>
           <button onClick={refresh} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
           </button>
@@ -1324,7 +1351,7 @@ const ManagementInventory = () => {
 const OutletPOSInventory = () => {
   const { user } = useAuth();
   const role = String(user?.role || '').toUpperCase().trim();
-  const isManagement = role === 'STORE';
+  const isManagement = ['STORE', 'ADMIN', 'SUPER_ADMIN', 'CEO'].includes(role);
 
   return isManagement ? <ManagementInventory /> : <ViewOnlyInventory />;
 };

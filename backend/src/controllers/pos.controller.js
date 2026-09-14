@@ -1705,6 +1705,167 @@ const getEmployees = async (req, res) => {
   }
 };
 
+/* ─── Safe Merge Outlet Duplicate Inventory Records ─── */
+const mergeOutletDuplicates = async (req, res) => {
+  try {
+    const outlet = req.body?.outletName || req.body?.outlet || req.query?.outlet || req.query?.outletName || getOutletName(req);
+    if (!outlet) return res.status(400).json({ message: 'Outlet name is required' });
+
+    const allItems = await prisma.outletInventory.findMany({
+      where: { outletName: outlet },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Group by canonical identity: lowercase (name + color + size)
+    const groups = {};
+    for (const item of allItems) {
+      const key = [
+        (item.name || '').trim().toLowerCase(),
+        (item.color || '').trim().toLowerCase(),
+        (item.size || '').trim().toLowerCase()
+      ].join('|||');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+
+    const mergeResults = [];
+    let totalMerged = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const [key, records] of Object.entries(groups)) {
+        if (records.length <= 1) continue;
+
+        // Pick canonical: prefer record with most transaction history, then oldest
+        const withCounts = await Promise.all(records.map(async (r) => {
+          const [saleCount, returnCount] = await Promise.all([
+            tx.posSaleItem.count({ where: { outletVariantId: r.id } }),
+            tx.posReturn.count({ where: { outletVariantId: r.id } })
+          ]);
+          return { record: r, txCount: saleCount + returnCount };
+        }));
+        withCounts.sort((a, b) => b.txCount - a.txCount || new Date(a.record.createdAt) - new Date(b.record.createdAt));
+
+        const canonical = withCounts[0].record;
+        const duplicates = withCounts.slice(1).map(w => w.record);
+        let addedStock = 0;
+
+        for (const dup of duplicates) {
+          // Sum stock
+          addedStock += (dup.stock || 0);
+
+          // Remap PosSaleItem references
+          await tx.posSaleItem.updateMany({
+            where: { outletVariantId: dup.id },
+            data: { outletVariantId: canonical.id }
+          });
+
+          // Remap PosReturn references
+          await tx.posReturn.updateMany({
+            where: { outletVariantId: dup.id },
+            data: { outletVariantId: canonical.id }
+          });
+
+          // Remap OutletTransferItem references
+          await tx.outletTransferItem.updateMany({
+            where: { outletVariantId: dup.id },
+            data: { outletVariantId: canonical.id }
+          });
+          await tx.outletTransferItem.updateMany({
+            where: { outletInventoryId: dup.id },
+            data: { outletInventoryId: canonical.id }
+          });
+
+          // Delete the now-orphaned duplicate
+          await tx.outletInventory.delete({ where: { id: dup.id } });
+          totalMerged++;
+        }
+
+        // Increment canonical stock by the sum of all duplicate stocks
+        if (addedStock > 0) {
+          await tx.outletInventory.update({
+            where: { id: canonical.id },
+            data: { stock: { increment: addedStock } }
+          });
+        }
+
+        mergeResults.push({
+          product: canonical.name,
+          color: canonical.color,
+          size: canonical.size,
+          canonicalId: canonical.id,
+          duplicatesRemoved: duplicates.length,
+          stockAdded: addedStock,
+          finalStock: (canonical.stock || 0) + addedStock
+        });
+      }
+    }, { timeout: 60000 });
+
+    cache.delPattern(CACHE_KEY_PREFIX);
+    res.json({
+      message: `Merged ${totalMerged} duplicate records in ${outlet}`,
+      outlet,
+      mergedGroups: mergeResults.length,
+      totalDuplicatesRemoved: totalMerged,
+      details: mergeResults
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to merge duplicates', error: error.message });
+  }
+};
+
+/* ─── Detect Outlet Duplicate Inventory Records (dry-run) ─── */
+const detectOutletDuplicates = async (req, res) => {
+  try {
+    const outlet = req.query?.outlet || req.query?.outletName || req.body?.outletName || req.body?.outlet || getOutletName(req);
+    if (!outlet) return res.status(400).json({ message: 'Outlet name is required' });
+
+    const allItems = await prisma.outletInventory.findMany({
+      where: { outletName: outlet },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const groups = {};
+    for (const item of allItems) {
+      const key = [
+        (item.name || '').trim().toLowerCase(),
+        (item.color || '').trim().toLowerCase(),
+        (item.size || '').trim().toLowerCase()
+      ].join('|||');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+
+    const duplicates = [];
+    for (const [, records] of Object.entries(groups)) {
+      if (records.length <= 1) continue;
+      duplicates.push({
+        product: records[0].name,
+        color: records[0].color,
+        size: records[0].size,
+        count: records.length,
+        totalStock: records.reduce((s, r) => s + (r.stock || 0), 0),
+        records: records.map(r => ({
+          id: r.id,
+          barcode: r.barcode,
+          stock: r.stock,
+          price: r.price,
+          createdAt: r.createdAt
+        }))
+      });
+    }
+
+    res.json({
+      outlet,
+      totalProducts: allItems.length,
+      duplicateGroups: duplicates.length,
+      totalDuplicateRecords: duplicates.reduce((s, d) => s + d.count - 1, 0),
+      duplicates
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to detect duplicates', error: error.message });
+  }
+};
+
 module.exports = {
   generateBalanceReceiptNumber,
   getPosInventory,
@@ -1727,6 +1888,8 @@ module.exports = {
   getBalancePaymentHistory,
   getEmployees,
   getJournalEntries,
-  refundInvoice
+  refundInvoice,
+  mergeOutletDuplicates,
+  detectOutletDuplicates
 };
 

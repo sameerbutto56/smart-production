@@ -6,9 +6,11 @@ const {
   createSale,
   createReturn,
   refundInvoice,
-  getSales
+  getSales,
+  mergeWarehouseDuplicates,
+  detectWarehouseDuplicates
 } = require('../controllers/warehouse.controller');
-const { authenticate } = require('../middleware/auth.middleware');
+const { authenticate, authorize } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
@@ -30,5 +32,9 @@ router.post('/returns', authenticate, createReturn);
 
 // Full invoice refund
 router.post('/sales/:saleId/refund', authenticate, refundInvoice);
+
+// Inventory Duplicate Management (Admin only)
+router.get('/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectWarehouseDuplicates);
+router.post('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), mergeWarehouseDuplicates);
 
 module.exports = router;

@@ -286,9 +286,8 @@ const dispatchTransfer = async (req, res) => {
       for (const item of recheck.items) {
         const qty = item.approvedQty || item.quantity;
         if (recheck.type === 'WAREHOUSE_OUTLET') {
-          const invItem = await tx.inventoryItem.findFirst({
-            where: { name: item.productName, color: item.color || undefined, size: item.size || undefined }
-          });
+          // Match warehouse InventoryItem by name only, then validate variant stock
+          const invItem = await findWarehouseItem(tx, item.productName, item.color, item.size);
           if (!invItem || (invItem.stock || 0) < qty) {
             const err = new Error(`Insufficient warehouse stock for ${item.productName}. Available: ${invItem?.stock || 0}`);
             err.validation = true;
@@ -333,6 +332,80 @@ const dispatchTransfer = async (req, res) => {
   }
 };
 
+// Null-safe, case-insensitive comparison for color/size identity matching.
+const eqField = (a, b) => {
+  const na = (a || '').toString().trim().toLowerCase();
+  const nb = (b || '').toString().trim().toLowerCase();
+  if (!na && !nb) return true;
+  return na === nb;
+};
+
+// Find a warehouse InventoryItem by name, searching BOTH top-level fields AND the
+// variants JSON array. Warehouse products typically store color: null, size: null at
+// the top level with all variants inside the JSON array.
+const findWarehouseItem = async (tx, productName, color, size) => {
+  // 1. Try exact top-level match first (handles simple single-variant items)
+  let item = await tx.inventoryItem.findFirst({
+    where: { name: productName, color: color || undefined, size: size || undefined }
+  });
+  if (item) return item;
+
+  // 2. Search by name only, then check inside the variants JSON array
+  const candidates = await tx.inventoryItem.findMany({
+    where: { name: productName }
+  });
+  if (candidates.length === 0) return null;
+
+  // Prefer the candidate whose variants array contains the matching color/size
+  for (const c of candidates) {
+    const variants = typeof c.variants === 'string' ? JSON.parse(c.variants) : (Array.isArray(c.variants) ? c.variants : []);
+    if (variants.length === 0) {
+      // No variants array — match if top-level color/size are compatible
+      if (eqField(c.color, color) && eqField(c.size, size)) return c;
+      continue;
+    }
+    const hasVariant = variants.some(v => eqField(v.color, color) && eqField(v.size, size));
+    if (hasVariant) return c;
+  }
+
+  // 3. Fallback: return the first candidate with the same name (the variant will be added)
+  return candidates[0];
+};
+
+// Increment warehouse InventoryItem stock for a specific variant (or add new variant).
+// Recomputes top-level stock as sum of all variant stocks.
+const incrementWarehouseStock = async (tx, destItem, color, size, qty, price) => {
+  let variants = typeof destItem.variants === 'string'
+    ? JSON.parse(destItem.variants)
+    : (Array.isArray(destItem.variants) ? [...destItem.variants] : []);
+
+  let matched = false;
+  variants = variants.map(v => {
+    if (matched) return v;
+    if (eqField(v.color, color) && eqField(v.size, size)) {
+      matched = true;
+      return { ...v, stock: (v.stock || 0) + qty };
+    }
+    return v;
+  });
+
+  if (!matched) {
+    // Variant doesn't exist yet — add it
+    variants.push({
+      color: color || null,
+      size: size || null,
+      stock: qty,
+      price: price || destItem.price || 0
+    });
+  }
+
+  const newTotal = variants.reduce((s, v) => s + (v.stock || 0), 0);
+  await tx.inventoryItem.update({
+    where: { id: destItem.id },
+    data: { stock: newTotal, variants }
+  });
+};
+
 // Deduct a warehouse InventoryItem at dispatch (variant-aware), recomputing top-level stock.
 const deductSourceWarehouse = async (tx, inventoryItemId, color, size, qty) => {
   const inv = await tx.inventoryItem.findUnique({ where: { id: inventoryItemId } });
@@ -362,71 +435,77 @@ const acceptTransfer = async (req, res) => {
     if (transfer.status !== 'DISPATCHED') return res.status(400).json({ message: 'Can only accept DISPATCHED transfers' });
 
     const userOutlet = req.user?.name;
-    const isDest = transfer.toOutlet === userOutlet || (transfer.toOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.user?.role);
+    const isDest = isAdmin || transfer.toOutlet === userOutlet || (transfer.toOutlet === 'Warehouse' && req.user?.role === 'STORE');
     if (!isDest) return res.status(403).json({ message: 'Only the destination location can accept' });
 
     const updated = await prisma.$transaction(async (tx) => {
+    // ── Idempotency guard: prevent double-accept ──
+    const recheck = await tx.outletTransfer.findUnique({ where: { id } });
+    if (!recheck || recheck.status !== 'DISPATCHED') {
+      throw vErr('Transfer has already been accepted or is no longer in DISPATCHED state.');
+    }
+
     if (transfer.type === 'OUTLET_OUTLET' || transfer.type === 'OUTLET_WAREHOUSE') {
       for (const item of transfer.items) {
         const qty = item.approvedQty || item.quantity;
         const srcId = item.outletInventoryId || item.outletVariantId;
-        if (!srcId) throw vErr(`Missing source inventory reference for ${item.productName}`);
-
-        // Source stock was already deducted atomically at dispatch. Acceptance only
-        // ADDS to the destination inventory (never deducts source again).
         const sourceOv = srcId ? await tx.outletInventory.findUnique({ where: { id: srcId } }) : null;
 
+        const prodName = sourceOv?.name || item.productName;
+        const cat = sourceOv?.category || null;
+        const col = item.color || sourceOv?.color || null;
+        const sz = item.size || sourceOv?.size || null;
+        const fab = sourceOv?.fabric || null;
+        const price = item.unitPrice != null ? item.unitPrice : (sourceOv?.price || null);
+
         if (transfer.type === 'OUTLET_WAREHOUSE') {
-          let destItem = await tx.inventoryItem.findFirst({
-            where: { name: sourceOv.name, color: sourceOv.color || undefined, size: sourceOv.size || undefined }
-          });
+          // ── FIXED: Match warehouse InventoryItem by name, then search variants JSON ──
+          const destItem = await findWarehouseItem(tx, prodName, col, sz);
           if (destItem) {
-            const newStock = (destItem.stock || 0) + qty;
-            let newVariants = destItem.variants;
-            if (Array.isArray(newVariants) && newVariants.length > 0) {
-              newVariants = newVariants.map(v => {
-                if ((v.color || null) === (sourceOv.color || null) && (v.size || null) === (sourceOv.size || null)) {
-                  return { ...v, stock: (v.stock || 0) + qty };
-                }
-                return v;
-              });
-            }
-            await tx.inventoryItem.update({ where: { id: destItem.id }, data: { stock: newStock, variants: newVariants } });
+            await incrementWarehouseStock(tx, destItem, col, sz, qty, price);
           } else {
+            // Genuinely new product — create InventoryItem
             await tx.inventoryItem.create({
               data: {
-                name: sourceOv.name, category: sourceOv.category,
-                color: sourceOv.color || null, size: sourceOv.size || null,
-                fabric: sourceOv.fabric, stock: qty,
-                price: sourceOv.price || null,
-                variants: [{ color: sourceOv.color || null, size: sourceOv.size || null, stock: qty, price: sourceOv.price || 0 }]
+                name: prodName, category: cat,
+                color: null, size: null,
+                fabric: fab, stock: qty,
+                price: price || null,
+                variants: [{ color: col || null, size: sz || null, stock: qty, price: price || 0 }]
               }
             });
           }
         } else {
-          let destOv = await tx.outletInventory.findFirst({
-            where: { barcode: item.barcode, outletName: transfer.toOutlet }
+          // ── OUTLET_OUTLET: Identity-based matching first, barcode fallback ──
+          let destOv = null;
+
+          // 1. Match by identity (outletName + name + color + size)
+          const candidates = await tx.outletInventory.findMany({
+            where: { outletName: transfer.toOutlet, name: prodName }
           });
-          if (!destOv) {
-            const candidates = await tx.outletInventory.findMany({
-              where: { outletName: transfer.toOutlet, name: sourceOv.name }
+          destOv = candidates.find(r =>
+            eqField(r.color, col) && eqField(r.size, sz)
+          );
+
+          // 2. Fallback: barcode match
+          if (!destOv && item.barcode) {
+            destOv = await tx.outletInventory.findFirst({
+              where: { barcode: item.barcode, outletName: transfer.toOutlet }
             });
-            destOv = candidates.find(r =>
-              (item.color ? r.color === item.color : !r.color) &&
-              (item.size ? r.size === item.size : !r.size)
-            );
           }
+
           if (destOv) {
             await tx.outletInventory.update({ where: { id: destOv.id }, data: { stock: { increment: qty } } });
           } else {
             await tx.outletInventory.create({
               data: {
-                name: sourceOv.name, category: sourceOv.category,
+                name: prodName, category: cat,
                 outletName: transfer.toOutlet,
-                color: item.color || null, size: item.size || null,
-                fabric: sourceOv.fabric, barcode: item.barcode,
-                stock: qty, price: item.unitPrice || null,
-                metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
+                color: col || null, size: sz || null,
+                fabric: fab, barcode: item.barcode,
+                stock: qty, price,
+                metadata: JSON.stringify({ sourceStoreItemId: sourceOv?.id || null })
               }
             });
           }
@@ -439,22 +518,23 @@ const acceptTransfer = async (req, res) => {
         // Source warehouse stock was already deducted atomically at dispatch.
         // Acceptance only ADDS to the destination outlet inventory.
 
-        const srcItem = await tx.inventoryItem.findFirst({
-          where: { name: item.productName, color: item.color || undefined, size: item.size || undefined }
-        });
+        // ── FIXED: Use name-only + variant-aware matching for srcItem ──
+        const srcItem = await findWarehouseItem(tx, item.productName, item.color, item.size);
 
-        let destOv = await tx.outletInventory.findFirst({
-          where: { barcode: item.barcode, outletName: transfer.toOutlet }
+        // ── Identity-based matching first, barcode fallback ──
+        let destOv = null;
+        const candidates = await tx.outletInventory.findMany({
+          where: { outletName: transfer.toOutlet, name: item.productName }
         });
-        if (!destOv) {
-          const candidates = await tx.outletInventory.findMany({
-            where: { outletName: transfer.toOutlet, name: item.productName }
+        destOv = candidates.find(r =>
+          eqField(r.color, item.color) && eqField(r.size, item.size)
+        );
+        if (!destOv && item.barcode) {
+          destOv = await tx.outletInventory.findFirst({
+            where: { barcode: item.barcode, outletName: transfer.toOutlet }
           });
-          destOv = candidates.find(r =>
-            (item.color ? r.color === item.color : !r.color) &&
-            (item.size ? r.size === item.size : !r.size)
-          );
         }
+
         if (destOv) {
           const updData = { stock: { increment: qty } };
           const masterPrice = resolveMasterPrice(srcItem, item.color, item.size);
@@ -472,12 +552,12 @@ const acceptTransfer = async (req, res) => {
 
           await tx.outletInventory.create({
             data: {
-              name: item.productName, category: srcItem.category || null,
+              name: item.productName, category: srcItem?.category || null,
               outletName: transfer.toOutlet,
               color: item.color || null, size: item.size || null,
-              fabric: srcItem.fabric || null, barcode: item.barcode,
+              fabric: srcItem?.fabric || null, barcode: item.barcode,
               stock: qty, price,
-              metadata: JSON.stringify({ sourceInventoryItemId: srcItem.id, sourceStoreItemId: srcItem.id })
+              metadata: JSON.stringify({ sourceInventoryItemId: srcItem?.id, sourceStoreItemId: srcItem?.id })
             }
           });
         }
@@ -493,6 +573,8 @@ const acceptTransfer = async (req, res) => {
 
     await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'STORE', title: 'Transfer Completed', message: `Transfer #${transfer.transferNumber} completed at destination`, action: 'Transfer Completed', employeeName: req.user?.name }).catch(() => {});
     cache.delPattern('pos:');
+    cache.delPattern('warehouse:');
+    cache.delPattern('products:');
     res.json(updated);
   } catch (error) {
     if (error && error.validation) {
