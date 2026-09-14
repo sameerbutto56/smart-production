@@ -83,6 +83,9 @@ router.get('/journal-entries', authenticate, getJournalEntries);
 router.get('/employees', authenticate, getEmployees);
 
 // Inventory Duplicate Management (Admin only)
+router.get('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectOutletDuplicates);
+router.get('/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectOutletDuplicates);
+router.post('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), mergeOutletDuplicates);
 router.get('/inventory/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectOutletDuplicates);
 router.post('/inventory/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), mergeOutletDuplicates);
 
