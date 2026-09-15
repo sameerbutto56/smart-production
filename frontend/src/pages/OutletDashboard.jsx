@@ -8,7 +8,7 @@ import {
   ChevronDown, TrendingUp, ShoppingCart, AlertTriangle,
   CreditCard, Globe, Layers, Award, TrendingDown,
   ArrowUpRight, ArrowDownRight, Activity, Eye, Phone, MapPin,
-  Download, Printer
+  Download, Printer, Banknote
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,6 +21,7 @@ import {
 import OutletPOSDashboard from '../components/OutletPOSDashboard';
 import OutletInvoiceHistory from '../components/OutletInvoiceHistory';
 import OutletRegisters from '../components/OutletRegisters';
+import DailyCashDepositSection from '../components/DailyCashDepositSection';
 
 const COLORS = { emerald: '#10b981', amber: '#f59e0b', blue: '#3b82f6', red: '#ef4444', purple: '#8b5cf6', cyan: '#06b6d4', pink: '#ec4899' };
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
@@ -424,7 +425,8 @@ const OutletDashboard = () => {
     { id: 'tracking', label: 'Order Track', icon: Search },
     { id: 'in-dispatch', label: 'In Dispatch', icon: Truck, badge: inDispatchOrders.length },
     { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length + alterationTasks.length },
-    { id: 'registers', label: 'Registers', icon: Clock }
+    { id: 'registers', label: 'Registers', icon: Clock },
+    { id: 'cash-deposit', label: 'Cash Deposit', icon: Banknote }
   ];
 
   const statusData = [
@@ -728,6 +730,8 @@ const OutletDashboard = () => {
       {activeTab === 'invoices' && <OutletInvoiceHistory outlet={outletName} />}
 
       {activeTab === 'registers' && <OutletRegisters outlet={outletName} />}
+
+      {activeTab === 'cash-deposit' && <DailyCashDepositSection outlet={outletName} isOutletRole={true} />}
 
       {activeTab === 'tracking' && (
         <div className="space-y-6">

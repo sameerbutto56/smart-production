@@ -1423,6 +1423,67 @@ model BankDeposit {
   @@index([slipNumber])
 }
 
+model DailyCashRequirement {
+  id               String                  @id @default(uuid())
+  outletName       String
+  businessDate     String                  // YYYY-MM-DD (PKT calendar date)
+  cashGenerated    Float                   @default(0)
+  previousPending  Float                   @default(0)
+  requiredAmount   Float                   @default(0)
+  depositedAmount  Float                   @default(0)
+  pendingAmount    Float                   @default(0)
+  excessAmount     Float                   @default(0)
+  status           String                  @default("PENDING") // PENDING, PARTIALLY_DEPOSITED, DEPOSITED, CLEARED_BY_CARRY_FORWARD, EXCESS, ADJUSTED
+  notes            String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  allocations      CashDepositAllocation[]
+
+  @@unique([outletName, businessDate])
+  @@index([outletName])
+  @@index([businessDate])
+  @@index([status])
+}
+
+model CashDeposit {
+  id                 String                  @id @default(uuid())
+  outletName         String
+  businessDate       String                  // YYYY-MM-DD
+  actualDepositDate  DateTime                @default(now())
+  amount             Float
+  bankName           String?
+  referenceNumber    String?
+  notes              String?
+  createdById        String?
+  createdByName      String?
+  createdAt          DateTime                @default(now())
+
+  allocations        CashDepositAllocation[]
+
+  @@index([outletName])
+  @@index([businessDate])
+  @@index([actualDepositDate])
+}
+
+model CashDepositAllocation {
+  id              String                @id @default(uuid())
+  cashDepositId   String
+  requirementId   String
+  businessDate    String                // business date of requirement being satisfied
+  amount          Float
+  allocationType  String                // PREVIOUS_PENDING, CURRENT_DAY, EXCESS
+  createdAt       DateTime              @default(now())
+
+  cashDeposit     CashDeposit           @relation(fields: [cashDepositId], references: [id], onDelete: Cascade)
+  requirement     DailyCashRequirement  @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@index([cashDepositId])
+  @@index([requirementId])
+  @@index([businessDate])
+}
+
+
 model DeliveryDeposit {
   id              String   @id @default(uuid())
   deliveryBoy     String

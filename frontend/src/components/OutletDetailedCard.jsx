@@ -6,11 +6,13 @@ import {
   ShoppingBag, Layers, Package, Users, ArrowLeftRight, ClipboardList, Scissors,
   BookOpen, Book, Search, ChevronRight, RefreshCw, Calendar, X,
   Minus, CheckCircle, Clock, Phone, Landmark,
-  ChevronLeft, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronsLeft, ChevronsRight, FileSpreadsheet, Banknote
 } from 'lucide-react';
 import OutletRegisters from './OutletRegisters';
+import DailyCashDepositSection from './DailyCashDepositSection';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { pktDayISO } from '../utils/pktRange';
+import { exportInvoicesToExcel, exportSectionToExcel } from '../utils/outletExportExcel';
 
 const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
 const fmt = (n) => `PKR ${(n || 0).toLocaleString()}`;
@@ -40,7 +42,13 @@ const sectionNav = [
   { id: 'journal', label: 'General Entries', icon: BookOpen },
   { id: 'registers', label: 'Registers', icon: Book },
   { id: 'bank-deposits', label: 'Bank Deposits', icon: Landmark },
+  { id: 'cash-tracking', label: 'Cash Tracking', icon: Banknote },
 ];
+
+const EXPORTABLE_SECTIONS = new Set([
+  'payments', 'sales', 'balance', 'faisal-takes', 'returns', 'invoices',
+  'orders', 'inventory', 'customers', 'transfers', 'requests', 'alterations', 'journal',
+]);
 
 const ITEMS_PER_PAGE = 25;
 
@@ -480,17 +488,50 @@ const OutletDetailedCard = ({ outlet }) => {
 
   const totalAllPayments = Object.values(paymentSummary).reduce((s, m) => s + (m.net || 0), 0);
 
+  const handleExport = () => {
+    if (activeSection === 'invoices') {
+      exportInvoicesToExcel({
+        sales: nonFaisalSales, returns, balancePayments, journalEntries,
+        summary, paymentSummary, outlet, rangeLabel,
+      });
+    } else {
+      exportSectionToExcel(activeSection, {
+        paymentBreakdown: paymentSummary,
+        salesAnalytics,
+        balanceInvoices,
+        balancePayments,
+        faisalTakes,
+        returns,
+        orders,
+        revenueAndInventory: data?.revenueAndInventory,
+        customers,
+        transfers,
+        demandRequests: requests,
+        alterations,
+        journalEntries,
+      }, outlet, rangeLabel);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <h2 className="text-xl font-black text-white uppercase">{outlet}</h2>
         <span className="text-xs font-bold text-gray-500">360 Degree Operational Dashboard</span>
         <span className="px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap">{rangeLabel}</span>
-        <button onClick={handleRefresh} disabled={loading}
-          className="ml-auto px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50 transition-all">
-          {loading ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
-          Refresh
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {EXPORTABLE_SECTIONS.has(activeSection) && (
+            <button onClick={handleExport}
+              className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
+              <FileSpreadsheet size={12} /> Export Excel
+            </button>
+          )}
+          <button onClick={handleRefresh} disabled={loading}
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50 transition-all">
+            {loading ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 p-3 glass rounded-2xl border border-gray-700/50">
@@ -1515,6 +1556,11 @@ const OutletDetailedCard = ({ outlet }) => {
       {/* ==================== BANK DEPOSITS ==================== */}
       {activeSection === 'bank-deposits' && (
         <BankDepositsSection outlet={outlet} />
+      )}
+
+      {/* ==================== DAILY CASH TRACKING ==================== */}
+      {activeSection === 'cash-tracking' && (
+        <DailyCashDepositSection outlet={outlet} />
       )}
       <InvoiceDetailModal sale={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
     </div>
