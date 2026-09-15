@@ -66,7 +66,7 @@ const calculateAuthoritativeDailyCash = async (outletName, businessDate) => {
       where: {
         OR: [
           { sale: { outletName } },
-          { outlet: outletName },
+          { outletName },
         ],
         createdAt: { gte: start, lt: end },
       },
