@@ -1,10 +1,18 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
+const {
+  CUTOFF_DATE,
+  calculateAuthoritativeDailyCash,
+  syncDailyRequirements,
+  getDailyDeposits,
+  submitDailyDeposit,
+} = require('./dailyDeposit.controller');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
   if (req.body.outlet) return req.body.outlet;
+  if (req.params.outlet) return req.params.outlet;
   const n = String(req.user?.name || '').toLowerCase();
   if (n.includes('johar')) return 'Johar Town';
   if (n.includes('jail')) return 'Jail Road';
@@ -31,7 +39,7 @@ const authEmployee = async (req, res) => {
   }
 };
 
-// Submit bank deposit
+// Submit bank deposit (authoritative FIFO allocation)
 const submitDeposit = async (req, res) => {
   try {
     const outlet = getOutletName(req);
@@ -51,120 +59,38 @@ const submitDeposit = async (req, res) => {
     const valid = await bcrypt.compare(password, employee.password);
     if (!valid) return res.status(401).json({ message: 'Invalid password' });
 
-    const existing = await prisma.bankDeposit.findFirst({
-      where: { slipNumber: slipNumber.trim(), outletName: outlet }
-    });
-    if (existing) {
-      return res.status(400).json({ message: `Slip number ${slipNumber} already exists for this outlet` });
-    }
+    // Delegate to authoritative submitDailyDeposit
+    req.params.outletName = outlet;
+    req.body.amount = parseFloat(amount);
+    req.body.referenceNumber = slipNumber;
+    req.body.actualDepositDate = depositDate;
+    req.body.notes = notes;
+    req.body.employeeName = employeeName;
 
-    const deposit = await prisma.bankDeposit.create({
-      data: {
-        outletName: outlet,
-        employeeName,
-        slipNumber: slipNumber.trim(),
-        amount: parseFloat(amount),
-        notes: notes || null,
-        status: 'COMPLETED',
-        createdBy: req.user?.name || employeeName,
-        createdAt: depositDate ? new Date(depositDate) : new Date(),
-      }
-    });
-
-    await notify.create(req, { type: 'bank_deposit', moduleName: 'Bank Deposit', path: '/bank-deposit', role: 'ADMIN', title: 'New Bank Deposit', message: `PKR ${amount} deposited by ${employeeName}`, action: 'Bank Deposit', employeeName: req.user?.name }).catch(() => {});
-
-    res.status(201).json({ message: 'Bank deposit recorded successfully', deposit });
+    return submitDailyDeposit(req, res);
   } catch (error) {
     console.error('Bank deposit error:', error);
     res.status(500).json({ message: 'Failed to record bank deposit', error: error.message });
   }
 };
 
-// Get deposits for an outlet
+// Get deposits for an outlet (authoritative daily ledger)
 const getDeposits = async (req, res) => {
-  try {
-    const outlet = getOutletName(req);
-    const { dateFrom, dateTo, search } = req.query;
-
-    const where = { outletName: outlet };
-    if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        where.createdAt.lte = to;
-      }
-    }
-    if (search) {
-      where.OR = [
-        { slipNumber: { contains: search, mode: 'insensitive' } },
-        { employeeName: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const deposits = await prisma.bankDeposit.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const totalAmount = deposits.reduce((s, d) => s + d.amount, 0);
-
-    res.json({ deposits, totalAmount, count: deposits.length });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch deposits', error: error.message });
-  }
+  const outlet = getOutletName(req);
+  req.params.outletName = outlet;
+  return getDailyDeposits(req, res);
 };
 
 // Get deposits by outlet name (for admin dashboard)
 const getDepositsByOutlet = async (req, res) => {
-  try {
-    const { outlet } = req.params;
-    const { dateFrom, dateTo, search } = req.query;
-
-    const where = { outletName: outlet };
-    if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        where.createdAt.lte = to;
-      }
-    }
-    if (search) {
-      where.OR = [
-        { slipNumber: { contains: search, mode: 'insensitive' } },
-        { employeeName: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const deposits = await prisma.bankDeposit.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const totalAmount = deposits.reduce((s, d) => s + d.amount, 0);
-
-    const now = new Date();
-    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const todayDeposits = deposits.filter(d => new Date(d.createdAt) >= todayStart);
-    const monthDeposits = deposits.filter(d => new Date(d.createdAt) >= monthStart);
-
-    res.json({
-      deposits,
-      totalAmount,
-      count: deposits.length,
-      todayAmount: todayDeposits.reduce((s, d) => s + d.amount, 0),
-      todayCount: todayDeposits.length,
-      monthAmount: monthDeposits.reduce((s, d) => s + d.amount, 0),
-      monthCount: monthDeposits.length,
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch deposits', error: error.message });
-  }
+  const { outlet } = req.params;
+  req.params.outletName = outlet;
+  return getDailyDeposits(req, res);
 };
 
-module.exports = { authEmployee, submitDeposit, getDeposits, getDepositsByOutlet };
+module.exports = {
+  authEmployee,
+  submitDeposit,
+  getDeposits,
+  getDepositsByOutlet,
+};

@@ -442,6 +442,13 @@ export const exportSectionToExcel = (sectionId, data, outlet = 'Outlet', rangeLa
       break;
     }
 
+    case 'bank-deposits':
+    case 'deposits':
+    case 'cash-tracking': {
+      exportDailyDepositsToExcel(data.dailyRequirements || data.requirements || [], outlet);
+      break;
+    }
+
     default:
       console.warn('Unknown section for export:', sectionId);
   }

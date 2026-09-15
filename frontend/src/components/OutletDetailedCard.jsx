@@ -42,12 +42,11 @@ const sectionNav = [
   { id: 'journal', label: 'General Entries', icon: BookOpen },
   { id: 'registers', label: 'Registers', icon: Book },
   { id: 'bank-deposits', label: 'Bank Deposits', icon: Landmark },
-  { id: 'cash-tracking', label: 'Cash Tracking', icon: Banknote },
 ];
 
 const EXPORTABLE_SECTIONS = new Set([
   'payments', 'sales', 'balance', 'faisal-takes', 'returns', 'invoices',
-  'orders', 'inventory', 'customers', 'transfers', 'requests', 'alterations', 'journal',
+  'orders', 'inventory', 'customers', 'transfers', 'requests', 'alterations', 'journal', 'bank-deposits',
 ]);
 
 const ITEMS_PER_PAGE = 25;
@@ -1555,11 +1554,6 @@ const OutletDetailedCard = ({ outlet }) => {
 
       {/* ==================== BANK DEPOSITS ==================== */}
       {activeSection === 'bank-deposits' && (
-        <BankDepositsSection outlet={outlet} />
-      )}
-
-      {/* ==================== DAILY CASH TRACKING ==================== */}
-      {activeSection === 'cash-tracking' && (
         <DailyCashDepositSection outlet={outlet} />
       )}
       <InvoiceDetailModal sale={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
