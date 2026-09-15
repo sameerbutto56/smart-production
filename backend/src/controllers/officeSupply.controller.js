@@ -673,9 +673,21 @@ const getTransfers = async (req, res) => {
     const transfers = await prisma.officeSupplyTransfer.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { items: true, demand: { include: { items: true } } },
+      include: { items: true },
       take: 250,
     });
+    // Resolve linked demand manually (OfficeSupplyTransfer has no `demand`
+    // relation; include would throw and fail the whole list).
+    if (transfers.length) {
+      const demandIds = [...new Set(transfers.filter(t => t.demandId).map(t => t.demandId))];
+      const demands = demandIds.length
+        ? await prisma.officeSupplyDemand.findMany({ where: { id: { in: demandIds } } })
+        : [];
+      const demandById = new Map(demands.map(d => [d.id, d]));
+      transfers.forEach(t => {
+        if (t.demandId) t.demand = demandById.get(t.demandId) || null;
+      });
+    }
     return res.json({ transfers });
   } catch (error) {
     console.error('officeSupply getTransfers error:', error);
@@ -689,7 +701,7 @@ const getTransfer = async (req, res) => {
     const { id } = req.params;
     const transfer = await prisma.officeSupplyTransfer.findUnique({
       where: { id },
-      include: { items: true, demand: true },
+      include: { items: true },
     });
     if (!transfer) {
       return res.status(404).json({ message: 'Transfer not found' });
