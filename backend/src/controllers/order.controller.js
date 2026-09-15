@@ -3453,15 +3453,13 @@ const getUnseenOrders = async (req, res) => {
       status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
     };
     // Replacement (REP-...) orders are hub-managed (Store Returns/Replacements) ONLY while
-    // they sit at the STORE stage. Once routed onward they flow through the normal pipeline
-    // as real orders, so they MUST appear in every downstream department's queue (Production
-    // In/Out, Logo, Dispatch, Delivery, ...). A blanket source exclusion stranded in-flight
-    // replacements — e.g. REP-49465 routed STORE → PRODUCTION was invisible to Production
-    // Out. Only STORE/STORE_EMPLOYEE (relevantStages includes 'STORE') keep the exclusion,
-    // because the replacement hub owns STORE-stage REP orders.
-    if (relevantStages.includes('STORE')) {
-      whereClause.source = { not: 'REPLACEMENT' };
-    }
+    // their replacement CASE is still active. Once the case reaches a terminal state
+    // (REPLACEMENT_COMPLETED / COMPLETED / CANCELLED), the REP order flows through the
+    // normal pipeline — including returning to STORE from downstream stages like LOGO_DESIGN
+    // or PRODUCTION. A blanket source exclusion stranded REP orders that came back to STORE
+    // after their hub lifecycle ended (e.g. REP-51239 routed STORE → LOGO → STORE was
+    // invisible). Now we use targeted ID exclusions instead.
+    //
     // Exclude original orders that have an active replacement case — the replacement (REP-...)
     // order is the real pipeline entry; the original should not appear alongside it. E.g.
     // #49502 (original) + REP-49502 (replacement) both at LOGO_DESIGN would show twice;
@@ -3473,10 +3471,21 @@ const getUnseenOrders = async (req, res) => {
         replacementOrderId: { not: null },
         status: { notIn: ['COMPLETED', 'CANCELLED', 'REPLACEMENT_COMPLETED'] }
       },
-      select: { orderId: true }
+      select: { orderId: true, replacementOrderId: true }
     });
+    const notInIds = [];
+    // Exclude originals that have an active replacement in flight
     if (activeReplaced.length > 0) {
-      whereClause.id = { notIn: activeReplaced.map(r => r.orderId) };
+      notInIds.push(...activeReplaced.map(r => r.orderId));
+    }
+    // For STORE role: exclude hub-managed REP orders (active case) from My Tasks —
+    // those are managed in the Store Returns/Replacements module. REP orders whose
+    // case is terminal flow through Store tasks like normal orders.
+    if (relevantStages.includes('STORE') && activeReplaced.length > 0) {
+      notInIds.push(...activeReplaced.map(r => r.replacementOrderId).filter(Boolean));
+    }
+    if (notInIds.length > 0) {
+      whereClause.id = { notIn: notInIds };
     }
     // Filter by outlet name for OUTLET role so each outlet only sees its own orders
     // Johar Town also sees Jail Road orders (auto-routing from Jail Road)
