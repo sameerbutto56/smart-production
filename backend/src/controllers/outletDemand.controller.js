@@ -352,12 +352,17 @@ const dispatchDemandRequest = async (req, res) => {
     if (channel !== 'ENAMELS' && channel !== 'SELF_DELIVERY') {
       return res.status(400).json({ message: 'Invalid delivery channel. Use ENAMELS or SELF_DELIVERY.' });
     }
+    const { courierType } = req.body;
+    const isAbbottabad = String(existing.outletName || '').toLowerCase().includes('abbottabad');
+    const finalCourierType = isAbbottabad && courierType === 'BILTY' ? 'BILTY' : 'TCS';
+    const finalBiltyAmount = isAbbottabad && finalCourierType === 'BILTY' ? 1500 : 0;
+
     let deductedCount = 0;
     let deductedSummary = [];
+    let abbottabadFinancialData = null;
 
     // Atomic dispatch: guard (only non-dispatched approved) + warehouse stock
-    // deduction + dispatch fields in ONE 30s transaction. A double-click can never
-    // deduct the warehouse twice — the in-tx re-check throws after the first dispatch.
+    // deduction + Abbottabad financials & amount ledger + dispatch fields in ONE 30s transaction.
     await prisma.$transaction(async (tx) => {
       const recheck = await tx.outletDemandRequest.findUnique({ where: { id } });
       if (!recheck || (recheck.status !== 'APPROVED' && recheck.status !== 'PARTIALLY_APPROVED') || recheck.dispatchedAt) {
@@ -367,6 +372,12 @@ const dispatchDemandRequest = async (req, res) => {
       }
 
       const items = typeof recheck.items === 'string' ? JSON.parse(recheck.items) : recheck.items;
+      let totalProductValue = 0;
+      let totalCostValue = 0;
+      let costPriceMissing = false;
+      const missingProducts = [];
+      const itemFinancials = [];
+
       for (const item of items || []) {
         const approvedQty = parseInt(item.approvedQty) || 0;
         if (approvedQty <= 0) continue;
@@ -374,6 +385,154 @@ const dispatchDemandRequest = async (req, res) => {
         if (deducted > 0) {
           deductedCount++;
           deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
+        }
+
+        if (isAbbottabad) {
+          // Resolve actual selling price
+          let inv = null;
+          if (item.inventoryItemId) {
+            inv = await tx.inventoryItem.findUnique({ where: { id: item.inventoryItemId } });
+          }
+          if (!inv) {
+            const matches = await tx.inventoryItem.findMany({
+              where: { name: { equals: item.productName, mode: 'insensitive' } }
+            });
+            inv = matches[0] || null;
+          }
+          const masterPrice = inv ? (resolveMasterPrice(inv, item.color, item.size) || parseFloat(inv.price) || 0) : 0;
+          const actualLineTotal = approvedQty * masterPrice;
+          totalProductValue += actualLineTotal;
+
+          // Resolve internal cost price
+          let costPrice = null;
+          const costMatch = await tx.abbottabadCostPriceItem.findFirst({
+            where: {
+              productName: { equals: item.productName, mode: 'insensitive' },
+              ...(item.size ? { size: { equals: item.size, mode: 'insensitive' } } : {}),
+              ...(item.color ? { color: { equals: item.color, mode: 'insensitive' } } : {})
+            },
+            orderBy: { createdAt: 'desc' }
+          });
+          if (costMatch && costMatch.costPrice > 0) {
+            costPrice = costMatch.costPrice;
+          } else {
+            const fallbackMatch = await tx.abbottabadCostPriceItem.findFirst({
+              where: { productName: { equals: item.productName, mode: 'insensitive' } },
+              orderBy: { createdAt: 'desc' }
+            });
+            if (fallbackMatch && fallbackMatch.costPrice > 0) {
+              costPrice = fallbackMatch.costPrice;
+            } else if (inv?.costPrice != null && parseFloat(inv.costPrice) > 0) {
+              costPrice = parseFloat(inv.costPrice);
+            }
+          }
+
+          let costLineTotal = null;
+          let isMissingCost = false;
+          if (costPrice != null && costPrice > 0) {
+            costLineTotal = approvedQty * costPrice;
+            totalCostValue += costLineTotal;
+          } else {
+            costPriceMissing = true;
+            isMissingCost = true;
+            missingProducts.push(item.productName);
+          }
+
+          itemFinancials.push({
+            productName: item.productName,
+            size: item.size || '',
+            color: item.color || '',
+            requestedQty: item.requestedQty || 0,
+            approvedQty,
+            actualUnitPrice: masterPrice,
+            actualLineTotal,
+            costUnitPrice: costPrice,
+            costLineTotal,
+            costMissing: isMissingCost
+          });
+        }
+      }
+
+      // Abbottabad-specific financial record & amount deduction
+      if (isAbbottabad) {
+        const actualPlusBilty = totalProductValue + finalBiltyAmount;
+        const costPlusBilty = totalCostValue > 0 ? (totalCostValue + finalBiltyAmount) : null;
+
+        abbottabadFinancialData = await tx.abbottabadDemandFinancial.upsert({
+          where: { demandId: recheck.id },
+          create: {
+            demandId: recheck.id,
+            transferNumber: recheck.transferNumber,
+            productValue: totalProductValue,
+            biltyType: finalCourierType,
+            biltyAmount: finalBiltyAmount,
+            actualPlusBilty,
+            costAmount: totalCostValue > 0 ? totalCostValue : null,
+            costPlusBilty,
+            costPriceMissing,
+            missingProductNames: missingProducts,
+            itemFinancials
+          },
+          update: {
+            transferNumber: recheck.transferNumber,
+            productValue: totalProductValue,
+            biltyType: finalCourierType,
+            biltyAmount: finalBiltyAmount,
+            actualPlusBilty,
+            costAmount: totalCostValue > 0 ? totalCostValue : null,
+            costPlusBilty,
+            costPriceMissing,
+            missingProductNames: missingProducts,
+            itemFinancials
+          }
+        });
+
+        // Deduct from Abbottabad Amount Account atomically if account exists
+        let acc = await tx.abbottabadAmountAccount.findUnique({
+          where: { outletName: 'Abbottabad' }
+        });
+        if (!acc) {
+          acc = await tx.abbottabadAmountAccount.create({
+            data: { outletName: 'Abbottabad', approvedAmount: 0, runningBalance: 0, totalConsumed: 0 }
+          });
+        }
+
+        // Idempotency: only deduct if not already deducted for this demand
+        const existingDeduction = await tx.abbottabadAmountLedger.findFirst({
+          where: { demandId: recheck.id, actionType: 'DEMAND_DEDUCTION' }
+        });
+
+        if (!existingDeduction && actualPlusBilty > 0) {
+          const prevBalance = acc.runningBalance;
+          const newBalance = prevBalance - actualPlusBilty;
+          const newTotalConsumed = acc.totalConsumed + actualPlusBilty;
+
+          await tx.abbottabadAmountAccount.update({
+            where: { id: acc.id },
+            data: {
+              runningBalance: newBalance,
+              totalConsumed: newTotalConsumed
+            }
+          });
+
+          await tx.abbottabadAmountLedger.create({
+            data: {
+              accountId: acc.id,
+              demandId: recheck.id,
+              demandTransferNumber: recheck.transferNumber,
+              actionType: 'DEMAND_DEDUCTION',
+              previousAmount: acc.approvedAmount,
+              adjustmentAmount: 0,
+              newAmount: acc.approvedAmount,
+              previousBalance: prevBalance,
+              consumedAmount: actualPlusBilty,
+              newBalance: newBalance,
+              details: `Demand deduction for ${recheck.transferNumber || recheck.id.slice(0, 8)} (Products: ₨${totalProductValue.toLocaleString()} + ${finalCourierType}: ₨${finalBiltyAmount.toLocaleString()})`,
+              performedById: req.user.id,
+              performedByName: req.user.name || req.user.email,
+              performedByRole: req.user.role
+            }
+          });
         }
       }
 
@@ -391,7 +550,7 @@ const dispatchDemandRequest = async (req, res) => {
         data: {
           orderId: null,
           action: 'DEMAND_REQUEST_DISPATCHED',
-          details: `Demand request ${id} (${recheck.transferNumber || ''}) dispatched by ${req.user.name || req.user.id} via ${channel}${deductedCount ? ` | warehouse stock deducted: ${deductedSummary.join(', ')}` : ''}`,
+          details: `Demand request ${id} (${recheck.transferNumber || ''}) dispatched by ${req.user.name || req.user.id} via ${channel}${isAbbottabad ? ` [Courier: ${finalCourierType} ₨${finalBiltyAmount}]` : ''}${deductedCount ? ` | warehouse stock deducted: ${deductedSummary.join(', ')}` : ''}`,
           performedBy: req.user.id
         }
       });

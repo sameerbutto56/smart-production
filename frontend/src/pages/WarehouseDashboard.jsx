@@ -206,6 +206,7 @@ const WarehouseDashboard = () => {
   const approvingRef = useRef(false); // synchronous double-click guard for Approve/Reject
   const [demandDispatchModal, setDemandDispatchModal] = useState(null);
   const [demandDispatchChannel, setDemandDispatchChannel] = useState('SELF_DELIVERY');
+  const [demandDispatchCourier, setDemandDispatchCourier] = useState('BILTY');
   const [demandDispatching, setDemandDispatching] = useState(false);
   const demandDispatchRef = useRef(false);
 
@@ -368,6 +369,7 @@ const WarehouseDashboard = () => {
   const openDemandDispatch = async (req) => {
     setDemandDispatchModal(req);
     setDemandDispatchChannel('SELF_DELIVERY');
+    setDemandDispatchCourier('BILTY');
   };
 
   const handleDemandDispatch = async (id) => {
@@ -380,7 +382,8 @@ const WarehouseDashboard = () => {
         return;
       }
       await api.put(`/api/demand/${id}/dispatch`, {
-        deliveryChannel: demandDispatchChannel
+        deliveryChannel: demandDispatchChannel,
+        courierType: demandDispatchCourier
       });
       toast.success('Demand dispatched — source inventory deducted, In Transit');
       setDemandDispatchModal(null);
@@ -1842,6 +1845,57 @@ const WarehouseDashboard = () => {
                   <p className="text-[10px] theme-text-muted font-semibold mt-0.5">Sender delivers directly</p>
                 </button>
               </div>
+
+              {/* Abbottabad Courier / Bilty Selector */}
+              {String(demandDispatchModal.outletName || '').toLowerCase().includes('abbottabad') && (
+                <div className="mb-4 p-4 bg-teal-500/10 border-2 border-teal-500/30 rounded-2xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-black uppercase tracking-wider text-teal-300">
+                      Courier Charges (Abbottabad Demand)
+                    </p>
+                    <span className="text-[10px] font-black px-2 py-0.5 bg-teal-500/20 text-teal-300 rounded uppercase">
+                      Required
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDemandDispatchCourier('BILTY')}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${
+                        demandDispatchCourier === 'BILTY'
+                          ? 'border-teal-500 bg-teal-500/20 shadow-md shadow-teal-500/20'
+                          : 'border-gray-700 bg-gray-900/60 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black text-white">Bilty</span>
+                        <span className="text-xs font-black text-teal-400">₨1,500</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1 font-semibold">
+                        Fixed ₨1,500 added to demand
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDemandDispatchCourier('TCS')}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${
+                        demandDispatchCourier === 'TCS'
+                          ? 'border-teal-500 bg-teal-500/20 shadow-md shadow-teal-500/20'
+                          : 'border-gray-700 bg-gray-900/60 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black text-white">TCS</span>
+                        <span className="text-xs font-black text-gray-400">₨0</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1 font-semibold">
+                        ₨0 — No courier amount added
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-3 pt-2">
                 <button onClick={() => setDemandDispatchModal(null)}

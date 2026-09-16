@@ -14,6 +14,7 @@ import {
   AlertTriangle, BarChart3, Download, Printer, FileText, User, Wallet, History
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import AbbottabadAmountCard from './AbbottabadAmountCard';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
@@ -66,6 +67,20 @@ const OutletPOSDashboard = ({ outlet }) => {
       setJournalLoading(false);
     }
   }, [outlet]);
+
+  const isAbbottabad = String(outlet || '').toLowerCase().includes('abbottabad');
+  const [abbottabadDemands, setAbbottabadDemands] = useState([]);
+  const [abbottabadDemandsLoading, setAbbottabadDemandsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isAbbottabad) {
+      setAbbottabadDemandsLoading(true);
+      api.get('/api/abbottabad/demands', { params: { range, dateFrom, dateTo, limit: 20 } })
+        .then(r => setAbbottabadDemands(r.data?.records || []))
+        .catch(() => {})
+        .finally(() => setAbbottabadDemandsLoading(false));
+    }
+  }, [isAbbottabad, range, dateFrom, dateTo]);
 
   const [clearedBalances, setClearedBalances] = useState(null);
   const [clearedLoading, setClearedLoading] = useState(false);
@@ -263,6 +278,13 @@ const OutletPOSDashboard = ({ outlet }) => {
         </div>
       ) : dashboard ? (
         <>
+          {/* Abbottabad Amount Control Card (Single Source of Truth) */}
+          {isAbbottabad && (
+            <div className="mb-4">
+              <AbbottabadAmountCard isAdmin={false} />
+            </div>
+          )}
+
           {/* KPIs Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {kpis.map((kpi, i) => {
@@ -308,6 +330,66 @@ const OutletPOSDashboard = ({ outlet }) => {
               );
             })}
           </div>
+
+          {/* Abbottabad Demand Deliveries (Actual Values + Bilty) */}
+          {isAbbottabad && abbottabadDemands.length > 0 && (
+            <div className="bg-gray-900 border border-teal-800/50 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-black text-teal-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Package size={14} /> Abbottabad Demand Deliveries
+                </h3>
+                <span className="text-[10px] font-black px-2 py-0.5 bg-teal-500/10 text-teal-300 rounded uppercase">
+                  {abbottabadDemands.length} Demand(s)
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-800 text-[10px] font-black uppercase tracking-wider text-gray-500">
+                      <th className="py-2 px-2.5">Demand #</th>
+                      <th className="py-2 px-2.5">Date</th>
+                      <th className="py-2 px-2.5">Status</th>
+                      <th className="py-2 px-2.5">Courier</th>
+                      <th className="py-2 px-2.5 text-right">Product Value</th>
+                      <th className="py-2 px-2.5 text-right">Bilty</th>
+                      <th className="py-2 px-2.5 text-right">Actual + Bilty</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800 font-semibold">
+                    {abbottabadDemands.map(d => (
+                      <tr key={d.id} className="hover:bg-gray-800/50">
+                        <td className="py-2.5 px-2.5 text-white font-bold">#{d.transferNumber || d.id.slice(0, 8)}</td>
+                        <td className="py-2.5 px-2.5 text-gray-400">
+                          {new Date(d.createdAt).toLocaleDateString('en-GB')}
+                        </td>
+                        <td className="py-2.5 px-2.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-gray-800 text-gray-300">
+                            {d.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                            d.biltyType === 'BILTY' ? 'bg-teal-500/20 text-teal-400' : 'bg-gray-800 text-gray-400'
+                          }`}>
+                            {d.biltyType}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right text-white">
+                          {formatCurrency(d.productValue)}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right text-teal-400 font-bold">
+                          {formatCurrency(d.biltyAmount)}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right font-black text-teal-300">
+                          {formatCurrency(d.actualPlusBilty)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Balance Summary — Pending + Cleared History */}
           {dashboard && (

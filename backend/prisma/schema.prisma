@@ -2313,3 +2313,134 @@ model OfficeSupplySequence {
 
   @@unique([prefix, year])
 }
+
+// -------------------------------------------------------------
+// ABBOTTABAD FINANCIAL, COST ANALYSIS, BILTY/TCS & AMOUNT CONTROL
+// -------------------------------------------------------------
+
+model AbbottabadDemandFinancial {
+  id                  String    @id @default(uuid())
+  demandId            String    @unique
+  transferNumber      String?
+  productValue        Float     @default(0) // Actual product selling value
+  biltyType           String    @default("TCS") // 'BILTY' | 'TCS'
+  biltyAmount         Float     @default(0) // 1500 or 0
+  actualPlusBilty     Float     @default(0) // productValue + biltyAmount
+  costAmount          Float?    // Internal product cost
+  costPlusBilty       Float?    // costAmount + biltyAmount
+  costPriceMissing    Boolean   @default(false)
+  missingProductNames Json?     // string[] of products missing cost
+  itemFinancials      Json?     // [{ productName, size, color, qty, actualUnitPrice, actualLineTotal, costUnitPrice, costLineTotal, costMissing }]
+  costUploadVersionId String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([transferNumber])
+  @@index([createdAt])
+}
+
+model AbbottabadCostPriceUpload {
+  id              String   @id @default(uuid())
+  fileName        String
+  uploadedById    String
+  uploadedByName  String
+  totalRows       Int      @default(0)
+  matchedRows     Int      @default(0)
+  missingRows     Int      @default(0)
+  updatedRows     Int      @default(0)
+  failedRows      Int      @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AbbottabadCostPriceItem {
+  id          String   @id @default(uuid())
+  uploadId    String
+  productName String
+  article     String?
+  sku         String?
+  productCode String?
+  variant     String?
+  size        String?
+  color       String?
+  costPrice   Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([uploadId])
+  @@index([productName])
+  @@index([sku])
+  @@index([article])
+  @@index([productCode])
+}
+
+model AbbottabadAmountAccount {
+  id              String    @id @default(uuid())
+  outletName      String    @unique @default("Abbottabad")
+  approvedAmount  Float     @default(0) // Approved input amount
+  runningBalance  Float     @default(0) // Balance (can go negative)
+  totalConsumed   Float     @default(0) // Demands consumed
+  isCleared       Boolean   @default(false)
+  lastClearedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([outletName])
+}
+
+model AbbottabadAmountProposal {
+  id                      String    @id @default(uuid())
+  accountId               String
+  type                    String    // 'INITIAL_AMOUNT' | 'INCREASE' | 'DECREASE' | 'CLEAR' | 'ADJUSTMENT'
+  proposedAmount          Float     // Proposed amount or delta
+  previousApprovedAmount  Float     @default(0)
+  previousRunningBalance  Float     @default(0)
+  proposedBy              String    // 'ADMIN' | 'ABBOTTABAD'
+  proposedById            String
+  proposedByName          String
+  status                  String    @default("PENDING") // 'PENDING' | 'ADMIN_APPROVED' | 'ABBOTTABAD_APPROVED' | 'APPROVED' | 'REJECTED'
+  adminApprovedAt         DateTime?
+  adminApprovedById       String?
+  adminApprovedByName     String?
+  abbottabadApprovedAt    DateTime?
+  abbottabadApprovedById  String?
+  abbottabadApprovedByName String?
+  rejectedAt              DateTime?
+  rejectedById            String?
+  rejectedByName          String?
+  rejectionReason         String?
+  notes                   String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([accountId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AbbottabadAmountLedger {
+  id                    String   @id @default(uuid())
+  accountId             String
+  proposalId            String?
+  demandId              String?
+  demandTransferNumber  String?
+  actionType            String   // 'INITIAL_AMOUNT' | 'INCREASE' | 'DECREASE' | 'DEMAND_DEDUCTION' | 'CLEAR' | 'ADJUSTMENT'
+  previousAmount        Float    @default(0)
+  adjustmentAmount      Float    @default(0)
+  newAmount             Float    @default(0)
+  previousBalance       Float    @default(0)
+  consumedAmount        Float    @default(0)
+  newBalance            Float    @default(0)
+  details               String?
+  performedById         String?
+  performedByName       String?
+  performedByRole       String?
+  createdAt             DateTime @default(now())
+
+  @@index([accountId])
+  @@index([actionType])
+  @@index([demandId])
+  @@index([createdAt])
+}
+

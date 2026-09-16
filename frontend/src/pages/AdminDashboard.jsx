@@ -59,6 +59,8 @@ import WarehouseAnalyticsCard from '../components/WarehouseAnalyticsCard';
 import OnlineStoreCard from '../components/OnlineStoreCard';
 import AlterationTrackingCard from '../components/AlterationTrackingCard';
 import OutletDetailedCard from '../components/OutletDetailedCard';
+import AbbottabadPasswordModal from '../components/AbbottabadPasswordModal';
+import AbbottabadFinancialSection from '../components/AbbottabadFinancialSection';
 import AdminFeedbackDashboard from '../components/AdminFeedbackDashboard';
 import OrderPerformanceCard from '../components/OrderPerformanceCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
@@ -111,6 +113,22 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState(location.state?.adminTab || null);
+  const [abbottabadPasswordModalOpen, setAbbottabadPasswordModalOpen] = useState(false);
+  const [abbottabadToken, setAbbottabadToken] = useState(() => sessionStorage.getItem('abbottabad_token') || null);
+
+  const handleSelectTab = (tabId) => {
+    if (tabId === 'outlet_abbottabad' && !sessionStorage.getItem('abbottabad_token')) {
+      setAbbottabadPasswordModalOpen(true);
+      return;
+    }
+    setActiveTab(tabId);
+  };
+
+  const handleAbbottabadAuthSuccess = (token) => {
+    setAbbottabadToken(token);
+    setAbbottabadPasswordModalOpen(false);
+    setActiveTab('outlet_abbottabad');
+  };
   const [showClearModal, setShowClearModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
@@ -888,7 +906,7 @@ const AdminDashboard = () => {
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
-                onClick={() => card.path ? navigate(card.path) : setActiveTab(card.id)}
+                onClick={() => card.path ? navigate(card.path) : handleSelectTab(card.id)}
                 className={`glass p-6 md:p-8 rounded-3xl border-2 ${card.border} cursor-pointer transition-all hover:shadow-xl ${card.glow} group`}>
                 <div className="flex items-start gap-5">
                   <div className={`p-4 rounded-2xl ${card.bg} shrink-0 transition-transform group-hover:scale-110`}>
@@ -1013,7 +1031,7 @@ const AdminDashboard = () => {
                     { label: 'Jail Road', desc: 'JR Outlet dashboard', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', tab: 'outlet_jail' },
                     { label: 'Abbottabad', desc: 'AB Outlet dashboard', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', tab: 'outlet_abbottabad' },
                   ].map((mod) => (
-                    <button key={mod.tab} onClick={() => setActiveTab(mod.tab)}
+                    <button key={mod.tab} onClick={() => handleSelectTab(mod.tab)}
                       className={`glass p-3 rounded-xl border border-gray-800/50 hover:border-gray-700 text-left transition-all hover:shadow-lg group`}>
                       <div className="flex items-center gap-2.5">
                         <div className={`p-2 rounded-lg ${mod.bg} shrink-0`}>
@@ -1641,7 +1659,30 @@ const AdminDashboard = () => {
       {/* Outlet Detailed Dashboards */}
       {activeTab === 'outlet_johar' && <OutletDetailedCard outlet="Johar Town" />}
       {activeTab === 'outlet_jail' && <OutletDetailedCard outlet="Jail Road" />}
-      {activeTab === 'outlet_abbottabad' && <OutletDetailedCard outlet="Abbottabad" />}
+      {activeTab === 'outlet_abbottabad' && (
+        <div className="space-y-6">
+          {abbottabadToken ? (
+            <>
+              <AbbottabadFinancialSection />
+              <OutletDetailedCard outlet="Abbottabad" />
+            </>
+          ) : (
+            <div className="glass p-12 rounded-3xl text-center border-2 border-teal-500/30 shadow-2xl my-6">
+              <Lock className="mx-auto text-teal-400 mb-3" size={40} />
+              <h3 className="text-xl font-black text-white">Abbottabad Dashboard Locked</h3>
+              <p className="text-xs text-gray-400 mt-1 mb-6 max-w-md mx-auto">
+                Password authentication is required to view sensitive Abbottabad demand financials, confidential cost prices, and amount controls.
+              </p>
+              <button
+                onClick={() => setAbbottabadPasswordModalOpen(true)}
+                className="px-6 py-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-teal-500/20"
+              >
+                Enter Abbottabad Password
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Review Edit Request Modal */}
       <AnimatePresence>
@@ -1752,6 +1793,12 @@ const AdminDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AbbottabadPasswordModal
+        isOpen={abbottabadPasswordModalOpen}
+        onClose={() => setAbbottabadPasswordModalOpen(false)}
+        onSuccess={handleAbbottabadAuthSuccess}
+      />
     </div>
   );
 };

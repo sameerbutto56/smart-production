@@ -128,7 +128,9 @@ const wrongAttemptRoutes = require('./routes/wrongAttempt.routes');
 const deliveryTaskRoutes = require('./routes/deliveryTask.routes');
 const vendorRoutes = require('./routes/vendor.routes');
 const productDataRoutes = require('./routes/productData.routes');
+const abbottabadRoutes = require('./routes/abbottabad.routes');
 
+app.use('/api/abbottabad', abbottabadRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/system', deviceRoutes);
