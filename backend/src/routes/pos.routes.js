@@ -82,11 +82,11 @@ router.get('/journal-entries', authenticate, getJournalEntries);
 // Employees
 router.get('/employees', authenticate, getEmployees);
 
-// Inventory Duplicate Management (Admin only)
-router.get('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectOutletDuplicates);
-router.get('/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectOutletDuplicates);
-router.post('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), mergeOutletDuplicates);
-router.get('/inventory/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectOutletDuplicates);
-router.post('/inventory/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), mergeOutletDuplicates);
+// Inventory Duplicate Management
+router.get('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO'), detectOutletDuplicates);
+router.get('/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO'), detectOutletDuplicates);
+router.post('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO'), mergeOutletDuplicates);
+router.get('/inventory/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO'), detectOutletDuplicates);
+router.post('/inventory/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO'), mergeOutletDuplicates);
 
 module.exports = router;

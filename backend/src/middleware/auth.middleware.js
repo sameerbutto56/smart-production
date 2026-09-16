@@ -16,13 +16,18 @@ const authenticate = (req, res, next) => {
   }
 };
 
-const authorize = (roles = []) => {
-  if (typeof roles === 'string') {
-    roles = [roles];
+const authorize = (...args) => {
+  let roles = [];
+  if (args.length === 1 && Array.isArray(args[0])) {
+    roles = args[0];
+  } else if (args.length === 1 && typeof args[0] === 'string') {
+    roles = [args[0]];
+  } else {
+    roles = args.flat();
   }
 
   return (req, res, next) => {
-    if (roles.length && !roles.includes(req.user.role)) {
+    if (roles.length && !roles.includes(req.user?.role)) {
       return res.status(403).json({ message: 'Unauthorized' });
     }
     next();

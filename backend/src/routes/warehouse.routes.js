@@ -33,8 +33,8 @@ router.post('/returns', authenticate, createReturn);
 // Full invoice refund
 router.post('/sales/:saleId/refund', authenticate, refundInvoice);
 
-// Inventory Duplicate Management (Admin only)
-router.get('/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), detectWarehouseDuplicates);
-router.post('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE'), mergeWarehouseDuplicates);
+// Inventory Duplicate Management
+router.get('/detect-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO'), detectWarehouseDuplicates);
+router.post('/merge-duplicates', authenticate, authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO'), mergeWarehouseDuplicates);
 
 module.exports = router;
