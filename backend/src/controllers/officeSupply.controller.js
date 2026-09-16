@@ -138,21 +138,54 @@ const updateProduct = async (req, res) => {
       return res.status(403).json({ message: 'Only Store can manage office supply products' });
     }
     const { id } = req.params;
-    const { name, sku, unit, description, isActive } = req.body || {};
+    const { name, sku, unit, description, isActive, quantity } = req.body || {};
     const existing = await prisma.officeSupplyProduct.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Product not found' });
     }
-    const product = await prisma.officeSupplyProduct.update({
-      where: { id },
-      data: {
-        name: name !== undefined && String(name).trim() ? String(name).trim() : existing.name,
-        sku: sku !== undefined ? (String(sku).trim() || null) : existing.sku,
-        unit: unit !== undefined ? (unit || 'Pcs') : existing.unit,
-        description: description !== undefined ? (description ? String(description) : null) : existing.description,
-        isActive: isActive !== undefined ? Boolean(isActive) : existing.isActive,
-      },
-    });
+    const product = await prisma.$transaction(async (tx) => {
+      const updated = await tx.officeSupplyProduct.update({
+        where: { id },
+        data: {
+          name: name !== undefined && String(name).trim() ? String(name).trim() : existing.name,
+          sku: sku !== undefined ? (String(sku).trim() || null) : existing.sku,
+          unit: unit !== undefined ? (unit || 'Pcs') : existing.unit,
+          description: description !== undefined ? (description ? String(description) : null) : existing.description,
+          isActive: isActive !== undefined ? Boolean(isActive) : existing.isActive,
+        },
+      });
+
+      if (quantity !== undefined && quantity !== null && String(quantity).trim() !== '') {
+        const qty = Math.max(0, parseInt(quantity, 10) || 0);
+        const location = 'STORE';
+        const currentRow = await tx.officeSupplyStock.findUnique({
+          where: { productId_location: { productId: id, location } },
+        });
+        const prevQty = currentRow ? currentRow.quantity : 0;
+        if (!currentRow || currentRow.quantity !== qty) {
+          const stockRow = await tx.officeSupplyStock.upsert({
+            where: { productId_location: { productId: id, location } },
+            create: { productId: id, location, locationType: 'STORE', quantity: qty },
+            update: { quantity: qty },
+          });
+          await tx.officeSupplyStockMovement.create({
+            data: {
+              productId: id,
+              stockId: stockRow.id,
+              fromLocation: location,
+              toLocation: location,
+              movementType: 'ADJUSTMENT',
+              quantity: qty - prevQty,
+              referenceType: 'ADJUSTMENT',
+              notes: `Stock adjusted on product edit (was ${prevQty}, now ${qty})`,
+              performedBy: req.user?.name || 'Store',
+            },
+          });
+        }
+      }
+
+      return updated;
+    }, { timeout: 30000 });
     return res.json({ product });
   } catch (error) {
     if (error?.code === 'P2002') {

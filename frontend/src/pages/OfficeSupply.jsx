@@ -282,7 +282,13 @@ export default function OfficeSupply() {
   };
   const openEditProduct = (p) => {
     setEditingProduct(p);
-    setProductForm({ name: p.name, sku: p.sku || '', unit: p.unit || '', description: p.description || '' });
+    setProductForm({
+      name: p.name,
+      sku: p.sku || '',
+      unit: p.unit || '',
+      description: p.description || '',
+      initialStock: getProductStoreStock(p.id) ?? '',
+    });
     setProductModal(true);
   };
   const handleSaveProduct = async () => {
@@ -293,7 +299,13 @@ export default function OfficeSupply() {
     setSavingProduct(true);
     try {
       if (editingProduct) {
-        const res = await api.patch(`/api/office-supply/products/${editingProduct.id}`, productForm);
+        const res = await api.patch(`/api/office-supply/products/${editingProduct.id}`, {
+          name: productForm.name,
+          sku: productForm.sku,
+          unit: productForm.unit,
+          description: productForm.description,
+          quantity: productForm.initialStock !== '' && productForm.initialStock != null ? Number(productForm.initialStock) : undefined,
+        });
         toast.success(res.data?.message || 'Product updated');
       } else {
         const payload = {
@@ -1085,18 +1097,16 @@ export default function OfficeSupply() {
               <input className={inputCls} value={productForm.unit} onChange={(e) => setProductForm((p) => ({ ...p, unit: e.target.value }))} placeholder="ream / pkt" />
             </Field>
           </div>
-          {!editingProduct && (
-            <Field label="Initial Stock (Store)">
-              <input
-                type="number"
-                min="0"
-                className={inputCls}
-                value={productForm.initialStock ?? ''}
-                onChange={(e) => setProductForm((p) => ({ ...p, initialStock: e.target.value }))}
-                placeholder="0"
-              />
-            </Field>
-          )}
+          <Field label={editingProduct ? 'Stock Quantity (Store)' : 'Initial Stock (Store)'}>
+            <input
+              type="number"
+              min="0"
+              className={inputCls}
+              value={productForm.initialStock ?? ''}
+              onChange={(e) => setProductForm((p) => ({ ...p, initialStock: e.target.value }))}
+              placeholder="0"
+            />
+          </Field>
           <Field label="Description">
             <textarea className={inputCls} rows={2} value={productForm.description} onChange={(e) => setProductForm((p) => ({ ...p, description: e.target.value }))} placeholder="Optional description" />
           </Field>
