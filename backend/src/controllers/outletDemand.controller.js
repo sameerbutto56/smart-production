@@ -607,7 +607,7 @@ const acceptDemandRequest = async (req, res) => {
         // Idempotency/claim: only one caller can flip acceptedAt null -> set.
         const claim = await tx.outletDemandRequest.updateMany({
           where: { id, acceptedAt: null },
-          data: { acceptedAt: new Date(), acceptedById: req.user.id }
+          data: { acceptedAt: new Date(), acceptedById: req.user.id, status: 'COMPLETED' }
         });
         if (claim.count === 0) {
           const err = new Error('This demand has already been accepted.');
@@ -691,14 +691,18 @@ const acceptDemandRequest = async (req, res) => {
           });
         }
 
-        await tx.auditLog.create({
-          data: {
-            orderId: null,
-            action: 'DEMAND_REQUEST_ACCEPTED',
-            details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items added to outlet inventory`,
-            performedBy: req.user.id
-          }
-        });
+        try {
+          await tx.auditLog.create({
+            data: {
+              orderId: null,
+              action: 'DEMAND_REQUEST_ACCEPTED',
+              details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items added to outlet inventory`,
+              performedBy: req.user.id
+            }
+          });
+        } catch (auditErr) {
+          console.warn('AuditLog creation warning in demand accept:', auditErr.message);
+        }
       }, { timeout: 30000 });
     } catch (txErr) {
       if (txErr.code === 'DEMAND_ALREADY_ACCEPTED') {
@@ -720,8 +724,10 @@ const acceptDemandRequest = async (req, res) => {
         id,
         outletName,
         transferNumber,
-        status: existing.status
+        status: 'COMPLETED'
       });
+      io.emit('abbottabad:amount-updated');
+      io.emit('abbottabad:demand-accepted', { id, transferNumber, outletName });
       io.emit('inventory-updated', { source: 'demand-accept', demandId: id });
     }
 

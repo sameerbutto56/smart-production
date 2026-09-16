@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Search, Clock, CheckCircle, XCircle,
@@ -8,7 +9,7 @@ import {
   ChevronDown, TrendingUp, ShoppingCart, AlertTriangle,
   CreditCard, Globe, Layers, Award, TrendingDown,
   ArrowUpRight, ArrowDownRight, Activity, Eye, Phone, MapPin,
-  Download, Printer, Banknote
+  Download, Printer, Banknote, Wallet
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +23,7 @@ import OutletPOSDashboard from '../components/OutletPOSDashboard';
 import OutletInvoiceHistory from '../components/OutletInvoiceHistory';
 import OutletRegisters from '../components/OutletRegisters';
 import DailyCashDepositSection from '../components/DailyCashDepositSection';
+import AbbottabadFinancialSection from '../components/AbbottabadFinancialSection';
 
 const COLORS = { emerald: '#10b981', amber: '#f59e0b', blue: '#3b82f6', red: '#ef4444', purple: '#8b5cf6', cyan: '#06b6d4', pink: '#ec4899' };
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
@@ -169,6 +171,41 @@ const OutletDashboard = () => {
 
   const [inDispatchOrders, setInDispatchOrders] = useState([]);
   const [inDispatchLoading, setInDispatchLoading] = useState(false);
+
+  const isAbbottabad = outletName === 'Abbottabad' || String(user?.name || '').toLowerCase().includes('abbottabad');
+  const [abbottabadIncomingCount, setAbbottabadIncomingCount] = useState(0);
+
+  const fetchAbbottabadBadge = useCallback(async () => {
+    if (!isAbbottabad) return;
+    try {
+      const res = await api.get('/api/abbottabad/demand-summary', { params: { range: 'all' } });
+      if (res.data) {
+        setAbbottabadIncomingCount(res.data.incomingDemands || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch Abbottabad badge count:', err);
+    }
+  }, [isAbbottabad]);
+
+  useEffect(() => {
+    if (!isAbbottabad) return;
+    fetchAbbottabadBadge();
+    if (socket) {
+      const handleSync = () => fetchAbbottabadBadge();
+      socket.on('demand:new', handleSync);
+      socket.on('demand:dispatched', handleSync);
+      socket.on('demand:accepted', handleSync);
+      socket.on('abbottabad:demand-accepted', handleSync);
+      socket.on('abbottabad:amount-updated', handleSync);
+      return () => {
+        socket.off('demand:new', handleSync);
+        socket.off('demand:dispatched', handleSync);
+        socket.off('demand:accepted', handleSync);
+        socket.off('abbottabad:demand-accepted', handleSync);
+        socket.off('abbottabad:amount-updated', handleSync);
+      };
+    }
+  }, [isAbbottabad, fetchAbbottabadBadge]);
 
   const fetchAnalytics = useCallback(async (preset) => {
     setAnalyticsLoading(true);
@@ -420,6 +457,12 @@ const OutletDashboard = () => {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ...(isAbbottabad ? [{
+      id: 'abbottabad-financials',
+      label: 'Financials & Demands',
+      icon: Wallet,
+      badge: abbottabadIncomingCount
+    }] : []),
     { id: 'pos-dashboard', label: 'POS Dashboard', icon: BarChart3 },
     { id: 'invoices', label: 'Total Invoices', icon: DollarSign },
     { id: 'tracking', label: 'Order Track', icon: Search },
@@ -438,6 +481,39 @@ const OutletDashboard = () => {
 
   const renderDashboardTab = () => (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+      {/* Abbottabad Quick Action & Incoming Demand Notification Banner */}
+      {isAbbottabad && (
+        <motion.div variants={itemVariants} className="p-5 bg-gradient-to-r from-indigo-950/60 via-purple-950/40 to-teal-950/40 border-2 border-indigo-500/30 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center space-x-3.5">
+            <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/40 shrink-0">
+              <Wallet size={24} />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-base font-black text-white">Abbottabad Financials &amp; Demands System</h3>
+                {abbottabadIncomingCount > 0 && (
+                  <span className="px-2.5 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black rounded-full animate-pulse">
+                    {abbottabadIncomingCount} Incoming Demand{abbottabadIncomingCount > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-300 mt-0.5">
+                {abbottabadIncomingCount > 0
+                  ? `You have ${abbottabadIncomingCount} demand(s) sent from Store awaiting verification and acceptance into POS inventory.`
+                  : 'Manage approved running balance, store demands, dual-approvals, and stock acceptances.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('abbottabad-financials')}
+            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-black text-xs uppercase rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center space-x-2 shrink-0 active:scale-95"
+          >
+            <Wallet size={15} />
+            <span>{abbottabadIncomingCount > 0 ? 'Review & Accept Demands →' : 'Open Financials & Demands →'}</span>
+          </button>
+        </motion.div>
+      )}
+
       {/* Date & Summary Bar */}
       <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <DatePresetButtons value={datePreset} onChange={setDatePreset} />
@@ -724,6 +800,13 @@ const OutletDashboard = () => {
       </div>
 
       {activeTab === 'dashboard' && renderDashboardTab()}
+
+      {activeTab === 'abbottabad-financials' && isAbbottabad && (
+        <AbbottabadFinancialSection
+          isOutlet={true}
+          onBack={() => setActiveTab('dashboard')}
+        />
+      )}
 
       {activeTab === 'pos-dashboard' && <OutletPOSDashboard outlet={outletName} />}
 

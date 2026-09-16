@@ -191,7 +191,21 @@ const getDemandFinancialSummary = async (req, res) => {
     let missingCostDemandsCount = 0;
     const missingProductNamesSet = new Set();
 
+    let pendingDemands = 0;
+    let incomingDemands = 0;
+    let acceptedDemands = 0;
+    let completedDemands = 0;
+
     for (const d of demands) {
+      if (d.acceptedAt != null || d.status === 'COMPLETED') {
+        acceptedDemands++;
+        completedDemands++;
+      } else if (d.dispatchedAt != null || d.status === 'DISPATCHED' || d.status === 'APPROVED' || d.status === 'PARTIALLY_APPROVED') {
+        incomingDemands++;
+      } else {
+        pendingDemands++;
+      }
+
       const fin = finMap.get(d.id);
       if (fin) {
         totalProductValue += fin.productValue || 0;
@@ -218,6 +232,20 @@ const getDemandFinancialSummary = async (req, res) => {
         totalProductValue += dProductValue;
         totalActualPlusBilty += dProductValue;
       }
+    }
+
+    // Fetch Abbottabad Amount Account state
+    let account = await prisma.abbottabadAmountAccount.findUnique({
+      where: { outletName: 'Abbottabad' }
+    });
+    if (!account) {
+      account = {
+        approvedAmount: 0,
+        runningBalance: 0,
+        totalConsumed: 0,
+        isCleared: false,
+        lastClearedAt: null
+      };
     }
 
     let posSales = {
@@ -264,6 +292,17 @@ const getDemandFinancialSummary = async (req, res) => {
     res.json({
       range: range || 'today',
       totalDemands: demands.length,
+      pendingDemands,
+      incomingDemands,
+      acceptedDemands,
+      completedDemands,
+      account: {
+        approvedAmount: account.approvedAmount,
+        runningBalance: account.runningBalance,
+        totalConsumed: account.totalConsumed,
+        isCleared: account.isCleared,
+        lastClearedAt: account.lastClearedAt
+      },
       productValue: totalProductValue,
       biltyAmount: totalBilty,
       actualPlusBilty: totalActualPlusBilty,
@@ -306,13 +345,32 @@ const getDemandFinancialDetails = async (req, res) => {
     ]);
 
     const demandIds = demands.map(d => d.id);
-    const financials = await prisma.abbottabadDemandFinancial.findMany({
-      where: { demandId: { in: demandIds } }
-    });
+    const [financials, ledgers] = await Promise.all([
+      prisma.abbottabadDemandFinancial.findMany({
+        where: { demandId: { in: demandIds } }
+      }),
+      prisma.abbottabadAmountLedger.findMany({
+        where: { demandId: { in: demandIds }, actionType: 'DEMAND_DEDUCTION' }
+      })
+    ]);
     const finMap = new Map(financials.map(f => [f.demandId, f]));
+    const ledgerMap = new Map(ledgers.map(l => [l.demandId, l]));
+
+    // Fetch user names for actors
+    const userIds = Array.from(new Set(
+      demands.flatMap(d => [d.acceptedById, d.dispatchedById, d.approvedById]).filter(Boolean)
+    ));
+    const users = userIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true, role: true }
+        })
+      : [];
+    const userMap = new Map(users.map(u => [u.id, u.name || u.role]));
 
     const records = demands.map(d => {
       const fin = finMap.get(d.id);
+      const ledger = ledgerMap.get(d.id);
       const rawItems = typeof d.items === 'string' ? JSON.parse(d.items) : (d.items || []);
       const itemFinancials = fin?.itemFinancials
         ? (typeof fin.itemFinancials === 'string' ? JSON.parse(fin.itemFinancials) : fin.itemFinancials)
@@ -336,15 +394,25 @@ const getDemandFinancialDetails = async (req, res) => {
         costMissing: canSeeCost ? it.costMissing : undefined
       }));
 
+      const canAccept = Boolean(!d.acceptedAt && (d.status === 'APPROVED' || d.status === 'PARTIALLY_APPROVED' || d.status === 'DISPATCHED' || d.dispatchedAt));
+
       return {
         id: d.id,
         transferNumber: d.transferNumber,
         status: d.status,
         outletName: d.outletName,
         createdAt: d.createdAt,
+        approvedAt: d.approvedAt,
+        approvedByName: d.approvedById ? (userMap.get(d.approvedById) || null) : null,
         dispatchedAt: d.dispatchedAt,
+        dispatchedByName: d.dispatchedById ? (userMap.get(d.dispatchedById) || null) : null,
         acceptedAt: d.acceptedAt,
+        acceptedByName: d.acceptedById ? (userMap.get(d.acceptedById) || null) : null,
+        canAccept,
         deliveryChannel: d.deliveryChannel,
+        deliveryBoyName: d.deliveryBoyName,
+        notes: d.notes || null,
+        storeNotes: d.storeNotes || null,
         biltyType: fin?.biltyType || (d.deliveryChannel === 'BILTY' ? 'BILTY' : 'TCS'),
         biltyAmount: fin ? fin.biltyAmount : 0,
         productValue: fin ? fin.productValue : 0,
@@ -353,7 +421,14 @@ const getDemandFinancialDetails = async (req, res) => {
         costPlusBilty: canSeeCost ? fin?.costPlusBilty : undefined,
         costPriceMissing: canSeeCost ? fin?.costPriceMissing : undefined,
         missingProductNames: canSeeCost ? fin?.missingProductNames : undefined,
-        items: sanitizedItems
+        items: sanitizedItems,
+        deduction: ledger ? {
+          previousBalance: ledger.previousBalance,
+          consumedAmount: ledger.consumedAmount,
+          newBalance: ledger.newBalance,
+          details: ledger.details,
+          createdAt: ledger.createdAt
+        } : null
       };
     });
 
