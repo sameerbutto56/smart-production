@@ -129,6 +129,13 @@ const AdminDashboard = () => {
     setAbbottabadPasswordModalOpen(false);
     setActiveTab('outlet_abbottabad');
   };
+
+  const handleAbbottabadLogout = () => {
+    sessionStorage.removeItem('abbottabad_token');
+    delete api.defaults.headers.common['x-abbottabad-token'];
+    setAbbottabadToken(null);
+    setActiveTab(null);
+  };
   const [showClearModal, setShowClearModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
@@ -1663,7 +1670,7 @@ const AdminDashboard = () => {
         <div className="space-y-6">
           {abbottabadToken ? (
             <>
-              <AbbottabadFinancialSection />
+              <AbbottabadFinancialSection onLogout={handleAbbottabadLogout} />
               <OutletDetailedCard outlet="Abbottabad" />
             </>
           ) : (

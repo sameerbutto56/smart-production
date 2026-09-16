@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DollarSign, Package, Truck, TrendingUp, TrendingDown, AlertTriangle,
   Upload, FileSpreadsheet, Download, RefreshCw, ChevronDown, ChevronRight,
-  CheckCircle, XCircle, Search, Calendar, FileText, Layers, Eye
+  CheckCircle, XCircle, Search, Calendar, FileText, Layers, Eye, LogOut
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -15,7 +15,7 @@ const fmt = (n) => {
   return `₨${Math.round(Number(n)).toLocaleString()}`;
 };
 
-const AbbottabadFinancialSection = () => {
+const AbbottabadFinancialSection = ({ onLogout }) => {
   const {
     range, setRange, dateFrom, setDateFrom, dateTo, setDateTo,
     label: rangeLabel, queryParams, presets
@@ -201,6 +201,16 @@ const AbbottabadFinancialSection = () => {
             >
               <RefreshCw size={15} className={summaryLoading ? 'animate-spin' : ''} />
             </button>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Lock and logout from Abbottabad card"
+                className="px-3.5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center space-x-1.5 active:scale-95"
+              >
+                <LogOut size={15} />
+                <span>Lock &amp; Logout</span>
+              </button>
+            )}
           </div>
         </div>
 
