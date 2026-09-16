@@ -1,4 +1,8 @@
 ## Goals
+### Implemented This Session — Abbottabad-Specific Demand, Cost Analysis, Bilty/TCS, Dual-Approval Amount Control & Percentage Calculator (commit 2522c67, deployed & live-verified)
+- System live deployed to https://smart-production-v2.vercel.app (dpl_4wovfzMCnddTbwbDcbSEoCLMFW8K).
+- All 29/29 tests passed in verify-abbottabad-system.cjs.
+
 ### Implemented This Session — Device Authorization Seed Script (5 live rows; destructive wipe authorized, DB-only — NOT committed/deployed)
 - **Requirement**: Standalone Prisma seed `backend/prisma/seed-device-authorization.js` following the `seed-office-supply.js` header convention (standalone-module comment, isolation note — touches ONLY `DeviceAuthorization` rows, run via `node backend/prisma/seed-device-authorization.js`) that replants each runtime `deviceGate` binding path with appointed demo device IDs. Seeds both paths: 4 deterministic pre-hashed rows (`deviceCodeHash` set, `registrationCode` null, recognized at login by `findFirst({ where: { deviceCodeHash, assignedRole } })`) + 1 registration-code row (`registrationCode` set, `deviceCodeHash: null`, `status: 'APPROVED'`, binds + consumes code to null on first manual login). Role constants + `sha256` used exactly as implemented in `deviceAuth.js`; seeded codes distinct and never colliding with runtime-generated `ABCDEFGHJKMNPQRSTUVWXYZ23456789` codes. Destructive `deleteMany` of all prior `DeviceAuthorization` rows explicitly authorized.
 - **Fixed import**: `seed-device-authorization.js` line 3 imports only `{ sha256 }` from `../../src/utils/deviceAuth` — `validateRegistration` is NOT exported from `deviceAuth.js` (removed from the import rather than adding an export; the script never calls it).
