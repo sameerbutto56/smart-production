@@ -260,10 +260,24 @@ export default function OfficeSupply() {
     };
   }, [products, demands, transfers]);
 
+  // ----- Stock & Product Helpers -----
+  const getProductLocationStock = useCallback((productId, loc = stockLocation) => {
+    if (!productId) return 0;
+    const stockRow = (stockItems || []).find((s) => s.productId === productId && s.location === loc);
+    if (stockRow != null && stockRow.quantity != null) return stockRow.quantity;
+    const prod = products.find((p) => p.id === productId);
+    const pStock = (prod?.stock || []).find((s) => s.location === loc);
+    return pStock ? (pStock.quantity || 0) : 0;
+  }, [stockItems, products, stockLocation]);
+
+  const getProductStoreStock = useCallback((productId) => {
+    return getProductLocationStock(productId, 'STORE');
+  }, [getProductLocationStock]);
+
   // ----- Product CRUD -----
   const openNewProduct = () => {
     setEditingProduct(null);
-    setProductForm({ name: '', sku: '', unit: '', description: '' });
+    setProductForm({ name: '', sku: '', unit: '', description: '', initialStock: '' });
     setProductModal(true);
   };
   const openEditProduct = (p) => {
@@ -282,11 +296,16 @@ export default function OfficeSupply() {
         const res = await api.patch(`/api/office-supply/products/${editingProduct.id}`, productForm);
         toast.success(res.data?.message || 'Product updated');
       } else {
-        const res = await api.post('/api/office-supply/products', productForm);
+        const payload = {
+          ...productForm,
+          initialStock: productForm.initialStock !== '' ? Number(productForm.initialStock) : 0,
+        };
+        const res = await api.post('/api/office-supply/products', payload);
         toast.success(res.data?.message || 'Product created');
       }
       setProductModal(false);
       loadProducts();
+      loadStock();
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Failed to save product');
     } finally {
@@ -310,7 +329,11 @@ export default function OfficeSupply() {
     setAddStockModal(true);
   };
   const openAdjustStock = () => {
-    setStockQtyMap({});
+    const map = {};
+    availableForStock.forEach((p) => {
+      map[p.id] = getProductLocationStock(p.id, stockLocation);
+    });
+    setStockQtyMap(map);
     setAdjustStockModal(true);
   };
   const handleStockLocationChange = (loc) => {
@@ -328,7 +351,7 @@ export default function OfficeSupply() {
     }
     setSavingStock(true);
     try {
-      const res = await api.post('/api/office-supply/stock/add', { items });
+      const res = await api.post('/api/office-supply/stock/add', { items, location: stockLocation });
       toast.success(res.data?.message || 'Stock added');
       setAddStockModal(false);
       loadStock();
@@ -353,6 +376,7 @@ export default function OfficeSupply() {
       toast.success(res.data?.message || 'Stock adjusted');
       setAdjustStockModal(false);
       loadStock();
+      loadProducts();
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Failed to adjust stock');
     } finally {
@@ -430,6 +454,9 @@ export default function OfficeSupply() {
   const openNewTransfer = () => {
     setTransferForm({ type: 'DEMAND', demandId: '', toLocation: 'Johar Town', items: [{ productId: '', productName: '', quantity: 1 }] });
     setNewTransferModal(true);
+    loadProducts();
+    loadStock('STORE');
+    loadDemands();
   };
   const handleTransferTypeChange = (type) => {
     setTransferForm((prev) => ({ ...prev, type, demandId: '', items: [{ productId: '', productName: '', quantity: 1 }] }));
@@ -463,6 +490,19 @@ export default function OfficeSupply() {
         toast.error('Add at least one product with quantity');
         return;
       }
+      // Check Store stock before sending
+      for (const it of items) {
+        const avail = getProductStoreStock(it.productId);
+        const qty = Number(it.quantity);
+        if (avail <= 0) {
+          toast.error(`"${it.productName || 'Selected product'}" is out of stock in Store (0 available).`);
+          return;
+        }
+        if (qty > avail) {
+          toast.error(`Insufficient stock for "${it.productName}". Available: ${avail}, Requested: ${qty}.`);
+          return;
+        }
+      }
     }
     setSavingTransfer(true);
     try {
@@ -474,6 +514,8 @@ export default function OfficeSupply() {
       setNewTransferModal(false);
       loadTransfers();
       loadDemands();
+      loadStock();
+      loadProducts();
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Failed to create transfer');
     } finally {
@@ -489,6 +531,7 @@ export default function OfficeSupply() {
       loadTransfers();
       loadDemands();
       loadStock();
+      loadProducts();
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Failed to accept transfer');
     } finally {
@@ -504,6 +547,7 @@ export default function OfficeSupply() {
       loadTransfers();
       loadDemands();
       loadStock();
+      loadProducts();
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Failed to cancel transfer');
     } finally {
@@ -516,6 +560,8 @@ export default function OfficeSupply() {
     setSelfUseItems([{ productId: '', productName: '', quantity: 1 }]);
     setSelfUseReason('');
     setSelfUseModal(true);
+    loadProducts();
+    loadStock('STORE');
   };
   const handleSelfUseProductChange = (i, productId) => {
     const p = products.find((x) => x.id === productId);
@@ -524,17 +570,30 @@ export default function OfficeSupply() {
   const handlePushSelfUseItem = () => setSelfUseItems((prev) => [...prev, { productId: '', productName: '', quantity: 1 }]);
   const handlePopSelfUseItem = (i) => setSelfUseItems((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev));
   const handleRecordSelfUse = async () => {
-    const items = selfUseItems
+    const validItems = selfUseItems
       .filter((it) => it.productId && Number(it.quantity) > 0)
-      .map((it) => ({ productId: it.productId, quantity: Number(it.quantity) }));
-    if (items.length === 0) {
+      .map((it) => ({ productId: it.productId, productName: it.productName, quantity: Number(it.quantity) }));
+    if (validItems.length === 0) {
       toast.error('Add at least one product with quantity');
       return;
+    }
+    // Check Store stock before sending
+    for (const it of validItems) {
+      const avail = getProductStoreStock(it.productId);
+      const qty = Number(it.quantity);
+      if (avail <= 0) {
+        toast.error(`"${it.productName || 'Selected product'}" is out of stock in Store (0 available).`);
+        return;
+      }
+      if (qty > avail) {
+        toast.error(`Insufficient stock for "${it.productName}". Available: ${avail}, Requested: ${qty}.`);
+        return;
+      }
     }
     setSavingSelfUse(true);
     try {
       const res = await api.post('/api/office-supply/self-use', {
-        items,
+        items: validItems.map(it => ({ productId: it.productId, quantity: it.quantity })),
         reason: selfUseReason || 'Store internal use',
       });
       toast.success(res.data?.message || 'Self-use recorded successfully');
@@ -917,7 +976,7 @@ export default function OfficeSupply() {
                   {movements.map((m) => (
                     <tr key={m.id} className="border-t hover:bg-gray-800/30 transition-colors" style={{ borderColor: 'var(--glass-border)' }}>
                       <td className="px-4 py-3 font-bold text-white">{m.productName}</td>
-                      <td className="px-4 py-3">{statusBadge({ ADD: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', TRANSFER_OUT: 'bg-orange-500/15 text-orange-300 border-orange-500/30', TRANSFER_IN: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30', RECEIVE: 'bg-teal-500/15 text-teal-300 border-teal-500/30', ADJUSTMENT: 'bg-amber-500/15 text-amber-300 border-amber-500/30' }, m.movementType)}</td>
+                      <td className="px-4 py-3">{statusBadge({ ADD: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', TRANSFER_OUT: 'bg-orange-500/15 text-orange-300 border-orange-500/30', TRANSFER_IN: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30', RECEIVE: 'bg-teal-500/15 text-teal-300 border-teal-500/30', ADJUSTMENT: 'bg-amber-500/15 text-amber-300 border-amber-500/30', SELF_USE: 'bg-purple-500/15 text-purple-300 border-purple-500/30' }, m.movementType)}</td>
                       <td className="px-4 py-3 text-gray-300 text-xs">{m.fromLocation || '—'} → {m.toLocation || '—'}</td>
                       <td className="px-4 py-3 font-black text-white">{m.quantity}</td>
                       <td className="px-4 py-3 text-gray-300 text-xs">{m.performedBy || '—'}</td>
@@ -952,7 +1011,7 @@ export default function OfficeSupply() {
                 <thead className="bg-gray-800/60 text-[10px] font-black uppercase tracking-widest text-gray-400">
                   <tr>
                     <th className="px-4 py-3">Doc #</th>
-                    <th className="px-4 py-3">Items Consumed</th>
+                    <th className="px-4 py-3">Items Consumed &amp; Stock Audit</th>
                     <th className="px-4 py-3">Total Qty</th>
                     <th className="px-4 py-3">Reason / Purpose</th>
                     <th className="px-4 py-3">Recorded By</th>
@@ -971,17 +1030,22 @@ export default function OfficeSupply() {
                     const totalQty = (r.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0);
                     return (
                       <tr key={r.id} className="border-t hover:bg-gray-800/30 transition-colors" style={{ borderColor: 'var(--glass-border)' }}>
-                        <td className="px-4 py-3 font-mono text-xs font-black text-violet-300">
+                        <td className="px-4 py-3 font-mono text-xs font-black text-violet-300 whitespace-nowrap">
                           {r.transferNumber}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             {(r.items || []).map((it, idx) => (
-                              <div key={idx} className="text-xs text-gray-200 flex items-center gap-2">
+                              <div key={idx} className="text-xs text-gray-200 flex flex-wrap items-center gap-2">
                                 <span className="font-bold text-white">{it.productName}</span>
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-violet-500/20 text-violet-300 border border-violet-500/30">
-                                  x{it.quantity}
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                  Used: {it.quantity}
                                 </span>
+                                {it.previousStock != null && (
+                                  <span className="text-[10px] text-gray-400 font-mono bg-gray-900/80 px-2 py-0.5 rounded border border-gray-750">
+                                    Prev: <span className="text-gray-300">{it.previousStock}</span> → Left: <span className="text-emerald-400 font-bold">{it.remainingStock}</span>
+                                  </span>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -993,7 +1057,7 @@ export default function OfficeSupply() {
                         <td className="px-4 py-3 text-xs text-gray-300 font-medium">
                           {r.sentByName || 'Store User'}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-400 font-mono">
+                        <td className="px-4 py-3 text-xs text-gray-400 font-mono whitespace-nowrap">
                           {fmtDate(r.createdAt)}
                         </td>
                       </tr>
@@ -1021,6 +1085,18 @@ export default function OfficeSupply() {
               <input className={inputCls} value={productForm.unit} onChange={(e) => setProductForm((p) => ({ ...p, unit: e.target.value }))} placeholder="ream / pkt" />
             </Field>
           </div>
+          {!editingProduct && (
+            <Field label="Initial Stock (Store)">
+              <input
+                type="number"
+                min="0"
+                className={inputCls}
+                value={productForm.initialStock ?? ''}
+                onChange={(e) => setProductForm((p) => ({ ...p, initialStock: e.target.value }))}
+                placeholder="0"
+              />
+            </Field>
+          )}
           <Field label="Description">
             <textarea className={inputCls} rows={2} value={productForm.description} onChange={(e) => setProductForm((p) => ({ ...p, description: e.target.value }))} placeholder="Optional description" />
           </Field>
@@ -1065,21 +1141,26 @@ export default function OfficeSupply() {
         <div className="space-y-3">
           <div className="text-xs text-gray-400 mb-2">Set the <b className="text-white">exact quantity</b> each product should have at <b className="text-white">{stockLocation}</b>. Adjustments are logged.</div>
           <div className="max-h-[50vh] overflow-y-auto custom-scrollbar space-y-2">
-            {stockItems.length === 0 && <div className="text-xs text-gray-500">No stock rows at this location.</div>}
-            {stockItems.map((s) => (
-              <div key={s.stockId} className="flex items-center justify-between gap-3 rounded-xl bg-gray-800/40 px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-sm font-bold text-white truncate">{s.productName}</div>
-                  <div className="text-[10px] text-gray-400">current: {s.quantity} {s.unit || ''}</div>
+            {availableForStock.length === 0 && <div className="text-xs text-gray-500">No active products.</div>}
+            {availableForStock.map((p) => {
+              const currentStock = getProductLocationStock(p.id, stockLocation);
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl bg-gray-800/40 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-white truncate">{p.name}</div>
+                    <div className="text-[10px] text-gray-400">
+                      {p.sku ? `${p.sku} • ` : ''}current: {currentStock} {p.unit || ''}
+                    </div>
+                  </div>
+                  <input
+                    type="number" min="0"
+                    className="w-28 rounded-xl px-3 py-1.5 text-sm font-bold text-white bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    value={stockQtyMap[p.id] ?? currentStock}
+                    onChange={(e) => setStockQtyMap((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                  />
                 </div>
-                <input
-                  type="number" min="0"
-                  className="w-28 rounded-xl px-3 py-1.5 text-sm font-bold text-white bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  value={stockQtyMap[s.productId] ?? s.quantity}
-                  onChange={(e) => setStockQtyMap((prev) => ({ ...prev, [s.productId]: e.target.value }))}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--glass-border)' }}>
             <button onClick={() => setAdjustStockModal(false)} className={btnGhost}>Cancel</button>
@@ -1207,21 +1288,83 @@ export default function OfficeSupply() {
                 </select>
               </Field>
               <div className="space-y-2">
-                {transferForm.items.map((it, i) => (
-                  <div key={i} className="flex items-center gap-2 rounded-xl bg-gray-800/40 p-2.5">
-                    <select className={inputCls + ' flex-1'} value={it.productId} onChange={(e) => handleTransferProductChange(i, e.target.value)}>
-                      <option value="">Select product…</option>
-                      {availableForStock.map((p) => <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ''}</option>)}
-                    </select>
-                    <input
-                      type="number" min="1"
-                      className="w-20 rounded-xl px-2 py-2 text-sm font-bold text-white bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                      value={it.quantity}
-                      onChange={(e) => setTransferForm((prev) => ({ ...prev, items: prev.items.map((x, idx) => (idx === i ? { ...x, quantity: e.target.value } : x)) }))}
-                    />
-                    <button onClick={() => handlePopTransferItem(i)} className="bg-gray-700 hover:bg-red-600/60 rounded-lg p-1.5"><X size={13} /></button>
-                  </div>
-                ))}
+                {transferForm.items.map((it, i) => {
+                  const selProd = products.find((p) => p.id === it.productId);
+                  const storeStock = getProductStoreStock(it.productId);
+                  const reqQty = Number(it.quantity) || 0;
+                  const isExceed = it.productId && reqQty > storeStock;
+                  const isOutOfStock = it.productId && storeStock <= 0;
+
+                  return (
+                    <div key={i} className="space-y-1.5 rounded-xl bg-gray-800/40 p-2.5 border border-gray-750">
+                      <div className="flex items-center gap-2">
+                        <select
+                          className={inputCls + ' flex-1'}
+                          value={it.productId}
+                          onChange={(e) => handleTransferProductChange(i, e.target.value)}
+                        >
+                          <option value="">Select product to transfer…</option>
+                          {availableForStock.map((p) => {
+                            const pStock = getProductStoreStock(p.id);
+                            return (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.sku ? `(${p.sku})` : ''} — Stock: {pStock} {p.unit || ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <input
+                          type="number"
+                          min="1"
+                          className="w-24 rounded-xl px-2 py-2 text-sm font-bold text-white bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                          placeholder="Qty"
+                          value={it.quantity}
+                          onChange={(e) =>
+                            setTransferForm((prev) => ({
+                              ...prev,
+                              items: prev.items.map((x, idx) => (idx === i ? { ...x, quantity: e.target.value } : x)),
+                            }))
+                          }
+                        />
+                        <button
+                          onClick={() => handlePopTransferItem(i)}
+                          className="bg-gray-700 hover:bg-red-600/60 rounded-lg p-1.5 text-gray-300 hover:text-white"
+                          title="Remove item"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                      {it.productId && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1 rounded-lg bg-gray-900/60 text-[11px]">
+                          <div className="flex items-center gap-3">
+                            <span className="text-gray-400">
+                              Available in Store: <b className="text-white">{storeStock} {selProd?.unit || ''}</b>
+                            </span>
+                            <span className="text-blue-300">
+                              Sending: <b className="text-white">{reqQty}</b>
+                            </span>
+                            <span className="text-gray-400">
+                              Remaining: <b className={isExceed ? 'text-red-400' : 'text-emerald-400'}>{Math.max(0, storeStock - reqQty)}</b>
+                            </span>
+                          </div>
+                          {isOutOfStock ? (
+                            <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-black border border-red-500/30">
+                              Out of Stock (0 available)
+                            </span>
+                          ) : isExceed ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-black border border-amber-500/30">
+                              Exceeds Store Stock ({storeStock})
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-black border border-emerald-500/30">
+                              ✓ Available
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 <button onClick={handlePushTransferItem} className={btnGhost}><Plus size={14} /> Add Product</button>
               </div>
             </div>
@@ -1243,43 +1386,83 @@ export default function OfficeSupply() {
 
           <Field label="Items Consumed" required>
             <div className="space-y-2 mt-1">
-              {selfUseItems.map((it, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-xl bg-gray-800/40 p-2.5">
-                  <select
-                    className={inputCls + ' flex-1'}
-                    value={it.productId}
-                    onChange={(e) => handleSelfUseProductChange(i, e.target.value)}
-                  >
-                    <option value="">Select product…</option>
-                    {availableForStock.map((p) => {
-                      const storeStock = (p.stock || []).find((s) => s.location === 'STORE')?.quantity || 0;
-                      return (
-                        <option key={p.id} value={p.id} disabled={storeStock <= 0}>
-                          {p.name} {p.sku ? `(${p.sku})` : ''} — Stock: {storeStock} {p.unit || ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-24 rounded-xl px-2 py-2 text-sm font-bold text-white bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                    placeholder="Qty"
-                    value={it.quantity}
-                    onChange={(e) =>
-                      setSelfUseItems((prev) =>
-                        prev.map((x, idx) => (idx === i ? { ...x, quantity: e.target.value } : x))
-                      )
-                    }
-                  />
-                  <button
-                    onClick={() => handlePopSelfUseItem(i)}
-                    className="bg-gray-700 hover:bg-red-600/60 rounded-lg p-2 text-gray-300 hover:text-white transition-colors"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
+              {selfUseItems.map((it, i) => {
+                const selProd = products.find((p) => p.id === it.productId);
+                const storeStock = getProductStoreStock(it.productId);
+                const reqQty = Number(it.quantity) || 0;
+                const isExceed = it.productId && reqQty > storeStock;
+                const isOutOfStock = it.productId && storeStock <= 0;
+
+                return (
+                  <div key={i} className="space-y-1.5 rounded-xl bg-gray-800/40 p-2.5 border border-gray-750">
+                    <div className="flex items-center gap-2">
+                      <select
+                        className={inputCls + ' flex-1'}
+                        value={it.productId}
+                        onChange={(e) => handleSelfUseProductChange(i, e.target.value)}
+                      >
+                        <option value="">Select product to consume…</option>
+                        {availableForStock.map((p) => {
+                          const pStock = getProductStoreStock(p.id);
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {p.name} {p.sku ? `(${p.sku})` : ''} — Stock: {pStock} {p.unit || ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        className="w-24 rounded-xl px-2 py-2 text-sm font-bold text-white bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                        placeholder="Qty"
+                        value={it.quantity}
+                        onChange={(e) =>
+                          setSelfUseItems((prev) =>
+                            prev.map((x, idx) => (idx === i ? { ...x, quantity: e.target.value } : x))
+                          )
+                        }
+                      />
+                      <button
+                        onClick={() => handlePopSelfUseItem(i)}
+                        className="bg-gray-700 hover:bg-red-600/60 rounded-lg p-2 text-gray-300 hover:text-white transition-colors"
+                        title="Remove item"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    {it.productId && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1 rounded-lg bg-gray-900/60 text-[11px]">
+                        <div className="flex items-center gap-3">
+                          <span className="text-gray-400">
+                            Current Stock: <b className="text-white">{storeStock} {selProd?.unit || ''}</b>
+                          </span>
+                          <span className="text-violet-300">
+                            Using: <b className="text-white">{reqQty}</b>
+                          </span>
+                          <span className="text-gray-400">
+                            Remaining: <b className={isExceed ? 'text-red-400' : 'text-emerald-400'}>{Math.max(0, storeStock - reqQty)}</b>
+                          </span>
+                        </div>
+                        {isOutOfStock ? (
+                          <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-black border border-red-500/30">
+                            Out of Stock (0 available)
+                          </span>
+                        ) : isExceed ? (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-black border border-amber-500/30">
+                            Exceeds Store Stock ({storeStock})
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-black border border-emerald-500/30">
+                            ✓ Available
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               <button onClick={handlePushSelfUseItem} className={btnGhost}>
                 <Plus size={14} /> Add Another Product
               </button>

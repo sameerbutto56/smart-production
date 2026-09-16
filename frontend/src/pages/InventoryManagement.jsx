@@ -238,12 +238,13 @@ const InventoryManagement = () => {
         if (!matchesSearch) return false;
       }
 
-      const variants = item.variants && Array.isArray(item.variants) && item.variants.length > 0
-        ? item.variants
-        : [{ stock: item.stock != null ? item.stock : 0 }];
+      const itemTotalStock = (item.variants && Array.isArray(item.variants) && item.variants.length > 0)
+        ? item.variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
+        : (Number(item.stock) || 0);
 
-      if (stockFilter === 'OUT') return variants.some(v => (v.stock || 0) === 0);
-      if (stockFilter === 'LOW') return variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT);
+      if (stockFilter === 'AVAILABLE') return itemTotalStock > 0;
+      if (stockFilter === 'LOW') return itemTotalStock > 0 && itemTotalStock <= LOW_STOCK_LIMIT;
+      if (stockFilter === 'OUT') return itemTotalStock === 0;
       return true;
     })
     .sort((a, b) => {
@@ -744,6 +745,58 @@ const InventoryManagement = () => {
               </button>
             )}
           </div>
+          {user?.role !== 'INVENTORY_VIEW' && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-900/60 p-3 rounded-2xl border-2 border-gray-750">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                    <Package size={14} className="text-emerald-400" />
+                    Stock:
+                  </label>
+                  <select
+                    value={stockFilter}
+                    onChange={(e) => setStockFilter(e.target.value)}
+                    className="rounded-xl px-3.5 py-2 text-xs font-bold border-2 border-gray-700 bg-gray-800 text-white focus:border-emerald-500/50 transition-all cursor-pointer"
+                  >
+                    <option value="ALL">All Stock</option>
+                    <option value="AVAILABLE">Available Stock</option>
+                    <option value="LOW">Low Stock (≤ {LOW_STOCK_LIMIT})</option>
+                    <option value="OUT">Out of Stock</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {[
+                    { key: 'ALL', label: 'All' },
+                    { key: 'AVAILABLE', label: 'Available' },
+                    { key: 'LOW', label: `Low Stock (≤${LOW_STOCK_LIMIT})` },
+                    { key: 'OUT', label: 'Out of Stock' }
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setStockFilter(opt.key)}
+                      className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all whitespace-nowrap ${
+                        stockFilter === opt.key
+                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/30'
+                          : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-700'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => printInventoryReport(filteredItems, stockFilter)}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black py-2 px-4 rounded-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2 active:scale-95 text-xs"
+                title={`Print ${stockFilter === 'AVAILABLE' ? 'Available Stock' : stockFilter === 'LOW' ? 'Low Stock' : stockFilter === 'OUT' ? 'Out of Stock' : 'All Stock'} Report`}
+              >
+                <Printer size={15} />
+                <span>Print {stockFilter === 'AVAILABLE' ? 'Available Stock' : stockFilter === 'LOW' ? 'Low Stock' : stockFilter === 'OUT' ? 'Out of Stock' : 'Report'}</span>
+              </button>
+            </div>
+          )}
           {loading ? (
             <div className="py-20 flex items-center justify-center">
               <PageLoader text="Loading Inventory..." />
@@ -839,22 +892,59 @@ const InventoryManagement = () => {
         )}
       </div>
 
-      {/* Stock Filter */}
+      {/* Stock Dropdown & Print Filter */}
       {user?.role !== 'INVENTORY_VIEW' && (
-      <div className="flex gap-2">
-        {[
-          { key: 'ALL', label: 'All Stock' },
-          { key: 'LOW', label: `⚠ Low Stock (<=${LOW_STOCK_LIMIT})` },
-          { key: 'OUT', label: '✕ Out of Stock' }
-        ].map(opt => (
-          <button key={opt.key} onClick={() => setStockFilter(opt.key)}
-            className={`px-4 py-2.5 text-xs font-black rounded-xl transition-all whitespace-nowrap ${
-              stockFilter === opt.key
-                ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/30'
-                : 'bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700'
-            }`}
-          >{opt.label}</button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-900/60 p-3 rounded-2xl border-2 border-gray-750">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+              <Package size={14} className="text-emerald-400" />
+              Stock:
+            </label>
+            <select
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value)}
+              className="rounded-xl px-3.5 py-2 text-xs font-bold border-2 border-gray-700 bg-gray-800 text-white focus:border-emerald-500/50 transition-all cursor-pointer"
+            >
+              <option value="ALL">All Stock</option>
+              <option value="AVAILABLE">Available Stock</option>
+              <option value="LOW">Low Stock (≤ {LOW_STOCK_LIMIT})</option>
+              <option value="OUT">Out of Stock</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {[
+              { key: 'ALL', label: 'All' },
+              { key: 'AVAILABLE', label: 'Available' },
+              { key: 'LOW', label: `Low Stock (≤${LOW_STOCK_LIMIT})` },
+              { key: 'OUT', label: 'Out of Stock' }
+            ].map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setStockFilter(opt.key)}
+                className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all whitespace-nowrap ${
+                  stockFilter === opt.key
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/30'
+                    : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-700'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => printInventoryReport(filteredItems, stockFilter)}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black py-2 px-4 rounded-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2 active:scale-95 text-xs"
+          title={`Print ${stockFilter === 'AVAILABLE' ? 'Available Stock' : stockFilter === 'LOW' ? 'Low Stock' : stockFilter === 'OUT' ? 'Out of Stock' : 'All Stock'} Report`}
+        >
+          <Printer size={15} />
+          <span>Print {stockFilter === 'AVAILABLE' ? 'Available Stock' : stockFilter === 'LOW' ? 'Low Stock' : stockFilter === 'OUT' ? 'Out of Stock' : 'Report'}</span>
+        </button>
       </div>
       )}
 

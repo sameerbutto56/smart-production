@@ -78,18 +78,49 @@ const createProduct = async (req, res) => {
     if (!STORE_ROLES.includes(req.user?.role)) {
       return res.status(403).json({ message: 'Only Store can manage office supply products' });
     }
-    const { name, sku, unit, description } = req.body || {};
+    const { name, sku, unit, description, initialStock } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ message: 'Product name is required' });
     }
-    const product = await prisma.officeSupplyProduct.create({
-      data: {
-        name: String(name).trim(),
-        sku: sku ? String(sku).trim() : null,
-        unit: unit || 'Pcs',
-        description: description ? String(description) : null,
-      },
+    const initialQty = Math.max(0, parseInt(initialStock, 10) || 0);
+
+    const product = await prisma.$transaction(async (tx) => {
+      const p = await tx.officeSupplyProduct.create({
+        data: {
+          name: String(name).trim(),
+          sku: sku ? String(sku).trim() : null,
+          unit: unit || 'Pcs',
+          description: description ? String(description) : null,
+        },
+      });
+
+      if (initialQty > 0) {
+        const stock = await tx.officeSupplyStock.create({
+          data: {
+            productId: p.id,
+            location: 'STORE',
+            locationType: 'STORE',
+            quantity: initialQty,
+          },
+        });
+        await tx.officeSupplyStockMovement.create({
+          data: {
+            productId: p.id,
+            stockId: stock.id,
+            fromLocation: null,
+            toLocation: 'STORE',
+            movementType: 'ADD',
+            quantity: initialQty,
+            referenceType: 'INITIAL_STOCK',
+            notes: 'Initial stock on product creation',
+            performedBy: req.user?.name || 'Store',
+          },
+        });
+      }
+
+      return p;
     });
+
     return res.status(201).json({ product });
   } catch (error) {
     if (error?.code === 'P2002') {
@@ -169,12 +200,14 @@ const getStock = async (req, res) => {
   }
 };
 
-// POST /api/office-supply/stock/add  { items: [{ productId, quantity }] }
+// POST /api/office-supply/stock/add  { location?, items: [{ productId, quantity }] }
 const addStock = async (req, res) => {
   try {
     if (!STORE_ROLES.includes(req.user?.role)) {
       return res.status(403).json({ message: 'Only Store can add office supply stock' });
     }
+    const location = String(req.body?.location || 'STORE').trim() || 'STORE';
+    const locationType = location === 'STORE' ? 'STORE' : 'OUTLET';
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     if (!items.length) {
       return res.status(400).json({ message: 'At least one item is required' });
@@ -196,8 +229,8 @@ const addStock = async (req, res) => {
           throw err;
         }
         const upsert = await tx.officeSupplyStock.upsert({
-          where: { productId_location: { productId, location: 'STORE' } },
-          create: { productId, location: 'STORE', locationType: 'STORE', quantity: qty },
+          where: { productId_location: { productId, location } },
+          create: { productId, location, locationType, quantity: qty },
           update: { quantity: { increment: qty } },
         });
         await tx.officeSupplyStockMovement.create({
@@ -205,12 +238,12 @@ const addStock = async (req, res) => {
             productId,
             stockId: upsert.id,
             fromLocation: null,
-            toLocation: 'STORE',
+            toLocation: location,
             movementType: 'ADD',
             quantity: qty,
             referenceType: 'ADD',
-            notes: 'Stock added by Store',
-            performedBy: req.user?.id || 'SYSTEM',
+            notes: `Stock added to ${location} by Store`,
+            performedBy: req.user?.name || 'Store',
           },
         });
         created.push({ stockId: upsert.id, productId, quantity: upsert.quantity });
@@ -234,6 +267,7 @@ const adjustStock = async (req, res) => {
       return res.status(403).json({ message: 'Only Store can adjust office supply stock' });
     }
     const location = String(req.body?.location || '').trim() || 'STORE';
+    const locationType = location === 'STORE' ? 'STORE' : 'OUTLET';
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     if (!items.length) {
       return res.status(400).json({ message: 'At least one item is required' });
@@ -251,14 +285,21 @@ const adjustStock = async (req, res) => {
         const curr = await tx.officeSupplyStock.findUnique({
           where: { productId_location: { productId, location } },
         });
-        if (!curr || curr.quantity === qty) {
-          updated.push({ productId, quantity: curr ? qty : 0 });
+        const prevQty = curr ? curr.quantity : 0;
+        if (curr && curr.quantity === qty) {
+          updated.push({ productId, quantity: qty });
           continue;
         }
-        const delta = qty - curr.quantity;
-        const next = await tx.officeSupplyStock.update({
-          where: { id: curr.id },
-          data: { quantity: qty },
+        const delta = qty - prevQty;
+        const next = await tx.officeSupplyStock.upsert({
+          where: { productId_location: { productId, location } },
+          create: {
+            productId,
+            location,
+            locationType,
+            quantity: qty,
+          },
+          update: { quantity: qty },
         });
         await tx.officeSupplyStockMovement.create({
           data: {
@@ -269,8 +310,8 @@ const adjustStock = async (req, res) => {
             movementType: 'ADJUSTMENT',
             quantity: delta,
             referenceType: 'ADJUSTMENT',
-            notes: 'Stock adjusted by Store',
-            performedBy: req.user?.id || 'SYSTEM',
+            notes: `Stock adjusted by Store (was ${prevQty}, now ${qty})`,
+            performedBy: req.user?.name || 'Store',
           },
         });
         updated.push({ productId, quantity: qty });
@@ -559,6 +600,49 @@ const createTransfer = async (req, res) => {
     }
 
     const transfer = await prisma.$transaction(async (tx) => {
+      // Resolve authoritative product data
+      const pIds = items.map((it) => String(it.productId || ''));
+      const dbProducts = await tx.officeSupplyProduct.findMany({
+        where: { id: { in: pIds } },
+      });
+      const prodMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+      // Pre-validate stock availability for all items before any writes
+      const resolvedItems = [];
+      for (const it of items) {
+        const productId = String(it.productId || '');
+        const qty = Number(it.quantity);
+        const prod = prodMap.get(productId);
+        const productName = prod ? prod.name : String(it.productName || 'Product');
+        const unit = prod ? prod.unit : (it.unit || 'Pcs');
+
+        if (!productId || !Number.isFinite(qty) || qty <= 0) {
+          const err = new Error(`Quantity for "${productName}" must be greater than 0`);
+          err.httpStatus = 400;
+          throw err;
+        }
+
+        const stock = await tx.officeSupplyStock.findUnique({
+          where: { productId_location: { productId, location: 'STORE' } },
+        });
+        const available = stock ? stock.quantity : 0;
+        if (available < qty) {
+          const err = new Error(`Insufficient Office Supply stock for "${productName}". Available: ${available}, Requested: ${qty}.`);
+          err.httpStatus = 400;
+          throw err;
+        }
+
+        resolvedItems.push({
+          productId,
+          productName,
+          quantity: qty,
+          unit,
+          previousStock: available,
+          remainingStock: available - qty,
+          stockId: stock.id,
+        });
+      }
+
       const transferNumber = await nextDocNumber(tx, 'OSTR');
       const created = await tx.officeSupplyTransfer.create({
         data: {
@@ -573,43 +657,37 @@ const createTransfer = async (req, res) => {
           sentById: req.user?.id || null,
           sentByName: req.user?.name || 'Store',
           items: {
-            create: items.map((it) => ({
-              productId: String(it.productId),
-              productName: String(it.productName || ''),
-              quantity: Number(it.quantity),
-              unit: it.unit || 'Pcs',
+            create: resolvedItems.map((it) => ({
+              productId: it.productId,
+              productName: it.productName,
+              quantity: it.quantity,
+              unit: it.unit,
+              previousStock: it.previousStock,
+              remainingStock: it.remainingStock,
             })),
           },
         },
         include: { items: true },
       });
 
-      // Deduct STORE stock and log movements (never allows negative).
-      for (const it of created.items) {
-        const stock = await tx.officeSupplyStock.findUnique({
-          where: { productId_location: { productId: it.productId, location: 'STORE' } },
-        });
-        if (!stock || stock.quantity < it.quantity) {
-          const err = new Error(`Insufficient Store stock for ${it.productName} (available: ${stock ? stock.quantity : 0}, requested: ${it.quantity})`);
-          err.httpStatus = 400;
-          throw err;
-        }
+      // Deduct STORE stock and log movements atomically
+      for (const it of resolvedItems) {
         await tx.officeSupplyStock.update({
-          where: { id: stock.id },
+          where: { id: it.stockId },
           data: { quantity: { decrement: it.quantity } },
         });
         await tx.officeSupplyStockMovement.create({
           data: {
             productId: it.productId,
-            stockId: stock.id,
+            stockId: it.stockId,
             fromLocation: 'STORE',
             toLocation,
             movementType: 'TRANSFER_OUT',
             quantity: it.quantity,
             referenceId: created.id,
             referenceType: 'TRANSFER',
-            notes: `Transfer ${transferNumber}`,
-            performedBy: req.user?.id || 'SYSTEM',
+            notes: `Transfer ${transferNumber} to ${toLocation} (Prev: ${it.previousStock}, Rem: ${it.remainingStock})`,
+            performedBy: req.user?.name || 'Store',
           },
         });
       }
@@ -936,7 +1014,50 @@ const recordSelfUse = async (req, res) => {
     const usedBy = req.user?.name || 'Store User';
 
     const result = await prisma.$transaction(async (tx) => {
-      const transferNumber = await nextDocNumber(tx, 'SELF');
+      // Resolve authoritative product metadata
+      const pIds = items.map((it) => String(it.productId || ''));
+      const dbProducts = await tx.officeSupplyProduct.findMany({
+        where: { id: { in: pIds } },
+      });
+      const prodMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+      // Validate stock availability for all items before writing
+      const resolvedItems = [];
+      for (const it of items) {
+        const productId = String(it.productId || '');
+        const qty = Number(it.quantity);
+        const prod = prodMap.get(productId);
+        const productName = prod ? prod.name : String(it.productName || 'Product');
+        const unit = prod ? prod.unit : (it.unit || 'Pcs');
+
+        if (!productId || !Number.isFinite(qty) || qty <= 0) {
+          const err = new Error(`Quantity for "${productName}" must be greater than 0`);
+          err.httpStatus = 400;
+          throw err;
+        }
+
+        const stock = await tx.officeSupplyStock.findUnique({
+          where: { productId_location: { productId, location: 'STORE' } },
+        });
+        const available = stock ? stock.quantity : 0;
+        if (available < qty) {
+          const err = new Error(`Insufficient Store stock for "${productName}". Available: ${available}, Requested: ${qty}.`);
+          err.httpStatus = 400;
+          throw err;
+        }
+
+        resolvedItems.push({
+          productId,
+          productName,
+          quantity: qty,
+          unit,
+          previousStock: available,
+          remainingStock: available - qty,
+          stockId: stock.id,
+        });
+      }
+
+      const transferNumber = await nextDocNumber(tx, 'OSU');
       const transfer = await tx.officeSupplyTransfer.create({
         data: {
           transferNumber,
@@ -952,12 +1073,14 @@ const recordSelfUse = async (req, res) => {
           receivedById: req.user?.id || null,
           receivedByName: usedBy,
           items: {
-            create: items.map((it) => ({
-              productId: String(it.productId),
-              productName: String(it.productName || ''),
-              quantity: Number(it.quantity),
-              receivedQty: Number(it.quantity),
-              unit: it.unit || 'Pcs',
+            create: resolvedItems.map((it) => ({
+              productId: it.productId,
+              productName: it.productName,
+              quantity: it.quantity,
+              receivedQty: it.quantity,
+              unit: it.unit,
+              previousStock: it.previousStock,
+              remainingStock: it.remainingStock,
             })),
           },
         },
@@ -965,32 +1088,23 @@ const recordSelfUse = async (req, res) => {
       });
 
       // Deduct from STORE stock and record immutable movement logs
-      for (const it of transfer.items) {
-        const stock = await tx.officeSupplyStock.findUnique({
-          where: { productId_location: { productId: it.productId, location: 'STORE' } },
-        });
-        if (!stock || stock.quantity < it.quantity) {
-          const err = new Error(`Insufficient Store stock for ${it.productName} (available: ${stock ? stock.quantity : 0}, requested: ${it.quantity})`);
-          err.httpStatus = 400;
-          throw err;
-        }
-
+      for (const it of resolvedItems) {
         await tx.officeSupplyStock.update({
-          where: { id: stock.id },
+          where: { id: it.stockId },
           data: { quantity: { decrement: it.quantity } },
         });
 
         await tx.officeSupplyStockMovement.create({
           data: {
             productId: it.productId,
-            stockId: stock.id,
+            stockId: it.stockId,
             fromLocation: 'STORE',
             toLocation: 'STORE_SELF_USE',
             movementType: 'SELF_USE',
             quantity: it.quantity,
             referenceId: transfer.id,
             referenceType: 'SELF_USE',
-            notes: `Self-Use: ${reason}`,
+            notes: `Self-Use (${transferNumber}): ${reason} (Prev: ${it.previousStock}, Used: ${it.quantity}, Rem: ${it.remainingStock})`,
             performedBy: usedBy,
           },
         });
@@ -1024,7 +1138,7 @@ const getSelfUseRecords = async (req, res) => {
     const records = await prisma.officeSupplyTransfer.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { items: true },
+      include: { items: { include: { product: true } } },
       take: 250,
     });
     return res.json({ records });

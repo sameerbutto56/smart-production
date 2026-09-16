@@ -2299,6 +2299,8 @@ model OfficeSupplyTransferItem {
   quantity     Int
   receivedQty  Int?
   unit         String  @default("Pcs")
+  previousStock Int?
+  remainingStock Int?
 
   @@index([transferId])
   @@index([productId])

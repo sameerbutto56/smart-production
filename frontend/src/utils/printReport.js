@@ -786,51 +786,111 @@ export function printAnalyticsReport(data, branch) {
   closePrintWindow(win);
 }
 
-const FILTER_LABELS = { ALL: 'All Items', LOW: 'Low Stock (1-5)', OUT: 'Out of Stock (0)' };
+const STOCK_REPORT_TITLES = {
+  AVAILABLE: 'WAREHOUSE INVENTORY — AVAILABLE STOCK',
+  LOW: 'WAREHOUSE INVENTORY — LOW STOCK',
+  OUT: 'WAREHOUSE INVENTORY — OUT OF STOCK',
+  ALL: 'WAREHOUSE INVENTORY — ALL STOCK',
+};
 
 export function printInventoryReport(items, filter = 'ALL') {
-  const title = `Inventory Report - ${FILTER_LABELS[filter] || 'All Items'}`;
-  const win = openPrintWindow(title);
+  const normFilter = String(filter || 'ALL').toUpperCase();
+  const headerTitle = STOCK_REPORT_TITLES[normFilter] || `WAREHOUSE INVENTORY — ${normFilter}`;
+  const win = openPrintWindow(headerTitle);
 
-  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Stock as of ' + formatDateOnly(new Date()) + '</span></div>');
+  const now = new Date();
+  const dateStr = formatDateOnly(now);
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-  const totalValue = items.reduce((s, i) => s + ((i.variants || []).reduce((sv, v) => sv + ((v.stock || 0) * (v.price || 0)), 0)), 0);
-  const totalStock = items.reduce((s, i) => s + ((i.variants || []).reduce((sv, v) => sv + (v.stock || 0), 0)), 0);
+  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Generated: ' + dateStr + ' ' + timeStr + '</span></div>');
 
-  win.document.write('<div class="summary-grid">');
-  win.document.write(kpiCard('Total Items', items.length));
-  win.document.write(kpiCard('Total Stock Units', totalStock));
-  win.document.write(kpiCard('Total Value', currency(totalValue)));
-  win.document.write(kpiCard('Categories', [...new Set(items.map(i => i.category))].length));
-  win.document.write('</div>');
-
-  // Filter variants based on active stock filter
+  // Filter variants based on active stock category
   function variantMatchesFilter(stock) {
-    if (filter === 'ALL') return true;
-    if (filter === 'OUT') return stock === 0;
-    if (filter === 'LOW') return stock > 0 && stock <= 5;
+    if (normFilter === 'AVAILABLE') return stock > 0;
+    if (normFilter === 'LOW') return stock > 0 && stock <= 5;
+    if (normFilter === 'OUT') return stock === 0;
     return true;
   }
 
+  // Filter items matching the selected stock category
+  const matchingItems = (items || []).filter(item => {
+    const variants = item.variants && item.variants.length > 0
+      ? item.variants
+      : [{ stock: item.stock != null ? item.stock : 0 }];
+    return variants.some(v => variantMatchesFilter(v.stock || 0));
+  });
+
+  const totalStock = matchingItems.reduce((s, i) => {
+    const variants = i.variants && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
+    return s + variants.filter(v => variantMatchesFilter(v.stock || 0)).reduce((sv, v) => sv + (v.stock || 0), 0);
+  }, 0);
+
+  const totalValue = matchingItems.reduce((s, i) => {
+    const variants = i.variants && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0, price: i.price || 0 }];
+    return s + variants.filter(v => variantMatchesFilter(v.stock || 0)).reduce((sv, v) => sv + ((v.stock || 0) * (v.price || i.price || 0)), 0);
+  }, 0);
+
+  win.document.write('<div class="summary-grid">');
+  win.document.write(kpiCard('Total Products', matchingItems.length));
+  win.document.write(kpiCard('Total Stock Units', totalStock));
+  win.document.write(kpiCard('Total Value', currency(totalValue)));
+  win.document.write(kpiCard('Stock Category', normFilter === 'AVAILABLE' ? 'Available Stock' : normFilter === 'LOW' ? 'Low Stock (≤5)' : normFilter === 'OUT' ? 'Out of Stock (0)' : 'All Stock'));
+  win.document.write('</div>');
+
   // Group by category
-  const categories = [...new Set(items.map(i => i.category))].sort();
+  const categories = [...new Set(matchingItems.map(i => i.category || 'General'))].sort();
   categories.forEach(cat => {
-    const catItems = items.filter(i => i.category === cat);
-    win.document.write(`<div class="section-title">${cat} (${catItems.length} items)</div>`);
-    win.document.write('<table><thead><tr><th>Product</th><th>Color</th><th>Size</th><th style="text-align:right">Stock</th><th style="text-align:right">Price</th><th style="text-align:right">Value</th><th>Status</th></tr></thead><tbody>');
+    const catItems = matchingItems.filter(i => (i.category || 'General') === cat);
+    win.document.write(`<div class="section-title">${cat} (${catItems.length} Products)</div>`);
+    win.document.write('<table><thead><tr>' +
+      '<th>Product Name</th>' +
+      '<th>Article / SKU</th>' +
+      '<th>Category</th>' +
+      '<th>Color</th>' +
+      '<th>Size</th>' +
+      '<th>Variant</th>' +
+      '<th style="text-align:right">Current Qty</th>' +
+      '<th>Unit</th>' +
+      '<th style="text-align:center">Stock Status</th>' +
+      '</tr></thead><tbody>');
+
     catItems.forEach(item => {
-      const variants = item.variants && item.variants.length > 0 ? item.variants : [{ color: '—', size: '—', stock: 0, price: item.price || 0 }];
+      const variants = item.variants && item.variants.length > 0
+        ? item.variants
+        : [{ color: item.color || '—', size: item.size || '—', stock: item.stock != null ? item.stock : 0, price: item.price || 0 }];
+
       variants.filter(v => variantMatchesFilter(v.stock || 0)).forEach(v => {
         const stock = v.stock || 0;
-        const price = v.price || 0;
-        const val = stock * price;
+        const color = v.color || item.color || '—';
+        const size = v.size || item.size || '—';
+        const variantLabel = [color !== '—' ? color : null, size !== '—' ? size : null].filter(Boolean).join(' / ') || 'Standard';
+        const sku = v.sku || item.sku || item.article || '—';
+        const unit = item.unit || 'Pcs';
+
         let statusClass = 'status-ok';
-        let statusText = 'In Stock';
-        if (stock === 0) { statusClass = 'status-bad'; statusText = 'Out of Stock'; }
-        else if (stock <= 5) { statusClass = 'status-warn'; statusText = 'Low Stock'; }
-        win.document.write(`<tr><td style="font-weight:700">${item.name}</td><td>${v.color || '—'}</td><td>${v.size || '—'}</td><td style="text-align:right;font-weight:700">${stock}</td><td style="text-align:right">${currency(price)}</td><td style="text-align:right;font-weight:700">${currency(val)}</td><td><span class="status-badge ${statusClass}">${statusText}</span></td></tr>`);
+        let statusText = 'Available';
+        if (stock === 0) {
+          statusClass = 'status-bad';
+          statusText = 'Out of Stock';
+        } else if (stock <= 5) {
+          statusClass = 'status-warn';
+          statusText = 'Low Stock';
+        }
+
+        win.document.write(`<tr>` +
+          `<td style="font-weight:700">${item.name}</td>` +
+          `<td>${sku}</td>` +
+          `<td>${cat}</td>` +
+          `<td>${color}</td>` +
+          `<td>${size}</td>` +
+          `<td>${variantLabel}</td>` +
+          `<td style="text-align:right;font-weight:700">${stock}</td>` +
+          `<td>${unit}</td>` +
+          `<td style="text-align:center"><span class="status-badge ${statusClass}">${statusText}</span></td>` +
+          `</tr>`);
       });
     });
+
     win.document.write('</tbody></table>');
   });
 
