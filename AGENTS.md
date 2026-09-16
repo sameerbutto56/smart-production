@@ -1,4 +1,19 @@
 ## Goals
+### Implemented This Session — Authorize Middleware Variadic Support & Inventory Duplicate Merge Permissions (commit 3d7058b, deployed & live-verified)
+- **Problem**: When attempting to detect or merge duplicates on `/inventory/merge-duplicates` from the Outlet POS inventory view, requests failed with `AxiosError: Request failed with status code 403`.
+- **Root Cause**:
+  1. In `backend/src/middleware/auth.middleware.js`, `authorize` was defined as `(roles = []) => ...` and converted only single strings `if (typeof roles === 'string') roles = [roles]`. When called with multiple string arguments like `authorize('ADMIN', 'SUPER_ADMIN', 'STORE')` in routes, only the first parameter `'ADMIN'` was read while `'STORE'` was ignored. Consequently, users with role `STORE` were rejected with `403 Forbidden`.
+  2. Route definitions in `pos.routes.js` and `warehouse.routes.js` needed explicit `CEO` role support alongside `STORE`, `ADMIN`, and `SUPER_ADMIN`.
+- **Fix**:
+  1. Updated `authorize` in `auth.middleware.js` to accept varargs `(...args)` and flatten them (`args.flat()`), uniformly supporting array syntax `authorize(['ADMIN', 'STORE'])` and variadic syntax `authorize('ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO')` with optional chaining `req.user?.role`.
+  2. Updated duplicate detection and merge endpoints in `backend/src/routes/pos.routes.js` and `backend/src/routes/warehouse.routes.js` to authorize `['ADMIN', 'SUPER_ADMIN', 'STORE', 'CEO']`.
+- **Verification & Deployment**:
+  - Tested `authorize` with an automated suite covering all calling conventions (arrays, single string, rest parameters, invalid roles, missing user objects) — 100% passed.
+  - Verified syntax with `node --check` across modified files.
+  - Tested production frontend bundling with `npm run build` (3,193 modules bundled with 0 errors).
+  - Pushed commit `3d7058b` to `main`.
+  - Deployed to Vercel production (`dpl_GnkKaPzJR8tCpAQ938X8cHV639bP`) and aliased to `https://smart-production-v2.vercel.app`. Live health probe returns `{"status":"ok","message":"Backend is alive!"}`.
+
 ### Implemented This Session — Abbottabad Profile Dashboard Integration: Real-time Backend Sync, Demand Acceptance & Amount Section (commit 39d0791, deployed & live-verified)
 - System live deployed to https://smart-production-v2.vercel.app (`dpl_FWKPfNVze16ZxXwNrNMN2coKoNpE`).
 - All 35/35 tests passed in `verify-abbottabad-outlet.cjs`.
