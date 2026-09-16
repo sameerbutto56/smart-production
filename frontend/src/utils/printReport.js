@@ -804,37 +804,35 @@ export function printInventoryReport(items, filter = 'ALL') {
 
   win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Generated: ' + dateStr + ' ' + timeStr + '</span></div>');
 
-  // Filter variants based on active stock category
-  function variantMatchesFilter(stock) {
-    if (normFilter === 'AVAILABLE') return stock > 0;
-    if (normFilter === 'LOW') return stock > 0 && stock <= 5;
-    if (normFilter === 'OUT') return stock === 0;
+  function itemMatchesFilter(item) {
+    const qty = (item.variants && Array.isArray(item.variants) && item.variants.length > 0)
+      ? item.variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
+      : (Number(item.stock) || 0);
+
+    if (normFilter === 'AVAILABLE') return qty > 0;
+    if (normFilter === 'LOW') return qty > 0 && qty < 5;
+    if (normFilter === 'OUT') return qty === 0;
     return true;
   }
 
   // Filter items matching the selected stock category
-  const matchingItems = (items || []).filter(item => {
-    const variants = item.variants && item.variants.length > 0
-      ? item.variants
-      : [{ stock: item.stock != null ? item.stock : 0 }];
-    return variants.some(v => variantMatchesFilter(v.stock || 0));
-  });
+  const matchingItems = (items || []).filter(item => itemMatchesFilter(item));
 
   const totalStock = matchingItems.reduce((s, i) => {
     const variants = i.variants && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-    return s + variants.filter(v => variantMatchesFilter(v.stock || 0)).reduce((sv, v) => sv + (v.stock || 0), 0);
+    return s + variants.reduce((sv, v) => sv + (Number(v.stock) || 0), 0);
   }, 0);
 
   const totalValue = matchingItems.reduce((s, i) => {
     const variants = i.variants && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0, price: i.price || 0 }];
-    return s + variants.filter(v => variantMatchesFilter(v.stock || 0)).reduce((sv, v) => sv + ((v.stock || 0) * (v.price || i.price || 0)), 0);
+    return s + variants.reduce((sv, v) => sv + ((Number(v.stock) || 0) * (Number(v.price) || Number(i.price) || 0)), 0);
   }, 0);
 
   win.document.write('<div class="summary-grid">');
   win.document.write(kpiCard('Total Products', matchingItems.length));
   win.document.write(kpiCard('Total Stock Units', totalStock));
   win.document.write(kpiCard('Total Value', currency(totalValue)));
-  win.document.write(kpiCard('Stock Category', normFilter === 'AVAILABLE' ? 'Available Stock' : normFilter === 'LOW' ? 'Low Stock (≤5)' : normFilter === 'OUT' ? 'Out of Stock (0)' : 'All Stock'));
+  win.document.write(kpiCard('Stock Category', normFilter === 'AVAILABLE' ? 'Available Stock' : normFilter === 'LOW' ? 'Low Stock (<5)' : normFilter === 'OUT' ? 'Out of Stock' : 'All Stock'));
   win.document.write('</div>');
 
   // Group by category
@@ -859,8 +857,8 @@ export function printInventoryReport(items, filter = 'ALL') {
         ? item.variants
         : [{ color: item.color || '—', size: item.size || '—', stock: item.stock != null ? item.stock : 0, price: item.price || 0 }];
 
-      variants.filter(v => variantMatchesFilter(v.stock || 0)).forEach(v => {
-        const stock = v.stock || 0;
+      variants.forEach(v => {
+        const stock = v.stock != null ? Number(v.stock) : (Number(item.stock) || 0);
         const color = v.color || item.color || '—';
         const size = v.size || item.size || '—';
         const variantLabel = [color !== '—' ? color : null, size !== '—' ? size : null].filter(Boolean).join(' / ') || 'Standard';
@@ -872,7 +870,7 @@ export function printInventoryReport(items, filter = 'ALL') {
         if (stock === 0) {
           statusClass = 'status-bad';
           statusText = 'Out of Stock';
-        } else if (stock <= 5) {
+        } else if (stock < 5) {
           statusClass = 'status-warn';
           statusText = 'Low Stock';
         }

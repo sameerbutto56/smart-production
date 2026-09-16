@@ -243,7 +243,7 @@ const InventoryManagement = () => {
         : (Number(item.stock) || 0);
 
       if (stockFilter === 'AVAILABLE') return itemTotalStock > 0;
-      if (stockFilter === 'LOW') return itemTotalStock > 0 && itemTotalStock <= LOW_STOCK_LIMIT;
+      if (stockFilter === 'LOW') return itemTotalStock > 0 && itemTotalStock < 5;
       if (stockFilter === 'OUT') return itemTotalStock === 0;
       return true;
     })
@@ -758,17 +758,17 @@ const InventoryManagement = () => {
                     onChange={(e) => setStockFilter(e.target.value)}
                     className="rounded-xl px-3.5 py-2 text-xs font-bold border-2 border-gray-700 bg-gray-800 text-white focus:border-emerald-500/50 transition-all cursor-pointer"
                   >
-                    <option value="ALL">All Stock</option>
+                    <option value="ALL">All</option>
                     <option value="AVAILABLE">Available Stock</option>
-                    <option value="LOW">Low Stock (≤ {LOW_STOCK_LIMIT})</option>
+                    <option value="LOW">Low Stock</option>
                     <option value="OUT">Out of Stock</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {[
                     { key: 'ALL', label: 'All' },
-                    { key: 'AVAILABLE', label: 'Available' },
-                    { key: 'LOW', label: `Low Stock (≤${LOW_STOCK_LIMIT})` },
+                    { key: 'AVAILABLE', label: 'Available Stock' },
+                    { key: 'LOW', label: 'Low Stock' },
                     { key: 'OUT', label: 'Out of Stock' }
                   ].map(opt => (
                     <button
@@ -906,9 +906,9 @@ const InventoryManagement = () => {
               onChange={(e) => setStockFilter(e.target.value)}
               className="rounded-xl px-3.5 py-2 text-xs font-bold border-2 border-gray-700 bg-gray-800 text-white focus:border-emerald-500/50 transition-all cursor-pointer"
             >
-              <option value="ALL">All Stock</option>
+              <option value="ALL">All</option>
               <option value="AVAILABLE">Available Stock</option>
-              <option value="LOW">Low Stock (≤ {LOW_STOCK_LIMIT})</option>
+              <option value="LOW">Low Stock</option>
               <option value="OUT">Out of Stock</option>
             </select>
           </div>
@@ -916,8 +916,8 @@ const InventoryManagement = () => {
           <div className="flex items-center gap-1.5">
             {[
               { key: 'ALL', label: 'All' },
-              { key: 'AVAILABLE', label: 'Available' },
-              { key: 'LOW', label: `Low Stock (≤${LOW_STOCK_LIMIT})` },
+              { key: 'AVAILABLE', label: 'Available Stock' },
+              { key: 'LOW', label: 'Low Stock' },
               { key: 'OUT', label: 'Out of Stock' }
             ].map(opt => (
               <button

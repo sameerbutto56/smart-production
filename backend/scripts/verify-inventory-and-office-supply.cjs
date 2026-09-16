@@ -12,12 +12,10 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const LOW_STOCK_LIMIT = 5;
-
-// Mirror frontend/backend stock classification logic
+// Authoritative stock classification logic
 function classifyStock(stock) {
   const isAvailable = stock > 0;
-  const isLow = stock > 0 && stock <= LOW_STOCK_LIMIT;
+  const isLow = stock > 0 && stock < 5;
   const isOut = stock === 0;
   return { isAvailable, isLow, isOut };
 }
@@ -41,26 +39,62 @@ async function runTests() {
   }
 
   // --------------------------------------------------------------------------
-  // TEST 1: Warehouse Inventory Stock Filter Logic
+  // TEST 1: Warehouse Inventory Stock Filter Logic & User Acceptance Dataset
   // --------------------------------------------------------------------------
-  console.log('Test Suite 1: Warehouse Inventory Stock Filter Classification');
+  console.log('Test Suite 1: Warehouse Inventory Stock Filter Classification & Acceptance Dataset');
 
-  const testCases = [
-    { qty: 50, expectedAvailable: true, expectedLow: false, expectedOut: false },
-    { qty: 10, expectedAvailable: true, expectedLow: false, expectedOut: false },
-    { qty: 5,  expectedAvailable: true, expectedLow: true,  expectedOut: false },
-    { qty: 2,  expectedAvailable: true, expectedLow: true,  expectedOut: false },
-    { qty: 1,  expectedAvailable: true, expectedLow: true,  expectedOut: false },
-    { qty: 0,  expectedAvailable: false, expectedLow: false, expectedOut: true },
+  // Exact dataset specified by user in Section 7
+  const acceptanceDataset = [
+    { name: 'Product A', qty: 100 },
+    { name: 'Product B', qty: 5 },
+    { name: 'Product C', qty: 4 },
+    { name: 'Product D', qty: 2 },
+    { name: 'Product E', qty: 1 },
+    { name: 'Product F', qty: 0 },
   ];
 
-  for (const tc of testCases) {
-    const res = classifyStock(tc.qty);
+  // Evaluate filters
+  const allFiltered = acceptanceDataset.filter(() => true);
+  const availableFiltered = acceptanceDataset.filter(p => p.qty > 0);
+  const lowFiltered = acceptanceDataset.filter(p => p.qty > 0 && p.qty < 5);
+  const outFiltered = acceptanceDataset.filter(p => p.qty === 0);
+
+  assert(allFiltered.length === 6, `ALL = 6 products (${allFiltered.map(p => p.name).join(', ')})`);
+  assert(
+    availableFiltered.length === 5 &&
+    availableFiltered.map(p => p.name).join(',') === 'Product A,Product B,Product C,Product D,Product E',
+    `AVAILABLE = 5 products (${availableFiltered.map(p => p.name).join(', ')})`
+  );
+  assert(
+    lowFiltered.length === 3 &&
+    lowFiltered.map(p => p.name).join(',') === 'Product C,Product D,Product E',
+    `LOW STOCK = 3 products (${lowFiltered.map(p => p.name).join(', ')})`
+  );
+  assert(
+    outFiltered.length === 1 &&
+    outFiltered[0].name === 'Product F',
+    `OUT OF STOCK = 1 product (${outFiltered.map(p => p.name).join(', ')})`
+  );
+
+  // Verify relationship matrix from Section 3
+  const matrix = [
+    { qty: 100, expAll: true, expAvail: true, expLow: false, expOut: false },
+    { qty: 20,  expAll: true, expAvail: true, expLow: false, expOut: false },
+    { qty: 5,   expAll: true, expAvail: true, expLow: false, expOut: false },
+    { qty: 4,   expAll: true, expAvail: true, expLow: true,  expOut: false },
+    { qty: 3,   expAll: true, expAvail: true, expLow: true,  expOut: false },
+    { qty: 2,   expAll: true, expAvail: true, expLow: true,  expOut: false },
+    { qty: 1,   expAll: true, expAvail: true, expLow: true,  expOut: false },
+    { qty: 0,   expAll: true, expAvail: false, expLow: false, expOut: true },
+  ];
+
+  for (const m of matrix) {
+    const res = classifyStock(m.qty);
     assert(
-      res.isAvailable === tc.expectedAvailable &&
-      res.isLow === tc.expectedLow &&
-      res.isOut === tc.expectedOut,
-      `Qty ${tc.qty} -> Available: ${res.isAvailable}, Low: ${res.isLow}, Out: ${res.isOut}`
+      res.isAvailable === m.expAvail &&
+      res.isLow === m.expLow &&
+      res.isOut === m.expOut,
+      `Matrix Qty ${m.qty} -> Avail: ${res.isAvailable}, Low: ${res.isLow}, Out: ${res.isOut}`
     );
   }
 
