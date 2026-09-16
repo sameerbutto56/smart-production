@@ -21,8 +21,8 @@ const { asyncHandler } = require('../middleware/error.middleware');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO'];
-const ALL_AUTHORIZED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'OUTLET'];
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'SOFTWARE_SETTINGS'];
+const ALL_AUTHORIZED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'OUTLET', 'SOFTWARE_SETTINGS'];
 
 // 1. Password Verification & Management
 router.post('/auth/verify', authenticate, asyncHandler(verifyAbbottabadPassword));

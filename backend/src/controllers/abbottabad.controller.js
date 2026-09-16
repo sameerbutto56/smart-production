@@ -8,7 +8,7 @@ const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'abbottabad-secret-key-2026';
 const ABBOTTABAD_PASSWORD_KEY = 'ABBOTTABAD_DASHBOARD_PASSWORD_HASH';
-const DEFAULT_ABBOTTABAD_PASS = 'abbottabad@2026';
+const DEFAULT_ABBOTTABAD_PASS = 'Enamels07';
 
 // ---------------------------------------------------------------------
 // 1. Password Protection & Authentication Gate

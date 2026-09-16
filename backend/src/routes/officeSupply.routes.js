@@ -19,6 +19,8 @@ const {
   acceptTransfer,
   cancelTransfer,
   getMovements,
+  recordSelfUse,
+  getSelfUseRecords,
 } = require('../controllers/officeSupply.controller');
 
 // Office Supply — isolated from Warehouse / POS / Product Inventory.
@@ -50,5 +52,9 @@ router.post('/transfers/:id/cancel', authenticate, cancelTransfer);
 
 // Movements (audit ledger)
 router.get('/movements', authenticate, getMovements);
+
+// Store Self-Use (internal store consumption)
+router.get('/self-use', authenticate, getSelfUseRecords);
+router.post('/self-use', authenticate, recordSelfUse);
 
 module.exports = router;

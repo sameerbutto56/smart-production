@@ -21,10 +21,11 @@ import {
   Droplet,
   CheckCircle,
   X,
+  UserCheck,
 } from 'lucide-react';
 
 const ROLE_STORE = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN'];
-const ROLE_OUTLET = ['OUTLET'];
+const ROLE_OUTLET = ['OUTLET', 'FAISAL'];
 const ROLE_MANAGE = ['STORE', 'SUPER_ADMIN', 'ADMIN'];
 
 const LOCATIONS = [
@@ -32,6 +33,7 @@ const LOCATIONS = [
   { name: 'Johar Town', type: 'OUTLET' },
   { name: 'Jail Road', type: 'OUTLET' },
   { name: 'Abbottabad', type: 'OUTLET' },
+  { name: 'Faisal', type: 'OUTLET' },
 ];
 
 const DEMAND_STATUS = {
@@ -98,8 +100,11 @@ export default function OfficeSupply() {
   const { user } = useAuth();
   const role = String(user?.role || '').toUpperCase().trim();
   const isStore = ROLE_STORE.includes(user?.role);
+  const isFaisal = role === 'FAISAL';
   const isOutlet = ROLE_OUTLET.includes(user?.role);
   const canManage = ROLE_MANAGE.includes(user?.role);
+
+  const defaultLoc = isStore ? 'STORE' : isFaisal ? 'Faisal' : 'Johar Town';
 
   const [tab, setTab] = useState('dashboard');
 
@@ -112,7 +117,7 @@ export default function OfficeSupply() {
   const [savingProduct, setSavingProduct] = useState(false);
 
   // Stock
-  const [stockLocation, setStockLocation] = useState(isStore ? 'STORE' : 'Johar Town');
+  const [stockLocation, setStockLocation] = useState(defaultLoc);
   const [stockItems, setStockItems] = useState([]);
   const [stockLoading, setStockLoading] = useState(false);
   const [addStockModal, setAddStockModal] = useState(false);
@@ -142,8 +147,16 @@ export default function OfficeSupply() {
 
   // Movements
   const [movements, setMovements] = useState([]);
-  const [mvtLocation, setMvtLocation] = useState(isStore ? 'STORE' : 'Johar Town');
+  const [mvtLocation, setMvtLocation] = useState(defaultLoc);
   const [movementsLoading, setMovementsLoading] = useState(false);
+
+  // Store Self-Use
+  const [selfUseRecords, setSelfUseRecords] = useState([]);
+  const [selfUseLoading, setSelfUseLoading] = useState(false);
+  const [selfUseModal, setSelfUseModal] = useState(false);
+  const [selfUseItems, setSelfUseItems] = useState([{ productId: '', productName: '', quantity: 1 }]);
+  const [selfUseReason, setSelfUseReason] = useState('');
+  const [savingSelfUse, setSavingSelfUse] = useState(false);
 
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -205,6 +218,18 @@ export default function OfficeSupply() {
     }
   }, [mvtLocation]);
 
+  const loadSelfUseRecords = useCallback(async () => {
+    setSelfUseLoading(true);
+    try {
+      const res = await api.get('/api/office-supply/self-use');
+      setSelfUseRecords(res.data?.records || []);
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to load self-use records');
+    } finally {
+      setSelfUseLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadProducts();
     loadDemands();
@@ -218,6 +243,10 @@ export default function OfficeSupply() {
   useEffect(() => {
     if (tab === 'movements') loadMovements();
   }, [tab, loadMovements]);
+
+  useEffect(() => {
+    if (tab === 'self-use') loadSelfUseRecords();
+  }, [tab, loadSelfUseRecords]);
 
   const stats = useMemo(() => {
     const totalProductQty = products.reduce((sum, p) => sum + (p.stock || []).length, 0);
@@ -482,8 +511,53 @@ export default function OfficeSupply() {
     }
   };
 
+  // ----- Store Self-Use -----
+  const openNewSelfUse = () => {
+    setSelfUseItems([{ productId: '', productName: '', quantity: 1 }]);
+    setSelfUseReason('');
+    setSelfUseModal(true);
+  };
+  const handleSelfUseProductChange = (i, productId) => {
+    const p = products.find((x) => x.id === productId);
+    setSelfUseItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, productId, productName: p?.name || '' } : it)));
+  };
+  const handlePushSelfUseItem = () => setSelfUseItems((prev) => [...prev, { productId: '', productName: '', quantity: 1 }]);
+  const handlePopSelfUseItem = (i) => setSelfUseItems((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev));
+  const handleRecordSelfUse = async () => {
+    const items = selfUseItems
+      .filter((it) => it.productId && Number(it.quantity) > 0)
+      .map((it) => ({ productId: it.productId, quantity: Number(it.quantity) }));
+    if (items.length === 0) {
+      toast.error('Add at least one product with quantity');
+      return;
+    }
+    setSavingSelfUse(true);
+    try {
+      const res = await api.post('/api/office-supply/self-use', {
+        items,
+        reason: selfUseReason || 'Store internal use',
+      });
+      toast.success(res.data?.message || 'Self-use recorded successfully');
+      setSelfUseModal(false);
+      loadSelfUseRecords();
+      loadStock();
+      loadProducts();
+      loadMovements();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to record self-use');
+    } finally {
+      setSavingSelfUse(false);
+    }
+  };
+
   const myOutlets = LOCATIONS.filter((l) => l.type === 'OUTLET');
-  const incomingTransfers = transfers.filter((t) => isOutlet ? t.toLocation === stockLocation || t.toLocation === 'Johar Town' : true);
+  const incomingTransfers = transfers.filter((t) => {
+    if (isOutlet) {
+      if (isFaisal) return t.toLocation === 'Faisal';
+      return t.toLocation === stockLocation || t.toLocation === 'Johar Town';
+    }
+    return true;
+  });
 
   const TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: Package },
@@ -492,6 +566,7 @@ export default function OfficeSupply() {
     { key: 'demands', label: 'Demands', icon: BellRing },
     { key: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
     { key: 'movements', label: 'Movements', icon: History },
+    { key: 'self-use', label: 'Store Self-Use', icon: UserCheck, show: isStore },
   ];
 
   return (
@@ -520,8 +595,11 @@ export default function OfficeSupply() {
           {tab === 'transfers' && isStore && (
             <button onClick={openNewTransfer} className={btnPrimary}><Plus size={16} /> New Transfer</button>
           )}
+          {tab === 'self-use' && isStore && (
+            <button onClick={openNewSelfUse} className={btnPrimary}><Plus size={16} /> Record Self-Use</button>
+          )}
           <button
-            onClick={() => { loadProducts(); loadStock(); loadDemands(); loadTransfers(); loadMovements(); }}
+            onClick={() => { loadProducts(); loadStock(); loadDemands(); loadTransfers(); loadMovements(); loadSelfUseRecords(); }}
             className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold text-gray-300 bg-gray-800 hover:bg-gray-700 transition-all duration-200"
           >
             <RefreshCw size={15} /> Refresh
@@ -853,6 +931,81 @@ export default function OfficeSupply() {
         </div>
       )}
 
+      {/* ===== Store Self-Use ===== */}
+      {tab === 'self-use' && isStore && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <UserCheck size={20} className="text-violet-400" /> Store Self-Use Records
+              </h2>
+              <p className="text-xs text-gray-400">Audited internal consumption of office supplies used by Store personnel</p>
+            </div>
+            <button onClick={openNewSelfUse} className={btnPrimary}>
+              <Plus size={16} /> Record Self-Use
+            </button>
+          </div>
+
+          <div className="rounded-2xl border bg-[#111827] overflow-hidden" style={{ borderColor: 'var(--glass-border)' }}>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-800/60 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                  <tr>
+                    <th className="px-4 py-3">Doc #</th>
+                    <th className="px-4 py-3">Items Consumed</th>
+                    <th className="px-4 py-3">Total Qty</th>
+                    <th className="px-4 py-3">Reason / Purpose</th>
+                    <th className="px-4 py-3">Recorded By</th>
+                    <th className="px-4 py-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selfUseRecords.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 font-medium">
+                        No self-use records found{selfUseLoading ? '…' : ''}
+                      </td>
+                    </tr>
+                  )}
+                  {selfUseRecords.map((r) => {
+                    const totalQty = (r.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0);
+                    return (
+                      <tr key={r.id} className="border-t hover:bg-gray-800/30 transition-colors" style={{ borderColor: 'var(--glass-border)' }}>
+                        <td className="px-4 py-3 font-mono text-xs font-black text-violet-300">
+                          {r.transferNumber}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-1">
+                            {(r.items || []).map((it, idx) => (
+                              <div key={idx} className="text-xs text-gray-200 flex items-center gap-2">
+                                <span className="font-bold text-white">{it.productName}</span>
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                  x{it.quantity}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-black text-white">{totalQty}</td>
+                        <td className="px-4 py-3 text-xs text-gray-300 italic max-w-xs truncate">
+                          {r.notes || 'Store internal use'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-300 font-medium">
+                          {r.sentByName || 'Store User'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-400 font-mono">
+                          {fmtDate(r.createdAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== Modals ===== */}
       {/* Product modal */}
       <Modal open={productModal} onClose={() => setProductModal(false)} title={editingProduct ? 'Edit Product' : 'New Product'} wide>
@@ -1077,6 +1230,83 @@ export default function OfficeSupply() {
           <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--glass-border)' }}>
             <button onClick={() => setNewTransferModal(false)} className={btnGhost}>Cancel</button>
             <button onClick={handleCreateTransfer} className={btnPrimary} disabled={savingTransfer}>{savingTransfer ? 'Creating…' : 'Create Transfer'}</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Store Self-Use Modal */}
+      <Modal open={selfUseModal} onClose={() => setSelfUseModal(false)} title="Record Store Self-Use" wide>
+        <div className="space-y-4">
+          <div className="rounded-xl bg-violet-500/10 border border-violet-500/20 p-3 text-xs text-violet-300">
+            <b className="text-white">Store Internal Consumption:</b> Items recorded here will be deducted directly from Store stock with an audited <b>SELF_USE</b> record and sequence number.
+          </div>
+
+          <Field label="Items Consumed" required>
+            <div className="space-y-2 mt-1">
+              {selfUseItems.map((it, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-xl bg-gray-800/40 p-2.5">
+                  <select
+                    className={inputCls + ' flex-1'}
+                    value={it.productId}
+                    onChange={(e) => handleSelfUseProductChange(i, e.target.value)}
+                  >
+                    <option value="">Select product…</option>
+                    {availableForStock.map((p) => {
+                      const storeStock = (p.stock || []).find((s) => s.location === 'STORE')?.quantity || 0;
+                      return (
+                        <option key={p.id} value={p.id} disabled={storeStock <= 0}>
+                          {p.name} {p.sku ? `(${p.sku})` : ''} — Stock: {storeStock} {p.unit || ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-24 rounded-xl px-2 py-2 text-sm font-bold text-white bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                    placeholder="Qty"
+                    value={it.quantity}
+                    onChange={(e) =>
+                      setSelfUseItems((prev) =>
+                        prev.map((x, idx) => (idx === i ? { ...x, quantity: e.target.value } : x))
+                      )
+                    }
+                  />
+                  <button
+                    onClick={() => handlePopSelfUseItem(i)}
+                    className="bg-gray-700 hover:bg-red-600/60 rounded-lg p-2 text-gray-300 hover:text-white transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <button onClick={handlePushSelfUseItem} className={btnGhost}>
+                <Plus size={14} /> Add Another Product
+              </button>
+            </div>
+          </Field>
+
+          <Field label="Purpose / Reason" required>
+            <textarea
+              rows={2}
+              className={inputCls}
+              placeholder="e.g. Packing cartons, barcode labels for dispatch, counter tape, office printer paper..."
+              value={selfUseReason}
+              onChange={(e) => setSelfUseReason(e.target.value)}
+            />
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--glass-border)' }}>
+            <button onClick={() => setSelfUseModal(false)} className={btnGhost}>
+              Cancel
+            </button>
+            <button
+              onClick={handleRecordSelfUse}
+              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold text-white bg-violet-600 hover:bg-violet-500 transition-all duration-200 disabled:opacity-50"
+              disabled={savingSelfUse}
+            >
+              <UserCheck size={16} /> {savingSelfUse ? 'Recording…' : 'Save Self-Use Record'}
+            </button>
           </div>
         </div>
       </Modal>

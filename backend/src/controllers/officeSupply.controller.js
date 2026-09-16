@@ -10,12 +10,15 @@ const notify = require('../utils/notify');
 // ════════════════════════════════════════════════════════════════════════════
 
 const STORE_ROLES = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN'];
-const OUTLET_ROLES = ['OUTLET', 'SUPER_ADMIN', 'ADMIN'];
+const OUTLET_ROLES = ['OUTLET', 'FAISAL', 'SUPER_ADMIN', 'ADMIN'];
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN'];
 
 // Resolve the acting outlet from the logged-in user name (matches inDispatch pattern).
 function getOutletName(user) {
+  const role = String(user?.role || '').toUpperCase();
+  if (role === 'FAISAL') return 'Faisal';
   const n = String(user?.name || '').toLowerCase();
+  if (n.includes('faisal')) return 'Faisal';
   if (n.includes('johar')) return 'Johar Town';
   if (n.includes('jail')) return 'Jail Road';
   if (n.includes('abbottabad')) return 'Abbottabad';
@@ -915,6 +918,122 @@ const getMovements = async (req, res) => {
   }
 };
 
+// ════════════════════════════════════════════════════════════════════════════
+// SELF USE  (Store internal consumption with immutable audit record)
+// ════════════════════════════════════════════════════════════════════════════
+
+// POST /api/office-supply/self-use  { items: [{ productId, quantity }], reason }
+const recordSelfUse = async (req, res) => {
+  try {
+    if (!STORE_ROLES.includes(req.user?.role)) {
+      return res.status(403).json({ message: 'Only Store users can record self-use' });
+    }
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) {
+      return res.status(400).json({ message: 'At least one item is required' });
+    }
+    const reason = String(req.body?.reason || req.body?.notes || 'Store internal self use').trim();
+    const usedBy = req.user?.name || 'Store User';
+
+    const result = await prisma.$transaction(async (tx) => {
+      const transferNumber = await nextDocNumber(tx, 'SELF');
+      const transfer = await tx.officeSupplyTransfer.create({
+        data: {
+          transferNumber,
+          type: 'SELF_USE',
+          fromLocation: 'STORE',
+          toLocation: 'STORE_SELF_USE',
+          status: 'RECEIVED',
+          notes: reason,
+          sentAt: new Date(),
+          sentById: req.user?.id || null,
+          sentByName: usedBy,
+          receivedAt: new Date(),
+          receivedById: req.user?.id || null,
+          receivedByName: usedBy,
+          items: {
+            create: items.map((it) => ({
+              productId: String(it.productId),
+              productName: String(it.productName || ''),
+              quantity: Number(it.quantity),
+              receivedQty: Number(it.quantity),
+              unit: it.unit || 'Pcs',
+            })),
+          },
+        },
+        include: { items: true },
+      });
+
+      // Deduct from STORE stock and record immutable movement logs
+      for (const it of transfer.items) {
+        const stock = await tx.officeSupplyStock.findUnique({
+          where: { productId_location: { productId: it.productId, location: 'STORE' } },
+        });
+        if (!stock || stock.quantity < it.quantity) {
+          const err = new Error(`Insufficient Store stock for ${it.productName} (available: ${stock ? stock.quantity : 0}, requested: ${it.quantity})`);
+          err.httpStatus = 400;
+          throw err;
+        }
+
+        await tx.officeSupplyStock.update({
+          where: { id: stock.id },
+          data: { quantity: { decrement: it.quantity } },
+        });
+
+        await tx.officeSupplyStockMovement.create({
+          data: {
+            productId: it.productId,
+            stockId: stock.id,
+            fromLocation: 'STORE',
+            toLocation: 'STORE_SELF_USE',
+            movementType: 'SELF_USE',
+            quantity: it.quantity,
+            referenceId: transfer.id,
+            referenceType: 'SELF_USE',
+            notes: `Self-Use: ${reason}`,
+            performedBy: usedBy,
+          },
+        });
+      }
+
+      return transfer;
+    }, { timeout: 30000 });
+
+    return res.status(201).json({ success: true, selfUse: result, message: `Recorded self-use of ${items.length} item(s)` });
+  } catch (error) {
+    console.error('officeSupply recordSelfUse error:', error);
+    if (error?.httpStatus) {
+      return res.status(error.httpStatus).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'Failed to record self-use' });
+  }
+};
+
+// GET /api/office-supply/self-use?search=
+const getSelfUseRecords = async (req, res) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    const where = { type: 'SELF_USE' };
+    if (search) {
+      where.OR = [
+        { transferNumber: { contains: search, mode: 'insensitive' } },
+        { sentByName: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const records = await prisma.officeSupplyTransfer.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: { items: true },
+      take: 250,
+    });
+    return res.json({ records });
+  } catch (error) {
+    console.error('officeSupply getSelfUseRecords error:', error);
+    return res.status(500).json({ message: 'Failed to load self-use records' });
+  }
+};
+
 module.exports = {
   getProducts,
   createProduct,
@@ -933,4 +1052,6 @@ module.exports = {
   acceptTransfer,
   cancelTransfer,
   getMovements,
+  recordSelfUse,
+  getSelfUseRecords,
 };

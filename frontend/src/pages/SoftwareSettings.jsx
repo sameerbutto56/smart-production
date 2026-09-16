@@ -4,7 +4,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useSystemPause } from '../context/SystemPauseContext';
-import { Users, UserPlus, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation, Truck, Layers, Hash } from 'lucide-react';
+import { Users, UserPlus, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation, Truck, Layers, Hash, Lock } from 'lucide-react';
 import OrderTrackPanel from '../components/OrderTrackPanel';
 import OrderControlPanel from '../components/OrderControlPanel';
 import OrderPhaseHistoryPanel from '../components/OrderPhaseHistoryPanel';
@@ -179,6 +179,36 @@ const SoftwareSettings = () => {
   const [loginUsersLoading, setLoginUsersLoading] = useState(false);
   const [newLoginUser, setNewLoginUser] = useState({ name: '', email: '', password: '', role: 'ASM', employeeId: '' });
   const [creatingLoginUser, setCreatingLoginUser] = useState(false);
+
+  // ── Abbottabad Card Password state ──
+  const [abbottabadNewPass, setAbbottabadNewPass] = useState('');
+  const [abbottabadConfirmPass, setAbbottabadConfirmPass] = useState('');
+  const [abbottabadPassSaving, setAbbottabadPassSaving] = useState(false);
+
+  const handleUpdateAbbottabadPassword = async (e) => {
+    e?.preventDefault();
+    if (!abbottabadNewPass || abbottabadNewPass.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (abbottabadNewPass !== abbottabadConfirmPass) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    setAbbottabadPassSaving(true);
+    try {
+      const res = await api.post('/api/abbottabad/auth/change-password', {
+        newPassword: abbottabadNewPass
+      });
+      toast.success(res.data?.message || 'Abbottabad password updated successfully!');
+      setAbbottabadNewPass('');
+      setAbbottabadConfirmPass('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update Abbottabad password');
+    } finally {
+      setAbbottabadPassSaving(false);
+    }
+  };
 
   const fetchLoginUsers = useCallback(async () => {
     setLoginUsersLoading(true);
@@ -577,6 +607,7 @@ const SoftwareSettings = () => {
     { key: 'phase-history', label: 'Phase History', icon: <Layers size={16} /> },
     { key: 'postex', label: 'PostEx Integration', icon: <Truck size={16} /> },
     { key: 'order-range', label: 'Order Range', icon: <Hash size={16} /> },
+    { key: 'abbottabad-password', label: 'Abbottabad Password', icon: <Lock size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
 
@@ -1532,6 +1563,82 @@ const SoftwareSettings = () => {
 
       {/* ═══════════════ ORDER RANGE SELECTOR TAB ═══════════════ */}
       {activeTab === 'order-range' && <OrderRangePanel />}
+
+      {/* ═══════════════ ABBOTTABAD PASSWORD CONFIGURATION TAB ═══════════════ */}
+      {activeTab === 'abbottabad-password' && (
+        <div className="flex-1 space-y-6">
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 shadow-xl max-w-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
+                <Lock size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-white">Abbottabad Card Password</h2>
+                <p className="text-xs text-gray-400">
+                  Update the password required to open the Abbottabad card in Admin Dashboard.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-800/60 border border-gray-700 rounded-xl mb-6 text-xs text-gray-300 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[11px]">Protected Module:</span>
+                <span className="font-mono text-emerald-400 font-bold">Admin Dashboard → Abbottabad</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[11px]">Default / Active Password:</span>
+                <span className="font-mono text-white bg-gray-900 px-2 py-0.5 rounded border border-gray-700 font-bold">Enamels07</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpdateAbbottabadPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
+                  New Password <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Enter new Abbottabad password"
+                  value={abbottabadNewPass}
+                  onChange={(e) => setAbbottabadNewPass(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:border-blue-500 outline-none transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
+                  Confirm New Password <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Re-enter new Abbottabad password"
+                  value={abbottabadConfirmPass}
+                  onChange={(e) => setAbbottabadConfirmPass(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:border-blue-500 outline-none transition-colors"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={abbottabadPassSaving}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+                >
+                  {abbottabadPassSaving ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} /> Updating Password…
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} /> Save Abbottabad Password
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-16 pb-10 overflow-y-auto" onClick={() => setShowCreate(false)}>
