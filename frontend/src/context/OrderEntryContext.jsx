@@ -81,6 +81,20 @@ const CLEAR_FORM_AFTER_CART = {
     customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: true, engravingInstructions: ''
 };
 
+export const isAccessoryCategory = (cat) => {
+  if (!cat) return false;
+  const catUpper = cat.toUpperCase();
+  return !['SCRUBS', 'CAP', 'CAPS'].includes(catUpper) && !catUpper.includes('COAT');
+};
+
+export const isCustomizableCategory = (cat) => {
+  if (!cat) return false;
+  const catUpper = cat.toUpperCase();
+  return ['SCRUBS', 'CAP', 'CAPS'].includes(catUpper) || catUpper.includes('COAT');
+};
+
+export const isShoesCategory = (cat) => cat?.toUpperCase() === 'SHOES';
+
 export const OrderEntryProvider = ({ children }) => {
   const [searchParams] = useSearchParams();
   const { user, dateFormatPreference, shopifyMonthPreference, shopifyYearPreference, updateDateFormatPreference, updateShopifyMonthYearPreference } = useAuth();
@@ -138,6 +152,11 @@ export const OrderEntryProvider = ({ children }) => {
   const orderLookupRef = useRef(null);
   const dateInputRef = useRef(null);
   const verificationLoadRef = useRef(null);
+
+  // Define category helpers early so any validation callbacks can safely access them
+  const isAccessory = useCallback((cat) => isAccessoryCategory(cat), []);
+  const isCustomizableProduct = useCallback((cat) => isCustomizableCategory(cat), []);
+  const isShoes = useCallback((cat) => isShoesCategory(cat), []);
 
   const t = useCallback((key) => {
     if (!key) return '';
@@ -942,20 +961,6 @@ export const OrderEntryProvider = ({ children }) => {
     try { if (Array.isArray(inventory)) return [...new Set(inventory.filter(i => i.category && i.category !== 'FABRIC' && i.category !== 'COLOR').map(i => i.category))]; } catch (e) { console.error('productCategories:', e); }
     return [];
   }, [inventory]);
-
-  const isAccessory = useCallback((cat) => {
-    if (!cat) return false;
-    const catUpper = cat.toUpperCase();
-    return !['SCRUBS', 'CAP', 'CAPS'].includes(catUpper) && !catUpper.includes('COAT');
-  }, []);
-
-  const isCustomizableProduct = useCallback((cat) => {
-    if (!cat) return false;
-    const catUpper = cat.toUpperCase();
-    return ['SCRUBS', 'CAP', 'CAPS'].includes(catUpper) || catUpper.includes('COAT');
-  }, []);
-
-  const isShoes = useCallback((cat) => cat?.toUpperCase() === 'SHOES', []);
 
   const productsInCategory = useMemo(() => {
     try { if (Array.isArray(inventory)) return (inventory || []).filter(i => i.category === selectedProductCategory).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { console.error('productsInCategory:', e); }
