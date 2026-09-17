@@ -78,10 +78,14 @@ const OrderCancellations = () => {
 
   const reject = async () => {
     if (!selected) return;
+    if (!decisionNote || !decisionNote.trim()) {
+      toast.error('Rejection reason is required before rejecting.');
+      return;
+    }
     if (!window.confirm(`Reject cancellation of order #${selected.orderNumber}? The order will remain active.`)) return;
     setDecisionLoading(true);
     try {
-      const res = await api.post(`/api/orders/cancellation-requests/${selected.id}/reject`, { decisionNote: decisionNote || null });
+      const res = await api.post(`/api/orders/cancellation-requests/${selected.id}/reject`, { decisionNote: decisionNote.trim() });
       toast.success(res.data.message || 'Cancellation rejected');
       setSelected(null);
       setDecisionNote('');
@@ -338,12 +342,17 @@ const OrderCancellations = () => {
 
             {selected.status === 'PENDING' && (
               <>
-                <textarea
-                  value={decisionNote}
-                  onChange={(e) => setDecisionNote(e.target.value)}
-                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-red-500 transition-all text-white font-bold text-sm min-h-[80px] mb-6"
-                  placeholder="Decision note (optional, shown in order history)..."
-                />
+                <div className="mb-4">
+                  <label className="text-xs font-bold text-gray-400 block mb-1">
+                    Rejection Reason / Decision Note <span className="text-red-400">* Required if rejecting</span>
+                  </label>
+                  <textarea
+                    value={decisionNote}
+                    onChange={(e) => setDecisionNote(e.target.value)}
+                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-3 px-4 outline-none focus:border-red-500 transition-all text-white font-bold text-sm min-h-[90px]"
+                    placeholder="Enter reason for rejecting cancellation (e.g., production has already started)..."
+                  />
+                </div>
                 <div className="flex flex-col space-y-3">
                   <button
                     onClick={approve}

@@ -1785,13 +1785,21 @@ const cancelOrder = async (req, res) => {
       return res.status(400).json({ message: 'A cancellation request for this order is already pending Admin approval.' });
     }
 
+    // Determine the next cycle number (re-cancel after rejection = new cycle).
+    const latest = await prisma.orderCancellationRequest.findFirst({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' }
+    });
+    const cycleNumber = (latest?.cycleNumber || 0) + 1;
+
     const request = await prisma.orderCancellationRequest.create({
       data: {
         orderId,
         orderNumber: order.orderNumber,
         reason: reason || 'No reason provided',
         requestedById: req.user?.id,
-        requestedByName: req.user?.name
+        requestedByName: req.user?.name,
+        cycleNumber
       }
     });
 
@@ -1838,7 +1846,7 @@ const createCancellationRequest = async (req, res) => {
 };
 
 // Any authenticated role: lookup an order by number and return it together
-// with its latest cancellation request, so the requester sees the current status.
+// with its latest cancellation request and full multi-cycle history, so the requester sees the current status.
 // Tolerant of the stored "#" prefix, invoice numbers, and partial input (mirrors trackOrder).
 const getCancellationRequestByOrder = async (req, res) => {
   const query = String(req.query.orderNumber || '').trim();
@@ -1858,15 +1866,17 @@ const getCancellationRequestByOrder = async (req, res) => {
       if (matches[0]) order = await prisma.order.findUnique({ where: { id: matches[0].id } });
     }
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    const request = await prisma.orderCancellationRequest.findFirst({
-      where: { orderId: order.id },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true, status: true, reason: true, decisionNote: true,
-        requestedById: true, requestedByName: true, createdAt: true,
-        decidedById: true, decidedByName: true, decidedAt: true
-      }
-    });
+const requests = await prisma.orderCancellationRequest.findMany({
+        where: { orderId: order.id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, status: true, reason: true, decisionNote: true,
+          requestedById: true, requestedByName: true, createdAt: true,
+          decidedById: true, decidedByName: true, decidedAt: true,
+          cycleNumber: true
+        }
+      });
+      const request = requests.find((r) => r.status === 'PENDING') || requests[0] || null;
     res.json({
       order: {
         id: order.id, orderNumber: order.orderNumber, customerName: order.customerName,
@@ -1875,7 +1885,9 @@ const getCancellationRequestByOrder = async (req, res) => {
         type: order.type, priority: order.priority, createdAt: order.createdAt,
         trackingStatus: getTrackingStatus(order)
       },
-      request
+      request,
+      cycleCount: requests.length,
+      cancellationHistory: requests
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching cancellation status', error: error.message });
@@ -1895,7 +1907,8 @@ const getCancellationRequests = async (req, res) => {
         { order: { customerPhone: { contains: search } } }
       ];
     }
-    const requests = await prisma.orderCancellationRequest.findMany({
+    const [requests, pendingCount] = await Promise.all([
+      prisma.orderCancellationRequest.findMany({
       where,
       include: {
         order: {
@@ -1908,9 +1921,19 @@ const getCancellationRequests = async (req, res) => {
       },
       orderBy: { createdAt: 'desc' },
       take: limit === 'all' ? undefined : (parseInt(limit) || 200)
-    });
-    const pendingCount = await prisma.orderCancellationRequest.count({ where: { status: 'PENDING' } });
-    res.json({ requests, pendingCount });
+    }),
+      prisma.orderCancellationRequest.count({ where: { status: 'PENDING' } })
+    ]);
+    let cycleCountMap = new Map();
+    if (requests.length) {
+      const counts = await prisma.orderCancellationRequest.groupBy({
+        by: ['orderId'],
+        _count: { _all: true },
+        where: { orderId: { in: requests.map((r) => r.orderId) } }
+      });
+      cycleCountMap = new Map(counts.map((c) => [c.orderId, c._count._all]));
+    }
+    res.json({ requests: requests.map((r) => ({ ...r, cycleCount: cycleCountMap.get(r.orderId) || 1 })), pendingCount });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching cancellation requests', error: error.message });
   }
@@ -2005,6 +2028,9 @@ const rejectCancellationRequest = async (req, res) => {
     });
     if (!request) return res.status(404).json({ message: 'Cancellation request not found' });
     if (request.status !== 'PENDING') return res.status(400).json({ message: 'This cancellation request was already decided.' });
+    if (!decisionNote || !String(decisionNote).trim()) {
+      return res.status(400).json({ message: 'Cancellation rejection reason is required.' });
+    }
 
     await prisma.orderCancellationRequest.update({
       where: { id: requestId },

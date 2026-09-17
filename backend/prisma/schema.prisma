@@ -432,6 +432,7 @@ model OrderCancellationRequest {
   orderId         String
   order           Order     @relation("OrderCancellationRequests", fields: [orderId], references: [id])
   orderNumber     String?
+  cycleNumber     Int       @default(1)
   reason          String
   status          String    @default("PENDING") // PENDING / APPROVED / REJECTED
   requestedById   String?

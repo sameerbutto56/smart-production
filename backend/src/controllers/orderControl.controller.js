@@ -515,7 +515,7 @@ const getPhaseHistory = async (req, res) => {
         phaseLabel: phase ? (STAGE_LABELS[phase] || phase) : 'System',
         label: al.action?.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) || 'System Event',
         details: al.details || null,
-        status: al.action?.includes('RETURN') ? 'RETURN' : al.action?.includes('CANCEL') ? 'CANCELLED' : null
+        status: al.action?.includes('RETURN') ? 'RETURN' : al.action === 'CANCELLATION_REQUESTED' ? 'REQUESTED' : al.action === 'CANCELLATION_REJECTED' ? 'REJECTED' : al.action?.includes('CANCEL') ? 'CANCELLED' : null
       });
     }
 
