@@ -1,4 +1,26 @@
 ## Goals
+### Implemented This Session — Store Receive Orders Visibility in Admin Orders & Order Entry Mandatory Non-Preselected Gender (commit 1005e58, deployed & live-verified)
+- **Problem 1 (Store Receive Orders Missing from Admin Orders List)**:
+  - Orders `#51871` and `#51361` were in stage `STORE_RECEIVE` and showed in Deliver/Store count = 2, but were completely invisible in the Admin Orders list/table (`/orders`).
+  - Root Cause: In `AllOrders.jsx`, `const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE'` hid `STORE_RECEIVE` orders for all non-store users (including `ADMIN`, `SUPER_ADMIN`, and `CEO`). Furthermore, `getOrdersExport` in `order.controller.js` and stage filter calculations in `AdminDashboard.jsx` suppressed `STORE_RECEIVE`.
+  - Fix: Updated `AllOrders.jsx` to recognize Control Center roles (`['SUPER_ADMIN', 'ADMIN', 'CEO']`) as authorized to view `STORE_RECEIVE` alongside Store roles (`canSeeStoreReceive = isControlCenter || isStoreRole`). Updated `getOrdersExport` in `order.controller.js` to include Control Center roles. Updated `AdminDashboard.jsx` Store category counting and stage filters to include `STORE_RECEIVE` with `STORE`.
+- **Problem 2 (Faisal Order Entry Gender Must NOT Be Preselected)**:
+  - In Faisal Order Entry (`OrderEntry.jsx`, `OrderEntryContext.jsx`, `ProductSelectionTab.jsx`), `gender` defaulted to `'Male'` upon form initialization.
+  - Fix:
+    1. Changed `gender: ''` as initial default state across all order creation flows (`Standard`, `Custom`, `Urgent`, `Logo`, `Super Urgent`).
+    2. Neither "Male" nor "Female" button is highlighted initially; red boundary and mandatory asterisk (`*`) highlight if skipped.
+    3. Frontend blocks Next/Save/Add to Cart with mandatory message `"Select the gender."` if unselected for non-accessory apparel items.
+    4. Guarded direct tab header navigation in `OrderEntry.jsx` (`validateBasicInfo`, `validateProductConfig`) to prevent bypassing gender selection.
+    5. Preserved existing saved `gender` when opening/editing historical orders (`editCartItem`, `fetchOrderByNumber`, `fromVerification`, `EditOrderComparison.jsx`).
+    6. Backend `createOrder` validates online/non-outlet orders and rejects missing/empty gender with `400 {"message": "Select the gender.", "error": "Select the gender."}`.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-store-receive-and-gender.cjs`: 24/24 tests passed (live DB store receive verification, AllOrders role filter validation, backend `createOrder` gender validation, and order preservation).
+  - Frontend production build (`npm run build`): Exit code 0, 3,200 modules bundled cleanly.
+  - Git commit `1005e58` pushed to `origin/main`.
+  - Vercel production deployment `dpl_Dv9gUSqbv9vrYzVeDprWoVBgvkwF` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+
+
 ### Implemented This Session — Authorize Middleware Variadic Support & Inventory Duplicate Merge Permissions (commit 3d7058b, deployed & live-verified)
 - **Problem**: When attempting to detect or merge duplicates on `/inventory/merge-duplicates` from the Outlet POS inventory view, requests failed with `AxiosError: Request failed with status code 403`.
 - **Root Cause**:
