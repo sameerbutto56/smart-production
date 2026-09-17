@@ -15,9 +15,9 @@
     6. Backend `createOrder` validates online/non-outlet orders and rejects missing/empty gender with `400 {"message": "Select the gender.", "error": "Select the gender."}`.
 - **Verification & Deployment**:
   - Automated test suite `backend/scripts/verify-store-receive-and-gender.cjs`: 24/24 tests passed (live DB store receive verification, AllOrders role filter validation, backend `createOrder` gender validation, and order preservation).
-  - Frontend production build (`npm run build`): Exit code 0, 3,200 modules bundled cleanly.
-  - Git commit `1005e58` pushed to `origin/main`.
-  - Vercel production deployment `dpl_Dv9gUSqbv9vrYzVeDprWoVBgvkwF` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
+  - Fixed Temporal Dead Zone ReferenceError in `OrderEntryContext.jsx` where `isAccessory` (`nt`) was referenced in validation hooks before declaration (commit `a02f658`).
+  - Frontend production build (`npm run build`): Exit code 0, 3,200 modules bundled cleanly in 54s.
+  - Vercel production deployment `dpl_AvmwxSjPZgFNTU6BMCjJD9HsEMKa` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
   - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
 
 
