@@ -36,7 +36,7 @@ const SizeChartTab = () => {
           <div className="flex items-center gap-6">
             <div className="text-center">
               <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Gender</label>
-              <p className="text-lg font-black text-emerald-400">{formData.gender}</p>
+              <p className="text-lg font-black text-emerald-400">{formData.gender || '—'}</p>
             </div>
             {formData.size && (
               <div className="text-center">

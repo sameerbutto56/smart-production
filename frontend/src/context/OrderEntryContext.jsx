@@ -61,7 +61,7 @@ const INITIAL_FORM_DATA = {
   designNotes: '', designReference: '', additionalFeatures: [],
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
     shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
-  gender: 'Male',
+  gender: '',
   femaleOptions: DEFAULT_FEMALE_OPTIONS,
   adjProductPrice: '', adjLogoCharges: '', adjNamePrinting: '', adjCustomization: '', adjCapCharges: '', adjDiscount: ''
 };
@@ -74,7 +74,7 @@ const CLEAR_FORM_AFTER_CART = {
   alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
     shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
-  gender: 'Male',
+  gender: '',
   femaleOptions: DEFAULT_FEMALE_OPTIONS,
   fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
   customProductName: '', customFabric: '', customMaterial: '', customDesign: '',
@@ -255,7 +255,7 @@ export const OrderEntryProvider = ({ children }) => {
             fabricType: firstPd.fabricType || '',
             color: firstPd.color || '',
             size: firstPd.size || '',
-            gender: firstPd.gender || found.gender || 'Male',
+            gender: firstPd.gender || found.gender || '',
             femaleOptions: firstPd.femaleOptions || DEFAULT_FEMALE_OPTIONS,
             sleeveLength: firstPd.sleeveLength || '',
             shirtLength: firstPd.shirtLength || '',
@@ -300,7 +300,7 @@ export const OrderEntryProvider = ({ children }) => {
                   fabricType: pdItem.fabricType || '',
                   color: pdItem.color || '',
                   size: pdItem.size || '',
-                  gender: pdItem.gender || 'Male',
+                  gender: pdItem.gender || '',
                   femaleOptions: pdItem.femaleOptions || null,
                   sleeveLength: pdItem.sleeveLength || '',
                   shirtLength: pdItem.shirtLength || '',
@@ -439,7 +439,7 @@ export const OrderEntryProvider = ({ children }) => {
           additionalFeatures: [],
           measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
             shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
-          gender: found.gender || 'Male',
+          gender: (Array.isArray(found.productDetails) && (found.productDetails[0]?.productDetails?.gender || found.productDetails[0]?.gender)) || found.gender || '',
           femaleOptions: DEFAULT_FEMALE_OPTIONS,
           matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '', instructionNotes: '',
           shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
@@ -684,9 +684,13 @@ export const OrderEntryProvider = ({ children }) => {
     const basicErr = validateBasicInfo();
     if (basicErr) return basicErr;
     if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product first.';
+    if (!formData.gender && !isAccessory(selectedProductCategory)) {
+      setRequiredErrors(prev => ({ ...prev, gender: useUrdu ? 'صنف کا انتخاب کریں' : 'Select the gender.' }));
+      return 'Select the gender.';
+    }
 
     return null;
-  }, [formData, validateBasicInfo]);
+  }, [formData, validateBasicInfo, isAccessory, selectedProductCategory, useUrdu]);
 
   const validateCurrentTab = useCallback(() => {
     setError('');
@@ -701,9 +705,13 @@ export const OrderEntryProvider = ({ children }) => {
       if (formData.type !== 'FULL_CUSTOM' && !formData.productType) {
         return 'Please select a Product.';
       }
+      if (!formData.gender && !isAccessory(selectedProductCategory)) {
+        setRequiredErrors(prev => ({ ...prev, gender: useUrdu ? 'صنف کا انتخاب کریں' : 'Select the gender.' }));
+        return 'Select the gender.';
+      }
     }
     return null;
-  }, [activeTab, formData, validateBasicInfo]);
+  }, [activeTab, formData, validateBasicInfo, isAccessory, selectedProductCategory, useUrdu]);
 
   const preventEnterSubmit = useCallback((e) => { if (e.key === 'Enter') e.preventDefault(); }, []);
 
@@ -730,7 +738,7 @@ export const OrderEntryProvider = ({ children }) => {
     setFormData(prev => ({
       ...prev,
       productType: pd.productType || '', fabricType: pd.fabricType || '', color: pd.color || '', size: pd.size || '',
-      gender: pd.gender || 'Male',
+      gender: pd.gender || '',
       femaleOptions: pd.femaleOptions || DEFAULT_FEMALE_OPTIONS,
       matchingCap: pd.matchingCap || false, matchingCapQty: pd.matchingCapQty || 0,
       sleeveLength: pd.sleeveLength || '', shirtLength: pd.shirtLength || '',

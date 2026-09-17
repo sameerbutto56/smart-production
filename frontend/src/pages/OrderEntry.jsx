@@ -173,7 +173,7 @@ const SmartOrderForm = () => {
     memoCartTotalLogoCharges, memoCartTotalNamePrinting, memoCartTotalCustomization,
     memoCartTotalCap, memoOrderTotalBeforeDelivery, memoCartProductPriceExBranding,
     toggleEditMode, fetchOrderByNumber, submitOrderEditRequest,
-    validateCurrentTab, handleAddToCart, removeCartItem, editCartItem,
+    validateBasicInfo, validateProductConfig, validateCurrentTab, handleAddToCart, removeCartItem, editCartItem,
     handleAddMoreProducts, handleCheckout, setShowAddMore, setIsCartOpen, setShowProductSelector,
     setShowEditReview, setError, filteredTabs, setLoading, setIsSubmitting,
     goForVerification, setGoForVerification, fromVerification, setIsEditMode, setFromVerification,
@@ -207,7 +207,17 @@ const SmartOrderForm = () => {
             {(filteredTabs || []).map((tab) => {
               const Icon = TAB_ICONS[tab.icon] || Layout;
               return (
-                <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+                <button key={tab.id} type="button" onClick={() => {
+                  if (tab.id !== 'basic') {
+                    const basicErr = validateBasicInfo();
+                    if (basicErr) { setError(basicErr); return; }
+                  }
+                  if (tab.id === 'custom' || tab.id === 'sizes') {
+                    const prodErr = validateProductConfig();
+                    if (prodErr) { setError(prodErr); return; }
+                  }
+                  setActiveTab(tab.id);
+                }}
                   className={`flex items-center gap-3 px-6 py-3.5 rounded-[1.2rem] text-xs md:text-sm font-black uppercase tracking-widest transition-all duration-500 ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-105' : 'text-gray-600 hover:text-white hover:bg-gray-800/50'} ${useUrdu ? 'flex-row-reverse' : ''}`}>
                   <Icon size={16} className={activeTab === tab.id ? 'animate-pulse' : ''} />
                   <span className="hidden sm:inline">{(tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>

@@ -93,7 +93,7 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
         fabricType: pd.fabricType || '',
         color: pd.color || '',
         size: pd.size || '',
-        gender: pd.gender || 'Male',
+        gender: pd.gender || '',
         quantity: item.quantity || 1,
         totalPrice: item.totalPrice || 0,
         sleeveLength: pd.sleeveLength || '',
@@ -140,7 +140,7 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
     setEdited(prev => ({
       ...prev,
       items: [...prev.items, {
-        productType: '', fabricType: '', color: '', size: '', gender: 'Male',
+        productType: '', fabricType: '', color: '', size: '', gender: '',
         quantity: 1, totalPrice: 0, sleeveLength: '', shirtLength: '',
         matchingCap: false, matchingCapQty: 0,
         logoCharges: 0, namePrintingCharges: 0, customizationPrice: 0, capCharges: 0,

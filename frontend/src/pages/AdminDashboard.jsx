@@ -563,13 +563,14 @@ const AdminDashboard = () => {
 
   const getStageCount = useCallback((stageId) => {
     if (stageId === 'STORE') {
-      return allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length;
+      return allOrders.filter(o => ['STORE', 'STORE_RECEIVE'].includes(o.currentStage) && o.status !== 'COMPLETED').length;
     }
     return allOrders.filter(o => o.currentStage === stageId && o.status !== 'COMPLETED').length;
   }, [allOrders]);
 
   const filteredOrdersByStage = useMemo(() => {
     if (filterStage === 'ALL') return [];
+    if (filterStage === 'STORE') return allOrders.filter(o => ['STORE', 'STORE_RECEIVE'].includes(o.currentStage) && o.status !== 'COMPLETED');
     return allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED');
   }, [allOrders, filterStage]);
 
@@ -1109,7 +1110,7 @@ const AdminDashboard = () => {
                     {/* Order counts */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {(() => {
-                        const storeOrders = allOrders.filter(o => o.currentStage === 'STORE');
+                        const storeOrders = allOrders.filter(o => ['STORE', 'STORE_RECEIVE'].includes(o.currentStage));
                         const total = storeOrders.length;
                         const pending = storeOrders.filter(o => o.status === 'PENDING').length;
                         const inProgress = storeOrders.filter(o => o.status === 'IN_PROGRESS').length;
@@ -1140,8 +1141,8 @@ const AdminDashboard = () => {
                     {/* Orders list */}
                     <div>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                        {allOrders.filter(o => o.currentStage === 'STORE').length > 0 ? (
-                          allOrders.filter(o => o.currentStage === 'STORE').map(order => (
+                        {allOrders.filter(o => ['STORE', 'STORE_RECEIVE'].includes(o.currentStage)).length > 0 ? (
+                          allOrders.filter(o => ['STORE', 'STORE_RECEIVE'].includes(o.currentStage)).map(order => (
                             <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
                           ))
                         ) : (
@@ -1245,7 +1246,7 @@ const AdminDashboard = () => {
                     )}
                     {/* Each Pipeline Stage */}
                     {PIPELINE_STAGES.map(stage => {
-                      const stageOrders = allOrders.filter(o => o.currentStage === stage.id && o.status !== 'COMPLETED');
+                      const stageOrders = allOrders.filter(o => (stage.id === 'STORE' ? ['STORE', 'STORE_RECEIVE'].includes(o.currentStage) : o.currentStage === stage.id) && o.status !== 'COMPLETED');
                       if (stageOrders.length === 0) return null;
                       return (
                         <section key={stage.id}>

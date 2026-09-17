@@ -48,7 +48,8 @@ const ProductSelectionTab = () => {
     memoCartTotalItems, memoCartTotalPrice,
     preventEnterSubmit, handleSizeSelect,
     cartItems, setCartItems, removeCartItem, editCartItem,
-    fromVerification, originalOrder
+    fromVerification, originalOrder,
+    requiredErrors, setRequiredErrors, error, setError
   } = useOrderEntry();
 
   return (
@@ -397,14 +398,44 @@ const ProductSelectionTab = () => {
           )}
 
           {(formData.productType || formData.type === 'FULL_CUSTOM') && !isAccessory(selectedProductCategory) && (
-            <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border theme-border">
+            <div className={`mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border transition-all ${(requiredErrors?.gender || error === 'Select the gender.') && !formData.gender ? 'border-red-500/60 shadow-lg shadow-red-500/10' : 'theme-border'}`}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-black text-purple-400 uppercase">{useUrdu ? 'صنف' : 'Gender'}</h3>
+                <h3 className="text-lg font-black text-purple-400 uppercase flex items-center gap-1.5">
+                  <span>{useUrdu ? 'صنف' : 'Gender'}</span>
+                  <span className="text-red-500 font-black">*</span>
+                </h3>
+                {((requiredErrors?.gender || error === 'Select the gender.') && !formData.gender) && (
+                  <span className="text-xs font-black text-red-400">
+                    {useUrdu ? 'صنف کا انتخاب لازمی ہے' : 'Select the gender.'}
+                  </span>
+                )}
               </div>
               <div className="flex p-1 theme-bg rounded-xl border-2 theme-border">
-                <button type="button" onClick={() => setFormData({ ...formData, gender: 'Male' })}
+                <button type="button" onClick={() => {
+                  setFormData({ ...formData, gender: 'Male' });
+                  if (setRequiredErrors) {
+                    setRequiredErrors(prev => {
+                      if (!prev?.gender) return prev;
+                      const n = { ...prev };
+                      delete n.gender;
+                      return n;
+                    });
+                  }
+                  if (error === 'Select the gender.' && setError) setError('');
+                }}
                   className={`flex-1 py-3 rounded-lg text-sm font-black transition-all ${formData.gender === 'Male' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}>{useUrdu ? 'مردانہ' : 'MALE'}</button>
-                <button type="button" onClick={() => setFormData({ ...formData, gender: 'Female' })}
+                <button type="button" onClick={() => {
+                  setFormData({ ...formData, gender: 'Female' });
+                  if (setRequiredErrors) {
+                    setRequiredErrors(prev => {
+                      if (!prev?.gender) return prev;
+                      const n = { ...prev };
+                      delete n.gender;
+                      return n;
+                    });
+                  }
+                  if (error === 'Select the gender.' && setError) setError('');
+                }}
                   className={`flex-1 py-3 rounded-lg text-sm font-black transition-all ${formData.gender === 'Female' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}>{useUrdu ? 'زنانہ' : 'FEMALE'}</button>
               </div>
               {formData.gender === 'Female' && (

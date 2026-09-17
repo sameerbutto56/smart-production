@@ -348,6 +348,23 @@ const createOrder = async (req, res) => {
     finalShopifyOrderDate = normalizeDateOnly(shopifyOrderDate);
   }
 
+  // Gender is mandatory for non-outlet / online orders
+  if (!isOutletOrder) {
+    let hasGender = false;
+    if (items && Array.isArray(items) && items.length > 0) {
+      hasGender = items.every(i => {
+        const g = i.productDetails?.gender || i.gender;
+        return typeof g === 'string' && g.trim().length > 0;
+      });
+    } else {
+      const g = productDetails?.gender || req.body.gender;
+      hasGender = typeof g === 'string' && g.trim().length > 0;
+    }
+    if (!hasGender) {
+      return res.status(400).json({ message: 'Select the gender.', error: 'Select the gender.' });
+    }
+  }
+
   try {
     if (await isSystemPaused()) {
       return res.status(503).json({ error: 'System is paused for holidays. Order creation is disabled.' });
@@ -1024,8 +1041,8 @@ const getOrdersExport = async (req, res) => {
           return true;
         });
       }
-      // STORE_RECEIVE is Store-only — never in Online/Outlet/Admin views (mirror notStoreReceive).
-      if (!['STORE', 'STORE_EMPLOYEE'].includes(role)) {
+      // STORE_RECEIVE is accessible to Control Center and Store roles
+      if (!['STORE', 'STORE_EMPLOYEE', 'ADMIN', 'SUPER_ADMIN', 'CEO'].includes(role)) {
         orders = orders.filter((o) => o.currentStage !== 'STORE_RECEIVE');
       }
     }

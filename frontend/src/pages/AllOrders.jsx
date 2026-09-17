@@ -547,12 +547,13 @@ const AllOrders = () => {
       // Strict Role Filtering
       const userRole = String(user?.role || '').toUpperCase().trim();
       const isOwner = order.createdById === user?.id;
-      const isControlCenter = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+      const isControlCenter = ['SUPER_ADMIN', 'ADMIN', 'CEO'].includes(userRole);
       const matchesRole = isControlCenter || isOwner;
       
       // STORE_RECEIVE is Store-only — never show in Online/Outlet/AllOrders views
       const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
-      const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
+      const canSeeStoreReceive = isControlCenter || isStoreRole;
+      const notStoreReceive = canSeeStoreReceive || order.currentStage !== 'STORE_RECEIVE';
       
       return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesDate;
     });
