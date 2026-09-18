@@ -59,11 +59,24 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
   const requirements = data?.requirements || [];
   const deposits = data?.deposits || [];
 
-  const handleOpenModal = () => {
+  const handleOpenModal = (targetDate = null) => {
     const todayStr = data?.todayDate || new Date().toISOString().slice(0, 10);
-    setBusinessDate(todayStr);
+    
+    // If a specific date was chosen, use it; otherwise default to oldest pending date (or today)
+    let selectedDate = targetDate;
+    if (!selectedDate) {
+      const oldestPending = [...(requirements || [])].reverse().find(r => r.pendingAmount > 0);
+      selectedDate = oldestPending ? oldestPending.businessDate : todayStr;
+    }
+
+    const reqForDate = (requirements || []).find(r => r.businessDate === selectedDate);
+    const amountToSuggest = reqForDate && reqForDate.pendingAmount > 0
+      ? reqForDate.pendingAmount
+      : (summary.todayRequiredDeposit > 0 ? summary.todayRequiredDeposit : '');
+
+    setBusinessDate(selectedDate);
     setActualDepositDate(new Date().toISOString().slice(0, 16));
-    setDepositAmount(summary.todayRequiredDeposit > 0 ? summary.todayRequiredDeposit.toString() : '');
+    setDepositAmount(amountToSuggest ? amountToSuggest.toString() : '');
     setReferenceNumber(`DEP-${Date.now().toString().slice(-6)}`);
     setBankName('');
     setNotes('');
@@ -91,7 +104,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
         employeeName,
       });
 
-      toast.success(`Deposit of ${fmt(amt)} recorded successfully!`);
+      toast.success(`Deposit of ${fmt(amt)} recorded for business date ${businessDate}!`);
       setShowModal(false);
       fetchData();
     } catch (err) {
@@ -162,7 +175,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
           </button>
 
           <button
-            onClick={handleOpenModal}
+            onClick={() => handleOpenModal()}
             className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all"
           >
             <PlusCircle size={14} /> Make Deposit
@@ -229,7 +242,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
             <span className="font-bold">Last Deposit:</span>
             <span className="font-black text-white">{fmt(summary.lastDeposit.amount)}</span>
             <span className="text-gray-400">({summary.lastDeposit.referenceNumber || 'Slip #'})</span>
-            <span className="text-gray-500 text-[11px]">• {formatDateTime(summary.lastDeposit.actualDepositDate)}</span>
+            <span className="text-gray-500 text-[11px]">• Actual Date: {formatDateTime(summary.lastDeposit.actualDepositDate)}</span>
           </div>
           <div className="text-gray-400 text-[11px]">
             Recorded by: <span className="text-gray-200 font-bold">{summary.lastDeposit.createdByName || 'Staff'}</span>
@@ -268,17 +281,18 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-gray-800/80 text-gray-400 uppercase text-[9px] font-black tracking-wider border-b border-gray-700/50">
-                  <th className="py-3 px-4 text-left">Business Date</th>
+                  <th className="py-3 px-4 text-left">Cash Business Date</th>
                   <th className="py-3 px-3 text-right">Cash Generated</th>
                   <th className="py-3 px-3 text-right">Prev Pending</th>
                   <th className="py-3 px-3 text-right">Required Deposit</th>
-                  <th className="py-3 px-3 text-right">Actual Deposit</th>
+                  <th className="py-3 px-3 text-right">Deposited</th>
                   <th className="py-3 px-3 text-right">To Prev</th>
                   <th className="py-3 px-3 text-right">To Today</th>
                   <th className="py-3 px-3 text-right">Remaining Pending</th>
                   <th className="py-3 px-3 text-right">Excess</th>
                   <th className="py-3 px-4 text-center">Status</th>
                   <th className="py-3 px-3 text-center">Slips</th>
+                  <th className="py-3 px-3 text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
@@ -325,25 +339,50 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                             <span className="text-gray-600">—</span>
                           )}
                         </td>
+                        <td className="py-3 px-3 text-center">
+                          {r.pendingAmount > 0 ? (
+                            <button
+                              onClick={() => handleOpenModal(r.businessDate)}
+                              className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                            >
+                              + Deposit
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-emerald-500/60 font-bold">✓ Cleared</span>
+                          )}
+                        </td>
                       </tr>
 
                       {/* Expanded Allocations Sub-Table */}
                       {isExpanded && (r.allocations || []).length > 0 && (
                         <tr className="bg-gray-900/80">
-                          <td colSpan="11" className="p-4 border-l-2 border-emerald-500">
+                          <td colSpan="12" className="p-4 border-l-2 border-emerald-500">
                             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-2">
-                              Allocated Deposits for {r.businessDate}:
+                              Allocated Deposits Credited to {r.businessDate}:
                             </p>
-                            <div className="space-y-1.5 max-w-2xl">
+                            <div className="space-y-2 max-w-3xl">
                               {r.allocations.map((a, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-xs bg-gray-800/60 p-2 rounded-lg border border-gray-700/50">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-white">{fmt(a.amount)}</span>
+                                <div key={idx} className="flex flex-wrap items-center justify-between text-xs bg-gray-800/80 p-2.5 rounded-xl border border-gray-700/60 gap-2">
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-black text-white text-sm">{fmt(a.amount)}</span>
+                                    <span className="text-gray-400 text-[11px]">
+                                      Slip: <span className="font-bold text-gray-200">{a.cashDeposit?.referenceNumber || 'DEP'}</span>
+                                    </span>
+                                    {a.cashDeposit?.bankName && (
+                                      <span className="text-gray-400 text-[11px]">
+                                        Bank: <span className="font-bold text-gray-300">{a.cashDeposit.bankName}</span>
+                                      </span>
+                                    )}
                                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${a.allocationType === 'PREVIOUS_PENDING' ? 'bg-amber-500/20 text-amber-300' : a.allocationType === 'EXCESS' ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
                                       {a.allocationType?.replace(/_/g, ' ')}
                                     </span>
                                   </div>
-                                  <span className="text-gray-400 text-[11px]">{formatDateTime(a.createdAt)}</span>
+                                  <div className="text-right text-[11px] text-gray-400">
+                                    <span>Actual Deposit Time: <span className="font-bold text-gray-300">{formatDateTime(a.cashDeposit?.actualDepositDate || a.createdAt)}</span></span>
+                                    {a.cashDeposit?.createdByName && (
+                                      <span className="ml-2 text-gray-500">• By {a.cashDeposit.createdByName}</span>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -379,10 +418,10 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
             <form onSubmit={handleSubmitDeposit} className="p-6 space-y-4">
               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-300">
                 <p className="font-bold flex items-center gap-1.5">
-                  <Sparkles size={14} /> Chronological FIFO Allocation
+                  <Sparkles size={14} /> Cash Business Date Credit
                 </p>
                 <p className="text-[11px] text-emerald-400/80 mt-1">
-                  Deposits automatically clear any older pending days first before applying to today's requirement.
+                  The deposit amount will be directly credited and allocated against the selected <strong>Cash Business Date</strong> requirement.
                 </p>
               </div>
 
@@ -411,9 +450,19 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                     type="date"
                     required
                     value={businessDate}
-                    onChange={(e) => setBusinessDate(e.target.value)}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setBusinessDate(newDate);
+                      const req = (requirements || []).find(r => r.businessDate === newDate);
+                      if (req && req.pendingAmount > 0) {
+                        setDepositAmount(req.pendingAmount.toString());
+                      }
+                    }}
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-gray-300 focus:outline-none focus:border-emerald-500"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Date of cash requirement being deposited
+                  </p>
                 </div>
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
@@ -425,6 +474,9 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                     onChange={(e) => setActualDepositDate(e.target.value)}
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-gray-300 focus:outline-none focus:border-emerald-500"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Physical submission timestamp
+                  </p>
                 </div>
               </div>
 
