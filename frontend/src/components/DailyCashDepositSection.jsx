@@ -426,10 +426,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
+                <label htmlFor="deposit-amount" className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
                   Deposit Amount (PKR) <span className="text-red-400">*</span>
                 </label>
                 <input
+                  id="deposit-amount"
+                  name="depositAmount"
                   type="number"
                   step="any"
                   min="1"
@@ -443,10 +445,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
+                  <label htmlFor="deposit-business-date" className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
                     Cash Business Date <span className="text-red-400">*</span>
                   </label>
                   <input
+                    id="deposit-business-date"
+                    name="businessDate"
                     type="date"
                     required
                     value={businessDate}
@@ -465,10 +469,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                   </p>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
+                  <label htmlFor="deposit-actual-date" className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
                     Actual Deposit Time
                   </label>
                   <input
+                    id="deposit-actual-date"
+                    name="actualDepositDate"
                     type="datetime-local"
                     value={actualDepositDate}
                     onChange={(e) => setActualDepositDate(e.target.value)}
@@ -482,10 +488,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
+                  <label htmlFor="deposit-reference-number" className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
                     Slip / Reference #
                   </label>
                   <input
+                    id="deposit-reference-number"
+                    name="referenceNumber"
                     type="text"
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
@@ -494,10 +502,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
+                  <label htmlFor="deposit-bank-name" className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
                     Bank / Account Name
                   </label>
                   <input
+                    id="deposit-bank-name"
+                    name="bankName"
                     type="text"
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
@@ -508,10 +518,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
+                <label htmlFor="deposit-employee-name" className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
                   Depositor Name / Employee
                 </label>
                 <input
+                  id="deposit-employee-name"
+                  name="employeeName"
                   type="text"
                   value={employeeName}
                   onChange={(e) => setEmployeeName(e.target.value)}
@@ -521,10 +533,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
+                <label htmlFor="deposit-notes" className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">
                   Notes / Remarks
                 </label>
                 <textarea
+                  id="deposit-notes"
+                  name="notes"
                   rows="2"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}

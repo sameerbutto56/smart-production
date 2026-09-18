@@ -70,12 +70,15 @@ const AbbottabadPasswordModal = ({ isOpen, onClose, onSuccess }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
+            <label htmlFor="abbottabad-modal-password" className="block text-[11px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
               Abbottabad Password
             </label>
             <div className="relative">
               <input
+                id="abbottabad-modal-password"
+                name="abbottabadPassword"
                 type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);

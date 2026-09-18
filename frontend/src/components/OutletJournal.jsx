@@ -143,10 +143,10 @@ const OutletJournal = ({ outlet }) => {
           </div>
           <form onSubmit={handleAuth} className="space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Select Employee</label>
+              <label htmlFor="journal-select-employee" className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Select Employee</label>
               <div className="relative">
                 <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
+                <select id="journal-select-employee" name="selectedEmployee" value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 pl-10 pr-4 text-white font-bold text-sm focus:outline-none focus:border-blue-500/50 appearance-none">
                   <option value="">Choose employee...</option>
                   {employees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
@@ -154,8 +154,8 @@ const OutletJournal = ({ outlet }) => {
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              <label htmlFor="journal-password" className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Password</label>
+              <input id="journal-password" name="employeePassword" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="Enter employee password"
                 className="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 px-4 text-white font-bold text-sm focus:outline-none focus:border-blue-500/50" />
             </div>

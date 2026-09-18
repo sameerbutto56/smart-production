@@ -101,11 +101,14 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Authorized Identity</label>
+              <label htmlFor="login-email" className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Authorized Identity</label>
               <div className="relative group/input">
                 <Mail className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
+                  autoComplete="username email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full theme-input rounded-xl py-3.5 pl-14 pr-6 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
@@ -116,11 +119,14 @@ const Login = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Access Encryption</label>
+              <label htmlFor="login-password" className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Access Encryption</label>
               <div className="relative group/input">
                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
                 <input
+                  id="login-password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full theme-input rounded-xl py-3.5 pl-14 pr-12 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
@@ -166,7 +172,10 @@ const Login = () => {
             {showCode && (
               <div className="mt-3 space-y-2">
                 <input
+                  id="login-registration-code"
+                  name="registrationCode"
                   type="text"
+                  autoComplete="off"
                   value={registrationCode}
                   onChange={(e) => setRegistrationCode(e.target.value.toUpperCase())}
                   placeholder="Registration Code (e.g. X7K2M9P4)"

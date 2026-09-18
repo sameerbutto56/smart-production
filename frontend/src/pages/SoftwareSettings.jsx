@@ -1593,11 +1593,14 @@ const SoftwareSettings = () => {
 
             <form onSubmit={handleUpdateAbbottabadPassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
+                <label htmlFor="abbottabad-new-password" className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
                   New Password <span className="text-red-400">*</span>
                 </label>
                 <input
+                  id="abbottabad-new-password"
+                  name="abbottabadNewPassword"
                   type="password"
+                  autoComplete="new-password"
                   placeholder="Enter new Abbottabad password"
                   value={abbottabadNewPass}
                   onChange={(e) => setAbbottabadNewPass(e.target.value)}
@@ -1606,11 +1609,14 @@ const SoftwareSettings = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
+                <label htmlFor="abbottabad-confirm-password" className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
                   Confirm New Password <span className="text-red-400">*</span>
                 </label>
                 <input
+                  id="abbottabad-confirm-password"
+                  name="abbottabadConfirmPassword"
                   type="password"
+                  autoComplete="new-password"
                   placeholder="Re-enter new Abbottabad password"
                   value={abbottabadConfirmPass}
                   onChange={(e) => setAbbottabadConfirmPass(e.target.value)}
