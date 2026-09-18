@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Package, RotateCcw, RefreshCw, Factory, Eye, Box, Undo2, CheckCircle2 } from 'lucide-react';
+import { Package, RotateCcw, RefreshCw, Factory, Eye, Box, Undo2, CheckCircle2, Truck, Search as SearchIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -28,6 +28,19 @@ const STATUS_BADGE = (status) => {
   return 'bg-gray-700 text-gray-400';
 };
 
+const SOURCE_BADGE = (source) => {
+  if (!source) return null;
+  const labels = {
+    'ENAMELS_DELIVERY_BOY': { text: 'Enamels Delivery Boy', cls: 'bg-amber-500/20 text-amber-400' },
+    'ORDER_LOOKUP': { text: 'Order Lookup', cls: 'bg-indigo-500/20 text-indigo-400' },
+    'POSTEX': { text: 'PostEx', cls: 'bg-cyan-500/20 text-cyan-400' },
+    'AUTO_3_ATTEMPTS': { text: 'Auto (3 Attempts)', cls: 'bg-rose-500/20 text-rose-400' },
+    'DISPATCH': { text: 'Dispatch', cls: 'bg-teal-500/20 text-teal-400' },
+  };
+  const info = labels[source] || { text: source.replace(/_/g, ' '), cls: 'bg-gray-600/20 text-gray-400' };
+  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${info.cls}`}>{info.text}</span>;
+};
+
 const StoreReturns = ({ refreshKey }) => {
   const { user } = useAuth();
   const [returns, setReturns] = useState([]);
@@ -36,15 +49,18 @@ const StoreReturns = ({ refreshKey }) => {
   const [expandedId, setExpandedId] = useState(null);
   const [processingId, setProcessingId] = useState(null);
   const [completingId, setCompletingId] = useState(null);
+  const [acceptingProductId, setAcceptingProductId] = useState(null);
 
   const fetchCases = useCallback(async () => {
     setLoading(true);
     try {
+      // Only fetch returns that have been routed TO Store (routedTo=STORE)
+      // This excludes returns still with Inventory View (routedTo=INVENTORY_VIEW)
       const [pendingRes, acceptedRes, restockedRes, routedRes] = await Promise.all([
-        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'PENDING', limit: 100 } }),
-        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ACCEPTED', limit: 100 } }),
-        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'RESTOCKED', limit: 100 } }),
-        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ROUTED_TO_PRODUCTION', limit: 100 } })
+        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'PENDING', routedTo: 'STORE', limit: 100 } }),
+        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ACCEPTED', routedTo: 'STORE', limit: 100 } }),
+        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'RESTOCKED', routedTo: 'STORE', limit: 100 } }),
+        api.get('/api/return-exchange/cases', { params: { type: 'RETURN', status: 'ROUTED_TO_PRODUCTION', routedTo: 'STORE', limit: 100 } })
       ]);
       const list = [...(pendingRes.data.cases || []), ...(acceptedRes.data.cases || []), ...(restockedRes.data.cases || []), ...(routedRes.data.cases || [])]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -64,6 +80,48 @@ const StoreReturns = ({ refreshKey }) => {
       await fetchCases();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to accept'); }
     setProcessingId(null);
+  };
+
+  const acceptProduct = async (record, idx, item) => {
+    const pd = item.productDetails || item;
+    const maxQty = item.quantity || 1;
+    const qtyStr = window.prompt(`Accept how many units of "${pd.name || pd.productType || 'Product'}" (max ${maxQty})?`, String(maxQty));
+    if (qtyStr === null) return;
+    const qty = parseInt(qtyStr, 10);
+    if (isNaN(qty) || qty < 1 || qty > maxQty) { toast.error(`Enter a valid quantity between 1 and ${maxQty}`); return; }
+    setAcceptingProductId(`${record.id}-${idx}`);
+    try {
+      await api.post(`/api/return-exchange/${record.id}/accept-product`, { idx, acceptedQty: qty });
+      toast.success(`Accepted ${qty}× ${pd.name || 'product'}`);
+      await fetchCases();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to accept product'); }
+    setAcceptingProductId(null);
+  };
+
+  const restockProduct = async (record, idx, item) => {
+    const pd = item.productDetails || item;
+    const accepted = getAcceptedQty(record, idx);
+    if (!accepted) { toast.error('Product must be accepted first'); return; }
+    if (!window.confirm(`Restock ${accepted}× "${pd.name || pd.productType || 'Product'}" back into inventory?`)) return;
+    setAcceptingProductId(`${record.id}-${idx}-restock`);
+    try {
+      await api.post(`/api/return-exchange/${record.id}/restock-product`, { idx });
+      toast.success(`Restocked ${accepted}× ${pd.name || 'product'}`);
+      await fetchCases();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to restock product'); }
+    setAcceptingProductId(null);
+  };
+
+  const getAcceptedQty = (record, idx) => {
+    const accepted = parseItems(record.acceptedProducts);
+    const match = accepted.find(a => a.idx === idx);
+    return match?.acceptedQty || 0;
+  };
+
+  const getRestockedQty = (record, idx) => {
+    const restocked = parseItems(record.restockedProducts);
+    const match = restocked.find(r => r.idx === idx);
+    return match?.restockedQty || 0;
   };
 
   const processCase = async (record, action, notes = '') => {
@@ -130,10 +188,11 @@ const StoreReturns = ({ refreshKey }) => {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-black theme-text-primary">#{c.orderNumber || 'N/A'}</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE(c.status)}`}>{c.status.replace(/_/g, ' ')}</span>
+                  {SOURCE_BADGE(c.returnSource)}
                 </div>
                 <p className="text-xs theme-text-secondary mt-0.5">{c.customerName} • {c.customerPhone}</p>
                 {c.returnReason && <p className="text-xs text-amber-400 mt-1 font-bold">Reason: {c.returnReason}</p>}
-                <p className="text-[10px] theme-text-muted mt-0.5">Initiated by {c.handledBy} • {fmtDateTime(c.createdAt)}</p>
+                <p className="text-[10px] theme-text-muted mt-0.5">Initiated by {c.handledBy || c.deliveryReturnedBy || 'System'} • {fmtDateTime(c.createdAt)}</p>
               </div>
               <div className="flex items-center gap-2">
                 {c.status === 'RESTOCKED' && (
@@ -150,17 +209,50 @@ const StoreReturns = ({ refreshKey }) => {
             {expandedId === c.id && (
               <div className="mt-4 space-y-3">
                 <div>
-                  <p className="text-[10px] font-black theme-text-muted uppercase mb-2">Returned Goods (to restock)</p>
+                  <p className="text-[10px] font-black theme-text-muted uppercase mb-2">Returned Goods</p>
                   <div className="space-y-1.5">
                     {parseItems(c.originalProducts).map((item, i) => {
                       const pd = item.productDetails || item;
+                      const acceptedQty = getAcceptedQty(c, i);
+                      const restockedQty = getRestockedQty(c, i);
+                      const maxQty = item.quantity || 1;
                       return (
-                        <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs flex items-center justify-between">
-                          <div>
-                            <p className="font-bold text-white">{pd.name || pd.productType || 'Product'}</p>
-                            <p className="text-gray-500 text-[10px]">{(pd.color || '')} {(pd.size || '')} × {item.quantity || 1}</p>
+                        <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-bold text-white">{pd.name || pd.productType || 'Product'}</p>
+                              <p className="text-gray-500 text-[10px]">{(pd.color || '')} {(pd.size || '')} × {maxQty}</p>
+                            </div>
+                            <span className="text-amber-400 font-black text-xs">{fmtCurrency(pd.totalPrice || item.totalPrice)}</span>
                           </div>
-                          <span className="text-amber-400 font-black text-xs">{fmtCurrency(pd.totalPrice || item.totalPrice)}</span>
+                          {/* Per-product acceptance/restock controls */}
+                          {c.status === 'ACCEPTED' && (
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-800">
+                              {acceptedQty > 0 ? (
+                                <span className="text-[10px] font-bold text-emerald-400">✓ Accepted {acceptedQty}/{maxQty}</span>
+                              ) : (
+                                <button
+                                  onClick={() => acceptProduct(c, i, item)}
+                                  disabled={acceptingProductId === `${c.id}-${i}`}
+                                  className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 font-bold py-1 px-2 rounded-lg text-[10px] disabled:opacity-50"
+                                >
+                                  {acceptingProductId === `${c.id}-${i}` ? 'Accepting...' : 'Accept Product'}
+                                </button>
+                              )}
+                              {acceptedQty > 0 && restockedQty === 0 && (
+                                <button
+                                  onClick={() => restockProduct(c, i, item)}
+                                  disabled={acceptingProductId === `${c.id}-${i}-restock`}
+                                  className="bg-teal-600/20 hover:bg-teal-600/30 text-teal-400 font-bold py-1 px-2 rounded-lg text-[10px] disabled:opacity-50"
+                                >
+                                  {acceptingProductId === `${c.id}-${i}-restock` ? 'Restocking...' : 'Restock'}
+                                </button>
+                              )}
+                              {restockedQty > 0 && (
+                                <span className="text-[10px] font-bold text-teal-400">✓ Restocked {restockedQty}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -236,7 +328,7 @@ const StoreReturns = ({ refreshKey }) => {
         <div className="text-center py-16 text-gray-500 font-bold">Loading...</div>
       ) : (
         <div className="space-y-8">
-          {renderReturnsSection({ title: "Returns — Store", icon: <Box size={18} className="text-red-400" />, color: "bg-red-500/20", list: returns, emptyText: "No returns to process. Returned orders from Inventory View will appear here until they are completed." })}
+          {renderReturnsSection({ title: "Returns — Store", icon: <Box size={18} className="text-red-400" />, color: "bg-red-500/20", list: returns, emptyText: "No returns to process. Accepted returns from Inventory View will appear here once sent to Store." })}
         </div>
       )}
     </div>
@@ -244,3 +336,4 @@ const StoreReturns = ({ refreshKey }) => {
 };
 
 export default StoreReturns;
+

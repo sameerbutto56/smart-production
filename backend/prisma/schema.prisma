@@ -1026,6 +1026,7 @@ model ReturnExchange {
   deliveryReturnedBy String?     // delivery boy name who returned
   deliveryReturnedById String?   // delivery boy user id
   deliveryReturnedAt DateTime?   // when delivery boy returned
+  returnSource      String?      // ENAMELS_DELIVERY_BOY, ORDER_LOOKUP, POSTEX, AUTO_3_ATTEMPTS, DISPATCH
   acceptedBy        String?      // inventory view user who accepted
   acceptedById      String?      // inventory view user id
   acceptedAt        DateTime?    // when accepted

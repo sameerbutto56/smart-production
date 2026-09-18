@@ -152,9 +152,9 @@ const createReturnExchange = async (req, res) => {
       // return is historical and must never prevent a fresh Return cycle.
     }
 
-    // RETURN → Store takes over; REPLACEMENT → Faisal reviews first, then Store
-    const routedTo = type === 'REPLACEMENT' ? 'FAISAL' : 'STORE';
-    const initialStatus = type === 'REPLACEMENT' ? 'PENDING' : 'PENDING';
+    // RETURN → Inventory View (unified workflow); REPLACEMENT → Faisal reviews first
+    const routedTo = type === 'REPLACEMENT' ? 'FAISAL' : 'INVENTORY_VIEW';
+    const initialStatus = 'PENDING';
 
     const record = await prisma.returnExchange.create({
       data: {
@@ -172,7 +172,8 @@ const createReturnExchange = async (req, res) => {
         deliveryAttempts: order.noResponseCount || 0,
         nextDeliveryDate: order.nextDeliveryDate,
         handledBy: req.user?.name || null,
-        handledById: req.user?.id || null
+        handledById: req.user?.id || null,
+        returnSource: type === 'RETURN' ? 'ORDER_LOOKUP' : null
       }
     });
 
@@ -203,9 +204,9 @@ const createReturnExchange = async (req, res) => {
 
     await notify.create(req, {
       type: 'return_exchange',
-      moduleName: routedTo === 'FAISAL' ? 'Replacements' : 'Returns',
-      path: routedTo === 'FAISAL' ? '/replacements' : '/returns',
-      role: routedTo === 'FAISAL' ? 'FAISAL' : 'STORE',
+      moduleName: routedTo === 'FAISAL' ? 'Replacements' : 'Return & Exchange',
+      path: routedTo === 'FAISAL' ? '/replacements' : '/return-exchange',
+      role: routedTo === 'FAISAL' ? 'FAISAL' : 'INVENTORY_VIEW',
       title: 'New Return/Exchange Request',
       message: `${type} request for ${order?.customerName || 'customer'}`,
       orderId: order?.id,
@@ -1706,6 +1707,7 @@ const getAllCases = async (req, res) => {
       }
     }
 
+    const { routedTo: routedToParam } = req.query;
     const where = {};
     if (type) where.type = type;
     if (status) {
@@ -1715,6 +1717,7 @@ const getAllCases = async (req, res) => {
       // don't reappear in the active workflow views.
       where.status = { notIn: ['COMPLETED', 'CANCELLED', 'REPLACEMENT_COMPLETED'] };
     }
+    if (routedToParam) where.routedTo = routedToParam;
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
@@ -1983,10 +1986,11 @@ const redispatchOrder = async (req, res) => {
         where: { userId: { in: recipientUsers.map(u => u.id) }, orderId: order.id, stageName: 'DISPATCH' }
       }).catch(() => {});
 
-      // Close any ACCEPTED return case so the Return & Exchange page
-      // does not keep showing action buttons after re-dispatch.
+      // Close ACCEPTED return cases that are still with Inventory View.
+      // Once a return has been sent to Store (routedTo: 'STORE'), re-dispatch
+      // must NOT auto-close it — Store is already processing the returned goods.
       await tx.returnExchange.updateMany({
-        where: { orderId: order.id, type: 'RETURN', status: 'ACCEPTED' },
+        where: { orderId: order.id, type: 'RETURN', status: 'ACCEPTED', routedTo: { not: 'STORE' } },
         data: { status: 'COMPLETED', handledBy: req.user?.name || 'Inventory View' }
       });
     }, { timeout: 30000 });
@@ -2423,24 +2427,38 @@ if (status) {
       const order = orderMap[c.orderId] || null;
       const shipment = shipmentMap[c.orderId] || null;
 
-      // Detect return source from multiple signals
-      let returnSource = 'Manual';
-      if (shipment) {
-        returnSource = 'PostEx';
-      } else if (c.deliveryReturnedBy) {
-        returnSource = 'Delivery Boy';
-      } else if (order?.deliveryType === 'ENAMELS' || order?.deliveryMethod === 'Enamels Delivery') {
-        returnSource = 'Enamels Delivery';
-      } else if (order?.deliveryType === 'TCS' || order?.deliveryType === 'POST_EX') {
-        returnSource = order.deliveryType;
-      } else if (order?.source === 'ONLINE ORDER' || order?.source === 'ONLINE') {
-        returnSource = 'Online';
-      } else if (order?.source === 'OUTLET') {
-        returnSource = 'Outlet';
-      } else if (order?.source === 'REPLACEMENT') {
-        returnSource = 'Replacement';
-      } else if (c.handledBy) {
-        returnSource = 'Inventory View';
+      // Use DB returnSource when available; fall back to heuristic for legacy records
+      let returnSource = null;
+      if (c.returnSource) {
+        // Normalize DB values to display labels
+        const sourceLabels = {
+          'ENAMELS_DELIVERY_BOY': 'Enamels Delivery Boy',
+          'ORDER_LOOKUP': 'Order Lookup',
+          'POSTEX': 'PostEx',
+          'AUTO_3_ATTEMPTS': 'Auto (3 Attempts)',
+          'DISPATCH': 'Dispatch'
+        };
+        returnSource = sourceLabels[c.returnSource] || c.returnSource;
+      } else {
+        // Legacy heuristic fallback
+        returnSource = 'Manual';
+        if (shipment) {
+          returnSource = 'PostEx';
+        } else if (c.deliveryReturnedBy) {
+          returnSource = 'Enamels Delivery Boy';
+        } else if (order?.deliveryType === 'ENAMELS' || order?.deliveryMethod === 'Enamels Delivery') {
+          returnSource = 'Enamels Delivery';
+        } else if (order?.deliveryType === 'TCS' || order?.deliveryType === 'POST_EX') {
+          returnSource = order.deliveryType;
+        } else if (order?.source === 'ONLINE ORDER' || order?.source === 'ONLINE') {
+          returnSource = 'Online';
+        } else if (order?.source === 'OUTLET') {
+          returnSource = 'Outlet';
+        } else if (order?.source === 'REPLACEMENT') {
+          returnSource = 'Replacement';
+        } else if (c.handledBy) {
+          returnSource = 'Order Lookup';
+        }
       }
 
       // Build product summary from original products
@@ -2531,8 +2549,10 @@ const bulkCompleteStaleReturns = async (req, res) => {
       cancelledOrderIds = new Set(cancelledOrders.map(o => o.id));
     }
 
-    // 3) Identify cases to complete: handledBy set OR order CANCELLED
-    const toComplete = staleCases.filter(c => c.handledBy || cancelledOrderIds.has(c.orderId));
+    // 3) Identify cases to complete: ONLY when linked order is CANCELLED.
+    //    The previous handledBy check was incorrect — every Order Lookup return
+    //    has handledBy set, causing legitimate returns to be auto-completed.
+    const toComplete = staleCases.filter(c => cancelledOrderIds.has(c.orderId));
 
     if (!toComplete.length) {
       return res.json({ message: 'No stale cases to complete', completed: 0, totalPending: staleCases.length });

@@ -157,7 +157,8 @@ const performDeliveryReturn = async (req, order, riderName, reason, autoReturned
         originalProducts: parseProductsForCase(order.productDetails),
         deliveryReturnedBy: riderName || req.user?.name || 'SYSTEM',
         deliveryReturnedById: req.user?.id || null,
-        deliveryReturnedAt: now
+        deliveryReturnedAt: now,
+        returnSource: 'ENAMELS_DELIVERY_BOY'
       }
     });
   }

@@ -45,12 +45,9 @@ const ReturnExchangePage = () => {
     }
   }, [activeView, incomingFilterStatus, incomingFilterSource]);
 
-  // Auto-mark stale pending returns as COMPLETED when Incoming tab loads
-  useEffect(() => {
-    if (activeView === 'incoming') {
-      api.post('/api/return-exchange/bulk-complete-stale').catch(() => {});
-    }
-  }, [activeView]);
+  // REMOVED: Auto-call to bulkCompleteStaleReturns was incorrectly completing
+  // legitimate return cases. Stale returns are now only auto-completed when
+  // the linked order is CANCELLED (handled server-side on-demand).
 
   const [completedReturnCase, setCompletedReturnCase] = useState(null);
 
