@@ -25,13 +25,18 @@ const STAGE_LABELS = {
 const EditRequestDashboard = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const userRole = String(user?.role || '').toUpperCase().trim();
+
+  const isOutlet = userRole === 'OUTLET';
 
   const { data, loading, refresh } = useCache('edit-requests:all', {
     fetcher: async () => {
+      if (isOutlet) return { stats: { total: 0, byStatus: {}, bySource: {} }, requests: [] };
       const res = await api.get('/api/edit-requests?stats=true');
       return { stats: res.data, requests: Array.isArray(res.data.requests) ? res.data.requests : [] };
     },
     ttl: 60 * 1000,
+    enabled: !isOutlet
   });
   const stats = data?.stats || { total: 0, byStatus: {}, bySource: {} };
   const allRequests = data?.requests || [];
@@ -172,6 +177,15 @@ const EditRequestDashboard = () => {
     try { return typeof data === 'string' ? JSON.parse(data) : data; }
     catch { return {}; }
   };
+
+  if (isOutlet) {
+    return (
+      <div className="p-8 text-center glass rounded-2xl border border-red-500/20 max-w-lg mx-auto my-12">
+        <h2 className="text-xl font-black text-red-400 mb-2">Access Restricted</h2>
+        <p className="text-sm text-gray-400">Edit Requests are not accessible for Outlet profiles.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">

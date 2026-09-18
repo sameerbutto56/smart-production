@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { toUrduName } from '../utils/urduDictionary';
+import { useAuth } from '../context/AuthContext';
 
 const today = () => {
   const d = new Date();
@@ -14,6 +15,12 @@ const today = () => {
 };
 
 const GatePass = () => {
+  const { user } = useAuth();
+  const userRole = String(user?.role || '').toUpperCase().trim();
+  const n = String(user?.name || '').toLowerCase();
+  const isJoharTown = n.includes('johar') || user?.name?.includes('1');
+  const isBlockedOutlet = userRole === 'OUTLET' && !isJoharTown;
+
   const [selectedDate, setSelectedDate] = useState(today());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -22,6 +29,7 @@ const GatePass = () => {
   const printRef = useRef(null);
 
   const fetchSheet = useCallback(async (date) => {
+    if (isBlockedOutlet) return;
     setLoading(true);
     try {
       const res = await api.get('/api/gate-pass', { params: { date } });
@@ -32,16 +40,17 @@ const GatePass = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isBlockedOutlet]);
 
   const fetchAvailableDates = useCallback(async (month) => {
+    if (isBlockedOutlet) return;
     try {
       const res = await api.get('/api/gate-pass/available-dates', { params: { month } });
       setAvailableDates(res.data.dates || []);
     } catch (e) {
       console.error('Available dates error:', e);
     }
-  }, []);
+  }, [isBlockedOutlet]);
 
   useEffect(() => {
     fetchSheet(selectedDate);
@@ -226,6 +235,15 @@ const GatePass = () => {
       </div>
     );
   };
+
+  if (isBlockedOutlet) {
+    return (
+      <div className="p-8 text-center glass rounded-2xl border border-red-500/20 max-w-lg mx-auto my-12">
+        <h2 className="text-xl font-black text-red-400 mb-2">Access Restricted</h2>
+        <p className="text-sm text-gray-400">Gate Pass is only available for Johar Town Outlet.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

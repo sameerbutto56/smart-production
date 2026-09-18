@@ -46,9 +46,16 @@ const FinancialSummarySection = React.memo(({
   };
   const handleChange = (name, value) => setFormData(prev => ({ ...prev, [name]: value }));
   const inp = (name, calcVal, color = 'emerald-400') => (
-    <input type="text" inputMode="decimal" value={formData[name] ?? ''} placeholder={String(calcVal)}
+    <input
+      type="text"
+      id={`order-entry-${name}`}
+      name={name}
+      inputMode="decimal"
+      value={formData[name] ?? ''}
+      placeholder={String(calcVal)}
       onChange={e => handleChange(name, e.target.value)}
-      className={`w-full text-right bg-gray-900/80 border border-gray-600/70 hover:border-gray-500 rounded-lg py-1.5 px-2 text-xs font-black ${INP_COLORS[color] || INP_COLORS['emerald-400']} outline-none transition-all cursor-text shadow-inner`} />
+      className={`w-full text-right bg-gray-900/80 border border-gray-600/70 hover:border-gray-500 rounded-lg py-1.5 px-2 text-xs font-black ${INP_COLORS[color] || INP_COLORS['emerald-400']} outline-none transition-all cursor-text shadow-inner`}
+    />
   );
   const fmt = (n) => n.toLocaleString();
   return (
@@ -106,9 +113,16 @@ const FinancialSummarySection = React.memo(({
               <td className="text-red-400 font-bold py-1.5 pr-2">{useUrdu ? 'رعایت' : 'Discount'}</td>
               <td className="text-right text-gray-500 font-black py-1.5 px-2">—</td>
               <td className="text-right py-1.5 pl-2">
-                <input type="text" inputMode="decimal" value={formData.adjDiscount ?? ''} placeholder="0"
+                <input
+                  type="text"
+                  id="order-entry-adjDiscount"
+                  name="adjDiscount"
+                  inputMode="decimal"
+                  value={formData.adjDiscount ?? ''}
+                  placeholder="0"
                   onChange={e => handleChange('adjDiscount', e.target.value)}
-                  className="w-full text-right bg-gray-900/80 border border-red-500/50 hover:border-red-400 rounded-lg py-1.5 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all cursor-text shadow-inner" />
+                  className="w-full text-right bg-gray-900/80 border border-red-500/50 hover:border-red-400 rounded-lg py-1.5 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all cursor-text shadow-inner"
+                />
               </td>
             </tr>
             <tr className="border-b border-gray-800/30">
@@ -287,13 +301,19 @@ const SmartOrderForm = () => {
           <div className="mt-6 border-t border-amber-500/20 pt-6">
             <div className="flex flex-col sm:flex-row items-end gap-4">
               <div className="flex-1 space-y-2">
-                <label className="text-xs font-black text-amber-400 uppercase tracking-widest ml-2">{useUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number'}</label>
+                <label htmlFor="order-entry-edit-order-number" className="text-xs font-black text-amber-400 uppercase tracking-widest ml-2">{useUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number'}</label>
                 <div className="relative group">
                   <Hash className="absolute left-6 top-1/2 -translate-y-1/2 text-amber-500/50 group-focus-within:text-amber-400 transition-colors" size={16} />
-                  <input type="text" value={editOrderNumber} onChange={(e) => setEditOrderNumber(e.target.value)}
+                  <input
+                    type="text"
+                    id="order-entry-edit-order-number"
+                    name="editOrderNumber"
+                    value={editOrderNumber}
+                    onChange={(e) => setEditOrderNumber(e.target.value)}
                     placeholder="e.g. JT-836194"
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); fetchOrderByNumber(); } }}
-                    className="w-full theme-input rounded-[1.5rem] py-5 pl-16 pr-6 border-amber-500/20 focus:border-amber-400 text-lg font-black tracking-wider shadow-inner text-amber-400 placeholder-amber-500/30" />
+                    className="w-full theme-input rounded-[1.5rem] py-5 pl-16 pr-6 border-amber-500/20 focus:border-amber-400 text-lg font-black tracking-wider shadow-inner text-amber-400 placeholder-amber-500/30"
+                  />
                 </div>
               </div>
               <button type="button" disabled={editOrderLoading} onClick={() => fetchOrderByNumber()}
@@ -736,9 +756,15 @@ const SmartOrderForm = () => {
                 />
               </div>
               <div className="bg-gray-800/50 rounded-2xl p-4 mb-4 border border-amber-500/20">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="checkbox" checked={goForVerification} onChange={e => setGoForVerification(e.target.checked)}
-                    className="accent-amber-500 w-5 h-5" />
+                <label htmlFor="order-entry-go-for-verification" className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="order-entry-go-for-verification"
+                    name="goForVerification"
+                    checked={goForVerification}
+                    onChange={e => setGoForVerification(e.target.checked)}
+                    className="accent-amber-500 w-5 h-5"
+                  />
                   <div>
                     <span className="text-sm font-black text-amber-400">Go for Verification</span>
                     <p className="text-[10px] text-gray-500 mt-0.5">Send to Inventory View for payment verification before Store allocation</p>

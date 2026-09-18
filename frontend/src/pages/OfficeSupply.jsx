@@ -32,7 +32,6 @@ const LOCATIONS = [
   { name: 'STORE', type: 'STORE' },
   { name: 'Johar Town', type: 'OUTLET' },
   { name: 'Jail Road', type: 'OUTLET' },
-  { name: 'Abbottabad', type: 'OUTLET' },
   { name: 'Faisal', type: 'OUTLET' },
 ];
 
@@ -104,6 +103,11 @@ export default function OfficeSupply() {
   const isOutlet = ROLE_OUTLET.includes(user?.role);
   const canManage = ROLE_MANAGE.includes(user?.role);
 
+  const n = String(user?.name || '').toLowerCase();
+  const isJoharTown = n.includes('johar') || user?.name?.includes('1');
+  const isJailRoad = n.includes('jail') || user?.name?.includes('2');
+  const isBlockedOutlet = role === 'OUTLET' && !isJoharTown && !isJailRoad;
+
   const defaultLoc = isStore ? 'STORE' : isFaisal ? 'Faisal' : 'Johar Town';
 
   const [tab, setTab] = useState('dashboard');
@@ -159,6 +163,7 @@ export default function OfficeSupply() {
   const [savingSelfUse, setSavingSelfUse] = useState(false);
 
   const loadProducts = useCallback(async () => {
+    if (isBlockedOutlet) return;
     setProductsLoading(true);
     try {
       const res = await api.get('/api/office-supply/products');
@@ -168,9 +173,10 @@ export default function OfficeSupply() {
     } finally {
       setProductsLoading(false);
     }
-  }, []);
+  }, [isBlockedOutlet]);
 
   const loadStock = useCallback(async (loc = stockLocation) => {
+    if (isBlockedOutlet) return;
     setStockLoading(true);
     try {
       const res = await api.get('/api/office-supply/stock', { params: { location: loc } });
@@ -180,9 +186,10 @@ export default function OfficeSupply() {
     } finally {
       setStockLoading(false);
     }
-  }, [stockLocation]);
+  }, [stockLocation, isBlockedOutlet]);
 
   const loadDemands = useCallback(async () => {
+    if (isBlockedOutlet) return;
     setDemandsLoading(true);
     try {
       const res = await api.get('/api/office-supply/demands');
@@ -192,9 +199,10 @@ export default function OfficeSupply() {
     } finally {
       setDemandsLoading(false);
     }
-  }, []);
+  }, [isBlockedOutlet]);
 
   const loadTransfers = useCallback(async () => {
+    if (isBlockedOutlet) return;
     setTransfersLoading(true);
     try {
       const res = await api.get('/api/office-supply/transfers');
@@ -204,9 +212,10 @@ export default function OfficeSupply() {
     } finally {
       setTransfersLoading(false);
     }
-  }, []);
+  }, [isBlockedOutlet]);
 
   const loadMovements = useCallback(async (loc = mvtLocation) => {
+    if (isBlockedOutlet) return;
     setMovementsLoading(true);
     try {
       const res = await api.get('/api/office-supply/movements', { params: { location: loc } });
@@ -216,9 +225,10 @@ export default function OfficeSupply() {
     } finally {
       setMovementsLoading(false);
     }
-  }, [mvtLocation]);
+  }, [mvtLocation, isBlockedOutlet]);
 
   const loadSelfUseRecords = useCallback(async () => {
+    if (isBlockedOutlet) return;
     setSelfUseLoading(true);
     try {
       const res = await api.get('/api/office-supply/self-use');
@@ -228,7 +238,7 @@ export default function OfficeSupply() {
     } finally {
       setSelfUseLoading(false);
     }
-  }, []);
+  }, [isBlockedOutlet]);
 
   useEffect(() => {
     loadProducts();
@@ -639,6 +649,15 @@ export default function OfficeSupply() {
     { key: 'movements', label: 'Movements', icon: History },
     { key: 'self-use', label: 'Store Self-Use', icon: UserCheck, show: isStore },
   ];
+
+  if (isBlockedOutlet) {
+    return (
+      <div className="p-8 text-center glass rounded-2xl border border-red-500/20 max-w-lg mx-auto my-12">
+        <h2 className="text-xl font-black text-red-400 mb-2">Access Restricted</h2>
+        <p className="text-sm text-gray-400">Office Supply is only available for Johar Town and Jail Road Outlets.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

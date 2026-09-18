@@ -122,13 +122,17 @@ const BasicInfoTab = () => {
               </label>
               {/* PR Checkbox Toggle */}
               {!isOutlet && (
-                <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-1 rounded-xl transition-all border ${
+                <label
+                  htmlFor="order-entry-is-pr"
+                  className={`flex items-center gap-2 cursor-pointer select-none px-3 py-1 rounded-xl transition-all border ${
                   formData.isPr
                     ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-900/30'
                     : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30'
                 }`}>
                   <input
                     type="checkbox"
+                    id="order-entry-is-pr"
+                    name="isPr"
                     checked={!!formData.isPr}
                     disabled={isEditMode || prLoading}
                     onChange={(e) => togglePrMode(e.target.checked)}
@@ -144,6 +148,8 @@ const BasicInfoTab = () => {
               <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 ${formData.isPr ? 'text-purple-400' : 'text-gray-600 group-focus-within:text-blue-500'} transition-all duration-300`} size={16} />
               <input
                 type="text"
+                id="order-entry-order-number"
+                name="orderNumber"
                 inputMode={formData.isPr ? "text" : "numeric"}
                 readOnly={!!formData.isPr}
                 onKeyDown={preventEnterSubmit}
@@ -220,49 +226,73 @@ const BasicInfoTab = () => {
             )}
           </div>
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')} <span className="text-red-500">*</span></label>
+            <label htmlFor="order-entry-customer-name" className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <User className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
-              <input type="text" onKeyDown={preventEnterSubmit} value={formData.customerName}
+              <input
+                type="text"
+                id="order-entry-customer-name"
+                name="customerName"
+                autoComplete="name"
+                onKeyDown={preventEnterSubmit}
+                value={formData.customerName}
                 onChange={(e) => { setFormData({ ...formData, customerName: e.target.value }); clearFieldError('customerName'); }}
                 style={errStyle(requiredErrors?.customerName)}
                 className={`w-full theme-input rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} transition-all text-2xl font-black shadow-inner`}
-                placeholder={useUrdu ? 'کسٹمر کا نام' : "Dr. Alex Rivera"} required />
+                placeholder={useUrdu ? 'کسٹمر کا نام' : "Dr. Alex Rivera"}
+                required
+              />
             </div>
             {requiredErrors?.customerName && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.customerName}</p>}
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')} <span className="text-red-500">*</span></label>
+            <label htmlFor="order-entry-customer-phone" className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-pink-500/10 text-pink-500`}>
                 <Phone size={18} />
               </div>
-              <input type="tel" onKeyDown={preventEnterSubmit} value={formData.customerPhone}
+              <input
+                type="tel"
+                id="order-entry-customer-phone"
+                name="customerPhone"
+                autoComplete="tel"
+                onKeyDown={preventEnterSubmit}
+                value={formData.customerPhone}
                 onChange={(e) => { setFormData({ ...formData, customerPhone: e.target.value }); clearFieldError('customerPhone'); }}
                 style={errStyle(requiredErrors?.customerPhone)}
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                placeholder="0300-1234567" required />
+                placeholder="0300-1234567"
+                required
+              />
             </div>
             {requiredErrors?.customerPhone && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.customerPhone}</p>}
           </div>
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address)' : 'Customer Address'} <span className="text-red-500">*</span></label>
+            <label htmlFor="order-entry-customer-address" className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address)' : 'Customer Address'} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                 <span className="font-black text-xs">📍</span>
               </div>
-              <input type="text" onKeyDown={preventEnterSubmit} value={formData.address}
+              <input
+                type="text"
+                id="order-entry-customer-address"
+                name="address"
+                autoComplete="street-address"
+                onKeyDown={preventEnterSubmit}
+                value={formData.address}
                 onChange={(e) => { setFormData({ ...formData, address: e.target.value }); clearFieldError('address'); }}
                 style={errStyle(requiredErrors?.address)}
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                placeholder={useUrdu ? 'گھر کا پتہ' : "House #123, Street #4"} required />
+                placeholder={useUrdu ? 'گھر کا پتہ' : "House #123, Street #4"}
+                required
+              />
             </div>
             {requiredErrors?.address && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.address}</p>}
           </div>
           <div className="col-span-1 md:col-span-2">
-            <label className={`flex items-center justify-between p-3 md:p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentStatus === 'PAID' ? 'border-emerald-500/60 bg-emerald-500/10 shadow-lg shadow-emerald-900/20' : 'border-gray-700/50 bg-gray-900'}`}>
+            <label htmlFor="order-entry-payment-status" className={`flex items-center justify-between p-3 md:p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentStatus === 'PAID' ? 'border-emerald-500/60 bg-emerald-500/10 shadow-lg shadow-emerald-900/20' : 'border-gray-700/50 bg-gray-900'}`}>
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-lg transition-all ${formData.paymentStatus === 'PAID' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -272,27 +302,40 @@ const BasicInfoTab = () => {
                   <p className="text-[10px] text-gray-500 font-semibold">{useUrdu ? 'رقم موصول ہو چکی ہے - براہِ کرم دوبارہ وصول نہ کریں' : 'Payment already collected — do not collect again'}</p>
                 </div>
               </div>
-              <input type="checkbox" checked={formData.paymentStatus === 'PAID'}
+              <input
+                type="checkbox"
+                id="order-entry-payment-status"
+                name="paymentStatus"
+                checked={formData.paymentStatus === 'PAID'}
                 onChange={e => setFormData({ ...formData, paymentStatus: e.target.checked ? 'PAID' : 'PENDING' })}
-                className="w-5 h-5 rounded border-2 border-gray-600 bg-gray-900 checked:bg-emerald-600 checked:border-emerald-600 transition-all cursor-pointer" />
+                className="w-5 h-5 rounded border-2 border-gray-600 bg-gray-900 checked:bg-emerald-600 checked:border-emerald-600 transition-all cursor-pointer"
+              />
             </label>
           </div>
           <div className="space-y-4">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City)' : 'City'} <span className="text-red-500">*</span></label>
+            <label htmlFor="order-entry-city" className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City)' : 'City'} <span className="text-red-500">*</span></label>
             <div className="relative group">
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                 <span className="font-black text-xs">🏙️</span>
               </div>
-              <input type="text" onKeyDown={preventEnterSubmit} value={formData.city}
+              <input
+                type="text"
+                id="order-entry-city"
+                name="city"
+                autoComplete="address-level2"
+                onKeyDown={preventEnterSubmit}
+                value={formData.city}
                 onChange={(e) => { setFormData({ ...formData, city: e.target.value }); clearFieldError('city'); }}
                 style={errStyle(requiredErrors?.city)}
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                placeholder={useUrdu ? 'شہر کا نام' : "Lahore"} required />
+                placeholder={useUrdu ? 'شہر کا نام' : "Lahore"}
+                required
+              />
             </div>
             {requiredErrors?.city && <p className="mt-1 text-xs font-black text-red-400 ml-4">{requiredErrors.city}</p>}
           </div>
         </div>
-          <div className="col-span-1 md:col-span-2 space-y-3">
+        <div className="col-span-1 md:col-span-2 space-y-3">
             <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ڈیلیوری کی قسم' : 'Delivery Type'}</label>
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -315,7 +358,7 @@ const BasicInfoTab = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>
+              <label htmlFor="order-entry-shopify-date" className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>
                 {useUrdu ? 'شاپیفائے آرڈر کی تاریخ' : 'Shopify Order Date'} {!isOutlet && <span className="text-red-500">*</span>}
               </label>
               <div className="flex flex-wrap items-center gap-1.5 bg-gray-950/80 p-1 rounded-xl border border-gray-800">
@@ -323,6 +366,8 @@ const BasicInfoTab = () => {
                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-900 border border-gray-700/60">
                   <span className="text-[10px] font-black text-purple-400 uppercase">{useUrdu ? 'مہینہ:' : 'Month:'}</span>
                   <select
+                    id="order-entry-shopify-month"
+                    name="shopifyMonth"
                     value={curMonth}
                     onChange={(e) => handleMonthChange(e.target.value)}
                     className="bg-transparent text-[11px] font-black text-white outline-none cursor-pointer pr-1 py-0.5"
@@ -339,6 +384,8 @@ const BasicInfoTab = () => {
                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-900 border border-gray-700/60">
                   <span className="text-[10px] font-black text-purple-400 uppercase">{useUrdu ? 'سال:' : 'Year:'}</span>
                   <select
+                    id="order-entry-shopify-year"
+                    name="shopifyYear"
                     value={curYear}
                     onChange={(e) => handleYearChange(e.target.value)}
                     className="bg-transparent text-[11px] font-black text-white outline-none cursor-pointer pr-1 py-0.5"
@@ -388,6 +435,9 @@ const BasicInfoTab = () => {
               <input
                 ref={dateInputRef}
                 type="text"
+                id="order-entry-shopify-date"
+                name="shopifyOrderDate"
+                autoComplete="off"
                 onKeyDown={preventEnterSubmit}
                 value={shopifyInput}
                 onChange={(e) => {
@@ -457,11 +507,15 @@ const BasicInfoTab = () => {
         </div>
         {formData.type === 'STANDARD' && (
           <div className="mt-6 space-y-3">
-            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ہدایات' : 'Instruction Notes'}</label>
-            <textarea value={formData.instructionNotes || ''}
+            <label htmlFor="order-entry-instruction-notes" className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ہدایات' : 'Instruction Notes'}</label>
+            <textarea
+              id="order-entry-instruction-notes"
+              name="instructionNotes"
+              value={formData.instructionNotes || ''}
               onChange={e => setFormData({ ...formData, instructionNotes: e.target.value })}
               className="w-full theme-input rounded-2xl py-4 px-5 text-sm font-bold resize-none" rows={3}
-              placeholder={useUrdu ? 'اضافی ہدایات یہاں درج کریں...' : 'Enter any special instructions...'} />
+              placeholder={useUrdu ? 'اضافی ہدایات یہاں درج کریں...' : 'Enter any special instructions...'}
+            />
           </div>
         )}
       </div>
@@ -476,50 +530,57 @@ const BasicInfoTab = () => {
               <button type="button"
                 onClick={() => setFormData({ ...formData, type: 'STANDARD', advancePaid: false, advanceAmount: '', skipEngraving: true, engravingType: '' })}
                 className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}>
-                {useUrdu ? 'اسٹینڈرڈ' : 'STD'}
+              {useUrdu ? 'اسٹینڈرڈ' : 'STD'}
+            </button>
+          )}
+          <button type="button"
+            onClick={() => setFormData({ ...formData, type: 'READY_LOGO', advancePaid: false, advanceAmount: '' })}
+            className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}>
+            {useUrdu ? 'لوگو ڈیزائن' : 'LOGO'}
+          </button>
+          <button type="button"
+            onClick={() => setFormData({ ...formData, type: 'FULL_CUSTOM', advancePaid: false, advanceAmount: '' })}
+            className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}>
+            {useUrdu ? 'کسٹم آرڈر' : 'CUSTOM'}
+          </button>
+        </div>
+        <div className="space-y-2 md:space-y-3">
+          <label className="font-black text-xs md:text-sm uppercase tracking-widest theme-text-muted">{t('priority')}</label>
+          <div className="grid grid-cols-3 gap-1.5 md:gap-2">
+            {['NORMAL', 'URGENT', 'SUPER_URGENT'].map((p) => (
+              <button key={p} type="button" onClick={() => setFormData({ ...formData, priority: p })}
+                className={`py-2.5 md:py-3 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all border-2 leading-tight text-center ${formData.priority === p
+                  ? p === 'SUPER_URGENT' ? 'bg-red-600 text-white border-red-500 shadow-lg' : p === 'URGENT' ? 'bg-amber-600 text-white border-amber-500 shadow-lg' : 'bg-gray-800 text-white border-gray-600 shadow-lg'
+                  : 'theme-bg text-gray-600 theme-border hover:border-gray-600'}`}>
+                {p === 'SUPER_URGENT' ? '⚡ SUPER' : p === 'URGENT' ? '⚡ URGENT' : 'NORMAL'}
               </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3">
+          <label htmlFor="order-entry-advance-amount" className="text-xs md:text-sm font-black uppercase theme-text-muted tracking-[0.2em]">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</label>
+          <div className="relative">
+            <input
+              type="number"
+              id="order-entry-advance-amount"
+              name="advanceAmount"
+              min="0"
+              value={formData.advanceAmount || ''}
+              placeholder="e.g. 2000"
+              onChange={e => setFormData({ ...formData, advanceAmount: e.target.value })}
+              className="w-full bg-gray-900 border-2 border-emerald-500/30 rounded-xl py-3 md:py-4 px-4 text-sm md:text-base font-bold text-emerald-400 focus:border-emerald-500 outline-none transition-all"
+            />
+            {parseFloat(formData.advanceAmount) > 0 && (
+              <p className="text-xs text-emerald-400 font-bold mt-1.5">
+                {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
+              </p>
             )}
-            <button type="button"
-              onClick={() => setFormData({ ...formData, type: 'READY_LOGO', advancePaid: false, advanceAmount: '' })}
-              className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}>
-              {useUrdu ? 'لوگو ڈیزائن' : 'LOGO'}
-            </button>
-            <button type="button"
-              onClick={() => setFormData({ ...formData, type: 'FULL_CUSTOM', advancePaid: false, advanceAmount: '' })}
-              className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}>
-              {useUrdu ? 'کسٹم آرڈر' : 'CUSTOM'}
-            </button>
-          </div>
-          <div className="space-y-2 md:space-y-3">
-            <label className="font-black text-xs md:text-sm uppercase tracking-widest theme-text-muted">{t('priority')}</label>
-            <div className="grid grid-cols-3 gap-1.5 md:gap-2">
-              {['NORMAL', 'URGENT', 'SUPER_URGENT'].map((p) => (
-                <button key={p} type="button" onClick={() => setFormData({ ...formData, priority: p })}
-                  className={`py-2.5 md:py-3 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all border-2 leading-tight text-center ${formData.priority === p
-                    ? p === 'SUPER_URGENT' ? 'bg-red-600 text-white border-red-500 shadow-lg' : p === 'URGENT' ? 'bg-amber-600 text-white border-amber-500 shadow-lg' : 'bg-gray-800 text-white border-gray-600 shadow-lg'
-                    : 'theme-bg text-gray-600 theme-border hover:border-gray-600'}`}>
-                  {p === 'SUPER_URGENT' ? '⚡ SUPER' : p === 'URGENT' ? '⚡ URGENT' : 'NORMAL'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3">
-            <label className="text-xs md:text-sm font-black uppercase theme-text-muted tracking-[0.2em]">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</label>
-            <div className="relative">
-              <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
-                onChange={e => setFormData({ ...formData, advanceAmount: e.target.value })}
-                className="w-full bg-gray-900 border-2 border-emerald-500/30 rounded-xl py-3 md:py-4 px-4 text-sm md:text-base font-bold text-emerald-400 focus:border-emerald-500 outline-none transition-all" />
-              {parseFloat(formData.advanceAmount) > 0 && (
-                <p className="text-xs text-emerald-400 font-bold mt-1.5">
-                  {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
-                </p>
-              )}
-            </div>
           </div>
         </div>
       </div>
-    </motion.div>
-  );
+    </div>
+  </motion.div>
+);
 };
 
 export default BasicInfoTab;

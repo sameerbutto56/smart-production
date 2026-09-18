@@ -80,6 +80,39 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+const OutletBlockedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
+  const role = String(user?.role || '').toUpperCase().trim();
+  if (role === 'OUTLET') return <Navigate to="/outlet-dashboard" replace />;
+  return children;
+};
+
+const JoharTownGatePassRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
+  const role = String(user?.role || '').toUpperCase().trim();
+  if (role === 'OUTLET') {
+    const n = String(user?.name || '').toLowerCase();
+    const isJohar = n.includes('johar') || user?.name?.includes('1');
+    if (!isJohar) return <Navigate to="/outlet-dashboard" replace />;
+  }
+  return children;
+};
+
+const OfficeSupplyRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
+  const role = String(user?.role || '').toUpperCase().trim();
+  if (role === 'OUTLET') {
+    const n = String(user?.name || '').toLowerCase();
+    const isJohar = n.includes('johar') || user?.name?.includes('1');
+    const isJail = n.includes('jail') || user?.name?.includes('2');
+    if (!isJohar && !isJail) return <Navigate to="/outlet-dashboard" replace />;
+  }
+  return children;
+};
+
 const AuthRedirectHandler = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace={true} />;
@@ -159,7 +192,7 @@ function App() {
                   <Route path="warehouse" element={<WarehouseDashboard />} />
                   <Route path="outlet-requests" element={<OutletStockRequest />} />
                   <Route path="outlet-dashboard" element={<OutletDashboard />} />
-                  <Route path="edit-requests" element={<EditRequestDashboard />} />
+                  <Route path="edit-requests" element={<OutletBlockedRoute><EditRequestDashboard /></OutletBlockedRoute>} />
                   <Route path="deleted-orders" element={<DeletedOrders />} />
                   <Route path="analytics" element={<UnifiedAnalytics />} />
                   <Route path="production" element={<ProductionDashboard />} />
@@ -176,7 +209,7 @@ function App() {
                   <Route path="dispatch" element={<DispatchPage />} />
                   <Route path="dispatch-dashboard" element={<DispatchDashboard />} />
                   <Route path="in-dispatch" element={<InDispatch />} />
-                  <Route path="gate-pass" element={<GatePass />} />
+                  <Route path="gate-pass" element={<JoharTownGatePassRoute><GatePass /></JoharTownGatePassRoute>} />
                   <Route path="store-dashboard" element={<StoreDashboardPage />} />
                   <Route path="alteration-request" element={<AlterationRequest />} />
                   <Route path="alteration-production" element={<AlterationProduction />} />
@@ -202,7 +235,7 @@ function App() {
                   <Route path="asm" element={<AsmPage />} />
                   <Route path="asm-allowed" element={<AsmAllowedStorePage />} />
                   <Route path="vendors-admin" element={<VendorsPage />} />
-                  <Route path="office-supply" element={<OfficeSupply />} />
+                  <Route path="office-supply" element={<OfficeSupplyRoute><OfficeSupply /></OfficeSupplyRoute>} />
                 </Route>
               </Routes>
               </ErrorBoundary>

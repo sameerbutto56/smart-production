@@ -114,7 +114,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     // Operational roles links (hidden from Admin to keep it simplified)
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL'] },
     { name: 'Order Cancellation', path: '/order-cancellation', icon: PackageX, roles: ['FAISAL', 'INVENTORY_VIEW', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'] },
-    { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY', 'OUTLET'] },
     { name: 'Dashboard', path: '/store-dashboard', icon: LayoutDashboard, roles: ['STORE'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
@@ -170,18 +170,26 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
+      const n = String(user?.name || '').toLowerCase();
+      const isJoharTown = n.includes('johar') || user?.name?.includes('1');
+      const isJailRoad = n.includes('2') || n.includes('jail');
+
+      // Edit Request is completely removed from Outlet profiles
+      if (item.name === 'Edit Request') return false;
+
       // In Dispatch is a dedicated JOHAR TOWN outlet module only
       if (item.name === 'In Dispatch') {
-        const n = String(user?.name || '').toLowerCase();
-        return n.includes('johar') || user?.name?.includes('1');
+        return isJoharTown;
       }
-      // Gate Pass — not for Jail Road
+      // Gate Pass — strictly JOHAR TOWN only
       if (item.name === 'Gate Pass') {
-        const n = String(user?.name || '').toLowerCase();
-        const isJailRoad = n.includes('2') || n.includes('jail');
-        return !isJailRoad;
+        return isJoharTown;
       }
-      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Edit Request', 'Notifications', 'In Dispatch', 'Gate Pass', 'Office Supply'].includes(item.name);
+      // Office Supply — strictly JOHAR TOWN and JAIL ROAD only
+      if (item.name === 'Office Supply') {
+        return isJoharTown || isJailRoad;
+      }
+      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Notifications'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
