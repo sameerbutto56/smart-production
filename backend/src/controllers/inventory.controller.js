@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const xlsx = require('xlsx');
 const { syncPricesForWarehouseItem } = require('../utils/priceSync');
+const { isCategoryGenderApplicable } = require('../utils/productConfig');
 
 const getInventory = async (req, res) => {
   try {
@@ -17,7 +18,7 @@ const getInventory = async (req, res) => {
 };
 
 const createInventoryItem = async (req, res) => {
-  const { name, category, stock, price, color, fabric, imageUrl, variants } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable } = req.body;
   try {
     let computedStock = stock;
     let computedPrice = price;
@@ -32,6 +33,10 @@ const createInventoryItem = async (req, res) => {
       primarySize = variants[0].size || null;
     }
 
+    const resolvedGenderApplicable = typeof genderApplicable === 'boolean'
+      ? genderApplicable
+      : isCategoryGenderApplicable(category);
+
     const item = await prisma.inventoryItem.create({
       data: { 
         name, 
@@ -42,6 +47,7 @@ const createInventoryItem = async (req, res) => {
         size: primarySize, 
         fabric, 
         imageUrl,
+        genderApplicable: resolvedGenderApplicable,
         variants: variants || null
       }
     });
@@ -63,7 +69,7 @@ const createInventoryItem = async (req, res) => {
 
 const updateInventoryItem = async (req, res) => {
   const { id } = req.params;
-  const { name, category, stock, price, color, fabric, imageUrl, variants } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable } = req.body;
   try {
     let computedStock = stock;
     let computedPrice = price;
@@ -74,18 +80,26 @@ const updateInventoryItem = async (req, res) => {
       if (!price || price === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
     }
 
+    const updateData = { 
+      name, 
+      category, 
+      stock: computedStock, 
+      price: computedPrice, 
+      color, 
+      fabric, 
+      imageUrl,
+      variants: variants || null
+    };
+
+    if (genderApplicable !== undefined) {
+      updateData.genderApplicable = typeof genderApplicable === 'boolean' ? genderApplicable : isCategoryGenderApplicable(category);
+    } else if (category) {
+      updateData.genderApplicable = isCategoryGenderApplicable(category);
+    }
+
     const item = await prisma.inventoryItem.update({
       where: { id },
-      data: { 
-        name, 
-        category, 
-        stock: computedStock, 
-        price: computedPrice, 
-        color, 
-        fabric, 
-        imageUrl,
-        variants: variants || null
-      }
+      data: updateData
     });
     
     // Central price sync: Warehouse is the master — propagate the (possibly

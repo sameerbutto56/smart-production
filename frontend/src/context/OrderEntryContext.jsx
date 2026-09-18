@@ -7,6 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { formatDateOnly } from '../utils/dateTime';
 import { hasEngravingData } from '../utils/engravingUtils';
 import { formatDateWithPreference, parseDateWithPreference, SUPPORTED_DATE_FORMATS } from '../utils/dateFormat';
+import { isProductGenderApplicable, isCategoryGenderApplicable } from '../utils/productConfig';
 
 const URDU_LABELS = {
   identity: 'شناختی معلومات', orderNo: 'آرڈر نمبر', customerName: 'کسٹمر کا نام', customerPhone: 'فون نمبر',
@@ -157,6 +158,7 @@ export const OrderEntryProvider = ({ children }) => {
   const isAccessory = useCallback((cat) => isAccessoryCategory(cat), []);
   const isCustomizableProduct = useCallback((cat) => isCustomizableCategory(cat), []);
   const isShoes = useCallback((cat) => isShoesCategory(cat), []);
+  const isGenderApplicable = useCallback((product, category) => isProductGenderApplicable(product, category || selectedProductCategory), [selectedProductCategory]);
 
   const t = useCallback((key) => {
     if (!key) return '';
@@ -703,13 +705,15 @@ export const OrderEntryProvider = ({ children }) => {
     const basicErr = validateBasicInfo();
     if (basicErr) return basicErr;
     if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product first.';
-    if (!formData.gender && !isAccessory(selectedProductCategory)) {
+    
+    const isGenderReq = isProductGenderApplicable(formData.productType || selectedProductCategory, selectedProductCategory);
+    if (isGenderReq && (!formData.gender || !['Male', 'Female'].includes(formData.gender))) {
       setRequiredErrors(prev => ({ ...prev, gender: useUrdu ? 'صنف کا انتخاب کریں' : 'Select the gender.' }));
       return 'Select the gender.';
     }
 
     return null;
-  }, [formData, validateBasicInfo, isAccessory, selectedProductCategory, useUrdu]);
+  }, [formData, validateBasicInfo, selectedProductCategory, useUrdu]);
 
   const validateCurrentTab = useCallback(() => {
     setError('');
@@ -724,13 +728,14 @@ export const OrderEntryProvider = ({ children }) => {
       if (formData.type !== 'FULL_CUSTOM' && !formData.productType) {
         return 'Please select a Product.';
       }
-      if (!formData.gender && !isAccessory(selectedProductCategory)) {
+      const isGenderReq = isProductGenderApplicable(formData.productType || selectedProductCategory, selectedProductCategory);
+      if (isGenderReq && (!formData.gender || !['Male', 'Female'].includes(formData.gender))) {
         setRequiredErrors(prev => ({ ...prev, gender: useUrdu ? 'صنف کا انتخاب کریں' : 'Select the gender.' }));
         return 'Select the gender.';
       }
     }
     return null;
-  }, [activeTab, formData, validateBasicInfo, isAccessory, selectedProductCategory, useUrdu]);
+  }, [activeTab, formData, validateBasicInfo, selectedProductCategory, useUrdu]);
 
   const preventEnterSubmit = useCallback((e) => { if (e.key === 'Enter') e.preventDefault(); }, []);
 
@@ -1064,7 +1069,8 @@ export const OrderEntryProvider = ({ children }) => {
       productDetails: {
         productType: formData.productType || formData.customProductName,
         fabricType: formData.fabricType || formData.customFabric,
-        color: formData.color || formData.customColor, size: formData.size, gender: formData.gender,
+        color: formData.color || formData.customColor, size: formData.size,
+        gender: isGenderApplicable(selectedProduct || formData.productType, selectedProductCategory) ? (formData.gender || null) : null,
         femaleOptions: formData.femaleOptions, sleeveLength: formData.sleeveLength || '',
         shirtLength: formData.shirtLength || '', matchingCap: formData.matchingCap,
         matchingCapQty: formData.matchingCapQty,
@@ -1099,7 +1105,7 @@ export const OrderEntryProvider = ({ children }) => {
     setLogoEntries([{ name: '', design: '' }]);
     setArticleNameEntries(['']);
     setShowAddMore(true);
-  }, [formData, selectedProduct, selectedProductVariants, articleNameEntries, logoEntries, validateProductConfig, validateBasicInfo, capCharges]);
+  }, [formData, selectedProduct, selectedProductVariants, articleNameEntries, logoEntries, validateProductConfig, validateBasicInfo, capCharges, isGenderApplicable, selectedProductCategory]);
 
   // Tab configuration
   const allTabs = useMemo(() => [
@@ -1144,7 +1150,7 @@ export const OrderEntryProvider = ({ children }) => {
     openDuplicateOrder,
     hasChanged, hasChangedBool,
     // Derived data
-    productCategories, isAccessory, isCustomizableProduct, isShoes,
+    productCategories, isAccessory, isCustomizableProduct, isShoes, isGenderApplicable,
     productsInCategory, uniqueProductNames, selectedProduct, selectedProductVariants,
     fabrics, defaultSizes, colors, availableSizes, computedUnitPrice, computedTotalPrice,
     capUnitPrice, capCharges,

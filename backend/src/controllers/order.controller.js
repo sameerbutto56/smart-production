@@ -6,6 +6,7 @@ const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
 const { dateBoundToMs, normalizeDateOnly } = require('../utils/workingHours');
+const { isProductGenderApplicable, getCategoryConfigs } = require('../utils/productConfig');
 const XLSX = require('xlsx');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
@@ -348,20 +349,27 @@ const createOrder = async (req, res) => {
     finalShopifyOrderDate = normalizeDateOnly(shopifyOrderDate);
   }
 
-  // Gender is mandatory for non-outlet / online orders
+  // Product-dependent conditional Gender validation for non-outlet / online orders
   if (!isOutletOrder) {
-    let hasGender = false;
-    if (items && Array.isArray(items) && items.length > 0) {
-      hasGender = items.every(i => {
-        const g = i.productDetails?.gender || i.gender;
-        return typeof g === 'string' && g.trim().length > 0;
-      });
-    } else {
-      const g = productDetails?.gender || req.body.gender;
-      hasGender = typeof g === 'string' && g.trim().length > 0;
-    }
-    if (!hasGender) {
-      return res.status(400).json({ message: 'Select the gender.', error: 'Select the gender.' });
+    const categoryConfigs = await getCategoryConfigs();
+    const itemsToCheck = (items && Array.isArray(items) && items.length > 0)
+      ? items
+      : [{ productDetails: productDetails || { productType: req.body.productType, category: req.body.category }, gender: req.body.gender }];
+
+    for (const item of itemsToCheck) {
+      const pd = item.productDetails || item;
+      const isGenderReq = isProductGenderApplicable(item, null, categoryConfigs);
+
+      if (isGenderReq) {
+        const g = pd?.gender || item.gender;
+        if (!g || typeof g !== 'string' || !['Male', 'Female'].includes(g.trim())) {
+          return res.status(400).json({ message: 'Select the gender.', error: 'Select the gender.' });
+        }
+      } else {
+        // Non-gender products must have gender set to null
+        if (pd && pd.gender !== undefined) pd.gender = null;
+        if (item && item.gender !== undefined) item.gender = null;
+      }
     }
   }
 

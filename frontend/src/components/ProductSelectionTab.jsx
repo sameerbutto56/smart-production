@@ -42,7 +42,7 @@ const ProductSelectionTab = () => {
     selectedProductCategory, setSelectedProductCategory,
     productSearchTerm, setProductSearchTerm, colorSearchTerm, setColorSearchTerm,
     expandedProducts, setExpandedProducts,
-    productCategories, isAccessory, isShoes, productsInCategory,
+    productCategories, isAccessory, isShoes, isGenderApplicable, productsInCategory,
     selectedProduct, selectedProductVariants, fabrics, defaultSizes, colors, availableSizes,
     computedUnitPrice, computedTotalPrice, capUnitPrice, capCharges,
     memoCartTotalItems, memoCartTotalPrice,
@@ -114,7 +114,35 @@ const ProductSelectionTab = () => {
           <div className="flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border shadow-inner overflow-x-auto no-scrollbar max-w-full">
             {(productCategories || []).map(cat => (
               <button key={cat} type="button"
-                onClick={() => { setSelectedProductCategory(cat); if (isAccessory(cat) && !isShoes(cat)) { setFormData(prev => ({ ...prev, size: 'Standard', measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' } })); } else { setFormData(prev => ({ ...prev, size: '' })); } }}
+                onClick={() => {
+                  setSelectedProductCategory(cat);
+                  const willBeGenderApp = isGenderApplicable(formData.productType, cat);
+                  if (!willBeGenderApp) {
+                    if (setRequiredErrors) {
+                      setRequiredErrors(prev => {
+                        if (!prev?.gender) return prev;
+                        const n = { ...prev };
+                        delete n.gender;
+                        return n;
+                      });
+                    }
+                    if (error === 'Select the gender.' && setError) setError('');
+                  }
+                  if (isAccessory(cat) && !isShoes(cat)) {
+                    setFormData(prev => ({
+                      ...prev,
+                      gender: willBeGenderApp ? prev.gender : '',
+                      size: 'Standard',
+                      measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' }
+                    }));
+                  } else {
+                    setFormData(prev => ({
+                      ...prev,
+                      gender: willBeGenderApp ? prev.gender : '',
+                      size: ''
+                    }));
+                  }
+                }}
                 className={`px-8 py-3 rounded-xl text-xs font-black transition-all whitespace-nowrap ${selectedProductCategory === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white hover:bg-gray-800'}`}>
                 {cat}
               </button>
@@ -179,7 +207,32 @@ const ProductSelectionTab = () => {
               const totalStock = item.variants && Array.isArray(item.variants) ? item.variants.reduce((sum, v) => sum + (v.stock || 0), 0) : (item.stock || 0);
               return (
                 <button key={item.id} type="button"
-                  onClick={() => { if (formData.productType === item.name) { setFormData({ ...formData, productType: '', fabricType: '', color: '', productImage: null }); } else { setFormData({ ...formData, productType: item.name, fabricType: item.fabric || formData.fabricType, color: item.color || formData.color, productImage: item.imageUrl || null }); } }}
+                  onClick={() => {
+                    if (formData.productType === item.name) {
+                      setFormData({ ...formData, productType: '', fabricType: '', color: '', productImage: null, gender: '' });
+                    } else {
+                      const isApp = isGenderApplicable(item, selectedProductCategory);
+                      if (!isApp) {
+                        if (setRequiredErrors) {
+                          setRequiredErrors(prev => {
+                            if (!prev?.gender) return prev;
+                            const n = { ...prev };
+                            delete n.gender;
+                            return n;
+                          });
+                        }
+                        if (error === 'Select the gender.' && setError) setError('');
+                      }
+                      setFormData({
+                        ...formData,
+                        productType: item.name,
+                        fabricType: item.fabric || formData.fabricType,
+                        color: item.color || formData.color,
+                        productImage: item.imageUrl || null,
+                        gender: isApp ? formData.gender : ''
+                      });
+                    }
+                  }}
                   className={`relative p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center justify-between min-h-[10rem] w-full group ${formData.productType === item.name ? 'border-blue-500 bg-blue-500/10 theme-text-primary shadow-xl shadow-blue-900/30' : 'theme-border theme-bg-subtle theme-text-secondary hover:border-gray-600 hover:bg-gray-800/60'}`}>
                   {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-contain rounded-xl mb-2" onError={(e) => { e.target.style.display = 'none' }} />}
                   <div className={`p-3 rounded-xl ${formData.productType === item.name ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`}>
@@ -397,7 +450,7 @@ const ProductSelectionTab = () => {
             </div>
           )}
 
-          {(formData.productType || formData.type === 'FULL_CUSTOM') && !isAccessory(selectedProductCategory) && (
+          {(formData.productType || formData.type === 'FULL_CUSTOM') && isGenderApplicable(selectedProduct || formData.productType, selectedProductCategory) && (
             <div className={`mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border transition-all ${(requiredErrors?.gender || error === 'Select the gender.') && !formData.gender ? 'border-red-500/60 shadow-lg shadow-red-500/10' : 'theme-border'}`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-black text-purple-400 uppercase flex items-center gap-1.5">

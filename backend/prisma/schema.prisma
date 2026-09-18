@@ -285,19 +285,20 @@ model AuditLog {
 }
 
 model InventoryItem {
-  id        String   @id @default(uuid())
-  name      String
-  category  String
-  color     String?
-  size      String?
-  fabric    String?
-  stock     Int      @default(0)
-  price     Float?
-  imageUrl  String?
-  metadata  String?
-  variants  Json?    // Array of {color, size, stock, price}
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  name             String
+  category         String
+  color            String?
+  size             String?
+  fabric           String?
+  stock            Int      @default(0)
+  price            Float?
+  imageUrl         String?
+  metadata         String?
+  genderApplicable Boolean? @default(true)
+  variants         Json?    // Array of {color, size, stock, price}
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([category])
   @@index([name, category])
@@ -305,26 +306,36 @@ model InventoryItem {
 }
 
 model OutletInventory {
-  id         String   @id @default(uuid())
-  outletName String
-  name       String
-  category   String
-  color      String?
-  size       String?
-  fabric     String?
-  stock      Int      @default(0)
-  price      Float?
-  imageUrl   String?
-  metadata   String?   // JSON: optionally stores {sourceStoreItemId} for traceability
-  variants   Json?     // Array of {color, size, stock, price}
-  barcode    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               String   @id @default(uuid())
+  outletName       String
+  name             String
+  category         String
+  color            String?
+  size             String?
+  fabric           String?
+  stock            Int      @default(0)
+  price            Float?
+  imageUrl         String?
+  metadata         String?   // JSON: optionally stores {sourceStoreItemId} for traceability
+  genderApplicable Boolean? @default(true)
+  variants         Json?     // Array of {color, size, stock, price}
+  barcode          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@unique([barcode, outletName])
   @@index([outletName, category])
   @@index([outletName, name])
   @@index([barcode])
+}
+
+model ProductCategoryConfig {
+  id               String   @id @default(uuid())
+  category         String   @unique
+  genderApplicable Boolean  @default(false)
+  hasSizes         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model StockRequest {
