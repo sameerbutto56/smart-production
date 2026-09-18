@@ -33,11 +33,15 @@ const authEmployee = async (req, res) => {
 // Create journal entry and deduct from cash
 const createJournalEntry = async (req, res) => {
   try {
-    const { employeeName, expenseTitle, amount, notes } = req.body;
+    const { employeeName, expenseTitle, amount, paymentMethod, notes } = req.body;
     const outlet = getOutletName(req);
     if (!employeeName || !expenseTitle || !amount || amount <= 0) {
       return res.status(400).json({ message: 'Employee name, expense title, and positive amount are required' });
     }
+    const pm = (paymentMethod && ['CASH', 'CARD', 'ONLINE'].includes(String(paymentMethod).toUpperCase()))
+      ? String(paymentMethod).toUpperCase()
+      : 'CASH';
+
     // Duplicate guard: reject if same employee+title+amount within 5 seconds
     const fiveSecondsAgo = new Date(Date.now() - 5000);
     const recentDuplicate = await prisma.journalEntry.findFirst({
@@ -54,7 +58,14 @@ const createJournalEntry = async (req, res) => {
       return res.status(409).json({ message: 'Duplicate entry detected. Please wait a moment before saving again.' });
     }
     const entry = await prisma.journalEntry.create({
-      data: { employeeName, outletName: outlet, expenseTitle, amount: parseFloat(amount), notes: notes || null }
+      data: {
+        employeeName,
+        outletName: outlet,
+        expenseTitle,
+        amount: parseFloat(amount),
+        paymentMethod: pm,
+        notes: notes || null
+      }
     });
     res.status(201).json(entry);
   } catch (error) {

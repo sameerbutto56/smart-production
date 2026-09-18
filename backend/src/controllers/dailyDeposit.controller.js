@@ -175,7 +175,7 @@ const getDateRangeList = (startDateStr, endDateStr) => {
 
 /**
  * Synchronizes the daily deposit requirement chain for an outlet from CUTOFF_DATE to targetDate.
- * Recomputes cash generated, carries forward pending amounts FIFO, and assigns exact statuses.
+ * Recomputes cash generated in a vectorized batch, carries forward pending amounts FIFO, and assigns exact statuses.
  */
 const syncDailyRequirements = async (outletName, targetDate = getPktDateString()) => {
   if (targetDate < CUTOFF_DATE) {
@@ -183,58 +183,203 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
   }
 
   const dates = getDateRangeList(CUTOFF_DATE, targetDate);
+  const intervalStart = getPktDayBounds(CUTOFF_DATE).start;
+  const intervalEnd = getPktDayBounds(targetDate).end;
+
+  // 1. Parallel fetch for all days in the interval in a single round-trip
+  const [sales, balancePayments, returns, journalEntries, existingReqs] = await Promise.all([
+    // Sales cash
+    prisma.posSale.findMany({
+      where: {
+        outletName,
+        createdAt: { gte: intervalStart, lt: intervalEnd },
+        faisalTake: false,
+      },
+      select: {
+        id: true,
+        grandTotal: true,
+        advanceAmount: true,
+        paymentMethod: true,
+        cashAmount: true,
+        onlineAmount: true,
+        createdAt: true,
+      },
+    }),
+    // Balance payments cash
+    prisma.posBalancePayment.findMany({
+      where: {
+        posSale: { outletName },
+        paidAt: { gte: intervalStart, lt: intervalEnd },
+      },
+      select: {
+        id: true,
+        amountPaidNow: true,
+        paymentMethod: true,
+        cashAmount: true,
+        onlineAmount: true,
+        paidAt: true,
+      },
+    }),
+    // Returns cash
+    prisma.posReturn.findMany({
+      where: {
+        OR: [
+          { sale: { outletName } },
+          { outletName },
+        ],
+        createdAt: { gte: intervalStart, lt: intervalEnd },
+      },
+      select: {
+        id: true,
+        refundAmount: true,
+        refundPaymentMethod: true,
+        createdAt: true,
+        sale: {
+          select: {
+            paymentMethod: true,
+            cashAmount: true,
+            onlineAmount: true,
+          },
+        },
+      },
+    }),
+    // Journal expenses paid in cash
+    prisma.journalEntry.findMany({
+      where: {
+        outletName,
+        createdAt: { gte: intervalStart, lt: intervalEnd },
+      },
+      select: {
+        id: true,
+        amount: true,
+        paymentMethod: true,
+        createdAt: true,
+      },
+    }),
+    // Existing requirements with allocations
+    prisma.dailyCashRequirement.findMany({
+      where: {
+        outletName,
+        businessDate: { gte: CUTOFF_DATE, lte: targetDate },
+      },
+      include: {
+        allocations: true,
+      },
+    }),
+  ]);
+
+  // Group by PKT date in-memory
+  const salesByDate = {};
+  for (const s of sales) {
+    const d = getPktDateString(s.createdAt);
+    if (!salesByDate[d]) salesByDate[d] = [];
+    salesByDate[d].push(s);
+  }
+
+  const balanceByDate = {};
+  for (const bp of balancePayments) {
+    const d = getPktDateString(bp.paidAt);
+    if (!balanceByDate[d]) balanceByDate[d] = [];
+    balanceByDate[d].push(bp);
+  }
+
+  const returnsByDate = {};
+  for (const r of returns) {
+    const d = getPktDateString(r.createdAt);
+    if (!returnsByDate[d]) returnsByDate[d] = [];
+    returnsByDate[d].push(r);
+  }
+
+  const journalsByDate = {};
+  for (const j of journalEntries) {
+    const d = getPktDateString(j.createdAt);
+    if (!journalsByDate[d]) journalsByDate[d] = [];
+    journalsByDate[d].push(j);
+  }
+
+  const reqMap = new Map();
+  for (const r of existingReqs) {
+    reqMap.set(r.businessDate, r);
+  }
+
   let carryForwardPending = 0;
-  const syncedRequirements = [];
+  const toCreate = [];
+  const toUpdate = [];
+  const syncedResults = [];
 
   for (const bDate of dates) {
-    // 1. Authoritative cash generated
-    const { netCash } = await calculateAuthoritativeDailyCash(outletName, bDate);
+    // 1. Sales cash collected
+    const salesForDate = salesByDate[bDate] || [];
+    let salesCash = 0;
+    for (const s of salesForDate) {
+      const received = s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
+      if (s.paymentMethod === 'CASH') {
+        salesCash += received;
+      } else if (s.paymentMethod === 'CASH_ONLINE') {
+        const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
+        const ratio = totalCO > 0 ? (s.cashAmount || 0) / totalCO : 1;
+        salesCash += received * ratio;
+      }
+    }
+
+    // 2. Balance payments cash collected
+    const balanceForDate = balanceByDate[bDate] || [];
+    let balanceCash = 0;
+    for (const bp of balanceForDate) {
+      const amt = bp.amountPaidNow || 0;
+      if (bp.paymentMethod === 'CASH' || !bp.paymentMethod) {
+        balanceCash += amt;
+      } else if (bp.paymentMethod === 'CASH_ONLINE') {
+        const cashPortion = bp.cashAmount !== null && bp.cashAmount !== undefined
+          ? bp.cashAmount
+          : (amt / 2);
+        balanceCash += cashPortion;
+      }
+    }
+
+    // 3. Cash refunds
+    const returnsForDate = returnsByDate[bDate] || [];
+    let cashRefunded = 0;
+    for (const r of returnsForDate) {
+      const refundMethod = r.refundPaymentMethod || r.sale?.paymentMethod || 'CASH';
+      const amt = r.refundAmount || 0;
+      if (refundMethod === 'CASH') {
+        cashRefunded += amt;
+      } else if (refundMethod === 'CASH_ONLINE') {
+        const cashAmt = r.sale?.cashAmount || 0;
+        const onlineAmt = r.sale?.onlineAmount || 0;
+        const total = cashAmt + onlineAmt || 1;
+        const ratio = cashAmt / total;
+        cashRefunded += amt * ratio;
+      }
+    }
+
+    // 4. Cash journal expenses
+    const journalsForDate = journalsByDate[bDate] || [];
+    const cashExpenses = journalsForDate
+      .filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH')
+      .reduce((sum, j) => sum + (j.amount || 0), 0);
+
+    // Net cash generated to deposit
+    const netCash = Math.max(0, Math.round((salesCash + balanceCash - cashRefunded - cashExpenses) * 100) / 100);
 
     // 2. Previous pending carried forward
     const previousPending = carryForwardPending;
     const requiredAmount = Math.round((netCash + previousPending) * 100) / 100;
 
-    // 3. Find or create requirement record
-    let req = await prisma.dailyCashRequirement.findUnique({
-      where: {
-        outletName_businessDate: { outletName, businessDate: bDate },
-      },
-      include: {
-        allocations: true,
-      },
-    });
-
-    if (!req) {
-      req = await prisma.dailyCashRequirement.create({
-        data: {
-          outletName,
-          businessDate: bDate,
-          cashGenerated: netCash,
-          previousPending,
-          requiredAmount,
-          depositedAmount: 0,
-          pendingAmount: requiredAmount,
-          excessAmount: 0,
-          status: requiredAmount > 0 ? 'PENDING' : 'DEPOSITED',
-        },
-        include: {
-          allocations: true,
-        },
-      });
-    }
-
-    // 4. Sum up allocations
-    const totalAllocated = (req.allocations || []).reduce((sum, a) => sum + (a.amount || 0), 0);
+    // 3. Existing requirement
+    const req = reqMap.get(bDate);
+    const totalAllocated = (req?.allocations || []).reduce((sum, a) => sum + (a.amount || 0), 0);
     const depositedAmount = Math.round(totalAllocated * 100) / 100;
     const pendingAmount = Math.max(0, Math.round((requiredAmount - depositedAmount) * 100) / 100);
     const excessAmount = Math.max(0, Math.round((depositedAmount - requiredAmount) * 100) / 100);
 
-    // 5. Determine exact status
+    // 4. Determine exact status
     let status = 'PENDING';
     if (excessAmount > 0) {
       status = 'EXCESS';
     } else if (pendingAmount === 0 && (depositedAmount > 0 || requiredAmount === 0)) {
-      const hasLaterAllocation = (req.allocations || []).some(a => a.businessDate > bDate);
+      const hasLaterAllocation = (req?.allocations || []).some(a => a.businessDate > bDate);
       status = hasLaterAllocation ? 'CLEARED_BY_CARRY_FORWARD' : 'DEPOSITED';
     } else if (depositedAmount > 0 && pendingAmount > 0) {
       status = 'PARTIALLY_DEPOSITED';
@@ -242,10 +387,10 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
       status = 'PENDING';
     }
 
-    // Update if changed
-    req = await prisma.dailyCashRequirement.update({
-      where: { id: req.id },
-      data: {
+    if (!req) {
+      toCreate.push({
+        outletName,
+        businessDate: bDate,
         cashGenerated: netCash,
         previousPending,
         requiredAmount,
@@ -253,17 +398,73 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
         pendingAmount,
         excessAmount,
         status,
-      },
-      include: {
-        allocations: true,
-      },
-    });
+      });
+      syncedResults.push({
+        outletName,
+        businessDate: bDate,
+        cashGenerated: netCash,
+        previousPending,
+        requiredAmount,
+        depositedAmount,
+        pendingAmount,
+        excessAmount,
+        status,
+        allocations: [],
+      });
+    } else {
+      const isDifferent =
+        req.cashGenerated !== netCash ||
+        req.previousPending !== previousPending ||
+        req.requiredAmount !== requiredAmount ||
+        req.depositedAmount !== depositedAmount ||
+        req.pendingAmount !== pendingAmount ||
+        req.excessAmount !== excessAmount ||
+        req.status !== status;
 
-    syncedRequirements.push(req);
+      if (isDifferent) {
+        toUpdate.push({
+          id: req.id,
+          data: {
+            cashGenerated: netCash,
+            previousPending,
+            requiredAmount,
+            depositedAmount,
+            pendingAmount,
+            excessAmount,
+            status,
+          },
+        });
+      }
+
+      syncedResults.push({
+        ...req,
+        cashGenerated: netCash,
+        previousPending,
+        requiredAmount,
+        depositedAmount,
+        pendingAmount,
+        excessAmount,
+        status,
+      });
+    }
+
     carryForwardPending = pendingAmount;
   }
 
-  return syncedRequirements;
+  // 5. Batch database writes
+  const ops = [];
+  for (const c of toCreate) {
+    ops.push(prisma.dailyCashRequirement.create({ data: c, include: { allocations: true } }));
+  }
+  for (const u of toUpdate) {
+    ops.push(prisma.dailyCashRequirement.update({ where: { id: u.id }, data: u.data, include: { allocations: true } }));
+  }
+
+  if (ops.length > 0) {
+    await prisma.$transaction(ops);
+  }
+
+  return syncedResults;
 };
 
 /**

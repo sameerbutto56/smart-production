@@ -570,7 +570,7 @@ const OutletDashboard = () => {
             <ChartCard title="Revenue Trend" icon={TrendingUp}>
               {salesTrend.length > 0 ? (
                 <div className="h-64 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" >
+                  <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <AreaChart data={salesTrend} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4}/><stop offset="100%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
@@ -592,7 +592,7 @@ const OutletDashboard = () => {
             <ChartCard title="Orders Trend" icon={ShoppingCart}>
               {ordersTrend.length > 0 ? (
                 <div className="h-64 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" >
+                  <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <AreaChart data={ordersTrend} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="ordGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.4}/><stop offset="100%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
@@ -615,7 +615,7 @@ const OutletDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <ChartCard title="Payment Status" icon={CreditCard}>
               <div className="h-52 min-w-0">
-                <ResponsiveContainer width="100%" height="100%" >
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                   <PieChart>
                     <Pie data={[
                       { name: 'Paid', value: paymentBD.paidOrders || 0 },
@@ -634,7 +634,7 @@ const OutletDashboard = () => {
             <ChartCard title="Order Status" icon={Layers}>
               <div className="h-52 min-w-0">
                 {statusData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%" >
+                  <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <PieChart>
                       <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
                         {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
@@ -683,7 +683,7 @@ const OutletDashboard = () => {
             <ChartCard title="Top Selling Products" icon={Award} className="md:col-span-1">
               {topProducts.length > 0 ? (
                 <div className="h-64 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" >
+                  <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <BarChart data={topProducts.slice(0, 8)} layout="vertical" margin={{ left: 70, right: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" strokeOpacity={0.5} horizontal={false} />
                       <XAxis type="number" stroke="#4b5563" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
