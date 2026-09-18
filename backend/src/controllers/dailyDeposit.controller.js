@@ -659,7 +659,7 @@ const submitDailyDeposit = async (req, res) => {
       });
 
       let remainingToAllocate = depositAmount;
-      const createdAllocations = [];
+      const allocationsToCreate = [];
 
       // FIFO allocation: clear oldest pending first
       for (const reqItem of allRequirements) {
@@ -671,44 +671,43 @@ const submitDailyDeposit = async (req, res) => {
           const isPrevious = reqItem.businessDate < effectiveBusinessDate;
           const allocationType = isPrevious ? 'PREVIOUS_PENDING' : 'CURRENT_DAY';
 
-          const alloc = await tx.cashDepositAllocation.create({
-            data: {
-              cashDepositId: cashDeposit.id,
-              requirementId: reqItem.id,
-              businessDate: reqItem.businessDate,
-              amount: Math.round(allocAmount * 100) / 100,
-              allocationType,
-            },
+          allocationsToCreate.push({
+            cashDepositId: cashDeposit.id,
+            requirementId: reqItem.id,
+            businessDate: reqItem.businessDate,
+            amount: Math.round(allocAmount * 100) / 100,
+            allocationType,
           });
 
-          createdAllocations.push(alloc);
           remainingToAllocate = Math.round((remainingToAllocate - allocAmount) * 100) / 100;
         }
       }
 
       // If any amount is still left over after all pending requirements up to today are cleared -> EXCESS
       if (remainingToAllocate > 0) {
-        // Find today's requirement (or latest in the window)
         let currentDayReq = allRequirements.find(r => r.businessDate === effectiveBusinessDate);
         if (!currentDayReq && allRequirements.length > 0) {
           currentDayReq = allRequirements[allRequirements.length - 1];
         }
 
         if (currentDayReq) {
-          const excessAlloc = await tx.cashDepositAllocation.create({
-            data: {
-              cashDepositId: cashDeposit.id,
-              requirementId: currentDayReq.id,
-              businessDate: currentDayReq.businessDate,
-              amount: remainingToAllocate,
-              allocationType: 'EXCESS',
-            },
+          allocationsToCreate.push({
+            cashDepositId: cashDeposit.id,
+            requirementId: currentDayReq.id,
+            businessDate: currentDayReq.businessDate,
+            amount: remainingToAllocate,
+            allocationType: 'EXCESS',
           });
-          createdAllocations.push(excessAlloc);
         }
       }
 
-      return { cashDeposit, allocations: createdAllocations };
+      if (allocationsToCreate.length > 0) {
+        await tx.cashDepositAllocation.createMany({
+          data: allocationsToCreate,
+        });
+      }
+
+      return { cashDeposit, allocations: allocationsToCreate };
     });
 
     // 3. Re-sync all requirements to update exact pendingAmount, depositedAmount, and statuses
@@ -751,96 +750,102 @@ const rebuildOutletDepositState = async (req, res) => {
     const results = {};
 
     for (const outletName of outletsToRebuild) {
-      await prisma.$transaction(async (tx) => {
-        // 1. Delete all deposit allocations for this outlet
-        await tx.cashDepositAllocation.deleteMany({
+      // 1. Wipe existing allocations and requirements from CUTOFF_DATE in one transaction
+      await prisma.$transaction([
+        prisma.cashDepositAllocation.deleteMany({
           where: { cashDeposit: { outletName } },
-        });
-
-        // 2. Reset all requirements from CUTOFF_DATE onward
-        await tx.dailyCashRequirement.deleteMany({
+        }),
+        prisma.dailyCashRequirement.deleteMany({
           where: { outletName, businessDate: { gte: CUTOFF_DATE } },
-        });
-      });
+        }),
+      ]);
 
-      // 3. Re-create requirements
+      // 2. Compute initial requirements with 0 allocations
       await syncDailyRequirements(outletName, todayPkt);
 
-      // 4. Fetch all deposits chronologically
-      const allDeposits = await prisma.cashDeposit.findMany({
-        where: {
-          outletName,
-          businessDate: { gte: CUTOFF_DATE },
-        },
-        orderBy: [
-          { businessDate: 'asc' },
-          { actualDepositDate: 'asc' },
-          { createdAt: 'asc' },
-        ],
-      });
-
-      // 5. Re-allocate each deposit FIFO
-      for (const deposit of allDeposits) {
-        const depositAmount = deposit.amount;
-        const effectiveBusinessDate = deposit.businessDate;
-
-        // Ensure requirement chain up to deposit date
-        await syncDailyRequirements(outletName, effectiveBusinessDate);
-
-        // Fetch requirements up to deposit date
-        const requirements = await prisma.dailyCashRequirement.findMany({
+      // 3. Fetch all base requirements and deposits in parallel
+      const [allRequirements, allDeposits] = await Promise.all([
+        prisma.dailyCashRequirement.findMany({
           where: {
             outletName,
-            businessDate: { gte: CUTOFF_DATE, lte: effectiveBusinessDate },
+            businessDate: { gte: CUTOFF_DATE, lte: todayPkt },
           },
           orderBy: { businessDate: 'asc' },
-        });
+        }),
+        prisma.cashDeposit.findMany({
+          where: {
+            outletName,
+            businessDate: { gte: CUTOFF_DATE },
+          },
+          orderBy: [
+            { businessDate: 'asc' },
+            { actualDepositDate: 'asc' },
+            { createdAt: 'asc' },
+          ],
+        }),
+      ]);
 
-        let remainingToAllocate = depositAmount;
+      // 4. Simulate FIFO allocations purely in memory
+      const reqState = allRequirements.map(r => ({
+        ...r,
+        simulatedPending: r.requiredAmount,
+      }));
 
-        for (const r of requirements) {
+      const allocationsToCreate = [];
+
+      for (const deposit of allDeposits) {
+        let remainingToAllocate = deposit.amount;
+        const effectiveBusinessDate = deposit.businessDate;
+
+        // FIFO allocation: clear oldest pending first up to effectiveBusinessDate
+        for (const r of reqState) {
           if (remainingToAllocate <= 0) break;
-          const pending = r.pendingAmount;
-          if (pending > 0) {
-            const allocAmt = Math.min(pending, remainingToAllocate);
+          if (r.businessDate > effectiveBusinessDate) continue;
+
+          if (r.simulatedPending > 0) {
+            const allocAmt = Math.min(r.simulatedPending, remainingToAllocate);
             const isPrevious = r.businessDate < effectiveBusinessDate;
             const allocationType = isPrevious ? 'PREVIOUS_PENDING' : 'CURRENT_DAY';
 
-            await prisma.cashDepositAllocation.create({
-              data: {
-                cashDepositId: deposit.id,
-                requirementId: r.id,
-                businessDate: r.businessDate,
-                amount: Math.round(allocAmt * 100) / 100,
-                allocationType,
-              },
+            allocationsToCreate.push({
+              cashDepositId: deposit.id,
+              requirementId: r.id,
+              businessDate: r.businessDate,
+              amount: Math.round(allocAmt * 100) / 100,
+              allocationType,
             });
 
             remainingToAllocate = Math.round((remainingToAllocate - allocAmt) * 100) / 100;
-            r.pendingAmount = Math.max(0, Math.round((r.pendingAmount - allocAmt) * 100) / 100);
+            r.simulatedPending = Math.max(0, Math.round((r.simulatedPending - allocAmt) * 100) / 100);
           }
         }
 
+        // Excess allocation
         if (remainingToAllocate > 0) {
-          let currentDayReq = requirements.find(r => r.businessDate === effectiveBusinessDate);
-          if (!currentDayReq && requirements.length > 0) {
-            currentDayReq = requirements[requirements.length - 1];
+          let currentDayReq = reqState.find(r => r.businessDate === effectiveBusinessDate);
+          if (!currentDayReq && reqState.length > 0) {
+            currentDayReq = reqState[reqState.length - 1];
           }
           if (currentDayReq) {
-            await prisma.cashDepositAllocation.create({
-              data: {
-                cashDepositId: deposit.id,
-                requirementId: currentDayReq.id,
-                businessDate: currentDayReq.businessDate,
-                amount: remainingToAllocate,
-                allocationType: 'EXCESS',
-              },
+            allocationsToCreate.push({
+              cashDepositId: deposit.id,
+              requirementId: currentDayReq.id,
+              businessDate: currentDayReq.businessDate,
+              amount: remainingToAllocate,
+              allocationType: 'EXCESS',
             });
           }
         }
       }
 
-      // 6. Final sync to set authoritative totals and statuses
+      // 5. Batch insert all allocations in a single database call
+      if (allocationsToCreate.length > 0) {
+        await prisma.cashDepositAllocation.createMany({
+          data: allocationsToCreate,
+        });
+      }
+
+      // 6. Final fast sync to update exact pendingAmount, depositedAmount, and statuses
       const updatedReqs = await syncDailyRequirements(outletName, todayPkt);
       results[outletName] = updatedReqs.length;
     }
