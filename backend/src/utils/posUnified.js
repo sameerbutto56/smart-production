@@ -59,7 +59,7 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
   const jbWhere = { ...(outlet ? { outletName: outlet } : {}) };
   if (Object.keys(dayFilter).length) jbWhere.createdAt = dayFilter;
 
-  const [sales, balancePayments, returns, journalAgg, bankDepAgg, discountAgg, saleItems] = await Promise.all([
+  const [sales, balancePayments, returns, journalEntries, bankDepAgg, discountAgg, saleItems] = await Promise.all([
     prisma.posSale.findMany({
       where: saleWhere,
       orderBy: { createdAt: 'desc' },
@@ -97,7 +97,7 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
         }
       }
     }),
-    prisma.journalEntry.aggregate({ where: jbWhere, _sum: { amount: true } }),
+    prisma.journalEntry.findMany({ where: jbWhere, select: { id: true, amount: true, paymentMethod: true, expenseTitle: true, employeeName: true, createdAt: true } }),
     prisma.bankDeposit.aggregate({ where: jbWhere, _sum: { amount: true } }),
     prisma.posSale.aggregate({ where: saleWhere, _sum: { discountAmount: true } }),
     prisma.posSaleItem.findMany({ where: { sale: saleWhere }, select: { productName: true, quantity: true } }),
@@ -111,7 +111,8 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
 
   const refundAmount = returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
   const totalDiscount = discountAgg._sum.discountAmount || 0;
-  const totalJournalExpenses = journalAgg._sum.amount || 0;
+  const totalJournalExpenses = journalEntries.reduce((sum, j) => sum + (j.amount || 0), 0);
+  const cashJournalExpenses = journalEntries.filter(j => !j.paymentMethod || j.paymentMethod === 'CASH').reduce((sum, j) => sum + (j.amount || 0), 0);
   const totalBankDeposits = bankDepAgg._sum.amount || 0;
 
   // Authoritative definitions:
@@ -169,7 +170,7 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
     const gross = paymentTotals[method] || 0;
     const ret = returnsByMethod[method] || 0;
     let net = gross - ret;
-    if (method === 'CASH') net -= (totalJournalExpenses + totalBankDeposits);
+    if (method === 'CASH') net -= (cashJournalExpenses + totalBankDeposits);
     return { method, gross, returns: ret, net };
   });
 
@@ -234,6 +235,7 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
     totalBalanceCollections: balancePaymentTotal,
     totalBalanceCleared: balancePaymentTotal,
     totalJournalExpenses,
+    cashJournalExpenses,
     totalBankDeposits,
     paymentTotals,
     paymentSummary,

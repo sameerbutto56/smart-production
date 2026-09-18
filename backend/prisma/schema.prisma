@@ -924,6 +924,7 @@ model JournalEntry {
   outletName    String
   expenseTitle  String
   amount        Float
+  paymentMethod String   @default("CASH")
   notes         String?
   createdAt     DateTime @default(now())
 

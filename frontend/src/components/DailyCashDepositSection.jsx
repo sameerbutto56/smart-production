@@ -112,6 +112,22 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
     );
   });
 
+  const handleRebuild = async () => {
+    if (!window.confirm(`Are you sure you want to rebuild and reallocate all cash deposit requirements for ${outlet} starting from 15 September 2026?`)) {
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.post(`/api/daily-deposits/rebuild`, { outletName: outlet });
+      toast.success(`Deposit ledger state rebuilt successfully for ${outlet}`);
+      fetchData();
+    } catch (err) {
+      console.error('Rebuild error:', err);
+      toast.error('Failed to rebuild deposit ledger');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Top Header Card */}
@@ -135,6 +151,14 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
             title="Export Daily Cash Deposits to Excel"
           >
             <FileSpreadsheet size={14} /> Export Excel
+          </button>
+
+          <button
+            onClick={handleRebuild}
+            className="px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+            title="Rebuild Deposit Allocations from 15 September"
+          >
+            <RefreshCw size={14} /> Rebuild Ledger
           </button>
 
           <button

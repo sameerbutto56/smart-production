@@ -92,6 +92,7 @@ const calculateAuthoritativeDailyCash = async (outletName, businessDate) => {
       select: {
         id: true,
         amount: true,
+        paymentMethod: true,
       },
     }),
   ]);
@@ -139,8 +140,10 @@ const calculateAuthoritativeDailyCash = async (outletName, businessDate) => {
     }
   });
 
-  // 4. Cash journal expenses
-  const cashExpenses = journalEntries.reduce((sum, j) => sum + (j.amount || 0), 0);
+  // 4. Cash journal expenses (only filter CASH or null paymentMethod)
+  const cashExpenses = journalEntries
+    .filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH')
+    .reduce((sum, j) => sum + (j.amount || 0), 0);
 
   // Net cash generated to deposit
   const netCash = Math.max(0, Math.round((salesCash + balanceCash - cashRefunded - cashExpenses) * 100) / 100);
@@ -458,20 +461,20 @@ const submitDailyDeposit = async (req, res) => {
       const createdAllocations = [];
 
       // FIFO allocation: clear oldest pending first
-      for (const req of allRequirements) {
+      for (const reqItem of allRequirements) {
         if (remainingToAllocate <= 0) break;
 
-        const stillPending = req.pendingAmount;
+        const stillPending = reqItem.pendingAmount;
         if (stillPending > 0) {
           const allocAmount = Math.min(stillPending, remainingToAllocate);
-          const isPrevious = req.businessDate < effectiveBusinessDate;
+          const isPrevious = reqItem.businessDate < effectiveBusinessDate;
           const allocationType = isPrevious ? 'PREVIOUS_PENDING' : 'CURRENT_DAY';
 
           const alloc = await tx.cashDepositAllocation.create({
             data: {
               cashDepositId: cashDeposit.id,
-              requirementId: req.id,
-              businessDate: req.businessDate,
+              requirementId: reqItem.id,
+              businessDate: reqItem.businessDate,
               amount: Math.round(allocAmount * 100) / 100,
               allocationType,
             },
@@ -533,10 +536,135 @@ const submitDailyDeposit = async (req, res) => {
   }
 };
 
+/**
+ * Re-allocates all cash deposits chronologically from CUTOFF_DATE onward for an outlet or all outlets.
+ */
+const rebuildOutletDepositState = async (req, res) => {
+  try {
+    const targetOutlet = req?.body?.outletName || req?.params?.outletName || req?.query?.outlet;
+    const outletsToRebuild = targetOutlet && targetOutlet !== 'all'
+      ? [targetOutlet]
+      : ['Johar Town', 'Jail Road', 'Abbottabad', 'Hyderabad', 'Hotel'];
+
+    const todayPkt = getPktDateString();
+    const results = {};
+
+    for (const outletName of outletsToRebuild) {
+      await prisma.$transaction(async (tx) => {
+        // 1. Delete all deposit allocations for this outlet
+        await tx.cashDepositAllocation.deleteMany({
+          where: { cashDeposit: { outletName } },
+        });
+
+        // 2. Reset all requirements from CUTOFF_DATE onward
+        await tx.dailyCashRequirement.deleteMany({
+          where: { outletName, businessDate: { gte: CUTOFF_DATE } },
+        });
+      });
+
+      // 3. Re-create requirements
+      await syncDailyRequirements(outletName, todayPkt);
+
+      // 4. Fetch all deposits chronologically
+      const allDeposits = await prisma.cashDeposit.findMany({
+        where: {
+          outletName,
+          businessDate: { gte: CUTOFF_DATE },
+        },
+        orderBy: [
+          { businessDate: 'asc' },
+          { actualDepositDate: 'asc' },
+          { createdAt: 'asc' },
+        ],
+      });
+
+      // 5. Re-allocate each deposit FIFO
+      for (const deposit of allDeposits) {
+        const depositAmount = deposit.amount;
+        const effectiveBusinessDate = deposit.businessDate;
+
+        // Ensure requirement chain up to deposit date
+        await syncDailyRequirements(outletName, effectiveBusinessDate);
+
+        // Fetch requirements up to deposit date
+        const requirements = await prisma.dailyCashRequirement.findMany({
+          where: {
+            outletName,
+            businessDate: { gte: CUTOFF_DATE, lte: effectiveBusinessDate },
+          },
+          orderBy: { businessDate: 'asc' },
+        });
+
+        let remainingToAllocate = depositAmount;
+
+        for (const r of requirements) {
+          if (remainingToAllocate <= 0) break;
+          const pending = r.pendingAmount;
+          if (pending > 0) {
+            const allocAmt = Math.min(pending, remainingToAllocate);
+            const isPrevious = r.businessDate < effectiveBusinessDate;
+            const allocationType = isPrevious ? 'PREVIOUS_PENDING' : 'CURRENT_DAY';
+
+            await prisma.cashDepositAllocation.create({
+              data: {
+                cashDepositId: deposit.id,
+                requirementId: r.id,
+                businessDate: r.businessDate,
+                amount: Math.round(allocAmt * 100) / 100,
+                allocationType,
+              },
+            });
+
+            remainingToAllocate = Math.round((remainingToAllocate - allocAmt) * 100) / 100;
+            r.pendingAmount = Math.max(0, Math.round((r.pendingAmount - allocAmt) * 100) / 100);
+          }
+        }
+
+        if (remainingToAllocate > 0) {
+          let currentDayReq = requirements.find(r => r.businessDate === effectiveBusinessDate);
+          if (!currentDayReq && requirements.length > 0) {
+            currentDayReq = requirements[requirements.length - 1];
+          }
+          if (currentDayReq) {
+            await prisma.cashDepositAllocation.create({
+              data: {
+                cashDepositId: deposit.id,
+                requirementId: currentDayReq.id,
+                businessDate: currentDayReq.businessDate,
+                amount: remainingToAllocate,
+                allocationType: 'EXCESS',
+              },
+            });
+          }
+        }
+      }
+
+      // 6. Final sync to set authoritative totals and statuses
+      const updatedReqs = await syncDailyRequirements(outletName, todayPkt);
+      results[outletName] = updatedReqs.length;
+    }
+
+    if (res) {
+      res.json({ message: 'Outlet deposit state rebuilt successfully', results });
+    } else {
+      return results;
+    }
+  } catch (error) {
+    console.error('rebuildOutletDepositState error:', error);
+    if (res) {
+      res.status(500).json({ message: 'Failed to rebuild deposit state', error: error.message });
+    } else {
+      throw error;
+    }
+  }
+};
+
 module.exports = {
   CUTOFF_DATE,
   calculateAuthoritativeDailyCash,
   syncDailyRequirements,
   getDailyDeposits,
   submitDailyDeposit,
+  rebuildOutletDepositState,
 };
+

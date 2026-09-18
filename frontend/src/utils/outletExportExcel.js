@@ -148,25 +148,35 @@ export const exportInvoicesToExcel = ({
   });
 
   // 4. General Entries (Expenses)
-  const emptyPayCols = { 'Cash Amount': '', 'Card Amount': '', 'Online Amount': '' };
-  const journalDataRows = journalEntries.map((ge) => ({
-    'Receipt #': 'GENERAL ENTRY',
-    'Date': formatDateTime(ge.createdAt),
-    'Cashier': ge.employeeName || '',
-    'Customer': ge.expenseTitle || ge.title || '',
-    'Phone': '',
-    'Items': ge.notes || '',
-    'Subtotal': '',
-    'Discount': '',
-    'Card Charges': '',
-    'Invoice Total': '',
-    'Amount Received': -(ge.amount || 0),
-    'Payment Method': 'EXPENSE',
-    ...emptyPayCols,
-    'Advance': '',
-    'Balance Remaining': '',
-    'Status': 'GENERAL',
-  }));
+  const journalDataRows = journalEntries.map((ge) => {
+    const method = String(ge.paymentMethod || 'CASH').toUpperCase();
+    const amt = -(ge.amount || 0);
+    let cashAmt = '', cardAmt = '', onlineAmt = '';
+    if (method === 'CARD') cardAmt = amt;
+    else if (method === 'ONLINE') onlineAmt = amt;
+    else cashAmt = amt;
+
+    return {
+      'Receipt #': 'GENERAL ENTRY',
+      'Date': formatDateTime(ge.createdAt),
+      'Cashier': ge.employeeName || '',
+      'Customer': ge.expenseTitle || ge.title || '',
+      'Phone': '',
+      'Items': ge.notes || '',
+      'Subtotal': '',
+      'Discount': '',
+      'Card Charges': '',
+      'Invoice Total': '',
+      'Amount Received': amt,
+      'Payment Method': `EXPENSE (${method})`,
+      'Cash Amount': cashAmt,
+      'Card Amount': cardAmt,
+      'Online Amount': onlineAmt,
+      'Advance': '',
+      'Balance Remaining': '',
+      'Status': 'GENERAL',
+    };
+  });
 
   // 5. Authoritative Summary Section
   const S = (label, value) => ({ 'Receipt #': label, 'Amount Received': typeof value === 'number' ? Math.round(value) : (value || '') });
@@ -177,6 +187,7 @@ export const exportInvoicesToExcel = ({
   const netSales = summary.netSales ?? Math.max(0, grossSales - discountTotal - returnedAmount);
   const netRevenue = summary.netRevenue ?? 0;
   const totalGeneralEntries = summary.totalJournalExpenses ?? journalEntries.reduce((s, j) => s + (j.amount || 0), 0);
+  const cashGeneralEntries = summary.cashJournalExpenses ?? journalEntries.filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH').reduce((s, j) => s + (j.amount || 0), 0);
 
   const cashGross = paymentSummary.CASH?.gross ?? paymentSummary.cash ?? 0;
   const cardGross = paymentSummary.CARD?.gross ?? paymentSummary.card ?? 0;
@@ -204,7 +215,7 @@ export const exportInvoicesToExcel = ({
     S('Total Returns', returnedAmount),
     {},
     S('─── Net per Payment Method ───', ''),
-    S('Cash Net (gross − returns − expenses)', paymentSummary.CASH?.net ?? Math.max(0, cashGross - (paymentSummary.CASH?.returns || 0) - totalGeneralEntries)),
+    S('Cash Net (gross − returns − expenses)', paymentSummary.CASH?.net ?? Math.max(0, cashGross - (paymentSummary.CASH?.returns || 0) - cashGeneralEntries)),
     S('Card Net (gross − returns)', paymentSummary.CARD?.net ?? Math.max(0, cardGross - (paymentSummary.CARD?.returns || 0))),
     S('Online Net (gross − returns)', paymentSummary.ONLINE?.net ?? Math.max(0, onlineGross - (paymentSummary.ONLINE?.returns || 0))),
     {},
