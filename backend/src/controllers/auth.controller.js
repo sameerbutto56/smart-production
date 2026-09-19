@@ -96,6 +96,7 @@ const login = async (req, res) => {
         role: user.role,
         theme: user.theme || 'luxe',
         dateFormatPreference: user.dateFormatPreference || 'DD/MM/YYYY',
+        shopifyDayPreference: user.shopifyDayPreference ?? null,
         shopifyMonthPreference: user.shopifyMonthPreference ?? null,
         shopifyYearPreference: user.shopifyYearPreference ?? null
       }

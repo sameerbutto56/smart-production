@@ -50,6 +50,7 @@ const getUserPreferences = async (req, res) => {
       select: {
         id: true,
         dateFormatPreference: true,
+        shopifyDayPreference: true,
         shopifyMonthPreference: true,
         shopifyYearPreference: true,
         theme: true
@@ -57,6 +58,7 @@ const getUserPreferences = async (req, res) => {
     });
     res.json({
       dateFormatPreference: user?.dateFormatPreference || 'DD/MM/YYYY',
+      shopifyDayPreference: user?.shopifyDayPreference ?? null,
       shopifyMonthPreference: user?.shopifyMonthPreference ?? null,
       shopifyYearPreference: user?.shopifyYearPreference ?? null,
       theme: user?.theme || 'luxe'
@@ -68,7 +70,7 @@ const getUserPreferences = async (req, res) => {
 
 const updateUserPreferences = async (req, res) => {
   try {
-    const { dateFormatPreference, shopifyMonthPreference, shopifyYearPreference, theme } = req.body;
+    const { dateFormatPreference, shopifyDayPreference, shopifyMonthPreference, shopifyYearPreference, theme } = req.body;
     const allowedFormats = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY/MM/DD'];
     if (dateFormatPreference && !allowedFormats.includes(dateFormatPreference)) {
       return res.status(400).json({
@@ -79,6 +81,14 @@ const updateUserPreferences = async (req, res) => {
     const data = {};
     if (dateFormatPreference) data.dateFormatPreference = dateFormatPreference;
     if (theme) data.theme = theme;
+
+    if (shopifyDayPreference !== undefined && shopifyDayPreference !== null) {
+      const d = parseInt(shopifyDayPreference, 10);
+      if (isNaN(d) || d < 1 || d > 31) {
+        return res.status(400).json({ message: 'Day preference must be an integer between 1 and 31.' });
+      }
+      data.shopifyDayPreference = d;
+    }
 
     if (shopifyMonthPreference !== undefined && shopifyMonthPreference !== null) {
       const m = parseInt(shopifyMonthPreference, 10);
@@ -103,6 +113,7 @@ const updateUserPreferences = async (req, res) => {
         id: true,
         name: true,
         dateFormatPreference: true,
+        shopifyDayPreference: true,
         shopifyMonthPreference: true,
         shopifyYearPreference: true,
         theme: true
@@ -112,6 +123,7 @@ const updateUserPreferences = async (req, res) => {
     res.json({
       message: 'Preferences updated successfully',
       dateFormatPreference: updated.dateFormatPreference,
+      shopifyDayPreference: updated.shopifyDayPreference,
       shopifyMonthPreference: updated.shopifyMonthPreference,
       shopifyYearPreference: updated.shopifyYearPreference,
       theme: updated.theme

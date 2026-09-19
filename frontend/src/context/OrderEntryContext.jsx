@@ -98,7 +98,11 @@ export const isShoesCategory = (cat) => cat?.toUpperCase() === 'SHOES';
 
 export const OrderEntryProvider = ({ children }) => {
   const [searchParams] = useSearchParams();
-  const { user, dateFormatPreference, shopifyMonthPreference, shopifyYearPreference, updateDateFormatPreference, updateShopifyMonthYearPreference } = useAuth();
+  const {
+    user, dateFormatPreference,
+    shopifyDayPreference, shopifyMonthPreference, shopifyYearPreference,
+    updateDateFormatPreference, updateShopifyDatePreference, updateShopifyMonthYearPreference
+  } = useAuth();
   const activeDateFormat = dateFormatPreference || user?.dateFormatPreference || 'DD/MM/YYYY';
   const { isUrdu, LanguageToggle } = useLanguage();
   const useUrdu = isUrdu;
@@ -390,7 +394,10 @@ export const OrderEntryProvider = ({ children }) => {
   const hasChangedBool = useCallback((b1, b2) => !!b1 !== !!b2, []);
 
   const resetFormData = useCallback(() => {
-    setFormData({ ...INITIAL_FORM_DATA });
+    setFormData(prev => ({
+      ...INITIAL_FORM_DATA,
+      shopifyOrderDate: prev.shopifyOrderDate || ''
+    }));
     setRequiredErrors({});
     setDuplicateOrder(null);
     setGoForVerification(false);
@@ -1144,7 +1151,8 @@ export const OrderEntryProvider = ({ children }) => {
     getSizeChart, handleSizeSelect, validateProductConfig, validateCurrentTab, validateBasicInfo,
     preventEnterSubmit, fmtDate, parseDate,
     activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS,
-    shopifyMonthPreference, shopifyYearPreference, updateShopifyMonthYearPreference,
+    shopifyDayPreference, shopifyMonthPreference, shopifyYearPreference,
+    updateShopifyDatePreference, updateShopifyMonthYearPreference,
     handleAddToCart, removeCartItem, editCartItem, handleAddMoreProducts, handleCheckout,
     togglePrMode, prLoading,
     openDuplicateOrder,

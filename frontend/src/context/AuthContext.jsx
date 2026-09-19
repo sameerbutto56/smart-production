@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }) => {
               const updated = {
                 ...prev,
                 ...(res.data.dateFormatPreference ? { dateFormatPreference: res.data.dateFormatPreference } : {}),
+                ...(res.data.shopifyDayPreference !== undefined ? { shopifyDayPreference: res.data.shopifyDayPreference } : {}),
                 ...(res.data.shopifyMonthPreference !== undefined ? { shopifyMonthPreference: res.data.shopifyMonthPreference } : {}),
                 ...(res.data.shopifyYearPreference !== undefined ? { shopifyYearPreference: res.data.shopifyYearPreference } : {})
               };
@@ -59,13 +60,15 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const updateShopifyMonthYearPreference = useCallback(async (month, year) => {
+  const updateShopifyDatePreference = useCallback(async (day, month, year) => {
     try {
       const payload = {};
+      if (day != null) payload.shopifyDayPreference = parseInt(day, 10);
       if (month != null) payload.shopifyMonthPreference = parseInt(month, 10);
       if (year != null) payload.shopifyYearPreference = parseInt(year, 10);
 
       const res = await api.put('/api/users/me/preferences', payload);
+      const newDay = res.data?.shopifyDayPreference ?? payload.shopifyDayPreference;
       const newMonth = res.data?.shopifyMonthPreference ?? payload.shopifyMonthPreference;
       const newYear = res.data?.shopifyYearPreference ?? payload.shopifyYearPreference;
 
@@ -73,18 +76,23 @@ export const AuthProvider = ({ children }) => {
         if (!prev) return prev;
         const updated = {
           ...prev,
-          shopifyMonthPreference: newMonth,
-          shopifyYearPreference: newYear
+          ...(newDay !== undefined ? { shopifyDayPreference: newDay } : {}),
+          ...(newMonth !== undefined ? { shopifyMonthPreference: newMonth } : {}),
+          ...(newYear !== undefined ? { shopifyYearPreference: newYear } : {})
         };
         sessionStorage.setItem('user', JSON.stringify(updated));
         return updated;
       });
-      return { success: true, shopifyMonthPreference: newMonth, shopifyYearPreference: newYear };
+      return { success: true, shopifyDayPreference: newDay, shopifyMonthPreference: newMonth, shopifyYearPreference: newYear };
     } catch (err) {
-      console.error('Failed to update shopify month/year preference:', err);
+      console.error('Failed to update shopify date preference:', err);
       return { success: false, error: err.response?.data?.message || err.message };
     }
   }, []);
+
+  const updateShopifyMonthYearPreference = useCallback(async (month, year) => {
+    return updateShopifyDatePreference(null, month, year);
+  }, [updateShopifyDatePreference]);
 
   const login = useCallback(async (email, password, extra = {}) => {
     try {
@@ -125,6 +133,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const dateFormatPreference = user?.dateFormatPreference || 'DD/MM/YYYY';
+  const shopifyDayPreference = user?.shopifyDayPreference ?? null;
   const shopifyMonthPreference = user?.shopifyMonthPreference ?? null;
   const shopifyYearPreference = user?.shopifyYearPreference ?? null;
 
@@ -134,11 +143,13 @@ export const AuthProvider = ({ children }) => {
     logout,
     loading,
     dateFormatPreference,
+    shopifyDayPreference,
     shopifyMonthPreference,
     shopifyYearPreference,
     updateDateFormatPreference,
+    updateShopifyDatePreference,
     updateShopifyMonthYearPreference
-  }), [user, login, logout, loading, dateFormatPreference, shopifyMonthPreference, shopifyYearPreference, updateDateFormatPreference, updateShopifyMonthYearPreference]);
+  }), [user, login, logout, loading, dateFormatPreference, shopifyDayPreference, shopifyMonthPreference, shopifyYearPreference, updateDateFormatPreference, updateShopifyDatePreference, updateShopifyMonthYearPreference]);
 
   return (
     <AuthContext.Provider value={value}>

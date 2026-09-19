@@ -13,7 +13,8 @@ const BasicInfoTab = () => {
     orderLookupResult, orderLookupLoading, lookupOrderByNumber,
     setCartItems, setOriginalOrder,
     activeDateFormat, updateDateFormatPreference, SUPPORTED_DATE_FORMATS,
-    shopifyMonthPreference, shopifyYearPreference, updateShopifyMonthYearPreference,
+    shopifyDayPreference, shopifyMonthPreference, shopifyYearPreference,
+    updateShopifyDatePreference, updateShopifyMonthYearPreference,
     togglePrMode, prLoading
   } = useOrderEntry();
 
@@ -27,25 +28,45 @@ const BasicInfoTab = () => {
   const curYear = formData.shopifyOrderDate
     ? new Date(formData.shopifyOrderDate).getUTCFullYear()
     : (shopifyYearPreference || new Date().getUTCFullYear());
+  const maxDaysInCurMonth = getDaysInMonth(curMonth, curYear);
+  const curDay = formData.shopifyOrderDate
+    ? new Date(formData.shopifyOrderDate).getUTCDate()
+    : (shopifyDayPreference ? Math.min(shopifyDayPreference, maxDaysInCurMonth) : Math.min(new Date().getUTCDate(), maxDaysInCurMonth));
 
-  // Prefill default date if empty using saved Month & Year preference
+  // Prefill default date if empty using saved Day, Month & Year preference
   useEffect(() => {
-    if (!formData.shopifyOrderDate && !isOutlet && shopifyMonthPreference && shopifyYearPreference) {
-      const today = new Date();
-      const safeDay = Math.min(today.getUTCDate(), getDaysInMonth(shopifyMonthPreference, shopifyYearPreference));
-      const initIso = new Date(Date.UTC(shopifyYearPreference, shopifyMonthPreference - 1, safeDay, 0, 0, 0, 0)).toISOString();
+    if (!formData.shopifyOrderDate && !isOutlet) {
+      const y = shopifyYearPreference || new Date().getUTCFullYear();
+      const m = shopifyMonthPreference || (new Date().getUTCMonth() + 1);
+      const maxDays = getDaysInMonth(m, y);
+      const safeDay = shopifyDayPreference
+        ? Math.min(shopifyDayPreference, maxDays)
+        : Math.min(new Date().getUTCDate(), maxDays);
+      const initIso = new Date(Date.UTC(y, m - 1, safeDay, 0, 0, 0, 0)).toISOString();
       setFormData(s => ({ ...s, shopifyOrderDate: initIso }));
       setShopifyInput(fmtDate(initIso));
     }
-  }, [shopifyMonthPreference, shopifyYearPreference, isOutlet, formData.shopifyOrderDate, fmtDate, setFormData]);
+  }, [shopifyDayPreference, shopifyMonthPreference, shopifyYearPreference, isOutlet, formData.shopifyOrderDate, fmtDate, setFormData]);
+
+  const handleDayChange = async (newD) => {
+    const d = parseInt(newD, 10);
+    if (isNaN(d) || d < 1 || d > 31) return;
+    const m = curMonth;
+    const y = curYear;
+    const safeDay = Math.min(d, getDaysInMonth(m, y));
+    await updateShopifyDatePreference(safeDay, m, y);
+    const newIso = new Date(Date.UTC(y, m - 1, safeDay, 0, 0, 0, 0)).toISOString();
+    setFormData(s => ({ ...s, shopifyOrderDate: newIso }));
+    setShopifyInput(fmtDate(newIso));
+    clearFieldError('shopifyOrderDate');
+  };
 
   const handleMonthChange = async (newM) => {
     const m = parseInt(newM, 10);
     if (isNaN(m) || m < 1 || m > 12) return;
     const y = curYear;
-    await updateShopifyMonthYearPreference(m, y);
-    const curDay = formData.shopifyOrderDate ? new Date(formData.shopifyOrderDate).getUTCDate() : new Date().getUTCDate();
     const safeDay = Math.min(curDay, getDaysInMonth(m, y));
+    await updateShopifyDatePreference(safeDay, m, y);
     const newIso = new Date(Date.UTC(y, m - 1, safeDay, 0, 0, 0, 0)).toISOString();
     setFormData(s => ({ ...s, shopifyOrderDate: newIso }));
     setShopifyInput(fmtDate(newIso));
@@ -56,9 +77,8 @@ const BasicInfoTab = () => {
     const y = parseInt(newY, 10);
     if (isNaN(y) || y < 2000 || y > 2100) return;
     const m = curMonth;
-    await updateShopifyMonthYearPreference(m, y);
-    const curDay = formData.shopifyOrderDate ? new Date(formData.shopifyOrderDate).getUTCDate() : new Date().getUTCDate();
     const safeDay = Math.min(curDay, getDaysInMonth(m, y));
+    await updateShopifyDatePreference(safeDay, m, y);
     const newIso = new Date(Date.UTC(y, m - 1, safeDay, 0, 0, 0, 0)).toISOString();
     setFormData(s => ({ ...s, shopifyOrderDate: newIso }));
     setShopifyInput(fmtDate(newIso));
@@ -362,6 +382,24 @@ const BasicInfoTab = () => {
                 {useUrdu ? 'شاپیفائے آرڈر کی تاریخ' : 'Shopify Order Date'} {!isOutlet && <span className="text-red-500">*</span>}
               </label>
               <div className="flex flex-wrap items-center gap-1.5 bg-gray-950/80 p-1 rounded-xl border border-gray-800">
+                {/* Date (Day) Dropdown */}
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-900 border border-gray-700/60">
+                  <span className="text-[10px] font-black text-purple-400 uppercase">{useUrdu ? 'تاریخ:' : 'Date:'}</span>
+                  <select
+                    id="order-entry-shopify-day"
+                    name="shopifyDay"
+                    value={curDay}
+                    onChange={(e) => handleDayChange(e.target.value)}
+                    className="bg-transparent text-[11px] font-black text-white outline-none cursor-pointer pr-1 py-0.5"
+                  >
+                    {Array.from({ length: maxDaysInCurMonth }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={d} className="bg-gray-900 text-white">
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Month Dropdown */}
                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-900 border border-gray-700/60">
                   <span className="text-[10px] font-black text-purple-400 uppercase">{useUrdu ? 'مہینہ:' : 'Month:'}</span>
@@ -448,10 +486,11 @@ const BasicInfoTab = () => {
                   if (iso) {
                     setFormData(s => ({ ...s, shopifyOrderDate: iso }));
                     const d = new Date(iso);
+                    const day = d.getUTCDate();
                     const m = d.getUTCMonth() + 1;
                     const y = d.getUTCFullYear();
-                    if (m !== shopifyMonthPreference || y !== shopifyYearPreference) {
-                      updateShopifyMonthYearPreference(m, y);
+                    if (day !== shopifyDayPreference || m !== shopifyMonthPreference || y !== shopifyYearPreference) {
+                      updateShopifyDatePreference(day, m, y);
                     }
                   }
                 }}
@@ -461,10 +500,11 @@ const BasicInfoTab = () => {
                     setFormData(s => ({ ...s, shopifyOrderDate: iso }));
                     setShopifyInput(fmtDate(iso));
                     const d = new Date(iso);
+                    const day = d.getUTCDate();
                     const m = d.getUTCMonth() + 1;
                     const y = d.getUTCFullYear();
-                    if (m !== shopifyMonthPreference || y !== shopifyYearPreference) {
-                      updateShopifyMonthYearPreference(m, y);
+                    if (day !== shopifyDayPreference || m !== shopifyMonthPreference || y !== shopifyYearPreference) {
+                      updateShopifyDatePreference(day, m, y);
                     }
                   } else if (formData.shopifyOrderDate) {
                     setShopifyInput(fmtDate(formData.shopifyOrderDate));
