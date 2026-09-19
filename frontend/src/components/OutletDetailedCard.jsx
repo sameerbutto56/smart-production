@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import useDateRange from '../hooks/useDateRange';
 import {
@@ -6,10 +7,12 @@ import {
   ShoppingBag, Layers, Package, Users, ArrowLeftRight, ClipboardList, Scissors,
   BookOpen, Book, Search, ChevronRight, RefreshCw, Calendar, X,
   Minus, CheckCircle, Clock, Phone, Landmark,
-  ChevronLeft, ChevronsLeft, ChevronsRight, FileSpreadsheet, Banknote
+  ChevronLeft, ChevronsLeft, ChevronsRight, FileSpreadsheet, Banknote,
+  Lock, Unlock, ArrowLeft
 } from 'lucide-react';
 import OutletRegisters from './OutletRegisters';
 import DailyCashDepositSection from './DailyCashDepositSection';
+import AbbottabadFinancialSection from './AbbottabadFinancialSection';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { pktDayISO } from '../utils/pktRange';
 import { exportInvoicesToExcel, exportSectionToExcel } from '../utils/outletExportExcel';
@@ -290,12 +293,76 @@ const InvoiceDetailModal = ({ sale, onClose }) => {
   );
 };
 
-const OutletDetailedCard = ({ outlet }) => {
+const OutletDetailedCard = ({
+  outlet,
+  abbottabadToken,
+  onOpenPasswordModal,
+  onLockOtherMetrics
+}) => {
+  const isAbbottabad = outlet?.toLowerCase().includes('abbottabad');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSection = searchParams.get('section') || 'overview';
+  const [activeSection, setActiveSectionState] = useState(urlSection);
+
+  useEffect(() => {
+    if (urlSection !== activeSection) {
+      setActiveSectionState(urlSection);
+    }
+  }, [urlSection]);
+
+  const setActiveSection = useCallback((sec) => {
+    setActiveSectionState(sec);
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      if (sec && sec !== 'overview') {
+        p.set('section', sec);
+      } else {
+        p.delete('section');
+      }
+      return p;
+    });
+  }, [setSearchParams]);
+
   const { range, setRange, dateFrom, setDateFrom, dateTo, setDateTo, label: rangeLabel, queryParams, presets } = useDateRange();
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Handle auto-switch to other-metrics when Abbottabad token becomes freshly unlocked
+  const prevTokenRef = useRef(abbottabadToken);
+  useEffect(() => {
+    if (!prevTokenRef.current && abbottabadToken && isAbbottabad) {
+      setActiveSection('other-metrics');
+    }
+    prevTokenRef.current = abbottabadToken;
+  }, [abbottabadToken, isAbbottabad, setActiveSection]);
+
+  // If token is removed/locked while on other-metrics, fallback to overview
+  useEffect(() => {
+    if (isAbbottabad && activeSection === 'other-metrics' && !abbottabadToken) {
+      setActiveSection('overview');
+    }
+  }, [isAbbottabad, activeSection, abbottabadToken, setActiveSection]);
+
+  const currentNav = useMemo(() => {
+    if (!isAbbottabad) return sectionNav;
+    return [
+      ...sectionNav,
+      {
+        id: 'other-metrics',
+        label: abbottabadToken ? 'Other Metrics 🔓' : 'Other Metrics 🔒',
+        icon: abbottabadToken ? Unlock : Lock
+      }
+    ];
+  }, [isAbbottabad, abbottabadToken]);
+
+  const handleNavClick = (sectionId) => {
+    if (sectionId === 'other-metrics' && !abbottabadToken) {
+      onOpenPasswordModal?.();
+      return;
+    }
+    setActiveSection(sectionId);
+  };
   const [expandedId, setExpandedId] = useState(null);
   const [invoicePage, setInvoicePage] = useState(1);
   const [orderPage, setOrderPage] = useState(1);
@@ -518,6 +585,44 @@ const OutletDetailedCard = ({ outlet }) => {
         <h2 className="text-xl font-black text-white uppercase">{outlet}</h2>
         <span className="text-xs font-bold text-gray-500">360 Degree Operational Dashboard</span>
         <span className="px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap">{rangeLabel}</span>
+
+        {/* Prominent Abbottabad Other Metrics Trigger */}
+        {isAbbottabad && (
+          <div className="flex items-center gap-2 ml-1">
+            <button
+              onClick={() => {
+                if (!abbottabadToken) {
+                  onOpenPasswordModal?.();
+                } else {
+                  setActiveSection(activeSection === 'other-metrics' ? 'overview' : 'other-metrics');
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md ${
+                activeSection === 'other-metrics'
+                  ? 'bg-purple-600/30 text-purple-200 border-2 border-purple-500 shadow-purple-500/20'
+                  : abbottabadToken
+                  ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 hover:bg-purple-600/30'
+                  : 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
+              }`}
+            >
+              {abbottabadToken ? <Unlock size={13} className="text-emerald-400" /> : <Lock size={13} className="text-amber-400" />}
+              <span>Other Metrics {abbottabadToken ? '🔓' : '🔒'}</span>
+            </button>
+            {abbottabadToken && (
+              <button
+                onClick={() => {
+                  onLockOtherMetrics?.();
+                  setActiveSection('overview');
+                }}
+                title="Lock Other Metrics"
+                className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border border-gray-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+              >
+                <Lock size={12} /> Lock
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="ml-auto flex items-center gap-2">
           {EXPORTABLE_SECTIONS.has(activeSection) && (
             <button onClick={handleExport}
@@ -550,26 +655,59 @@ const OutletDetailedCard = ({ outlet }) => {
         </div>
       </div>
 
+      {activeSection !== 'overview' && (
+        <div className="flex items-center justify-between p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleNavClick('overview')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800/90 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 group"
+            >
+              <ArrowLeft size={14} className="text-gray-400 group-hover:text-white transition-transform group-hover:-translate-x-0.5" />
+              <span>← Back to Overview</span>
+            </button>
+            <span className="text-xs font-black text-indigo-300 uppercase tracking-wide">
+              {currentNav.find(s => s.id === activeSection)?.label || activeSection}
+            </span>
+          </div>
+          <span className="text-[11px] font-bold text-gray-400">
+            {outlet}
+          </span>
+        </div>
+      )}
+
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        {sectionNav.map(s => (
-          <button key={s.id} onClick={() => setActiveSection(s.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all ${activeSection === s.id ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:border-indigo-500/20'}`}>
+        {currentNav.map(s => (
+          <button key={s.id} onClick={() => handleNavClick(s.id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all ${
+              activeSection === s.id
+                ? s.id === 'other-metrics'
+                  ? 'bg-purple-600/30 text-purple-200 border-2 border-purple-500 shadow-purple-500/20'
+                  : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                : s.id === 'other-metrics'
+                ? abbottabadToken
+                  ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30 hover:border-purple-500/50'
+                  : 'bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:border-amber-500/50'
+                : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:border-indigo-500/20'
+            }`}>
             <s.icon size={14} /> {s.label}
           </button>
         ))}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-          placeholder="Search across all sections..."
-          className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-xl text-xs font-bold text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50" />
-        {searchTerm && (
-          <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
-            <X size={14} />
-          </button>
-        )}
-      </div>
+      {activeSection !== 'other-metrics' && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+          <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Search across all sections..."
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-xl text-xs font-bold text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50" />
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ==================== OVERVIEW ==================== */}
       {activeSection === 'overview' && (
@@ -1555,6 +1693,35 @@ const OutletDetailedCard = ({ outlet }) => {
       {/* ==================== BANK DEPOSITS ==================== */}
       {activeSection === 'bank-deposits' && (
         <DailyCashDepositSection outlet={outlet} />
+      )}
+
+      {/* ==================== OTHER METRICS (ABBOTTABAD SENSITIVE FINANCIALS) ==================== */}
+      {isAbbottabad && activeSection === 'other-metrics' && (
+        <div className="space-y-4">
+          {abbottabadToken ? (
+            <AbbottabadFinancialSection
+              onLogout={() => {
+                onLockOtherMetrics?.();
+                setActiveSection('overview');
+              }}
+              onBack={() => setActiveSection('overview')}
+            />
+          ) : (
+            <div className="glass p-12 rounded-3xl text-center border-2 border-teal-500/30 shadow-2xl my-6">
+              <Lock className="mx-auto text-teal-400 mb-3" size={40} />
+              <h3 className="text-xl font-black text-white">Other Metrics Locked</h3>
+              <p className="text-xs text-gray-400 mt-1 mb-6 max-w-md mx-auto">
+                Password authentication is required to view sensitive Abbottabad demand financials, courier charges, confidential cost prices, and amount account controls.
+              </p>
+              <button
+                onClick={() => onOpenPasswordModal?.()}
+                className="px-6 py-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-teal-500/20"
+              >
+                Enter Abbottabad Password
+              </button>
+            </div>
+          )}
+        </div>
       )}
       <InvoiceDetailModal sale={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
     </div>

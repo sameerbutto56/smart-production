@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Search, Clock, User, Phone, Package, MessageSquare, FileEdit, Shield } from 'lucide-react';
@@ -43,7 +44,8 @@ const ReturnedFromVerification = () => {
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-amber-600 rounded-2xl"><ArrowLeft size={24} className="text-white" /></div>
+          <BackButton />
+          <div className="p-3 bg-amber-600 rounded-2xl"><RotateCcw size={24} className="text-white" /></div>
           <div>
             <h1 className="text-2xl font-black text-white">Return from Verification</h1>
             <p className="text-sm text-gray-400">Orders returned from verification that need corrections</p>

@@ -2,6 +2,10 @@ const prisma = require('../prisma');
 
 exports.getNotifications = async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const { page = 1, limit = 50, unread } = req.query;
     const role = req.user?.role;
     if (!role) return res.status(400).json({ message: 'Role required' });
@@ -30,6 +34,10 @@ exports.getNotifications = async (req, res) => {
 
 exports.getUnreadCounts = async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const role = req.user?.role;
     if (!role) return res.status(400).json({ message: 'Role required' });
 

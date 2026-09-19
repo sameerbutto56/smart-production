@@ -13,6 +13,7 @@ import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 
 const DISPATCH_METHOD_OPTIONS = [
   { id: 'ENAMELS', label: 'Enamels Delivery', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
@@ -392,7 +393,10 @@ const DispatchPage = () => {
 
   if (!loggedIn) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center p-4">
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md mb-3">
+          <BackButton />
+        </div>
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
           className="glass max-w-md w-full p-8 rounded-[3rem] border-2 theme-border shadow-2xl">
           <div className="text-center mb-8">
@@ -449,6 +453,7 @@ const DispatchPage = () => {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-12">
+      <BackButton className="mb-2" />
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-2xl ${isOutlet ? 'bg-blue-500/10' : isEmployeeMode ? 'bg-emerald-500/10' : 'bg-purple-500/10'}`}>
@@ -749,7 +754,7 @@ const DispatchPage = () => {
         {bookModal && isEmployeeMode && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl">
+              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-black theme-text-primary mb-2">Dispatch Order</h2>
               <p className="theme-text-secondary text-xs font-bold mb-1">Order #{bookModal?.orderNumber || bookModal?.id?.substring(0, 8)} — {bookModal?.customerName}</p>
               <p className="theme-text-muted text-xs font-bold mb-4">City: {bookModal?.city || 'N/A'} | Dispatch Officer: {employeeName}</p>
@@ -805,7 +810,7 @@ const DispatchPage = () => {
         {bookModal && !isEmployeeMode && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl">
+              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-black theme-text-primary mb-2">Dispatch Order</h2>
               <p className="theme-text-secondary text-xs font-bold mb-6">Order #{bookModal?.orderNumber || bookModal?.id?.substring(0, 8)} — {bookModal?.customerName}</p>
               <div className="space-y-4">
@@ -842,7 +847,7 @@ const DispatchPage = () => {
         {requestModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl">
+              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-black theme-text-primary mb-2">Request Courier</h2>
               <p className="theme-text-secondary text-xs font-bold mb-2">Order #{requestModal?.orderNumber || requestModal?.id?.substring(0, 8)} — {requestModal?.customerName}</p>
               <p className="theme-text-muted text-xs md:text-sm font-bold mb-6">This request will be sent to the Central Dispatch Department for processing.</p>

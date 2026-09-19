@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSystemPause } from '../context/SystemPauseContext';
 import SystemPauseControl from './SystemPauseControl';
+import useAppBack from '../hooks/useAppBack';
 import {
   LayoutDashboard, 
   Package, 
@@ -100,14 +101,12 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
   const navItems = [
     { name: 'Executive Dashboard', path: '/ceo-dashboard', icon: LayoutDashboard, roles: ['CEO'] },
     { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS'] },
-    { name: 'Employee Management', path: '/software-settings?tab=employees', icon: UserCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'] },
     { name: 'Product Data', path: '/product-data', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Vendors', path: '/vendors-admin', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'] },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['OUTLET', 'STORE'] },
 
@@ -118,7 +117,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY', 'OUTLET'] },
     { name: 'Dashboard', path: '/store-dashboard', icon: LayoutDashboard, roles: ['STORE'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
-    { name: 'ASM Allowed', path: '/asm-allowed', icon: Package, roles: ['STORE', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'ASM Allowed', path: '/asm-allowed', icon: Package, roles: ['STORE'] },
     { name: 'ASM Dashboard', path: '/asm', icon: Building2, roles: ['ASM'] },
     { name: 'Inventory Audit', path: '/audit', icon: ClipboardCheck, roles: ['STORE', 'STORE_EMPLOYEE'] },
     { name: 'Returns', path: '/returns', icon: RotateCcw, roles: ['STORE'] },
@@ -126,7 +125,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Order Tracker', path: '/store-order-tracker', icon: SearchCheck, roles: ['STORE'] },
     { name: 'Orders', path: '/store-orders', icon: ClipboardList, roles: ['STORE'] },
     { name: 'Audit Review', path: '/audit-review', icon: ClipboardCheck, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'PostEx Dashboard', path: '/postex-dashboard', icon: Truck, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Cancellation Requests', path: '/order-cancellations', icon: PackageX, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
@@ -157,7 +155,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY', 'CEO'] },
     { name: 'Notifications', path: '/notifications', icon: Bell, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY', 'INVENTORY_VIEW', 'CEO'] },
     { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] },
-    { name: 'Office Supply', path: '/office-supply', icon: Package, roles: ['STORE', 'STORE_EMPLOYEE', 'OUTLET', 'FAISAL', 'SUPER_ADMIN', 'ADMIN'] }
+    { name: 'Office Supply', path: '/office-supply', icon: Package, roles: ['STORE', 'STORE_EMPLOYEE', 'OUTLET', 'FAISAL'] }
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
@@ -358,6 +356,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
 const Layout = () => {
   const navigate = useNavigate();
+  const { goBack } = useAppBack();
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -608,13 +607,15 @@ const Layout = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Universal Top Bar */}
         <header className="h-16 border-b flex items-center px-6 justify-between flex-shrink-0 relative z-20" style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
-          <div className="flex items-center gap-4 flex-1">
+          <div className="flex items-center gap-3 flex-1">
             <button 
-              onClick={() => navigate(-1)}
-              className="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg"
-              title="Back"
+              type="button"
+              onClick={goBack}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-gray-200 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl transition-all shadow-sm active:scale-95 group"
+              title="Back to previous screen"
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={14} className="text-gray-400 group-hover:text-white transition-transform group-hover:-translate-x-0.5" />
+              <span>Back</span>
             </button>
             <button 
               onClick={() => setIsSidebarOpen(true)}

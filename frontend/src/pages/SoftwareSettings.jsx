@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -613,11 +614,14 @@ const SoftwareSettings = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-black text-white flex items-center gap-2">
-          <Users className="text-blue-400" /> Software Settings
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">Manage employee logins and correct POS payment methods.</p>
+      <div className="mb-6 flex items-center gap-3">
+        <BackButton />
+        <div>
+          <h1 className="text-2xl font-black text-white flex items-center gap-2">
+            <Users className="text-blue-400" /> Software Settings
+          </h1>
+          <p className="text-sm text-gray-400 mt-1">Manage employee logins and correct POS payment methods.</p>
+        </div>
       </div>
 
       <div className="flex gap-4 min-h-[calc(100vh-10rem)]">

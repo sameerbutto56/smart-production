@@ -130,19 +130,19 @@ const verifyEmployee = async (req, res) => {
       : await prisma.outletEmployee.findFirst({ where, orderBy: { updatedAt: 'desc' } });
 
     if (!employee) {
-      return res.status(401).json({ message: outlet ? `No employee "${empName}" found at ${outlet}` : `No employee "${empName}" found` });
+      return res.status(400).json({ ok: false, message: outlet ? `No employee "${empName}" found at ${outlet}` : `No employee "${empName}" found` });
     }
 
     if (profile) {
       const profiles = Array.isArray(employee.profiles) ? employee.profiles : [];
       if (!profiles.includes(profile)) {
-        return res.status(403).json({ message: `"${empName}" does not have access to this module` });
+        return res.status(403).json({ ok: false, message: `"${empName}" does not have access to this module` });
       }
     }
 
     const match = await bcrypt.compare(empPass, employee.password);
     if (!match) {
-      return res.status(401).json({ message: 'Incorrect password. Please try again.' });
+      return res.status(400).json({ ok: false, message: 'Incorrect password. Please try again.' });
     }
 
     res.json({

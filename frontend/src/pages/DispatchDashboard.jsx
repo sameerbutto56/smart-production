@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import { Truck, Search, Loader2, LogIn, User, MessageCircle, TrendingUp, Activity, BarChart3, Package, X, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import socket from '../socket';
 import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
@@ -142,7 +143,10 @@ const DispatchDashboard = () => {
 
   if (isDispatchRole && !loggedIn) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center p-4">
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md mb-3">
+          <BackButton />
+        </div>
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
           className="glass max-w-md w-full p-8 rounded-[3rem] border-2 theme-border shadow-2xl">
           <div className="text-center mb-8">
@@ -197,6 +201,7 @@ const DispatchDashboard = () => {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-12">
+      <BackButton className="mb-2" />
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-2xl bg-emerald-500/10">

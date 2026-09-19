@@ -29,10 +29,10 @@ const authEmployee = async (req, res) => {
     const employee = await prisma.outletEmployee.findUnique({
       where: { name_outletName: { name, outletName: outlet } }
     });
-    if (!employee) return res.status(401).json({ message: 'Employee not found for this outlet' });
-    if (!employee.isActive) return res.status(401).json({ message: 'Employee account is inactive' });
+    if (!employee) return res.status(400).json({ message: 'Employee not found for this outlet' });
+    if (!employee.isActive) return res.status(403).json({ message: 'Employee account is inactive' });
     const valid = await bcrypt.compare(password, employee.password);
-    if (!valid) return res.status(401).json({ message: 'Invalid password' });
+    if (!valid) return res.status(400).json({ message: 'Invalid password' });
     res.json({ name: employee.name, outletName: employee.outletName, message: 'Authenticated successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Authentication failed', error: error.message });
@@ -55,9 +55,9 @@ const submitDeposit = async (req, res) => {
     const employee = await prisma.outletEmployee.findUnique({
       where: { name_outletName: { name: employeeName, outletName: outlet } }
     });
-    if (!employee) return res.status(401).json({ message: 'Employee not found' });
+    if (!employee) return res.status(400).json({ message: 'Employee not found' });
     const valid = await bcrypt.compare(password, employee.password);
-    if (!valid) return res.status(401).json({ message: 'Invalid password' });
+    if (!valid) return res.status(400).json({ message: 'Invalid password' });
 
     // Delegate to authoritative submitDailyDeposit
     req.params.outletName = outlet;

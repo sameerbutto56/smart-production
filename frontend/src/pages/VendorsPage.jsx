@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
 import { useLanguage } from '../context/LanguageContext';
@@ -233,14 +234,17 @@ const VendorsPage = () => {
   return (
     <div className="p-5 min-h-screen" dir={isUrdu ? 'rtl' : 'ltr'}>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-blue-400" />
-            {t('Admin Vendors')}
-          </h1>
-          <p className="text-sm text-slate-400">
-            {t('Manage vendors & vendor orders — approve, give stock, record payments')}
-          </p>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+              <Building2 className="h-6 w-6 text-blue-400" />
+              {t('Admin Vendors')}
+            </h1>
+            <p className="text-sm text-slate-400">
+              {t('Manage vendors & vendor orders — approve, give stock, record payments')}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button

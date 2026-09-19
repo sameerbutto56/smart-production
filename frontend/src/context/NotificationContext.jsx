@@ -6,9 +6,48 @@ import toast from 'react-hot-toast';
 
 const NotificationContext = createContext();
 
+let audioCtx = null;
+let audioUnlocked = false;
+
+function getAudioContext() {
+  if (!audioCtx && typeof window !== 'undefined') {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      audioCtx = new AudioContextClass();
+    }
+  }
+  return audioCtx;
+}
+
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    audioUnlocked = true;
+    try {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+    } catch (e) { /* audio not available */ }
+    ['click', 'keydown', 'pointerdown', 'touchstart'].forEach(evt => {
+      window.removeEventListener(evt, unlockAudio);
+    });
+  };
+
+  ['click', 'keydown', 'pointerdown', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, unlockAudio, { once: true, passive: true });
+  });
+}
+
 function playNotificationSound() {
+  if (!audioUnlocked) return;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+      return;
+    }
+    if (ctx.state !== 'running') return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -99,7 +138,9 @@ export const NotificationProvider = ({ children }) => {
   const fetchUnreadCounts = useCallback(async () => {
     if (!user?.role) return;
     try {
-      const res = await api.get('/api/notifications/unread-counts');
+      const res = await api.get('/api/notifications/unread-counts', {
+        params: { _t: Date.now() }
+      });
       const counts = res.data.counts || {};
       const prev = prevCountsRef.current;
 
@@ -146,7 +187,9 @@ export const NotificationProvider = ({ children }) => {
     if (!user?.role) return;
     setLoading(true);
     try {
-      const res = await api.get('/api/notifications?limit=50');
+      const res = await api.get('/api/notifications', {
+        params: { limit: 50, _t: Date.now() }
+      });
       setNotifications(res.data.notifications || []);
     } catch (e) { /* silent */ }
     setLoading(false);

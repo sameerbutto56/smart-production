@@ -3,6 +3,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 import { toUrduName } from '../utils/urduDictionary';
+import BackButton from '../components/BackButton';
 import { Truck, RefreshCw, UserCheck, Clock, FileText, PackageCheck, CheckCircle2, CircleDashed, Loader2 } from 'lucide-react';
 
 const STAGES = [
@@ -67,11 +68,15 @@ export default function DemandDeliveriesHistory() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <Truck size={20} className="text-blue-400" />
-          <h1 className="text-lg font-black text-white">Enamels Demand Deliveries</h1>
-          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">Ledger</span>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <div className="flex items-center gap-2">
+            <Truck size={20} className="text-blue-400" />
+            <h1 className="text-lg font-black text-white">Enamels Demand Deliveries</h1>
+            <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">Ledger</span>
+          </div>
         </div>
         <button onClick={fetchHistory} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs font-black text-gray-300 hover:bg-gray-700 transition-all">
@@ -90,7 +95,7 @@ export default function DemandDeliveriesHistory() {
 
       {/* Filters */}
       <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-3 space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {['all', ...STAGES.map((s) => s.key)].map((key) => {
             const label = key === 'all' ? 'All Delivery States' : STAGES.find((s) => s.key === key).label;
             const count = key === 'all' ? counts.total : counts[key];

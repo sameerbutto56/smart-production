@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Search, Package, RotateCcw, RefreshCw, PhoneOff, CheckCircle, Clock, ArrowRight, AlertTriangle, FileText, Send, X, History, PackageCheck, Inbox, Truck } from 'lucide-react';
@@ -141,6 +142,7 @@ const ReturnExchangePage = () => {
     <div className="min-h-screen bg-gray-900 p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
+          <BackButton />
           <div className="p-3 bg-rose-600 rounded-2xl"><RotateCcw size={24} className="text-white" /></div>
           <div>
             <h1 className="text-2xl font-black text-white">Return & Exchange</h1>

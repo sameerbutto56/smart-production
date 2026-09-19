@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageLoader } from '../components/LoadingSpinner';
+import BackButton from '../components/BackButton';
 
 const STATUS_STYLES = {
   PENDING: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
@@ -108,6 +109,9 @@ const OrderCancellations = () => {
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gray-950 text-white">
       <div className="max-w-6xl mx-auto">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
@@ -319,8 +323,8 @@ const OrderCancellations = () => {
 
       {/* Decision modal */}
       {selected && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
-          <div className="glass max-w-md w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-red-900/50 shadow-2xl">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-6 bg-black/80 backdrop-blur-md">
+          <div className="glass max-w-md w-full max-h-[90vh] overflow-y-auto p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-red-900/50 shadow-2xl">
             <div className="flex items-center justify-center mb-6">
               <div className="p-4 bg-amber-500/20 rounded-full text-amber-500">
                 <AlertTriangle size={32} />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import {
   BarChart3, DollarSign, Package, ShoppingCart, RotateCcw, AlertTriangle,
@@ -145,11 +146,14 @@ const StoreDashboardPage = () => {
     <div className="min-h-screen bg-[#0a0a0f] text-white p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-lg md:text-xl font-black text-white flex items-center gap-2">
-            <LayoutDashboard size={20} className="text-amber-400" /> Store Dashboard
-          </h1>
-          <p className="text-[10px] text-gray-500 font-bold mt-0.5">Central analytics hub for the Store module</p>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <div>
+            <h1 className="text-lg md:text-xl font-black text-white flex items-center gap-2">
+              <LayoutDashboard size={20} className="text-amber-400" /> Store Dashboard
+            </h1>
+            <p className="text-[10px] text-gray-500 font-bold mt-0.5">Central analytics hub for the Store module</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-1 bg-gray-800/50 rounded-xl p-1 border border-gray-700/50">
@@ -173,7 +177,7 @@ const StoreDashboardPage = () => {
       </div>
 
       {/* Top KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
         <KpiCard icon={ShoppingCart} label="Total Sales" value={sales.totalSales} color="bg-blue-500/10" />
         <KpiCard icon={DollarSign} label="Revenue" value={formatCurrency(sales.totalRevenue)} color="bg-emerald-500/10" />
         <KpiCard icon={Package} label="Stock Value" value={formatCurrency(inventory.totalStockValue)} color="bg-purple-500/10" />

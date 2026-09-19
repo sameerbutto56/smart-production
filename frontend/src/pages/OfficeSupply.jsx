@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -663,11 +664,14 @@ export default function OfficeSupply() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black uppercase tracking-widest text-white flex items-center gap-2">
-            <Package className="text-blue-400" size={24} /> Office Supply
-          </h1>
-          <p className="text-xs text-gray-400 font-medium mt-0.5">Isolated stationery &amp; office stock module</p>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-widest text-white flex items-center gap-2">
+              <Package className="text-blue-400" size={24} /> Office Supply
+            </h1>
+            <p className="text-xs text-gray-400 font-medium mt-0.5">Isolated stationery &amp; office stock module</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {tab === 'products' && canManage && (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -279,13 +280,16 @@ const AsmAllowedStorePage = () => {
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass p-6 rounded-3xl border border-gray-800">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
-            <Package className="text-amber-400" size={28} /> ASM Allowed Stock Movement
-          </h1>
-          <p className="text-xs text-gray-400 mt-1">
-            Store ↔ ASM Stock Handover & Verification Return System
-          </p>
+        <div className="flex items-center gap-4">
+          <BackButton />
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
+              <Package className="text-amber-400" size={28} /> ASM Allowed Stock Movement
+            </h1>
+            <p className="text-xs text-gray-400 mt-1">
+              Store ↔ ASM Stock Handover & Verification Return System
+            </p>
+          </div>
         </div>
 
         {/* Tab Navigation */}

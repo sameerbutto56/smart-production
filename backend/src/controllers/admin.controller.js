@@ -16,7 +16,7 @@ const clearAllData = async (req, res) => {
     }
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid password. Action unauthorized.' });
+      return res.status(400).json({ message: 'Invalid password. Action unauthorized.' });
     }
     await prisma.stockRequest.deleteMany({});
     await prisma.auditLog.deleteMany({});
@@ -36,7 +36,7 @@ const togglePause = async (req, res) => {
     const admin = await prisma.user.findUnique({ where: { id: adminId } });
     if (!admin) return res.status(404).json({ message: 'Admin not found' });
     const isPasswordValid = await bcrypt.compare(password, admin.password);
-    if (!isPasswordValid) return res.status(401).json({ message: 'Invalid password.' });
+    if (!isPasswordValid) return res.status(400).json({ message: 'Invalid password.' });
     const existing = await prisma.systemSetting.findUnique({ where: { key: 'SYSTEM_PAUSED' } });
     const currentPaused = existing ? existing.value === 'true' : false;
     const newPaused = !currentPaused;
@@ -219,7 +219,7 @@ const changeUserPassword = async (req, res) => {
     // Verify admin's own password
     const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!admin || !(await bcrypt.compare(adminPassword, admin.password))) {
-      return res.status(401).json({ message: 'Admin password is incorrect' });
+      return res.status(400).json({ message: 'Admin password is incorrect' });
     }
 
     // Find target user

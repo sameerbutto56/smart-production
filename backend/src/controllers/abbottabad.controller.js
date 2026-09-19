@@ -37,7 +37,7 @@ const verifyAbbottabadPassword = async (req, res) => {
     const storedHash = await getOrInitPasswordHash();
     const isMatch = await bcrypt.compare(password, storedHash);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid Abbottabad password. Access denied.' });
+      return res.status(400).json({ success: false, message: 'Invalid Abbottabad password. Access denied.' });
     }
 
     const token = jwt.sign(
@@ -73,7 +73,7 @@ const changeAbbottabadPassword = async (req, res) => {
     if (currentPassword) {
       const isMatch = await bcrypt.compare(currentPassword, storedHash);
       if (!isMatch) {
-        return res.status(401).json({ message: 'Current password is incorrect' });
+        return res.status(400).json({ success: false, message: 'Current password is incorrect' });
       }
     }
 
@@ -90,9 +90,14 @@ const changeAbbottabadPassword = async (req, res) => {
   }
 };
 
-// Middleware to guard sensitive Abbottabad cost endpoints
 const requireAbbottabadAuth = async (req, res, next) => {
   try {
+    const role = req.user?.role;
+    // OUTLET role has operational access to POS demands and amount state without cost info (canSeeCost is false)
+    if (role === 'OUTLET') {
+      return next();
+    }
+
     const token = req.headers['x-abbottabad-token'] || req.query.abbottabadToken;
     if (!token) {
       return res.status(403).json({

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Package, RotateCcw, RefreshCw, Factory, Eye, Box, Undo2, CheckCircle2, Truck, Search as SearchIcon } from 'lucide-react';
@@ -307,6 +308,7 @@ const StoreReturns = ({ refreshKey }) => {
     <div className="space-y-4 md:space-y-8 pb-20 px-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6">
         <div className="flex items-center space-x-4">
+          <BackButton />
           <div className="p-4 bg-rose-600 rounded-2xl shadow-xl shadow-rose-900/20 -rotate-2">
             <RotateCcw className="text-white" size={28} />
           </div>

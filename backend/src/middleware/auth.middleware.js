@@ -4,7 +4,8 @@ const authenticate = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ message: 'No token provided' });
+    res.set('X-Token-Error', 'missing');
+    return res.status(401).json({ message: 'No token provided', code: 'NO_TOKEN' });
   }
 
   try {
@@ -12,7 +13,8 @@ const authenticate = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ message: 'Invalid token' });
+    res.set('X-Token-Error', 'invalid');
+    return res.status(401).json({ message: 'Invalid token', code: 'INVALID_TOKEN' });
   }
 };
 

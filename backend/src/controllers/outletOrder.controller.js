@@ -1474,14 +1474,14 @@ const verifyOutletEmployee = async (req, res) => {
     });
 
     if (!employee) {
-      return res.status(401).json({ message: `No employee "${empName}" found at ${outletName}` });
+      return res.status(400).json({ ok: false, message: `No employee "${empName}" found at ${outletName}` });
     }
     if (!employee.isActive) {
-      return res.status(403).json({ message: `Employee "${empName}" is not active. Contact Admin.` });
+      return res.status(403).json({ ok: false, message: `Employee "${empName}" is not active. Contact Admin.` });
     }
     const match = await bcrypt.compare(empPass, employee.password);
     if (!match) {
-      return res.status(401).json({ message: 'Incorrect password. Please try again.' });
+      return res.status(400).json({ ok: false, message: 'Incorrect password. Please try again.' });
     }
 
     res.json({ ok: true, employee: { id: employee.id, name: employee.name, outletName: employee.outletName } });

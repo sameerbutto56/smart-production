@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { Package, RefreshCw, CheckCircle, XCircle, Eye, Search, Plus, Trash2, Send, FileText, RotateCcw, Clock, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -543,6 +544,7 @@ const FaisalReplacements = ({ refreshKey }) => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6">
         <div className="flex items-center space-x-4">
+          <BackButton />
           <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-900/20 -rotate-2">
             <Package className="text-white" size={28} />
           </div>

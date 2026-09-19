@@ -100,10 +100,19 @@ const JoharTownGatePassRoute = ({ children }) => {
   return children;
 };
 
+const AdminBlockedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
+  const role = String(user?.role || '').toUpperCase().trim();
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace />;
+  return children;
+};
+
 const OfficeSupplyRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   const role = String(user?.role || '').toUpperCase().trim();
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace />;
   if (role === 'OUTLET') {
     const n = String(user?.name || '').toLowerCase();
     const isJohar = n.includes('johar') || user?.name?.includes('1');
@@ -230,11 +239,11 @@ function App() {
                   <Route path="order-cancellations" element={<OrderCancellations />} />
                   <Route path="order-cancellation" element={<FaisalOrderCancellation />} />
                   <Route path="software-settings" element={<SoftwareSettings />} />
-                  <Route path="postex-dashboard" element={<PostExDashboard />} />
+                  <Route path="postex-dashboard" element={<AdminBlockedRoute><PostExDashboard /></AdminBlockedRoute>} />
                   <Route path="demand-history" element={<DemandDeliveriesHistory />} />
-                  <Route path="asm" element={<AsmPage />} />
-                  <Route path="asm-allowed" element={<AsmAllowedStorePage />} />
-                  <Route path="vendors-admin" element={<VendorsPage />} />
+                  <Route path="asm" element={<AdminBlockedRoute><AsmPage /></AdminBlockedRoute>} />
+                  <Route path="asm-allowed" element={<AdminBlockedRoute><AsmAllowedStorePage /></AdminBlockedRoute>} />
+                  <Route path="vendors-admin" element={<AdminBlockedRoute><VendorsPage /></AdminBlockedRoute>} />
                   <Route path="office-supply" element={<OfficeSupplyRoute><OfficeSupply /></OfficeSupplyRoute>} />
                 </Route>
               </Routes>

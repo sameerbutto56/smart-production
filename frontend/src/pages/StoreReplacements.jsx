@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Package, RefreshCw, CheckCircle, Eye, Undo2, Printer, Check, Minus, Plus } from 'lucide-react';
@@ -194,6 +195,7 @@ const StoreReplacements = ({ refreshKey }) => {
     <div className="space-y-4 md:space-y-8 pb-20 px-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6">
         <div className="flex items-center space-x-4">
+          <BackButton />
           <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-900/20 -rotate-2">
             <Package className="text-white" size={28} />
           </div>

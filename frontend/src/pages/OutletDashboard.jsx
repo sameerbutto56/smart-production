@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
@@ -149,7 +151,19 @@ const EmptyState = ({ icon: Icon, title, sub }) => (
 const OutletDashboard = () => {
   const { user } = useAuth();
   const outletName = getOutletName(user);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'dashboard';
+  const setActiveTab = (tabId) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (!tabId || tabId === 'dashboard') {
+        next.delete('tab');
+      } else {
+        next.set('tab', tabId);
+      }
+      return next;
+    });
+  };
   const [showTabDropdown, setShowTabDropdown] = useState(false);
   const [datePreset, setDatePreset] = useState('today');
   const [analytics, setAnalytics] = useState(null);
@@ -763,6 +777,7 @@ const OutletDashboard = () => {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
+          <BackButton />
           <div className="p-2.5 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-2xl shadow-lg shadow-blue-600/20">
             <LayoutDashboard className="text-white" size={20} />
           </div>
@@ -798,6 +813,18 @@ const OutletDashboard = () => {
           )}
         </div>
       </div>
+
+      {activeTab !== 'dashboard' && (
+        <div className="flex items-center justify-between p-3 bg-gray-800/60 border border-gray-700/50 rounded-xl">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className="flex items-center gap-2 text-xs font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-wider"
+          >
+            ← Back to Overview
+          </button>
+          <span className="text-xs font-bold text-gray-400 capitalize">{activeTab.replace(/-/g, ' ')}</span>
+        </div>
+      )}
 
       {activeTab === 'dashboard' && renderDashboardTab()}
 

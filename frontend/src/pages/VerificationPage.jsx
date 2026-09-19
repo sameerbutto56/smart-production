@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import api from '../services/api';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
+import BackButton from '../components/BackButton';
 import { Shield, Search, CheckCircle, Clock, User, Phone, Package, FileText, ChevronDown, ChevronUp, AlertCircle, DollarSign, ArrowRight, History, Scissors, Star, Ruler, MessageSquare, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
@@ -269,6 +270,7 @@ const VerificationPage = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
+          <BackButton />
           <div className="p-3 bg-amber-600 rounded-2xl"><Shield size={24} className="text-white" /></div>
           <div>
             <h1 className="text-2xl font-black text-white">Order Verification</h1>
@@ -465,7 +467,7 @@ const VerificationPage = () => {
       {/* Verify Modal */}
       {verifyModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setVerifyModal(null)}>
-          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <CheckCircle size={20} className="text-emerald-400" />
               <h3 className="text-lg font-black text-white">Verify Order</h3>
@@ -502,7 +504,7 @@ const VerificationPage = () => {
       {/* Return to Faisal Modal */}
       {returnModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setReturnModal(null)}>
-          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <ArrowLeft size={20} className="text-amber-400" />
               <h3 className="text-lg font-black text-white">Return to Faisal</h3>
@@ -543,7 +545,7 @@ const VerificationPage = () => {
       {/* Cancellation Request Modal */}
       {cancelModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setCancelModal(null)}>
-          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-700 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <AlertCircle size={20} className="text-red-400" />
               <h3 className="text-lg font-black text-white">Request Cancellation</h3>

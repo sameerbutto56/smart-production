@@ -65,9 +65,11 @@ app.use('/api/inventory', heavyLimiter);
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Allow CDN/browser caching for GET API responses (5s) to reduce duplicate requests
+// Prevent shared CDN edges (e.g. Vercel) and browsers from caching authenticated API responses
 app.use('/api', (req, res, next) => {
-  if (req.method === 'GET') res.set('Cache-Control', 'public, max-age=5, s-maxage=10');
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   next();
 });
 

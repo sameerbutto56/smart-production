@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import toast from 'react-hot-toast';
+import BackButton from '../components/BackButton';
 
 const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry', STORE: 'Store', WORKERS: 'Workers',
@@ -73,6 +74,7 @@ const FaisalOrderCancellation = () => {
   return (
     <div className="p-2 md:p-4 max-w-4xl mx-auto space-y-4">
       <div>
+        <BackButton className="mb-3" />
         <h1 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
           <PackageX size={18} className="text-red-400" /> Order Cancellation
         </h1>
@@ -306,7 +308,7 @@ const FaisalOrderCancellation = () => {
       {/* Cancel / Re-Cancel modal */}
       {showCancelModal && order && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCancelModal(false)}>
-          <div className="bg-gray-900 border-2 border-red-900/60 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-gray-900 border-2 border-red-900/60 rounded-2xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <AlertTriangle size={22} className="text-red-400" />
               <h3 className="text-lg font-black text-white">

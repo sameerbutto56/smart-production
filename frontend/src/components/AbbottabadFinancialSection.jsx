@@ -241,6 +241,17 @@ const AbbottabadFinancialSection = ({ isOutlet = false, onBack, onLogout }) => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-gray-800">
           <div>
             <div className="flex items-center space-x-3">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-800/90 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 group mr-1"
+                  title="Go Back"
+                >
+                  <ArrowLeft size={14} className="text-gray-400 group-hover:text-white transition-transform group-hover:-translate-x-0.5" />
+                  <span>Back</span>
+                </button>
+              )}
               <div className="p-3 bg-teal-500/10 border border-teal-500/30 rounded-2xl text-teal-400">
                 <DollarSign size={24} />
               </div>
@@ -343,7 +354,7 @@ const AbbottabadFinancialSection = ({ isOutlet = false, onBack, onLogout }) => {
         {/* Summary Metric Cards */}
         {isOutlet ? (
           /* Abbottabad Profile Metrics (No cost leakage; includes ledger & demand counts) */
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-6">
             {/* 1. Product Value */}
             <div className="p-4 rounded-2xl bg-gray-900/80 border border-gray-800">
               <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
@@ -417,7 +428,7 @@ const AbbottabadFinancialSection = ({ isOutlet = false, onBack, onLogout }) => {
           </div>
         ) : (
           /* Admin View (Includes internal cost prices) */
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-6">
             <div className="p-4 rounded-2xl bg-gray-900/80 border border-gray-800">
               <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
                 Product Value

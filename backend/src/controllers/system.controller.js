@@ -31,7 +31,7 @@ const verifyPassword = async (req, res) => {
     }
     const ok = await bcrypt.compare(password, admin.password);
     if (!ok) {
-      res.status(401).json({ message: 'Invalid password. Action unauthorized.' });
+      res.status(400).json({ message: 'Invalid password. Action unauthorized.' });
       return null;
     }
     return admin;

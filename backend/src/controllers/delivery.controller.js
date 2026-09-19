@@ -1160,7 +1160,7 @@ const getDeliveryAnalytics = async (req, res) => {
 const submitDeposit = async (req, res) => {
   try {
     const deliveryBoy = req.user?.name;
-    if (!deliveryBoy) return res.status(401).json({ message: 'User not found' });
+    if (!deliveryBoy) return res.status(400).json({ message: 'User not found' });
 
     const { cashAmount, bankRef, depositDate, notes } = req.body;
     const cash = parseFloat(cashAmount) || 0;

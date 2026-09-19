@@ -13,6 +13,10 @@ api.interceptors.request.use(config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const abbottabadToken = sessionStorage.getItem('abbottabad_token');
+  if (abbottabadToken) {
+    config.headers['x-abbottabad-token'] = abbottabadToken;
+  }
   // Attach AbortController for GET requests — old in-flight requests are cancelled on duplicate
   if (config.method === 'get' && !config.signal) {
     const controller = new AbortController();
@@ -48,7 +52,33 @@ api.interceptors.response.use(
     if (axios.isCancel(error)) {
       return Promise.reject(new Error('CANCELLED'));
     }
-    if (error.response?.status === 401 && window.location.pathname !== '/login') {
+    const url = error.config?.url || '';
+    const msg = String(error.response?.data?.message || error.response?.data?.error || '').toLowerCase();
+    const isPasswordOrCredentialError =
+      msg.includes('password') ||
+      msg.includes('employee') ||
+      msg.includes('access denied') ||
+      msg.includes('credential') ||
+      msg.includes('incorrect');
+
+    const isSubAuthUrl =
+      url.includes('/verify-employee') ||
+      url.includes('/auth/verify') ||
+      url.includes('/journal/auth') ||
+      url.includes('/bank-deposits/auth') ||
+      url.includes('/change-password') ||
+      url.includes('/system-wipe') ||
+      url.includes('/toggle-pause') ||
+      url.includes('/system/pause') ||
+      url.includes('/system/resume');
+
+    const shouldSkipRedirect =
+      Boolean(error.config?.skipAuthRedirect) ||
+      Boolean(error.config?.headers?.['x-skip-auth-redirect']) ||
+      isSubAuthUrl ||
+      isPasswordOrCredentialError;
+
+    if (error.response?.status === 401 && window.location.pathname !== '/login' && !shouldSkipRedirect) {
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('user');
       delete axios.defaults.headers.common['Authorization'];

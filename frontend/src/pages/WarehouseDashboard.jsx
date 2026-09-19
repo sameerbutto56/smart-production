@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
 import {
@@ -29,7 +31,19 @@ const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERA
 
 const WarehouseDashboard = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'dashboard';
+  const setActiveTab = (tabId) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (!tabId || tabId === 'dashboard') {
+        next.delete('tab');
+      } else {
+        next.set('tab', tabId);
+      }
+      return next;
+    });
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [personName, setPersonName] = useState('');
   const [allocationLoading, setAllocationLoading] = useState(false);
@@ -519,6 +533,7 @@ const WarehouseDashboard = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6">
         <div className="flex items-center space-x-4">
+          <BackButton />
           <div className="p-4 bg-amber-600 rounded-2xl shadow-xl shadow-amber-900/20 -rotate-2">
             <Building2 className="text-white" size={28} />
           </div>

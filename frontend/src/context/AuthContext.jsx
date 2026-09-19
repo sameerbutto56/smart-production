@@ -119,6 +119,8 @@ export const AuthProvider = ({ children }) => {
     resetSocket();
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
+    sessionStorage.removeItem('abbottabad_token');
+    delete api.defaults.headers.common['x-abbottabad-token'];
     setUser(null);
   }, []);
 
