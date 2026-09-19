@@ -107,6 +107,7 @@ export function isProductGenderApplicable(product, category = null) {
     prodName.includes('BOTTLE') ||
     prodName.includes('UNSTICH') ||
     prodName.includes('UNSTITCHED') ||
+    prodName.includes('FABRIC') ||
     prodName.includes('BAG') ||
     prodName.includes('SLEEVES') ||
     prodName.includes('SOCK') ||
@@ -126,7 +127,17 @@ export function isProductGenderApplicable(product, category = null) {
     prodName.includes('TROUSER') ||
     prodName.includes('JOGGER') ||
     prodName.includes('JACKET') ||
-    prodName.includes('TEE')
+    prodName.includes('TEE') ||
+    prodName.includes('INNER T') ||
+    prodName.includes('INNER-T') ||
+    prodName.includes('INNER') ||
+    prodName.includes('SUIT') ||
+    prodName.includes('UNIFORM') ||
+    /\bMEN\b/.test(prodName) ||
+    /\bWOMEN\b/.test(prodName) ||
+    /\bLADIES\b/.test(prodName) ||
+    /\bGENTS\b/.test(prodName) ||
+    /\bUNISEX\b/.test(prodName)
   ) {
     return true;
   }

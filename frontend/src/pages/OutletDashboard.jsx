@@ -252,25 +252,29 @@ const OutletDashboard = () => {
     }
   }, []);
 
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (showFeedback = false) => {
     setTasksLoading(true);
     try {
       const res = await api.get('/api/outlet-orders/tasks');
-      setTasks(res.data);
+      setTasks(res.data || []);
+      if (showFeedback) toast.success('Tasks refreshed');
     } catch (e) {
       console.error('Tasks error:', e);
+      if (showFeedback) toast.error('Failed to refresh tasks');
     } finally {
       setTasksLoading(false);
     }
   }, []);
 
-  const fetchAlterationTasks = useCallback(async () => {
+  const fetchAlterationTasks = useCallback(async (showFeedback = false) => {
     setAlterationTasksLoading(true);
     try {
       const res = await api.get('/api/alterations/outlet-tasks');
-      setAlterationTasks(res.data);
+      setAlterationTasks(res.data || []);
+      if (showFeedback) toast.success('Alteration tasks refreshed');
     } catch (e) {
       console.error('Alteration tasks error:', e);
+      if (showFeedback) toast.error('Failed to refresh alteration tasks');
     } finally {
       setAlterationTasksLoading(false);
     }
@@ -996,8 +1000,14 @@ const OutletDashboard = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-400">{tasks.length} order{tasks.length !== 1 ? 's' : ''} returned to outlet</p>
-            <button onClick={fetchTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all border border-gray-700/50">
-              <RefreshCcw size={14} /> Refresh
+            <button
+              onClick={() => fetchTasks(true)}
+              disabled={tasksLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 disabled:opacity-50 transition-all border border-gray-700/50"
+              title="Refresh outlet tasks"
+            >
+              <RefreshCcw size={14} className={tasksLoading ? 'animate-spin text-blue-400' : ''} />
+              <span>{tasksLoading ? 'Refreshing…' : 'Refresh'}</span>
             </button>
           </div>
 
@@ -1072,8 +1082,14 @@ const OutletDashboard = () => {
         <div className="space-y-4 mt-6">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-400">{alterationTasks.length} alteration{alterationTasks.length !== 1 ? 's' : ''} returned</p>
-            <button onClick={fetchAlterationTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all border border-gray-700/50">
-              <RefreshCcw size={14} /> Refresh
+            <button
+              onClick={() => fetchAlterationTasks(true)}
+              disabled={alterationTasksLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 disabled:opacity-50 transition-all border border-gray-700/50"
+              title="Refresh alterations"
+            >
+              <RefreshCcw size={14} className={alterationTasksLoading ? 'animate-spin text-purple-400' : ''} />
+              <span>{alterationTasksLoading ? 'Refreshing…' : 'Refresh'}</span>
             </button>
           </div>
 

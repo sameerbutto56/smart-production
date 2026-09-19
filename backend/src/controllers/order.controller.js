@@ -6,7 +6,7 @@ const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
 const { dateBoundToMs, normalizeDateOnly, resolvePktDateRange } = require('../utils/workingHours');
-const { isProductGenderApplicable, getCategoryConfigs } = require('../utils/productConfig');
+const { isProductGenderApplicable, resolveProductGenderApplicability, getCategoryConfigs } = require('../utils/productConfig');
 const XLSX = require('xlsx');
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
@@ -356,19 +356,36 @@ const createOrder = async (req, res) => {
       ? items
       : [{ productDetails: productDetails || { productType: req.body.productType, category: req.body.category }, gender: req.body.gender }];
 
+    const checkProductTypes = [...new Set(itemsToCheck.map(i => {
+      const pd = i.productDetails || i;
+      return (pd.productType || pd.name || '').trim();
+    }).filter(Boolean))];
+
+    const checkInventoryItems = checkProductTypes.length > 0
+      ? await prisma.inventoryItem.findMany({
+          where: {
+            OR: checkProductTypes.map(p => ({ name: { contains: p, mode: 'insensitive' } }))
+          },
+          select: { id: true, name: true, category: true, genderApplicable: true }
+        })
+      : [];
+
     for (const item of itemsToCheck) {
       const pd = item.productDetails || item;
-      const isGenderReq = isProductGenderApplicable(item, null, categoryConfigs);
+      const isGenderReq = await resolveProductGenderApplicability(item, checkInventoryItems, categoryConfigs);
 
       if (isGenderReq) {
-        const g = pd?.gender || item.gender;
-        if (!g || typeof g !== 'string' || !['Male', 'Female'].includes(g.trim())) {
+        const rawG = pd?.gender || item.gender || req.body.gender;
+        const g = typeof rawG === 'string' ? rawG.trim() : '';
+        if (!g || !['Male', 'Female'].includes(g)) {
           return res.status(400).json({ message: 'Select the gender.', error: 'Select the gender.' });
         }
+        if (pd) pd.gender = g;
+        if (item) item.gender = g;
       } else {
         // Non-gender products must have gender set to null
-        if (pd && pd.gender !== undefined) pd.gender = null;
-        if (item && item.gender !== undefined) item.gender = null;
+        if (pd) pd.gender = null;
+        if (item) item.gender = null;
       }
     }
   }
@@ -508,8 +525,14 @@ const createOrder = async (req, res) => {
           }
         }
         const qty = item.quantity || 1;
+        const itemGender = pd.gender || item.gender || null;
+        if (pd) {
+          pd.gender = itemGender;
+          if (!pd.category && inventoryItem?.category) pd.category = inventoryItem.category;
+        }
         processedItems.push({
           productDetails: pd,
+          gender: itemGender,
           customization: item.customization,
           sizeData: item.sizeData,
           quantity: qty,
@@ -527,6 +550,9 @@ const createOrder = async (req, res) => {
       // Keep the first item's customization & sizeData as the primary for backward compat
       finalCustomization = items[0].customization || customization;
       finalSizeData = items[0].sizeData || sizeData;
+    } else if (finalProductDetails && typeof finalProductDetails === 'object' && !Array.isArray(finalProductDetails)) {
+      const singleGender = finalProductDetails.gender || req.body.gender || null;
+      finalProductDetails.gender = singleGender;
     }
 
     // Calculate branding/logo charges

@@ -17,7 +17,7 @@ const MyTasks = () => {
   const { user } = useAuth();
   if (user?.role === 'INVENTORY_VIEW') return <Navigate to="/inventory" replace={true} />;
   const { t, LanguageToggle, isUrdu } = useLanguage();
-  const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'OUTLET'].includes(user?.role);
+  const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'OUTLET', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY'].includes(user?.role);
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
   const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';
@@ -233,6 +233,11 @@ const MyTasks = () => {
 
   // Manual refetch — called after user actions or via Refresh button
   const refreshTasks = useCallback(async (showFeedback = false) => {
+    if (refreshing) return;
+    if (debouncedRefresh.current) {
+      clearTimeout(debouncedRefresh.current);
+      debouncedRefresh.current = null;
+    }
     setRefreshing(true);
     try {
       const promises = [];
@@ -247,15 +252,21 @@ const MyTasks = () => {
         promises.push(fetchEngTasks());
         promises.push(fetchComeFromProduction());
       }
-      await Promise.all(promises);
-      if (showFeedback) toast.success('Tasks refreshed');
+      const results = await Promise.allSettled(promises);
+      const hasFailure = results.some(r => r.status === 'rejected');
+      if (hasFailure) {
+        console.warn('Some tasks failed to refresh:', results.filter(r => r.status === 'rejected'));
+        if (showFeedback) toast.error('Some task data failed to refresh. Please retry.');
+      } else {
+        if (showFeedback) toast.success('Tasks refreshed');
+      }
     } catch (err) {
       console.error('Refresh tasks failed:', err);
       if (showFeedback) toast.error('Failed to refresh tasks');
     } finally {
       setRefreshing(false);
     }
-  }, [hasTaskFilters, showProductionTab, isOutlet, refreshUnseen, refreshProduction, refreshOrders, fetchAltTasks, fetchEngTasks, fetchComeFromProduction]);
+  }, [refreshing, hasTaskFilters, showProductionTab, isOutlet, refreshUnseen, refreshProduction, refreshOrders, fetchAltTasks, fetchEngTasks, fetchComeFromProduction]);
 
   // Debounced refresh — prevents rapid re-fetches when multiple socket events fire
   const debouncedRefresh = useRef(null);
@@ -788,8 +799,14 @@ const MyTasks = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-400">{altTasks.length} completed alteration{altTasks.length !== 1 ? 's' : ''} returned</p>
-                <button onClick={fetchAltTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50">
-                  <RefreshCcw size={14} /> Refresh
+                <button
+                  onClick={() => refreshTasks(true)}
+                  disabled={refreshing || altTasksLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 disabled:opacity-50 border border-gray-700/50 transition-all"
+                  title="Refresh alterations"
+                >
+                  <RefreshCcw size={14} className={(refreshing || altTasksLoading) ? 'animate-spin text-purple-400' : ''} />
+                  <span>{(refreshing || altTasksLoading) ? 'Refreshing…' : 'Refresh'}</span>
                 </button>
               </div>
               {altTasksLoading ? (
@@ -838,8 +855,14 @@ const MyTasks = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-400">{engTasks.length} completed engraving{engTasks.length !== 1 ? 's' : ''} returned</p>
-                <button onClick={fetchEngTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50">
-                  <RefreshCcw size={14} /> Refresh
+                <button
+                  onClick={() => refreshTasks(true)}
+                  disabled={refreshing || engTasksLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 disabled:opacity-50 border border-gray-700/50 transition-all"
+                  title="Refresh engravings"
+                >
+                  <RefreshCcw size={14} className={(refreshing || engTasksLoading) ? 'animate-spin text-cyan-400' : ''} />
+                  <span>{(refreshing || engTasksLoading) ? 'Refreshing…' : 'Refresh'}</span>
                 </button>
               </div>
               {engTasksLoading ? (

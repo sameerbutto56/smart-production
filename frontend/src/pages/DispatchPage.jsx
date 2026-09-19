@@ -11,7 +11,7 @@ import { debounce } from '../utils/debounce';
 import { printDispatchSheet } from '../utils/printReport';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
-import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck } from 'lucide-react';
+import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck, RefreshCw } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 
@@ -469,6 +469,24 @@ const DispatchPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={async () => {
+              if (loading) return;
+              try {
+                await doRefresh();
+                if (fetchStats) await fetchStats();
+                toast.success('Dispatch tasks refreshed');
+              } catch (e) {
+                toast.error('Failed to refresh dispatch tasks');
+              }
+            }}
+            disabled={loading}
+            className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border border-gray-700/50 shadow-sm"
+            title="Refresh dispatch tasks"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-purple-400' : ''} />
+            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
           {isEmployeeMode && (
             <button onClick={() => navigate('/chat')}
               className="px-4 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5">

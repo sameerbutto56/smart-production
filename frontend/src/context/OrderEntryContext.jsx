@@ -493,7 +493,7 @@ export const OrderEntryProvider = ({ children }) => {
             customizationPrice: parseFloat(item.customizationPrice) || 0,
             productDetails: {
               ...pdItem, productType: pdItem.productType || '', fabricType: pdItem.fabricType || '',
-              color: pdItem.color || '', size: pdItem.size || '', gender: pdItem.gender || 'Male',
+              color: pdItem.color || '', size: pdItem.size || '', gender: pdItem.gender || null,
               femaleOptions: pdItem.femaleOptions || null, sleeveLength: pdItem.sleeveLength || '',
               shirtLength: pdItem.shirtLength || '', matchingCap: pdItem.matchingCap || false,
               matchingCapQty: pdItem.matchingCapQty || 0,
@@ -576,15 +576,19 @@ export const OrderEntryProvider = ({ children }) => {
       if (externalPayload) {
         payload = externalPayload;
       } else {
-        if (cartItems.length === 0) { setError('No items in the edit request.'); setLoading(false); setIsSubmitting(false); return; }
-        const finalItems = cartItems.map(item => ({
-          productDetails: { ...item.productDetails, gender: formData.gender },
-          customization: item.customization || {}, sizeData: item.sizeData || {},
-          quantity: parseInt(item.quantity) || 1, totalPrice: parseFloat(item.totalPrice) || 0,
-          logoName: item.logoName || '', logoDesign: item.logoDesign || '',
-          logoCharges: parseFloat(item.logoCharges) || 0, namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
-          customizationPrice: parseFloat(item.customizationPrice) || 0, capCharges: parseInt(item.capCharges) || 0
-        }));
+        const finalItems = cartItems.map(item => {
+          const itemPd = item.productDetails || {};
+          const itemGender = itemPd.gender || item.gender || null;
+          return {
+            productDetails: { ...itemPd, gender: itemGender },
+            gender: itemGender,
+            customization: item.customization || {}, sizeData: item.sizeData || {},
+            quantity: parseInt(item.quantity) || 1, totalPrice: parseFloat(item.totalPrice) || 0,
+            logoName: item.logoName || '', logoDesign: item.logoDesign || '',
+            logoCharges: parseFloat(item.logoCharges) || 0, namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+            customizationPrice: parseFloat(item.customizationPrice) || 0, capCharges: parseInt(item.capCharges) || 0
+          };
+        });
         payload = {
           requestedChanges: {
             customerName: formData.customerName, customerPhone: formData.customerPhone, address: formData.address,
@@ -884,13 +888,19 @@ export const OrderEntryProvider = ({ children }) => {
         }
       }
 
-      const finalItems = cartItems.map(item => ({
-        productDetails: item.productDetails, customization: item.customization || {}, sizeData: item.sizeData || {},
-        quantity: parseInt(item.quantity) || 1, totalPrice: parseFloat(item.totalPrice) || 0,
-        logoName: item.logoName || '', logoDesign: item.logoDesign || '',
-        logoCharges: parseFloat(item.logoCharges) || 0, namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
-        customizationPrice: parseFloat(item.customizationPrice) || 0, capCharges: parseInt(item.capCharges) || 0
-      }));
+      const finalItems = cartItems.map(item => {
+        const itemPd = item.productDetails || {};
+        const itemGender = itemPd.gender || item.gender || null;
+        return {
+          productDetails: { ...itemPd, gender: itemGender },
+          gender: itemGender,
+          customization: item.customization || {}, sizeData: item.sizeData || {},
+          quantity: parseInt(item.quantity) || 1, totalPrice: parseFloat(item.totalPrice) || 0,
+          logoName: item.logoName || '', logoDesign: item.logoDesign || '',
+          logoCharges: parseFloat(item.logoCharges) || 0, namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+          customizationPrice: parseFloat(item.customizationPrice) || 0, capCharges: parseInt(item.capCharges) || 0
+        };
+      });
       const firstItem = cartItems[0];
       const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
       const calcLogo = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
@@ -916,6 +926,7 @@ export const OrderEntryProvider = ({ children }) => {
         customizationPrice: cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0),
         deliveryCharges: calcDelivery, deliveryType: formData.deliveryType || 'DELIVERY',
         discount: parseFloat(formData.adjDiscount) || 0,
+        gender: finalItems[0]?.productDetails?.gender || finalItems[0]?.gender || null,
         items: finalItems, productDetails: finalItems[0].productDetails,
         customization: finalItems[0].customization, sizeData: finalItems[0].sizeData,
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
@@ -1062,6 +1073,9 @@ export const OrderEntryProvider = ({ children }) => {
       }
       return price * (formData.quantity || 1);
     })();
+    const isGenReq = isGenderApplicable(selectedProduct || formData.productType, selectedProductCategory);
+    const chosenGender = isGenReq ? (formData.gender || null) : null;
+    const itemCategory = selectedProduct?.category || selectedProductCategory || null;
     const payload = {
       orderNumber: formData.orderNumber, customerName: formData.customerName, customerPhone: formData.customerPhone,
       address: formData.address, city: formData.city, type: formData.type, priority: formData.priority,
@@ -1073,11 +1087,14 @@ export const OrderEntryProvider = ({ children }) => {
       logoCharges: parseFloat(formData.logoCharges) || 0,
       namePrintingCharges: parseFloat(formData.namePrintingCharges) || 0,
       customizationPrice: parseFloat(formData.customizationPrice) || 0,
+      gender: chosenGender,
       productDetails: {
         productType: formData.productType || formData.customProductName,
+        category: itemCategory,
+        genderApplicable: isGenReq,
+        gender: chosenGender,
         fabricType: formData.fabricType || formData.customFabric,
         color: formData.color || formData.customColor, size: formData.size,
-        gender: isGenderApplicable(selectedProduct || formData.productType, selectedProductCategory) ? (formData.gender || null) : null,
         femaleOptions: formData.femaleOptions, sleeveLength: formData.sleeveLength || '',
         shirtLength: formData.shirtLength || '', matchingCap: formData.matchingCap,
         matchingCapQty: formData.matchingCapQty,

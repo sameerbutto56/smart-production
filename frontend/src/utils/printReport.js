@@ -981,7 +981,9 @@ function parseJSON(data) {
 /** Normalize a cart item to its product object (handles both wrapped and flat formats) */
 const getItemProduct = (item) => {
   if (!item) return {};
-  if (item.productDetails) return item.productDetails;
+  if (item.productDetails && typeof item.productDetails === 'object') {
+    return { ...item.productDetails, gender: item.productDetails.gender || item.gender || null };
+  }
   if (item.name || item.productType || item.fabricType) return item;
   return {};
 };
@@ -1169,7 +1171,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const rawPd = parseJSON(order.productDetails);
   const allItems = Array.isArray(rawPd) ? rawPd : null;
   const isMultiItem = allItems && allItems.length > 0;
-  const firstProduct = isMultiItem ? getItemProduct(allItems[0]) : (rawPd || {});
+  const firstProduct = isMultiItem ? getItemProduct(allItems[0]) : getItemProduct(rawPd);
   const custom = parseJSON(order.customization);
   const rawSizes = parseJSON(order.sizeData);
   const isOutletSizeData = rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && Object.values(rawSizes).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra);
@@ -1719,7 +1721,7 @@ export function printDispatchSheet(order, options = {}) {
   win.document.write(`<div class="section-title" style="font-size:24px;margin-top:4px">Products</div>`);
   const rawPd = parseJSON(order.productDetails);
   const allItems = Array.isArray(rawPd) ? rawPd : null;
-  const firstProduct = allItems ? getItemProduct(allItems[0]) : (rawPd || {});
+  const firstProduct = allItems ? getItemProduct(allItems[0]) : getItemProduct(rawPd);
   const isMultiItem = allItems && allItems.length > 0;
 
   if (isMultiItem) {
@@ -1742,7 +1744,7 @@ export function printDispatchSheet(order, options = {}) {
     win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th>${showPrice ? '<th style="text-align:right">Price</th>' : ''}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name || '—')}</td>`);
-    win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
+    win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, genDisplay(firstProduct.gender)].filter(Boolean).join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showPrice) win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);

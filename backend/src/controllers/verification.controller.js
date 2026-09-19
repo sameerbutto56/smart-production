@@ -358,20 +358,26 @@ const resubmitFromVerification = async (req, res) => {
     }
 
     // If items array is provided, format it into productDetails
-    if (updateData.items && Array.isArray(updateData.items)) {
-      const items = updateData.items.map(item => ({
-        productDetails: item.productDetails,
-        customization: item.customization,
-        sizeData: item.sizeData,
-        quantity: item.quantity || 1,
-        totalPrice: item.totalPrice || 0,
-        logoName: item.logoName || '',
-        logoDesign: item.logoDesign || '',
-        logoCharges: parseFloat(item.logoCharges) || 0,
-        namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
-        customizationPrice: parseFloat(item.customizationPrice) || 0,
-        capCharges: parseInt(item.capCharges) || 0
-      }));
+    if (Array.isArray(updateData.items) && updateData.items.length > 0) {
+      const items = updateData.items.map(item => {
+        const pd = item.productDetails || {};
+        const itemGender = pd.gender || item.gender || null;
+        if (pd) pd.gender = itemGender;
+        return {
+          productDetails: pd,
+          gender: itemGender,
+          customization: item.customization,
+          sizeData: item.sizeData,
+          quantity: item.quantity || 1,
+          totalPrice: item.totalPrice || 0,
+          logoName: item.logoName || '',
+          logoDesign: item.logoDesign || '',
+          logoCharges: parseFloat(item.logoCharges) || 0,
+          namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+          customizationPrice: parseFloat(item.customizationPrice) || 0,
+          capCharges: parseInt(item.capCharges) || 0
+        };
+      });
       payload.productDetails = items;
       payload.quantity = items.reduce((s, i) => s + (i.quantity || 1), 0);
     }

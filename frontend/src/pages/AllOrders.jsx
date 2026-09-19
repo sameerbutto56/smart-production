@@ -1190,9 +1190,11 @@ const AllOrders = () => {
                             <span className="text-xs md:text-sm theme-text-muted font-medium uppercase">{isUrdu ? toUrduName(product.color) : product.color}</span>
                           </div>
                         )}
-                        <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
-                          {translateGender(product?.gender || 'MALE', isUrdu)}
-                        </span>
+                        {product?.gender && (
+                          <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                            {translateGender(product?.gender, isUrdu)}
+                          </span>
+                        )}
                         {product?.femaleOptions?.dupatta && (
                           <span className="text-xs md:text-sm font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
                         )}

@@ -149,6 +149,7 @@ function isProductGenderApplicable(item, inventoryItems = null, categoryConfigsM
     nameUpper.includes('BOTTLE') ||
     nameUpper.includes('UNSTICH') ||
     nameUpper.includes('UNSTITCHED') ||
+    nameUpper.includes('FABRIC') ||
     nameUpper.includes('BAG') ||
     nameUpper.includes('SLEEVES') ||
     nameUpper.includes('SOCK') ||
@@ -160,7 +161,7 @@ function isProductGenderApplicable(item, inventoryItems = null, categoryConfigsM
     return false;
   }
 
-  // 5. If product name contains apparel keywords
+  // 5. If product name contains apparel or gender-defining keywords
   if (
     nameUpper.includes('SCRUB') ||
     nameUpper.includes('COAT') ||
@@ -169,7 +170,17 @@ function isProductGenderApplicable(item, inventoryItems = null, categoryConfigsM
     nameUpper.includes('TROUSER') ||
     nameUpper.includes('JOGGER') ||
     nameUpper.includes('JACKET') ||
-    nameUpper.includes('TEE')
+    nameUpper.includes('TEE') ||
+    nameUpper.includes('INNER T') ||
+    nameUpper.includes('INNER-T') ||
+    nameUpper.includes('INNER') ||
+    nameUpper.includes('SUIT') ||
+    nameUpper.includes('UNIFORM') ||
+    /\bMEN\b/.test(nameUpper) ||
+    /\bWOMEN\b/.test(nameUpper) ||
+    /\bLADIES\b/.test(nameUpper) ||
+    /\bGENTS\b/.test(nameUpper) ||
+    /\bUNISEX\b/.test(nameUpper)
   ) {
     return true;
   }
@@ -178,10 +189,67 @@ function isProductGenderApplicable(item, inventoryItems = null, categoryConfigsM
   return false;
 }
 
+/**
+ * Asynchronously resolves gender applicability with DB inventory lookup fallback.
+ */
+async function resolveProductGenderApplicability(item, inventoryItems = null, categoryConfigsMap = null) {
+  if (!item) return false;
+
+  // First try synchronous resolution
+  const syncResult = isProductGenderApplicable(item, inventoryItems, categoryConfigsMap);
+  if (syncResult) return true;
+
+  const pd = item.productDetails || item;
+  const prodName = (pd.productType || pd.name || item.productType || item.name || '').trim();
+  if (!prodName) return false;
+
+  // Explicit non-gender keywords take absolute precedence
+  const nameUpper = prodName.toUpperCase();
+  if (
+    nameUpper.includes('CAP') ||
+    nameUpper.includes('BOTTLE') ||
+    nameUpper.includes('UNSTICH') ||
+    nameUpper.includes('UNSTITCHED') ||
+    nameUpper.includes('FABRIC') ||
+    nameUpper.includes('BAG') ||
+    nameUpper.includes('SLEEVES') ||
+    nameUpper.includes('SOCK') ||
+    nameUpper.includes('SHOE') ||
+    nameUpper.includes('CLOG') ||
+    nameUpper.includes('ENGRAVING') ||
+    nameUpper.includes('LOGO')
+  ) {
+    return false;
+  }
+
+  // Look up inventory item in DB if not found in pre-fetched inventoryItems
+  try {
+    const inv = await prisma.inventoryItem.findFirst({
+      where: {
+        OR: [
+          { name: { equals: prodName, mode: 'insensitive' } },
+          { name: { contains: prodName, mode: 'insensitive' } }
+        ]
+      },
+      select: { category: true, genderApplicable: true }
+    });
+
+    if (inv) {
+      if (typeof inv.genderApplicable === 'boolean') return inv.genderApplicable;
+      if (inv.category) return isCategoryGenderApplicable(inv.category, categoryConfigsMap);
+    }
+  } catch (err) {
+    console.error('resolveProductGenderApplicability DB lookup error:', err.message);
+  }
+
+  return false;
+}
+
 module.exports = {
   getCategoryConfigs,
   isCategoryGenderApplicable,
   isProductGenderApplicable,
+  resolveProductGenderApplicability,
   DEFAULT_GENDER_APPLICABLE_CATEGORIES,
   DEFAULT_NON_GENDER_CATEGORIES,
 };

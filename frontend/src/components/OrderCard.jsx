@@ -631,9 +631,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
                 {isFirst && (
                   <div className="flex flex-wrap gap-2 mt-3">
-                    <div className="px-2 py-1 bg-gray-800 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-                      GENDER: {translateGender(p?.gender, isUrdu) || 'N/A'}
-                    </div>
+                    {p?.gender && (
+                      <div className="px-2 py-1 bg-gray-800 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+                        GENDER: {translateGender(p?.gender, isUrdu)}
+                      </div>
+                    )}
                     {female.dupatta && (
                       <div className="px-2 py-1 bg-pink-900/20 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
                         + DUPATTA
@@ -2579,7 +2581,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   </td>
                                   <td className="py-4 px-4 uppercase">
                                     <div className="text-gray-300">
-                                      {p.size || 'Custom'} • {translateGender(p.gender, isUrdu) || 'MALE'}
+                                      {p.size || 'Custom'}{p.gender ? ` • ${translateGender(p.gender, isUrdu)}` : ''}
                                     </div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm font-black mt-0.5 text-pink-400">

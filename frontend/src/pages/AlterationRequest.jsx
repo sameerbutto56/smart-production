@@ -35,13 +35,19 @@ export default function AlterationRequest() {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (showFeedback = false) => {
     setTasksLoading(true);
     try {
       const res = await api.get('/api/alterations/outlet-tasks');
       setTasks(res.data);
+      if (showFeedback) {
+        toast.success('Alteration tasks refreshed');
+      }
     } catch (e) {
       console.error('Tasks error:', e);
+      if (showFeedback) {
+        toast.error('Failed to refresh alteration tasks');
+      }
     } finally {
       setTasksLoading(false);
     }
@@ -282,8 +288,14 @@ export default function AlterationRequest() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-400">{tasks.length} completed alteration{tasks.length !== 1 ? 's' : ''} returned</p>
-              <button onClick={fetchTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50">
-                <RefreshCcw size={14} /> Refresh
+              <button
+                onClick={() => fetchTasks(true)}
+                disabled={tasksLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh alteration tasks"
+              >
+                <RefreshCcw size={14} className={tasksLoading ? 'animate-spin text-purple-400' : 'text-gray-400'} />
+                <span>{tasksLoading ? 'Refreshing...' : 'Refresh'}</span>
               </button>
             </div>
 
