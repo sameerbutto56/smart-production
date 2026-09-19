@@ -73,28 +73,30 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     // 3. Fetch fresh from API (revalidation or cold load)
     const fn = fetcherRef.current;
     if (!fn) { setLoading(false); return; }
-    if (!hadCachedData && !skipCache) setLoading(true);
+    if ((!hadCachedData && !skipCache) || skipCache) setLoading(true);
     try {
       const freshData = await fn();
       if (!mountRef.current || reqRef.current !== reqId) return;
       // Skip replacing state when the refetched payload is semantically unchanged —
-      // prevents the whole list from re-rendering/flickering on every background poll
-      // (e.g. the 30s MyTasks refresh) when nothing actually changed.
-      if (sameData && sameData(dataRef.current, freshData)) {
+      // ONLY on background revalidations. If skipCache is true (manual refresh),
+      // always update state and cache so the user sees the latest data.
+      if (!skipCache && sameData && sameData(dataRef.current, freshData)) {
         lastFetchRef.current[currentKey] = Date.now();
         setHot(currentKey, freshData, ttl);
         await setItem(currentKey, freshData, ttl);
         setLoading(false);
-        return;
+        return freshData;
       }
       setData(freshData);
       setError(null);
       lastFetchRef.current[currentKey] = Date.now();
       setHot(currentKey, freshData, ttl);
       await setItem(currentKey, freshData, ttl);
+      return freshData;
     } catch (err) {
       if (!mountRef.current || reqRef.current !== reqId) return;
       setError(err);
+      throw err;
     } finally {
       if (mountRef.current && reqRef.current === reqId) setLoading(false);
     }

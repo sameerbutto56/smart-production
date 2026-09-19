@@ -3,6 +3,7 @@ const {
   createOrder, 
   getOrders, 
   getOrdersExport,
+  getDashboardSummary,
   requestStageCompletion, 
   approveStageCompletion, 
   rejectStageCompletion,
@@ -71,6 +72,9 @@ router.delete('/history', authenticate, authorize(['SUPER_ADMIN', 'FAISAL']), cl
 
 // List all orders (available to all authenticated users)
 router.get('/', authenticate, getOrders);
+
+// Fast dashboard summary aggregations (KPI cards and pipeline stage counts)
+router.get('/dashboard-summary', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), getDashboardSummary);
 
 // Excel export of the Orders screen (category/department/stage delay filters).
 // Registered before /:orderId so 'export' is never captured as an order id.

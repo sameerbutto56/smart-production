@@ -159,6 +159,8 @@ model Order {
   @@index([paymentStatus, createdAt])
   @@index([outletName, createdAt])
   @@index([currentStage, status])
+  @@index([currentStage, createdAt])
+  @@index([status, createdAt])
   @@index([type, createdAt])
   @@index([createdAt])
   @@index([invoiceNumber])
@@ -268,6 +270,8 @@ model OrderStage {
   @@index([status, deadlineAt])
   @@index([assignedEmployeeId])
   @@index([orderId, stageName])
+  @@index([orderId, status])
+  @@index([orderId, stageName, status])
 }
 
 model AuditLog {
@@ -1404,6 +1408,8 @@ model CustomerFeedback {
   mobileNumber  String
   emailAddress  String?
   outlet        String
+  outletId      String?
+  token         String?
   q1            Int
   q2            Int
   q3            Int
@@ -1419,7 +1425,21 @@ model CustomerFeedback {
   createdAt     DateTime @default(now())
 
   @@index([outlet])
+  @@index([outletId])
   @@index([createdAt])
+}
+
+model FeedbackToken {
+  id          String   @id @default(uuid())
+  outletName  String   @unique
+  token       String   @unique
+  barcode     String   @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([token])
+  @@index([outletName])
 }
 
 model BankDeposit {

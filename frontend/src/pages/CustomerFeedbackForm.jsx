@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Building2, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -23,7 +24,7 @@ const StarRating = ({ value, onChange }) => (
   <div className="flex gap-2">
     {[1, 2, 3, 4, 5].map(n => (
       <button key={n} type="button" onClick={() => onChange(n)}
-        className="w-11 h-11 sm:w-13 sm:h-13 rounded-xl font-black text-sm transition-all duration-200 flex items-center justify-center"
+        className="w-11 h-11 sm:w-13 sm:h-13 rounded-xl font-black text-sm transition-all duration-200 flex items-center justify-center cursor-pointer"
         style={{
           background: value === n ? RATING_COLORS[n] : 'rgba(255,255,255,0.06)',
           color: value === n ? '#fff' : value > n ? RATING_COLORS[n] : 'rgba(255,255,255,0.3)',
@@ -38,8 +39,12 @@ const StarRating = ({ value, onChange }) => (
 );
 
 const CustomerFeedbackForm = () => {
+  const [tokenInfo, setTokenInfo] = useState({ outlet: '', token: '', valid: false });
+  const [resolving, setResolving] = useState(true);
+  const [tokenError, setTokenError] = useState('');
+
   const [form, setForm] = useState({
-    fullName: '', mobileNumber: '', emailAddress: '', outlet: '',
+    fullName: '', mobileNumber: '', emailAddress: '',
     q1: 0, q2: 0, q3: 0, q4: 0, q5: 0, q6: 0, q7: 0, q8: 0, q9: 0, q10: 0,
     comments: '',
   });
@@ -47,18 +52,52 @@ const CustomerFeedbackForm = () => {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
+  // Resolve token on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || '';
+
+    const resolveToken = async () => {
+      setResolving(true);
+      setTokenError('');
+      try {
+        const res = await axios.get(`${API_BASE}/api/feedback/resolve-token`, {
+          params: token ? { token } : {},
+        });
+        if (res.data?.valid) {
+          setTokenInfo({
+            outlet: res.data.outlet,
+            token: res.data.token,
+            valid: true,
+          });
+        } else {
+          setTokenError(res.data?.message || 'Invalid feedback link. Please scan the official outlet QR code.');
+        }
+      } catch (err) {
+        setTokenError(err.response?.data?.message || 'Unable to verify feedback link. Please ask the outlet counter staff.');
+      } finally {
+        setResolving(false);
+      }
+    };
+
+    resolveToken();
+  }, []);
+
   const allRated = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].every(i => form[`q${i}`] > 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.fullName.trim()) return setError('Please enter your full name');
     if (!form.mobileNumber.trim()) return setError('Please enter your mobile number');
-    if (!form.outlet) return setError('Please select your outlet');
     if (!allRated) return setError('Please rate all 10 questions');
     setError('');
     setSubmitting(true);
     try {
-      await axios.post(`${API_BASE}/api/feedback`, form);
+      await axios.post(`${API_BASE}/api/feedback`, {
+        ...form,
+        token: tokenInfo.token,
+        outlet: tokenInfo.outlet,
+      });
       setSubmitted(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit feedback. Please try again.');
@@ -69,6 +108,35 @@ const CustomerFeedbackForm = () => {
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
+  // Loading state while resolving QR token
+  if (resolving) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #030712 100%)' }}>
+        <div className="text-center max-w-sm mx-auto">
+          <Loader2 className="animate-spin text-blue-500 mx-auto mb-4" size={40} />
+          <p className="text-white font-black text-base">Verifying Feedback Link…</p>
+          <p className="text-gray-400 font-bold text-xs mt-1">Connecting to official ENAMELS outlet portal</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Token error state
+  if (tokenError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #030712 100%)' }}>
+        <div className="text-center max-w-md mx-auto bg-white/5 border border-red-500/30 rounded-3xl p-8">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 border-2 border-red-500/40 flex items-center justify-center">
+            <AlertTriangle className="text-red-400" size={32} />
+          </div>
+          <h2 className="text-2xl font-black text-white mb-2">Invalid Feedback Link</h2>
+          <p className="text-gray-400 font-bold text-sm mb-6">{tokenError}</p>
+          <p className="text-gray-500 text-xs">Please ask the outlet counter staff to provide the active feedback QR code.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #030712 100%)' }}>
@@ -77,10 +145,10 @@ const CustomerFeedbackForm = () => {
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Thank You!</h1>
-          <p className="text-gray-400 font-bold text-lg mb-2">Your feedback has been submitted successfully.</p>
+          <p className="text-gray-400 font-bold text-lg mb-2">Your feedback has been submitted successfully for {tokenInfo.outlet}.</p>
           <p className="text-gray-500 font-bold text-sm">Your opinion matters and helps us improve our products and services.</p>
-          <button onClick={() => { setSubmitted(false); setForm({ fullName: '', mobileNumber: '', emailAddress: '', outlet: '', q1: 0, q2: 0, q3: 0, q4: 0, q5: 0, q6: 0, q7: 0, q8: 0, q9: 0, q10: 0, comments: '' }); }}
-            className="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-wider transition-all">
+          <button onClick={() => { setSubmitted(false); setForm({ fullName: '', mobileNumber: '', emailAddress: '', q1: 0, q2: 0, q3: 0, q4: 0, q5: 0, q6: 0, q7: 0, q8: 0, q9: 0, q10: 0, comments: '' }); }}
+            className="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-wider transition-all cursor-pointer">
             Submit Another
           </button>
         </div>
@@ -102,6 +170,21 @@ const CustomerFeedbackForm = () => {
           {/* Customer Info */}
           <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
             <h2 className="text-sm font-black text-white uppercase tracking-widest mb-2">Your Information</h2>
+
+            {/* Read-Only Verified Outlet Badge (Cannot be changed by customer) */}
+            <div className="bg-gradient-to-r from-blue-900/30 to-indigo-900/20 border border-blue-500/30 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block">Outlet Visited</span>
+                <span className="text-base font-black text-white flex items-center gap-2 mt-0.5">
+                  <Building2 size={16} className="text-blue-400" />
+                  {tokenInfo.outlet}
+                </span>
+              </div>
+              <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 size={12} /> Verified Outlet
+              </span>
+            </div>
+
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 block">Full Name *</label>
               <input type="text" value={form.fullName} onChange={e => updateField('fullName', e.target.value)}
@@ -120,21 +203,6 @@ const CustomerFeedbackForm = () => {
                 <input type="email" value={form.emailAddress} onChange={e => updateField('emailAddress', e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-sm outline-none focus:border-blue-500 transition-colors"
                   placeholder="Optional" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 block">Outlet Visited *</label>
-              <div className="grid grid-cols-3 gap-3">
-                {['Johar Town', 'Jail Road', 'Abbottabad'].map(outlet => (
-                  <button key={outlet} type="button" onClick={() => updateField('outlet', outlet)}
-                    className={`py-3 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider transition-all border ${
-                      form.outlet === outlet
-                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/30'
-                        : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
-                    }`}>
-                    {outlet}
-                  </button>
-                ))}
               </div>
             </div>
           </div>
@@ -178,7 +246,7 @@ const CustomerFeedbackForm = () => {
 
           {/* Submit */}
           <button type="submit" disabled={submitting}
-            className="w-full py-4 rounded-2xl font-black text-base uppercase tracking-widest transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-4 rounded-2xl font-black text-base uppercase tracking-widest transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff' }}>
             {submitting ? 'Submitting...' : 'Submit Feedback'}
           </button>

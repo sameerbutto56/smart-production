@@ -1647,7 +1647,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     )}
                     <div className="grid grid-cols-2 gap-2">
                       <button
-                        onClick={() => {
+                        onClick={() => withActionLoading('store-route', async () => {
                           if (nextStage === 'NOT_AVAILABLE') {
                             if (window.confirm('Mark items as NOT AVAILABLE?')) {
                               onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' });
@@ -1673,41 +1673,62 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
                             if (window.confirm(msg)) {
                               const availCount = (isMultiItem && orderItems?.length > 1) ? orderItems.length : 1;
-                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined, productAvailability: buildProductAvailability(availCount) });
+                              await onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined, productAvailability: buildProductAvailability(availCount) });
                             }
                           }
-                        }}
-                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                        })}
+                        disabled={!!actionLoading}
+                        className={`bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                       >
-                        <CheckCircle size={14} />
-                        <span>{nextStage === 'NOT_AVAILABLE' ? 'Mark as Not Available' : nextStage === 'REJECT' ? 'Reject Order' : nextStage === 'RETURN_ONLINE' ? 'Send back to Online' : nextStage === 'RETURN_OUTLET' ? 'Send back to Outlet' : nextStage === 'HOLD' ? 'Place on Hold' : nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}` : 'Process & Route'}</span>
+                        {actionLoading === 'store-route' ? (
+                          <LoadingSpinner size={14} text="Routing..." />
+                        ) : (
+                          <>
+                            <CheckCircle size={14} />
+                            <span>{nextStage === 'NOT_AVAILABLE' ? 'Mark as Not Available' : nextStage === 'REJECT' ? 'Reject Order' : nextStage === 'RETURN_ONLINE' ? 'Send back to Online' : nextStage === 'RETURN_OUTLET' ? 'Send back to Outlet' : nextStage === 'HOLD' ? 'Place on Hold' : nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}` : 'Process & Route'}</span>
+                          </>
+                        )}
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={() => withActionLoading('store-missing', async () => {
                           if (window.confirm('Are items MISSING or OUT OF STOCK?')) {
-                            onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' });
+                            await onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' });
                           }
-                        }}
-                        className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                        })}
+                        disabled={!!actionLoading}
+                        className={`bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                       >
-                        <AlertCircle size={14} />
-                        <span>Missing / Unavailable</span>
+                        {actionLoading === 'store-missing' ? (
+                          <LoadingSpinner size={14} text="Updating..." />
+                        ) : (
+                          <>
+                            <AlertCircle size={14} />
+                            <span>Missing / Unavailable</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </>
                 ) : ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage?.stageName) ? (
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => {
+                      onClick={() => withActionLoading('logo-send', async () => {
                         if (window.confirm('Design complete! Send to Production?')) {
-                          onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'PRODUCTION_ACCEPTANCE' });
+                          await onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'PRODUCTION_ACCEPTANCE' });
                         }
-                      }}
-                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      })}
+                      disabled={!!actionLoading}
+                      className={`bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                     >
-                      <CheckCircle size={14} />
-                      <span>Send to Production</span>
-                      <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ PRODUCTION ACCEPTANCE</span>
+                      {actionLoading === 'logo-send' ? (
+                        <LoadingSpinner size={14} text="Sending..." />
+                      ) : (
+                        <>
+                          <CheckCircle size={14} />
+                          <span>Send to Production</span>
+                          <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ PRODUCTION ACCEPTANCE</span>
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
@@ -1721,9 +1742,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 ) : currentStage?.stageName === 'PRODUCTION_ACCEPTANCE' ? (
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={async () => {
+                      onClick={() => withActionLoading('prod-accept', async () => {
                         try {
-                                              await api.post(`/api/orders/${order.id}/route`, {
+                          await api.post(`/api/orders/${order.id}/route`, {
                             destinationStage: 'PRODUCTION',
                             remarks: 'Accepted by Production'
                           });
@@ -1732,12 +1753,19 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         } catch (err) {
                           toast.error('Failed to accept: ' + (err.response?.data?.message || err.message));
                         }
-                      }}
-                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      })}
+                      disabled={!!actionLoading}
+                      className={`bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                     >
-                      <CheckCircle size={16} />
-                      <span>Accept</span>
-                      <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ PRODUCTION</span>
+                      {actionLoading === 'prod-accept' ? (
+                        <LoadingSpinner size={14} text="Accepting..." />
+                      ) : (
+                        <>
+                          <CheckCircle size={16} />
+                          <span>Accept</span>
+                          <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ PRODUCTION</span>
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
@@ -1752,7 +1780,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div className="grid grid-cols-2 gap-2">
                     {order.source === 'OUTLET' ? (
                       <button
-                        onClick={async () => {
+                        onClick={() => withActionLoading('prod-send-outlet', async () => {
                           const destLabel = 'Johar Town';
                           if (window.confirm(`Production complete? Send order back to Johar Town Outlet?`)) {
                             try {
@@ -1763,25 +1791,39 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               toast.error('Failed to send to outlet: ' + (err.response?.data?.message || err.message));
                             }
                           }
-                        }}
-                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                        })}
+                        disabled={!!actionLoading}
+                        className={`bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                       >
-                        <CheckCircle size={14} />
-                        <span>Send to Johar Town Outlet</span>
-                        <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ OUTLET_RECEIVE</span>
+                        {actionLoading === 'prod-send-outlet' ? (
+                          <LoadingSpinner size={14} text="Sending..." />
+                        ) : (
+                          <>
+                            <CheckCircle size={14} />
+                            <span>Send to Johar Town Outlet</span>
+                            <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ OUTLET_RECEIVE</span>
+                          </>
+                        )}
                       </button>
                     ) : (
                       <button
-                        onClick={() => {
+                        onClick={() => withActionLoading('prod-complete', async () => {
                           if (window.confirm('Production complete? Items will return to Store.')) {
-                            onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'STORE_RECEIVE' });
+                            await onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'STORE_RECEIVE' });
                           }
-                        }}
-                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                        })}
+                        disabled={!!actionLoading}
+                        className={`bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                       >
-                        <CheckCircle size={14} />
-                        <span>Production Complete</span>
-                        <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ Coming From Production</span>
+                        {actionLoading === 'prod-complete' ? (
+                          <LoadingSpinner size={14} text="Completing..." />
+                        ) : (
+                          <>
+                            <CheckCircle size={14} />
+                            <span>Production Complete</span>
+                            <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ Coming From Production</span>
+                          </>
+                        )}
                       </button>
                     )}
                     <button
@@ -1917,19 +1959,27 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               {!inventoryAdded && !isMultiItem && <span className="text-[6px] md:text-[9px] text-blue-200 tracking-widest">→ UPDATE STOCK</span>}
                             </button>
                             <button
-                              onClick={async () => {
+                              onClick={() => withActionLoading('store-receive-route', async () => {
                                 if (!storeRouteDest) { alert('Select a destination first'); return; }
                                 try {
-                                                              await api.post(`/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: inventoryAdded ? 'Inventory added, routing from Store' : 'Routing from Store (no inventory update)' });
+                                  await api.post(`/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: inventoryAdded ? 'Inventory added, routing from Store' : 'Routing from Store (no inventory update)' });
                                   toast.success(`Sent to ${storeRouteDest.replace(/_/g, ' ')}`);
+                                  if (onMarkSeen) onMarkSeen();
                                 } catch (err) {
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
                                 }
-                              }}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                              })}
+                              disabled={!!actionLoading}
+                              className={`bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                             >
-                              <Truck size={14} />
-                              <span>Route to {storeRouteDest.replace(/_/g, ' ') || '...'}</span>
+                              {actionLoading === 'store-receive-route' ? (
+                                <LoadingSpinner size={14} text="Routing..." />
+                              ) : (
+                                <>
+                                  <Truck size={14} />
+                                  <span>Route to {storeRouteDest.replace(/_/g, ' ') || '...'}</span>
+                                </>
+                              )}
                             </button>
                           </div>
                           <button

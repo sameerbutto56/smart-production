@@ -257,6 +257,7 @@ const AllOrders = () => {
   const [filterDepartment, setFilterDepartment] = useState(null); // Store|Production|Logo|Dispatch|Inventory Verification
   const [filterDelayStage, setFilterDelayStage] = useState(null); // specific workflow stage (e.g. 'PRODUCTION')
   const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
@@ -592,6 +593,19 @@ const AllOrders = () => {
     });
   }, [baseFilteredOrders, filterCategory, filterDepartment, filterDelayStage, matchesCategory, delayMap, sortOrder]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCategory, filterDepartment, filterDelayStage, filterStatus, filterType, filterUrgent, filterCity, dateFilter, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, currentPage, pageSize]);
+
   const groupedOrders = useMemo(() => {
     const groups = {};
     filteredOrders.forEach(order => {
@@ -675,6 +689,27 @@ const AllOrders = () => {
             >
               <Download size={16} />
               <span>{exporting ? 'Preparing…' : 'Download Excel'}</span>
+            </button>
+
+            <button
+              onClick={async () => {
+                setRefreshing(true);
+                try {
+                  await refresh();
+                  toast.success('Orders refreshed');
+                } catch (err) {
+                  console.error('Refresh failed:', err);
+                  toast.error('Failed to refresh orders');
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              disabled={refreshing}
+              className="px-6 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-xs md:text-sm uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 disabled:opacity-50"
+              title="Refresh orders list"
+            >
+              <RefreshCcw size={16} className={refreshing ? 'animate-spin text-blue-400' : ''} />
+              <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
             </button>
         </div>
       </div>
@@ -1082,7 +1117,7 @@ const AllOrders = () => {
                   </tr>
                 ))
               ) : (
-                filteredOrders.map((order) => {
+                paginatedOrders.map((order) => {
                   let rawPd = order.productDetails || {};
                   const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
                   const isMultiItem = Array.isArray(rawPd) && rawPd.length > 1;
@@ -1278,6 +1313,75 @@ const AllOrders = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {!isGroupedView && filteredOrders.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t theme-border theme-bg-subtle rounded-b-2xl">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold theme-text-muted">
+              <span>Showing</span>
+              <span className="theme-text-primary font-black">
+                {Math.min((currentPage - 1) * pageSize + 1, filteredOrders.length)} - {Math.min(currentPage * pageSize, filteredOrders.length)}
+              </span>
+              <span>of</span>
+              <span className="theme-text-primary font-black">{filteredOrders.length}</span>
+              <span>orders</span>
+              <span className="mx-2 text-gray-600">|</span>
+              <span>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="theme-bg border theme-border rounded-lg px-2 py-1 text-xs font-bold theme-text-primary outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg border theme-border text-xs font-black uppercase tracking-wider theme-text-secondary hover:theme-text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${currentPage === pageNum ? 'bg-blue-600 text-white shadow-md' : 'theme-bg-subtle theme-text-muted hover:theme-text-primary'}`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 rounded-lg border theme-border text-xs font-black uppercase tracking-wider theme-text-secondary hover:theme-text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* --- JOB SHEET MODAL --- */}

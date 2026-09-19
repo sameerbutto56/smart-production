@@ -4,7 +4,7 @@ import api from '../services/api';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import BackButton from '../components/BackButton';
-import { Shield, Search, CheckCircle, Clock, User, Phone, Package, FileText, ChevronDown, ChevronUp, AlertCircle, DollarSign, ArrowRight, History, Scissors, Star, Ruler, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Shield, Search, CheckCircle, Clock, User, Phone, Package, FileText, ChevronDown, ChevronUp, AlertCircle, DollarSign, ArrowRight, History, Scissors, Star, Ruler, MessageSquare, ArrowLeft, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 import { getDelayInfo, fmtDuration } from '../utils/delayUtils';
@@ -17,6 +17,7 @@ const VerificationPage = () => {
   const [pendingOrders, setPendingOrders] = useState([]);
   const [historyOrders, setHistoryOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [verifyModal, setVerifyModal] = useState(null);
@@ -279,14 +280,38 @@ const VerificationPage = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2">
-          <button onClick={() => setActiveTab('pending')}
-            className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'pending' ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-            <div className="flex items-center gap-2"><Clock size={16} /> Pending ({pendingOrders.length})</div>
-          </button>
-          <button onClick={() => setActiveTab('history')}
-            className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'history' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-            <div className="flex items-center gap-2"><History size={16} /> Verified ({historyOrders.length})</div>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-2">
+            <button onClick={() => setActiveTab('pending')}
+              className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'pending' ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+              <div className="flex items-center gap-2"><Clock size={16} /> Pending ({pendingOrders.length})</div>
+            </button>
+            <button onClick={() => setActiveTab('history')}
+              className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'history' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+              <div className="flex items-center gap-2"><History size={16} /> Verified ({historyOrders.length})</div>
+            </button>
+          </div>
+
+          <button
+            onClick={async () => {
+              setRefreshing(true);
+              try {
+                if (activeTab === 'pending') await fetchPending();
+                else await fetchHistory();
+                toast.success('Orders refreshed');
+              } catch (err) {
+                console.error('Refresh error:', err);
+                toast.error('Failed to refresh orders');
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 hover:text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all shadow-sm"
+            title="Refresh verification orders"
+          >
+            <RefreshCw size={15} className={refreshing ? 'animate-spin text-amber-400' : ''} />
+            <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
         </div>
 

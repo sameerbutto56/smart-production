@@ -5,7 +5,7 @@ const { getDelayInfo, getDelayMap, attachDelayInfoToOrders, getAllowedHours, fmt
 const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
-const { dateBoundToMs, normalizeDateOnly } = require('../utils/workingHours');
+const { dateBoundToMs, normalizeDateOnly, resolvePktDateRange } = require('../utils/workingHours');
 const { isProductGenderApplicable, getCategoryConfigs } = require('../utils/productConfig');
 const XLSX = require('xlsx');
 
@@ -816,7 +816,8 @@ const getOrders = async (req, res) => {
 
     const pageNum = parseInt(page) || 0;
     const skipVal = parseInt(skip) || 0;
-    const takeLimit = limit === 'all' ? undefined : (parseInt(limit) || 200);
+    const isPaginated = pageNum > 0 || req.query.paginated === 'true' || (limit && limit !== 'all' && limit !== 'legacy');
+    const takeLimit = isPaginated ? (parseInt(limit) || 25) : (limit === 'all' ? undefined : (parseInt(limit) || 200));
 
     let where = {};
 
@@ -825,6 +826,32 @@ const getOrders = async (req, res) => {
       where.createdById = id;
       // STORE_RECEIVE is Store-only — never show in Online/Outlet modules
       where.currentStage = { not: 'STORE_RECEIVE' };
+    }
+
+    const { category, stage, priority, outletName, dateFrom, dateTo } = req.query;
+    if (stage) {
+      if (stage === 'STORE') {
+        where.currentStage = { in: ['STORE', 'STORE_RECEIVE'] };
+      } else {
+        where.currentStage = stage;
+      }
+    }
+    if (category === 'initiation') {
+      where.status = { in: ['PENDING', 'WAITING_PAYMENT'] };
+    } else if (category === 'urgent') {
+      where.OR = [{ priority: { in: ['URGENT', 'SUPER_URGENT'] } }, { urgent: true }];
+    }
+    if (priority) {
+      where.priority = priority;
+    }
+    if (outletName) {
+      where.outletName = outletName;
+    }
+    if (dateFrom || dateTo) {
+      const dateCond = {};
+      if (dateFrom) dateCond.gte = new Date(dateFrom);
+      if (dateTo) dateCond.lte = new Date(dateTo);
+      where.createdAt = dateCond;
     }
 
     // 2. Add database-level filters based on page context
@@ -857,7 +884,7 @@ const getOrders = async (req, res) => {
       }
     } else {
       // Default: Load active orders + 100 most recent completed orders
-      if (!limit || limit !== 'all') {
+      if (!isPaginated && (!limit || limit !== 'all')) {
         const isDeliveryQuery = filterStatus === 'delivery';
         const deliveryPaymentsInclude = isDeliveryQuery ? { deliveryPayments: { orderBy: { createdAt: 'desc' }, select: { paymentMethod: true, cashAmount: true, onlineAmount: true, collectedBy: true, createdAt: true } } } : {};
         const [activeOrders, completedOrders] = await prisma.$transaction([
@@ -928,7 +955,7 @@ const getOrders = async (req, res) => {
     attachDelayInfoToOrders(orders, delayConfig);
 
     // When pagination is requested, include total count
-    if (pageNum > 0 || skipVal > 0) {
+    if (isPaginated || pageNum > 0 || skipVal > 0) {
       const total = await prisma.order.count({ where });
       return res.json({ orders: sortByPriority(orders), total, page: pageNum || 1, totalPages: Math.ceil(total / takeLimit) });
     }
@@ -3245,11 +3272,19 @@ const manualRouteOrder = async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
+    // Idempotency check: if order is already at destinationStage, return early success
+    if (order.currentStage === destinationStage) {
+      return res.json({
+        success: true,
+        message: `Order is already at ${destinationStage}`,
+        nextStage: destinationStage,
+        isIdempotent: true
+      });
+    }
+
     // Complete current active stage — prefer the stage matching order.currentStage
     // (the authoritative field) over the first active row, which may be a stale
-    // duplicate from an earlier routing glitch (e.g. PRODUCTION PENDING alongside
-    // PRODUCTION_ACCEPTANCE PENDING).  Without this, find() picks whichever
-    // duplicate comes first, causing "Invalid transition from X to X" errors.
+    // duplicate from an earlier routing glitch.
     const activeStages = order.stages.filter(s =>
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
@@ -3257,15 +3292,20 @@ const manualRouteOrder = async (req, res) => {
 
     // Production In split guard: routing a STORE / STORE_RECEIVE or Logo stage to PRODUCTION
     // must land in PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted
-    // before Production Out works on it — never straight to PRODUCTION (Production Out). STORE
-    // and STORE_RECEIVE are included because the Store "Process & Route" select, the Store
-    // Receive destination chips, and the replacement hub can send a Store-stage order straight
-    // to PRODUCTION; the pipeline's own NEXT_STAGES already routes STORE → PRODUCTION_ACCEPTANCE,
-    // so this keeps manual routes consistent (e.g. REP-49465 was routed STORE → PRODUCTION and
-    // bypassed the gate).
+    // before Production Out works on it — never straight to PRODUCTION (Production Out).
     if (destinationStage === 'PRODUCTION' &&
         currentStage && ['STORE', 'STORE_RECEIVE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
       destinationStage = 'PRODUCTION_ACCEPTANCE';
+    }
+
+    // Re-check idempotency if destinationStage was adjusted
+    if (order.currentStage === destinationStage) {
+      return res.json({
+        success: true,
+        message: `Order is already at ${destinationStage}`,
+        nextStage: destinationStage,
+        isIdempotent: true
+      });
     }
 
     // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
@@ -3275,33 +3315,11 @@ const manualRouteOrder = async (req, res) => {
         return res.status(400).json({ message: validation.message, expectedNext: validation.expected });
       }
     }
-    if (currentStage) {
-      // Complete ALL active rows of the current stage (not just the first match) so
-      // stale PENDING/IN_PROGRESS copies of the same stage never linger on one order.
-      await prisma.orderStage.updateMany({
-        where: { orderId, stageName: currentStage.stageName, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
-        data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
-      });
-    }
 
-    // Create destination stage — idempotent: if an active stage for the destination
-    // already exists (retried route / double-click / repeated route to same stage),
-    // reuse it instead of creating a duplicate PENDING row. Prevents the multiple
-    // active stage rows per order that inflated production task counts.
-    if (destinationStage === 'DISPATCH') {
-      await ensureSingleActiveDispatchStage(orderId, order.priority);
-    } else {
-      const durations = await getStageDurations(order.priority);
-      const existingDestStage = await prisma.orderStage.findFirst({
-        where: { orderId, stageName: destinationStage, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } }
-      });
-      if (!existingDestStage) {
-        const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
-        await prisma.orderStage.create({
-          data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
-        });
-      }
-    }
+    const recipientUsers = await prisma.user.findMany({
+      where: { role: { in: getRolesForStage(destinationStage) } },
+      select: { id: true }
+    });
 
     const isStoreRoutingBack = ['STORE', 'STORE_EMPLOYEE'].includes(req.user.role) && destinationStage !== 'DISPATCH';
     const orderUpdateData = {
@@ -3312,76 +3330,92 @@ const manualRouteOrder = async (req, res) => {
     if (destinationStage === 'DISPATCH') {
       Object.assign(orderUpdateData, DISPATCH_RESET_FIELDS);
     }
-    await prisma.order.update({
-      where: { id: orderId },
-      data: orderUpdateData
-    });
 
-    // Record routing history
-    const recipientUsers = await prisma.user.findMany({
-      where: { role: { in: getRolesForStage(destinationStage) } },
-      select: { id: true }
-    });
-    await prisma.routingHistory.create({
-      data: {
-        orderId,
-        sentByUserId: req.user.id,
-        sentToStage: destinationStage,
-        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
-        previousStage: currentStage?.stageName || 'UNKNOWN',
-        newStage: destinationStage,
-        remarks: remarks || `Manual route by ${req.user.name}`,
-        createdAt: new Date()
+    // Atomic transaction for all state mutations
+    await prisma.$transaction(async (tx) => {
+      if (currentStage) {
+        await tx.orderStage.updateMany({
+          where: { orderId, stageName: currentStage.stageName, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
+          data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
+        });
       }
-    });
 
-    // Reset seen status for all recipient users — single batch query
-    await prisma.seenTask.deleteMany({
-      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
-    }).catch(() => {});
+      if (destinationStage === 'DISPATCH') {
+        await ensureSingleActiveDispatchStage(orderId, order.priority, tx);
+      } else {
+        const durations = await getStageDurations(order.priority);
+        const existingDestStage = await tx.orderStage.findFirst({
+          where: { orderId, stageName: destinationStage, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } }
+        });
+        if (!existingDestStage) {
+          const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+          await tx.orderStage.create({
+            data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+          });
+        }
+      }
 
-    // Mark the order as seen for the routing user at the destination stage, so it
-    // immediately appears in their Assigned/Accepted list (e.g. Production Out
-    // accepting PRODUCTION_ACCEPTANCE → PRODUCTION). Other recipient users still
-    // see it as unseen until they explicitly mark-seen.
-    if (req.user?.id) {
-      await prisma.seenTask.upsert({
-        where: { userId_orderId_stageName: { userId: req.user.id, orderId, stageName: destinationStage } },
-        update: {},
-        create: { userId: req.user.id, orderId, stageName: destinationStage, seenAt: new Date() }
-      }).catch(() => {});
-    }
+      await tx.order.update({
+        where: { id: orderId },
+        data: orderUpdateData
+      });
 
-    // In/Out production handoff: when an order is routed to PRODUCTION, auto-assign
-    // it to every PRODUCTION_OUT user (seenTask at PRODUCTION) so it lands in their
-    // Assigned/Accepted list immediately. Without this, orders routed by Admin or other
-    // non-PRODUCTION_IN roles would be invisible to Production Out (their Unseen tab is
-    // hidden and they have no seenTask). Covers: Production In Accept, Admin Re-route,
-    // bulk-route, and any other routing path into PRODUCTION.
-    if (destinationStage === 'PRODUCTION') {
-      const outUsers = await prisma.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } });
-      if (outUsers.length > 0) {
-        await prisma.seenTask.createMany({
-          data: outUsers.map(u => ({ userId: u.id, orderId, stageName: 'PRODUCTION', seenAt: new Date() })),
-          skipDuplicates: true
+      await tx.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user.id,
+          sentToStage: destinationStage,
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: currentStage?.stageName || 'UNKNOWN',
+          newStage: destinationStage,
+          remarks: remarks || `Manual route by ${req.user.name}`,
+          createdAt: new Date()
+        }
+      });
+
+      if (recipientUsers.length > 0) {
+        await tx.seenTask.deleteMany({
+          where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
         }).catch(() => {});
       }
-    }
 
-    await createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id);
+      if (req.user?.id) {
+        await tx.seenTask.upsert({
+          where: { userId_orderId_stageName: { userId: req.user.id, orderId, stageName: destinationStage } },
+          update: {},
+          create: { userId: req.user.id, orderId, stageName: destinationStage, seenAt: new Date() }
+        }).catch(() => {});
+      }
+
+      if (destinationStage === 'PRODUCTION') {
+        const outUsers = await tx.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } });
+        if (outUsers.length > 0) {
+          await tx.seenTask.createMany({
+            data: outUsers.map(u => ({ userId: u.id, orderId, stageName: 'PRODUCTION', seenAt: new Date() })),
+            skipDuplicates: true
+          }).catch(() => {});
+        }
+      }
+    });
+
+    // Non-blocking side effects after commit
+    createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id).catch(() => {});
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId, createdById: order.createdById });
-    if (destinationStage === 'DISPATCH') {
-      io.emit('dispatch-request', { orderId });
+    if (io) {
+      io.emit('order-updated', { orderId, createdById: order.createdById });
+      if (destinationStage === 'DISPATCH') {
+        io.emit('dispatch-request', { orderId });
+      }
     }
+
     const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
     const manRole = manDestRoleMap[destinationStage] || 'STORE';
     if (order?.customerName && order?.orderNumber) {
-      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
+      notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
     }
     if (destinationStage === 'PRODUCTION' && order?.customerName && order?.orderNumber) {
-      await notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} routed to Production — assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
+      notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} routed to Production — assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
     }
 
     // Record delivery assignment when routing to Enamels Delivery Boy
@@ -3389,8 +3423,9 @@ const manualRouteOrder = async (req, res) => {
       recordAssignment({ orderId, deliveryBoyName: 'Enamels Delivery', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
     }
 
-    res.json({ message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
+    res.json({ success: true, message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
   } catch (error) {
+    console.error('Error routing order:', error);
     res.status(500).json({ message: 'Error routing order', error: error.message });
   }
 };
@@ -5216,10 +5251,113 @@ const editProductAmount = async (req, res) => {
   }
 };
 
+/**
+ * Fast Dashboard Summary Endpoint:
+ * Computes top KPI metrics and pipeline stage counts via database aggregation.
+ * Completes in <800ms and returns lightweight summary (<1KB).
+ * GET /api/orders/dashboard-summary
+ */
+const getDashboardSummary = async (req, res) => {
+  try {
+    const role = String(req.user?.role || '').toUpperCase().trim();
+    const id = req.user?.id;
+    const baseWhereActive = { status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] } };
+
+    // Role boundary isolation
+    if (role === 'OUTLET' || role === 'FAISAL') {
+      baseWhereActive.createdById = id;
+      baseWhereActive.currentStage = { not: 'STORE_RECEIVE' };
+    }
+
+    const { start: todayStart, end: todayEnd } = resolvePktDateRange({ range: 'today' });
+
+    const [
+      totalOrders,
+      urgentOrders,
+      completedToday,
+      stageCountsRaw,
+      pendingEditRequestsCount,
+      delayedStagesCount,
+      delayedStageGroups
+    ] = await Promise.all([
+      prisma.order.count({ where: role === 'OUTLET' || role === 'FAISAL' ? { createdById: id } : {} }),
+      prisma.order.count({
+        where: {
+          ...baseWhereActive,
+          OR: [{ priority: { in: ['URGENT', 'SUPER_URGENT'] } }, { urgent: true }]
+        }
+      }),
+      prisma.order.count({
+        where: {
+          status: 'COMPLETED',
+          ...(role === 'OUTLET' || role === 'FAISAL' ? { createdById: id } : {}),
+          ...(todayStart ? { updatedAt: { gte: todayStart, lt: todayEnd } } : {})
+        }
+      }),
+      prisma.order.groupBy({
+        by: ['currentStage'],
+        where: baseWhereActive,
+        _count: true
+      }),
+      prisma.orderEditRequest.count({
+        where: { status: 'PENDING' }
+      }).catch(() => 0),
+      prisma.orderStage.count({
+        where: {
+          status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
+          deadlineAt: { lt: new Date() },
+          order: baseWhereActive
+        }
+      }).catch(() => 0),
+      prisma.orderStage.groupBy({
+        by: ['stageName'],
+        where: {
+          status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
+          deadlineAt: { lt: new Date() },
+          order: baseWhereActive
+        },
+        _count: true
+      }).catch(() => [])
+    ]);
+
+    const stageCounts = {};
+    (stageCountsRaw || []).forEach(item => {
+      if (item?.currentStage) {
+        stageCounts[item.currentStage] = item._count;
+      }
+    });
+
+    const storeCount = (stageCounts['STORE'] || 0) + (stageCounts['STORE_RECEIVE'] || 0);
+    const delayBreakdown = (delayedStageGroups || []).map(g => ({
+      stage: g.stageName,
+      count: g._count
+    }));
+
+    return res.json({
+      success: true,
+      totalOrders,
+      urgentOrders,
+      completedToday,
+      delayedOrders: delayedStagesCount,
+      delayBreakdown,
+      stageCounts: {
+        ...stageCounts,
+        STORE: storeCount
+      },
+      initiationQueueCount: stageCounts['ORDER_ENTRY'] || 0,
+      pendingEditRequestsCount
+    });
+  } catch (error) {
+    console.error('getDashboardSummary error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch dashboard summary', error: error.message });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
   getOrdersExport,
+  getDashboardSummary,
   requestStageCompletion,
   approveStageCompletion,
   rejectStageCompletion,

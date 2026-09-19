@@ -73,7 +73,7 @@ import { useSystemPause } from '../context/SystemPauseContext';
 import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
 import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
-import { getStageDelays } from '../utils/delayUtils';
+import { getStageDelays, STAGE_LABELS } from '../utils/delayUtils';
 
 
 const TOP_TABS = [
@@ -227,6 +227,7 @@ const AdminDashboard = () => {
   const [bulkRouting, setBulkRouting] = useState(false);
 
   const dashboardRefreshRef = useRef();
+  const summaryRefreshRef = useRef();
   const analyticsRefreshRef = useRef();
   const unseenRefreshRef = useRef();
   const prodReturnedRefreshRef = useRef();
@@ -235,8 +236,32 @@ const AdminDashboard = () => {
 
   const { periods: pausePeriods, myProfile: pauseProfile } = useSystemPause();
 
+  // Fast dashboard summary (<800ms, <1KB) — populates all KPI stats and delay breakdown instantly
+  const { data: dashboardSummary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } = useCache(
+    'admin:dashboard:summary',
+    { fetcher: () => api.get('/api/orders/dashboard-summary').then(r => r.data || null), ttl: 30000 }
+  );
+
+  // Load active orders on-demand when Control Center is viewed
+  const isControlCenter = activeTab === 'all_phases';
+  const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache(
+    isControlCenter ? `admin:dashboard:orders:${filterStage}` : null,
+    {
+      fetcher: () => {
+        const params = { limit: 100, paginated: 'true', status: 'active' };
+        if (filterStage && filterStage !== 'ALL') {
+          params.stage = filterStage;
+        }
+        return api.get('/api/orders', { params }).then(r => {
+          if (r.data?.orders) return r.data.orders;
+          return Array.isArray(r.data) ? r.data : [];
+        });
+      },
+      ttl: 30000
+    }
+  );
+
   const needsData = activeTab !== null;
-  const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache(needsData ? 'admin:dashboard:orders' : null, { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
   const { data: analytics, refresh: refreshAnalytics } = useCache(needsData ? 'admin:dashboard:analytics' : null, { fetcher: () => api.get('/api/orders/analytics').then(r => r.data), ttl: 60000 });
   const { data: storeUnseenData, refresh: refreshUnseen } = useCache(needsData ? 'admin:store-unseen' : null, { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 30000 });
   const { data: storeProductionData, refresh: refreshProdReturned } = useCache(needsData ? 'admin:store-production' : null, { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 30000 });
@@ -244,22 +269,44 @@ const AdminDashboard = () => {
 
   const allOrders = allOrdersData || EMPTY_ARRAY;
   const editRequests = useMemo(() => Array.isArray(editRequestsData) ? editRequestsData : EMPTY_ARRAY, [editRequestsData]);
-  const delayBreakdown = useMemo(() => getStageDelays(allOrders, null, pausePeriods, pauseProfile), [allOrders, pausePeriods, pauseProfile]);
-  const stats = useMemo(() => ({
-    totalOrders: allOrders.length,
-    urgentOrders: allOrders.filter(o => o?.urgent).length,
-    delayedOrders: delayBreakdown.reduce((sum, d) => sum + d.count, 0),
-    completedToday: allOrders.filter(o => o?.status === 'COMPLETED').length
-  }), [allOrders, delayBreakdown]);
 
-  const loading = ordersLoading;
-  const fetchingError = !!ordersError;
+  const delayBreakdown = useMemo(() => {
+    if (dashboardSummary?.delayBreakdown && Array.isArray(dashboardSummary.delayBreakdown)) {
+      return dashboardSummary.delayBreakdown.map(d => ({
+        stage: d.stage,
+        label: STAGE_LABELS[d.stage] || d.stage,
+        count: d.count
+      }));
+    }
+    return getStageDelays(allOrders, null, pausePeriods, pauseProfile);
+  }, [dashboardSummary, allOrders, pausePeriods, pauseProfile]);
+
+  const stats = useMemo(() => {
+    if (dashboardSummary) {
+      return {
+        totalOrders: dashboardSummary.totalOrders || 0,
+        urgentOrders: dashboardSummary.urgentOrders || 0,
+        delayedOrders: dashboardSummary.delayedOrders || 0,
+        completedToday: dashboardSummary.completedToday || 0
+      };
+    }
+    return {
+      totalOrders: allOrders.length,
+      urgentOrders: allOrders.filter(o => o?.urgent).length,
+      delayedOrders: delayBreakdown.reduce((sum, d) => sum + d.count, 0),
+      completedToday: allOrders.filter(o => o?.status === 'COMPLETED').length
+    };
+  }, [dashboardSummary, allOrders, delayBreakdown]);
+
+  const loading = summaryLoading && !dashboardSummary;
+  const fetchingError = !!summaryError && !dashboardSummary;
 
   const refreshTimerRef = useRef(null);
   const queueRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
+      summaryRefreshRef.current?.();
       dashboardRefreshRef.current?.();
       analyticsRefreshRef.current?.();
       unseenRefreshRef.current?.();
@@ -268,13 +315,14 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
+    summaryRefreshRef.current = refreshSummary;
     dashboardRefreshRef.current = refreshDashboard;
     analyticsRefreshRef.current = refreshAnalytics;
     unseenRefreshRef.current = refreshUnseen;
     prodReturnedRefreshRef.current = refreshProdReturned;
     editRequestsRefreshRef.current = refreshEditRequests;
     queueRefreshRef.current = queueRefresh;
-  }, [refreshDashboard, refreshAnalytics, refreshUnseen, refreshProdReturned, refreshEditRequests, queueRefresh]);
+  }, [refreshSummary, refreshDashboard, refreshAnalytics, refreshUnseen, refreshProdReturned, refreshEditRequests, queueRefresh]);
 
   useEffect(() => {
     const onOrderUpdated = () => queueRefreshRef.current?.();
@@ -576,11 +624,17 @@ const AdminDashboard = () => {
   , [allOrders]);
 
   const getStageCount = useCallback((stageId) => {
+    if (dashboardSummary?.stageCounts) {
+      if (stageId === 'STORE') {
+        return dashboardSummary.stageCounts['STORE'] || 0;
+      }
+      return dashboardSummary.stageCounts[stageId] || 0;
+    }
     if (stageId === 'STORE') {
       return allOrders.filter(o => ['STORE', 'STORE_RECEIVE'].includes(o.currentStage) && o.status !== 'COMPLETED').length;
     }
     return allOrders.filter(o => o.currentStage === stageId && o.status !== 'COMPLETED').length;
-  }, [allOrders]);
+  }, [dashboardSummary, allOrders]);
 
   const filteredOrdersByStage = useMemo(() => {
     if (filterStage === 'ALL') return [];
@@ -594,11 +648,11 @@ const AdminDashboard = () => {
       .slice(0, 20);
   }, [allOrders]);
 
-  if (loading && allOrders.length === 0) {
+  if (loading && !dashboardSummary && allOrders.length === 0) {
     return <PageLoader text="Syncing Production Hub..." />;
   }
 
-  if (fetchingError && allOrders.length === 0) {
+  if (fetchingError && !dashboardSummary && allOrders.length === 0) {
     return (
       <div className="h-[80vh] flex flex-col items-center justify-center space-y-6 glass rounded-2xl md:rounded-[3rem] border-2 border-red-500/20">
         <AlertTriangle className="text-red-500" size={64} />

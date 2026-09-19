@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, Search, Clock, User, Phone, Package, MessageSquare, FileEdit, Shield } from 'lucide-react';
+import { ArrowLeft, Search, Clock, User, Phone, Package, MessageSquare, FileEdit, Shield, RotateCcw, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
 import { getDelayInfo, fmtDuration } from '../utils/delayUtils';
@@ -16,6 +16,7 @@ const ReturnedFromVerification = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
 
   const fetchReturned = useCallback(async () => {
@@ -43,13 +44,34 @@ const ReturnedFromVerification = () => {
     <div className="min-h-screen bg-gray-900 p-4 md:p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <BackButton />
-          <div className="p-3 bg-amber-600 rounded-2xl"><RotateCcw size={24} className="text-white" /></div>
-          <div>
-            <h1 className="text-2xl font-black text-white">Return from Verification</h1>
-            <p className="text-sm text-gray-400">Orders returned from verification that need corrections</p>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <BackButton />
+            <div className="p-3 bg-amber-600 rounded-2xl"><RotateCcw size={24} className="text-white" /></div>
+            <div>
+              <h1 className="text-2xl font-black text-white">Return from Verification</h1>
+              <p className="text-sm text-gray-400">Orders returned from verification that need corrections</p>
+            </div>
           </div>
+          <button
+            onClick={async () => {
+              setRefreshing(true);
+              try {
+                await fetchReturned();
+                toast.success('Orders refreshed');
+              } catch {
+                toast.error('Failed to refresh orders');
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 hover:text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all shadow-sm"
+            title="Refresh returned orders"
+          >
+            <RefreshCw size={15} className={refreshing ? 'animate-spin text-amber-400' : ''} />
+            <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
         </div>
 
         {/* Search */}

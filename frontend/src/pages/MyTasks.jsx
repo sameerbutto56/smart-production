@@ -137,7 +137,7 @@ const MyTasks = () => {
   // updates when an order's stage/status actually changed. Prevents 8→89→0 flicker.
   // Memoized so the useCache `load` callback stays referentially stable and the mount
   // effect runs exactly once — no competing reloads over the same React state.
-  const taskSignature = (list) => (list || []).map((o) => `${o.id}|${o.currentStage}|${o.status}`).join(',');
+  const taskSignature = (list) => (list || []).map((o) => `${o.id}|${o.currentStage}|${o.status}|${o.priority || ''}|${o.updatedAt || o.createdAt || ''}`).join(',');
   const tasksSame = useCallback((a, b) => {
     if (!a || !b) return false;
     return taskSignature(a.unseen) === taskSignature(b.unseen) && taskSignature(a.seen) === taskSignature(b.seen);
@@ -229,20 +229,33 @@ const MyTasks = () => {
     }
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+
   // Manual refetch — called after user actions or via Refresh button
-  const refreshTasks = () => {
-    if (hasTaskFilters) {
-      refreshUnseen();
-      if (showProductionTab) refreshProduction();
-    } else {
-      refreshOrders();
+  const refreshTasks = useCallback(async (showFeedback = false) => {
+    setRefreshing(true);
+    try {
+      const promises = [];
+      if (hasTaskFilters) {
+        promises.push(refreshUnseen());
+        if (showProductionTab) promises.push(refreshProduction());
+      } else {
+        promises.push(refreshOrders());
+      }
+      if (isOutlet) {
+        promises.push(fetchAltTasks());
+        promises.push(fetchEngTasks());
+        promises.push(fetchComeFromProduction());
+      }
+      await Promise.all(promises);
+      if (showFeedback) toast.success('Tasks refreshed');
+    } catch (err) {
+      console.error('Refresh tasks failed:', err);
+      if (showFeedback) toast.error('Failed to refresh tasks');
+    } finally {
+      setRefreshing(false);
     }
-    if (isOutlet) {
-      fetchAltTasks();
-      fetchEngTasks();
-      fetchComeFromProduction();
-    }
-  };
+  }, [hasTaskFilters, showProductionTab, isOutlet, refreshUnseen, refreshProduction, refreshOrders, fetchAltTasks, fetchEngTasks, fetchComeFromProduction]);
 
   // Debounced refresh — prevents rapid re-fetches when multiple socket events fire
   const debouncedRefresh = useRef(null);
@@ -250,9 +263,9 @@ const MyTasks = () => {
     if (debouncedRefresh.current) return;
     debouncedRefresh.current = setTimeout(() => {
       debouncedRefresh.current = null;
-      refreshTasks();
+      refreshTasks(false);
     }, 2000);
-  }, []);
+  }, [refreshTasks]);
 
   // Listen for real-time events that should trigger a task refresh
   useEffect(() => {
@@ -413,6 +426,15 @@ const MyTasks = () => {
               className="w-full theme-input rounded-2xl py-3 pl-12 pr-4 focus:border-blue-500 outline-none transition-all text-sm font-medium"
             />
           </div>
+          <button
+            onClick={() => refreshTasks(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/30 shrink-0"
+            title="Refresh tasks"
+          >
+            <RefreshCcw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
           {!hasTaskFilters && (
             <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
               {['ALL', 'URGENT', 'STANDARD'].map(type => (
@@ -525,11 +547,13 @@ const MyTasks = () => {
           </div>
         )}
         <button
-          onClick={refreshTasks}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest text-gray-400 transition-all"
+          onClick={() => refreshTasks(true)}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest text-gray-300 hover:text-white transition-all shadow-sm"
+          title="Refresh all tasks and data"
         >
-          <RefreshCcw size={14} />
-          Refresh
+          <RefreshCcw size={14} className={refreshing ? 'animate-spin text-blue-400' : ''} />
+          <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
         </button>
         <button
           onClick={() => { fetchRoutingHistory(); setShowRoutingHistory(true); }}
