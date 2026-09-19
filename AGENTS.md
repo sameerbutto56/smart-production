@@ -1,5 +1,28 @@
 ## Goals
-### Implemented This Session — Store Receive Orders Visibility in Admin Orders & Order Entry Mandatory Non-Preselected Gender (commit 1005e58, deployed & live-verified)
+### Implemented This Session — ERP Performance & Speed Optimization, Feedback Portal & Fix RotateCcw Import in ReturnedFromVerification (commit fea8a14, deployed & live-verified)
+- **Problem 1 (ReferenceError: RotateCcw is not defined in ReturnedFromVerification)**:
+  - When opening "Return from Verification" (e.g. from Faisal profile), React crashed with `ReferenceError: RotateCcw is not defined at I (ReturnedFromVerification-BNGz3elL.js)`.
+  - Root Cause: `<RotateCcw size={24} className="text-white" />` was used in the page header, but `RotateCcw` was omitted from the `lucide-react` import statement on line 7 of `ReturnedFromVerification.jsx`.
+  - Fix: Added `RotateCcw` and `RefreshCw` to `lucide-react` imports in `ReturnedFromVerification.jsx`.
+- **Problem 2 (ERP Performance & Speed Across Admin Profile, Orders & Routing)**:
+  - Admin Dashboard and Orders took 7.2s+ on cold scans with 2.34 MB JSON payloads, freezing the browser with 600+ deep-joined order records.
+  - Fixes:
+    1. Added compound indexes `@@index([currentStage, createdAt])` and `@@index([status, createdAt])` to `Order`, and `@@index([orderId, status])` and `@@index([orderId, stageName, status])` to `OrderStage`.
+    2. Implemented dedicated high-speed aggregation API `GET /api/orders/dashboard-summary` returning KPI counts and stage breakdowns in ~800ms with < 1.5 KB payload.
+    3. Added server-side pagination to `getOrders` (`skip`/`take` with database filtering) returning in ~900ms.
+    4. Added 25/50/100 pagination UI controls to `AllOrders.jsx` eliminating DOM table lag.
+    5. Wrapped route actions in `OrderCard.jsx` with `withActionLoading` visual spinners, disabling buttons during flight and preventing double-clicks.
+    6. Built idempotent & transactional manual routing returning `{ success: true, isIdempotent: true }` when order is already in destination stage.
+- **Problem 3 (Customer Feedback Multi-Outlet System & Manual Refresh Buttons)**:
+  - Preserved official Johar Town QR (`/feedback`) while supporting tokens for Jail Road and Abbottabad with anti-spoofing and 2-minute duplicate submission absorption.
+  - Added dedicated Refresh buttons with active spin animations across `MyTasks`, `AllOrders`, `VerificationPage`, and `ReturnedFromVerification`.
+- **Verification & Deployment**:
+  - Automated performance suite `backend/scripts/verify-performance-optimizations.cjs`: 4/4 tests passed (919ms paginated query, 503ms indexed query, idempotent routing).
+  - Automated feedback suite `backend/scripts/verify-customer-feedback-and-refresh.cjs`: 20/20 tests passed.
+  - Frontend production build (`npm run build`): Exit code 0, 3,203 modules bundled cleanly in 52.97s.
+  - Git commit `fea8a14` pushed to `origin/main`.
+  - Vercel production deployment `dpl_FyjdF83GUQn1T8yXmfXCMw8cD1iX` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}` and `assets/ReturnedFromVerification-DWhWGkYV.js` returned HTTP 200 with clean modular imports.
 - **Problem 1 (Store Receive Orders Missing from Admin Orders List)**:
   - Orders `#51871` and `#51361` were in stage `STORE_RECEIVE` and showed in Deliver/Store count = 2, but were completely invisible in the Admin Orders list/table (`/orders`).
   - Root Cause: In `AllOrders.jsx`, `const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE'` hid `STORE_RECEIVE` orders for all non-store users (including `ADMIN`, `SUPER_ADMIN`, and `CEO`). Furthermore, `getOrdersExport` in `order.controller.js` and stage filter calculations in `AdminDashboard.jsx` suppressed `STORE_RECEIVE`.
