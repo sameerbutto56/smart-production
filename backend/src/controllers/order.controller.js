@@ -71,11 +71,16 @@ const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_A
 
 // Validates forward-only stage transitions to prevent routing loops
 const validateStageTransition = (fromStage, toStage, orderType) => {
+  if (fromStage === toStage) {
+    return { valid: true, expected: toStage };
+  }
+
   const validTransitions = {
     'STORE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'LOGO_DESIGN': { 'STANDARD': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
     'PRODUCTION_ACCEPTANCE': { 'STANDARD': ['WORKERS', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION'] },
     'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'] },
+    'WORKERS': { 'STANDARD': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE'], 'READY_LOGO': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE'], 'FULL_CUSTOM': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE'] },
     'STORE_RECEIVE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
     'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] },
@@ -85,7 +90,8 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
     'ENAMELS_DELIVERY': { 'STANDARD': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'READY_LOGO': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'], 'FULL_CUSTOM': ['OUTLET_RECEIVE', 'ORDER_ENTRY', 'DELIVERED'] }
   };
 
-  const allowed = validTransitions[fromStage]?.[orderType];
+  const normalizedType = (orderType || 'STANDARD').toUpperCase().trim();
+  const allowed = validTransitions[fromStage]?.[normalizedType] || validTransitions[fromStage]?.['STANDARD'] || [];
   if (!allowed || !allowed.includes(toStage)) {
     return { valid: false, expected: allowed?.[0], message: `Invalid transition from ${fromStage} to ${toStage}. ${allowed?.length ? `Allowed: ${allowed.join(', ')}.` : 'No forward transition available from this stage.'}` };
   }
@@ -1315,8 +1321,10 @@ const requestStageCompletion = async (req, res) => {
       });
     }
 
-    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
-    if (actualNextStage && currentStage.stageName !== 'ORDER_ENTRY' && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
+    // Enforce forward-only routing to prevent loops (except for Control Center, Store, and Production accepting into Production)
+    const isProductionAccepting = ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'].includes(req.user.role) && actualNextStage === 'PRODUCTION';
+    const isExemptRole = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role);
+    if (actualNextStage && currentStage.stageName !== 'ORDER_ENTRY' && !isProductionAccepting && !isExemptRole) {
       const validation = validateStageTransition(currentStage.stageName, actualNextStage, order.type);
       if (!validation.valid) {
         await createAuditLog(orderId, 'ROUTE_BLOCKED',
@@ -1486,8 +1494,10 @@ const approveStageCompletion = async (req, res) => {
       actualNextStage = stages[currentIndex + 1];
     }
 
-    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
-    if (actualNextStage && currentStageRecord.stageName !== 'ORDER_ENTRY' && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
+    // Enforce forward-only routing to prevent loops (except for Control Center, Store, and Production accepting into Production)
+    const isProductionAccepting = ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'].includes(req.user.role) && actualNextStage === 'PRODUCTION';
+    const isExemptRole = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role);
+    if (actualNextStage && currentStageRecord.stageName !== 'ORDER_ENTRY' && !isProductionAccepting && !isExemptRole) {
       const validation = validateStageTransition(currentStageRecord.stageName, actualNextStage, order.type);
       if (!validation.valid) {
         await createAuditLog(orderId, 'ROUTE_BLOCKED',
@@ -2425,7 +2435,9 @@ const bulkRouteOrders = async (req, res) => {
         );
         const currentStage = activeStages.find(s => s.stageName === order.currentStage) || activeStages[0];
 
-        if (currentStage && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
+        const isProductionAccepting = ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'].includes(req.user.role) && destinationStage === 'PRODUCTION';
+        const isExemptRole = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role);
+        if (currentStage && !isProductionAccepting && !isExemptRole) {
           const validation = validateStageTransition(currentStage.stageName, destinationStage, order.type);
           if (!validation.valid) {
             errors.push({ orderId, error: validation.message });
@@ -3317,16 +3329,11 @@ const manualRouteOrder = async (req, res) => {
     );
     const currentStage = activeStages.find(s => s.stageName === order.currentStage) || activeStages[0];
 
-    // Production In split guard: routing a STORE / STORE_RECEIVE or Logo stage to PRODUCTION
-    // must land in PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted
-    // before Production Out works on it — never straight to PRODUCTION (Production Out).
-    if (destinationStage === 'PRODUCTION' &&
-        currentStage && ['STORE', 'STORE_RECEIVE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
-      destinationStage = 'PRODUCTION_ACCEPTANCE';
-    }
-
-    // Re-check idempotency if destinationStage was adjusted
-    if (order.currentStage === destinationStage) {
+    // If active stage is already at destinationStage, align order.currentStage and return early success
+    if (currentStage?.stageName === destinationStage) {
+      if (order.currentStage !== destinationStage) {
+        await prisma.order.update({ where: { id: orderId }, data: { currentStage: destinationStage } }).catch(() => {});
+      }
       return res.json({
         success: true,
         message: `Order is already at ${destinationStage}`,
@@ -3335,8 +3342,29 @@ const manualRouteOrder = async (req, res) => {
       });
     }
 
-    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
-    if (currentStage && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
+    // Production In split guard: routing a STORE / STORE_RECEIVE or Logo stage to PRODUCTION
+    // must land in PRODUCTION_ACCEPTANCE (Production In's stage) so the order is accepted
+    // before Production Out works on it — never straight to PRODUCTION (Production Out).
+    // EXCEPTION: If the order is already at PRODUCTION_ACCEPTANCE, do NOT rewrite destinationStage.
+    if (destinationStage === 'PRODUCTION' && order.currentStage !== 'PRODUCTION_ACCEPTANCE' &&
+        currentStage && ['STORE', 'STORE_RECEIVE', 'LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage.stageName)) {
+      destinationStage = 'PRODUCTION_ACCEPTANCE';
+    }
+
+    // Re-check idempotency if destinationStage was adjusted
+    if (order.currentStage === destinationStage || currentStage?.stageName === destinationStage) {
+      return res.json({
+        success: true,
+        message: `Order is already at ${destinationStage}`,
+        nextStage: destinationStage,
+        isIdempotent: true
+      });
+    }
+
+    // Enforce forward-only routing to prevent loops (except for Control Center, Store, and Production accepting into Production)
+    const isProductionAccepting = ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'].includes(req.user.role) && destinationStage === 'PRODUCTION';
+    const isExemptRole = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role);
+    if (currentStage && !isProductionAccepting && !isExemptRole) {
       const validation = validateStageTransition(currentStage.stageName, destinationStage, order.type);
       if (!validation.valid) {
         return res.status(400).json({ message: validation.message, expectedNext: validation.expected });

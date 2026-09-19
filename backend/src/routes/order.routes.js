@@ -164,10 +164,10 @@ router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_
 router.put('/:orderId/product-amount', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), editProductAmount);
 
 // Manual Routing (Admin/FAISAL only)
-router.post('/:orderId/route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
+router.post('/:orderId/route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), manualRouteOrder);
 
 // Bulk Routing (all authenticated workers)
-router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);
+router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), bulkRouteOrders);
 
 // Universal accept task (any authenticated user)
 router.post('/:orderId/accept-task', authenticate, acceptTask);
@@ -176,11 +176,11 @@ router.post('/:orderId/accept-task', authenticate, acceptTask);
 router.get('/:orderId/timeline', authenticate, getOrderTimeline);
 
 // Store Profile Routes
-router.post('/:orderId/accept-store', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), acceptStoreOrder);
-router.post('/:orderId/store-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), storeRouteOrder);
-router.post('/:orderId/return-to-store', authenticate, authorize(['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), returnToStore);
-router.post('/:orderId/return-to-outlet', authenticate, authorize(['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), returnToOutlet);
-router.get('/store-dashboard', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), getStoreDashboardOrders);
+router.post('/:orderId/accept-store', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), acceptStoreOrder);
+router.post('/:orderId/store-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), storeRouteOrder);
+router.post('/:orderId/return-to-store', authenticate, authorize(['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), returnToStore);
+router.post('/:orderId/return-to-outlet', authenticate, authorize(['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), returnToOutlet);
+router.get('/store-dashboard', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), getStoreDashboardOrders);
 
 // Seen/Unseen
 router.post('/:orderId/mark-seen', authenticate, markOrderAsSeen);

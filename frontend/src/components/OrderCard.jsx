@@ -1254,7 +1254,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           )}
 
           <div className="flex flex-col gap-2 w-full">
-            {isUnseen && !isAdmin && currentStage?.status === 'PENDING' && !['PRODUCTION_IN', 'PRODUCTION_OUT'].includes(userRole) ? (
+            {isUnseen && !isAdmin && currentStage?.status === 'PENDING' && !['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'].includes(userRole) ? (
               <button
                 onClick={() => withActionLoading('accept', async () => {
                   try {
@@ -1778,7 +1778,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <span className="text-[6px] md:text-[9px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
                     </button>
                   </div>
-                ) : currentStage?.stageName === 'PRODUCTION' ? (
+                ) : ['PRODUCTION', 'WORKERS'].includes(currentStage?.stageName) ? (
                   <div className="grid grid-cols-2 gap-2">
                     {order.source === 'OUTLET' ? (
                       <button
