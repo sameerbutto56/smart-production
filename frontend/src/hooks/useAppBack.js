@@ -48,10 +48,18 @@ export const getParentRoute = (pathname, role) => {
   return getRoleHomeRoute(role);
 };
 
+export const isHomeRoute = (pathname, role) => {
+  const path = (pathname || '').toLowerCase().replace(/\/$/, '');
+  const home = getRoleHomeRoute(role).toLowerCase().replace(/\/$/, '');
+  return path === '' || path === '/' || path === '/dashboard' || path === home;
+};
+
 export function useAppBack() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+
+  const isHome = isHomeRoute(location.pathname, user?.role);
 
   const goBack = useCallback(() => {
     const hasHistory = window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0;
@@ -64,7 +72,7 @@ export function useAppBack() {
     }
   }, [navigate, location.pathname, user?.role]);
 
-  return { goBack };
+  return { goBack, isHome };
 }
 
 export default useAppBack;

@@ -510,8 +510,9 @@ const createOrder = async (req, res) => {
       for (const item of items) {
         const pd = item.productDetails || {};
         let unitPrice = 0;
+        let inventoryItem = null;
         if (pd.productType) {
-          const inventoryItem = inventoryByProduct[pd.productType.toLowerCase()];
+          inventoryItem = inventoryByProduct[pd.productType.toLowerCase()];
           if (inventoryItem) {
             if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
               const matchingVariant = inventoryItem.variants.find(v =>

@@ -356,7 +356,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
 const Layout = () => {
   const navigate = useNavigate();
-  const { goBack } = useAppBack();
+  const { goBack, isHome } = useAppBack();
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -608,15 +608,17 @@ const Layout = () => {
         {/* Universal Top Bar */}
         <header className="h-16 border-b flex items-center px-6 justify-between flex-shrink-0 relative z-20" style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
           <div className="flex items-center gap-3 flex-1">
-            <button 
-              type="button"
-              onClick={goBack}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-gray-200 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl transition-all shadow-sm active:scale-95 group"
-              title="Back to previous screen"
-            >
-              <ArrowLeft size={14} className="text-gray-400 group-hover:text-white transition-transform group-hover:-translate-x-0.5" />
-              <span>Back</span>
-            </button>
+            {!isHome && (
+              <button 
+                type="button"
+                onClick={goBack}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-gray-200 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl transition-all shadow-sm active:scale-95 group"
+                title="Back to previous screen"
+              >
+                <ArrowLeft size={14} className="text-gray-400 group-hover:text-white transition-transform group-hover:-translate-x-0.5" />
+                <span>Back</span>
+              </button>
+            )}
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className={`${isUrdu ? 'order-last' : ''} lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg`}
