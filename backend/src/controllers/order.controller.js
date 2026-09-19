@@ -3376,6 +3376,14 @@ const manualRouteOrder = async (req, res) => {
       select: { id: true }
     });
 
+    const outUsers = destinationStage === 'PRODUCTION'
+      ? await prisma.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } })
+      : [];
+
+    const durations = destinationStage !== 'DISPATCH'
+      ? await getStageDurations(order.priority)
+      : null;
+
     const isStoreRoutingBack = ['STORE', 'STORE_EMPLOYEE'].includes(req.user.role) && destinationStage !== 'DISPATCH';
     const orderUpdateData = {
       currentStage: destinationStage,
@@ -3386,7 +3394,7 @@ const manualRouteOrder = async (req, res) => {
       Object.assign(orderUpdateData, DISPATCH_RESET_FIELDS);
     }
 
-    // Atomic transaction for all state mutations
+    // Atomic transaction for critical state mutations with generous remote timeout
     await prisma.$transaction(async (tx) => {
       if (currentStage) {
         await tx.orderStage.updateMany({
@@ -3398,12 +3406,11 @@ const manualRouteOrder = async (req, res) => {
       if (destinationStage === 'DISPATCH') {
         await ensureSingleActiveDispatchStage(orderId, order.priority, tx);
       } else {
-        const durations = await getStageDurations(order.priority);
         const existingDestStage = await tx.orderStage.findFirst({
           where: { orderId, stageName: destinationStage, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } }
         });
         if (!existingDestStage) {
-          const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+          const deadline = calculateDeadline(new Date(), durations?.[destinationStage] || 24);
           await tx.orderStage.create({
             data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
           });
@@ -3427,31 +3434,38 @@ const manualRouteOrder = async (req, res) => {
           createdAt: new Date()
         }
       });
+    }, {
+      timeout: 25000,
+      maxWait: 10000
+    });
 
-      if (recipientUsers.length > 0) {
-        await tx.seenTask.deleteMany({
-          where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
-        }).catch(() => {});
-      }
+    // Non-blocking SeenTask updates after transaction successfully commits
+    (async () => {
+      try {
+        if (recipientUsers.length > 0) {
+          await prisma.seenTask.deleteMany({
+            where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
+          });
+        }
 
-      if (req.user?.id) {
-        await tx.seenTask.upsert({
-          where: { userId_orderId_stageName: { userId: req.user.id, orderId, stageName: destinationStage } },
-          update: {},
-          create: { userId: req.user.id, orderId, stageName: destinationStage, seenAt: new Date() }
-        }).catch(() => {});
-      }
+        if (req.user?.id) {
+          await prisma.seenTask.upsert({
+            where: { userId_orderId_stageName: { userId: req.user.id, orderId, stageName: destinationStage } },
+            update: {},
+            create: { userId: req.user.id, orderId, stageName: destinationStage, seenAt: new Date() }
+          });
+        }
 
-      if (destinationStage === 'PRODUCTION') {
-        const outUsers = await tx.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } });
-        if (outUsers.length > 0) {
-          await tx.seenTask.createMany({
+        if (destinationStage === 'PRODUCTION' && outUsers.length > 0) {
+          await prisma.seenTask.createMany({
             data: outUsers.map(u => ({ userId: u.id, orderId, stageName: 'PRODUCTION', seenAt: new Date() })),
             skipDuplicates: true
-          }).catch(() => {});
+          });
         }
+      } catch (seenErr) {
+        console.warn('Non-blocking seenTask update warning in manualRouteOrder:', seenErr.message);
       }
-    });
+    })();
 
     // Non-blocking side effects after commit
     createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id).catch(() => {});
@@ -3481,7 +3495,7 @@ const manualRouteOrder = async (req, res) => {
     res.json({ success: true, message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
   } catch (error) {
     console.error('Error routing order:', error);
-    res.status(500).json({ message: 'Error routing order', error: error.message });
+    res.status(500).json({ message: error.message || 'Error routing order', error: error.message });
   }
 };
 

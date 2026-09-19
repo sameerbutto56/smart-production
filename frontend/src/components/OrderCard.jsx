@@ -1753,7 +1753,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           toast.success('Order accepted for production');
                           if (onMarkSeen) onMarkSeen();
                         } catch (err) {
-                          toast.error('Failed to accept: ' + (err.response?.data?.message || err.message));
+                          toast.error('Failed to accept: ' + (err.response?.data?.error || err.response?.data?.message || err.message));
                         }
                       })}
                       disabled={!!actionLoading}
@@ -2017,6 +2017,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           <option value="WALK_IN">Working Received by Customer / Received by Customer</option>
                         </select>
                         <input
+                          id={`dispatch-tracking-${order.id}`}
+                          name="trackingNumber"
                           type="text"
                           value={trackingUrl}
                           onChange={(e) => setTrackingUrl(e.target.value)}
@@ -2933,7 +2935,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             <h3 className="text-lg font-black uppercase tracking-widest mb-6">{t('Print Job Sheet Sections')}</h3>
             <div className="space-y-4 mb-8">
               <label className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 cursor-not-allowed opacity-60">
-                <input type="checkbox" checked={true} disabled className="w-5 h-5 accent-emerald-500" />
+                <input id={`print-order-details-${order.id}`} name="printOrderDetails" type="checkbox" checked={true} disabled className="w-5 h-5 accent-emerald-500" />
                 <div>
                   <p className="text-sm font-black text-emerald-400">{t('Order & Product Details')}</p>
                   <p className="text-xs text-gray-500">{t('Customer info, order details, products')}</p>
@@ -2941,6 +2943,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               </label>
               <label className="flex items-center gap-3 p-4 rounded-2xl theme-bg-subtle border theme-border cursor-pointer hover:border-emerald-500/40 transition-colors">
                 <input
+                  id={`print-measurements-${order.id}`}
+                  name="printMeasurements"
                   type="checkbox"
                   checked={printSections.measurements}
                   onChange={(e) => setPrintSections(p => ({ ...p, measurements: e.target.checked }))}
@@ -2953,6 +2957,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               </label>
               <label className="flex items-center gap-3 p-4 rounded-2xl theme-bg-subtle border theme-border cursor-pointer hover:border-emerald-500/40 transition-colors">
                 <input
+                  id={`print-engraving-${order.id}`}
+                  name="printEngraving"
                   type="checkbox"
                   checked={printSections.engraving}
                   onChange={(e) => setPrintSections(p => ({ ...p, engraving: e.target.checked }))}
@@ -3073,6 +3079,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div className="relative">
                     <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₨</span>
                     <input 
+                      id={`customization-amount-${order.id}`}
+                      name="customizationAmount"
                       type="number"
                       value={customizationAmount}
                       onChange={(e) => setCustomizationAmount(e.target.value)}
@@ -3290,7 +3298,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {forceAction === 'EXTEND_DEADLINE' && (
                 <div>
                   <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-2 block">Additional Hours</label>
-                  <input type="number" min="1" value={forceHours} onChange={(e) => setForceHours(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-black text-lg" placeholder="e.g. 24" />
+                  <input id={`force-hours-${order.id}`} name="forceHours" type="number" min="1" value={forceHours} onChange={(e) => setForceHours(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-black text-lg" placeholder="e.g. 24" />
                 </div>
               )}
 
@@ -3379,6 +3387,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               <div>
                 <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Amount (₨)</label>
                 <input
+                  id={`payment-amount-${order.id}`}
+                  name="paymentAmount"
                   type="number"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}

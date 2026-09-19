@@ -430,6 +430,8 @@ const MyTasks = () => {
           <div className="relative group w-full md:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={16} />
             <input
+              id="my-tasks-search-input"
+              name="search"
               type="text"
               placeholder="Search ID or Customer..."
               value={searchTerm}
