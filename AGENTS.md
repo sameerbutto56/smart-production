@@ -1,5 +1,29 @@
 ## Goals
-### Implemented This Session — System-Wide Health Audit, My Tasks Refresh Buttons across All Profiles, Gender Preservation Flow & Abbottabad Clean Slate Reset
+### Implemented This Session — Jail Road Branch Bank Deposit Reset & New Deposit Cycle from 21 September 2026 (commit 30fbe61, deployed & live-verified)
+- **Requirement**:
+  - Implement a completely fresh bank deposit cycle starting **21 September 2026** strictly for **Jail Road Branch**.
+  - All deposit calculations up to and including **20 September 2026** considered cleared/settled for the current pending balance.
+  - Jail Road initial pending deposit displayed and calculated as **Rs. 0**.
+  - Zero historical data deletion: All historical deposit records, dates, amounts, references, and collections remain fully intact and stored in the database for auditing and historical reporting.
+  - New deposit cycle accumulates strictly from **21 September 2026 onward**.
+  - Applies **strictly to Jail Road Branch only**; Johar Town, Abbottabad, and any other branch deposit cycles remain completely untouched (standard cutoff `2026-09-15`).
+- **Backend Implementation (`dailyDeposit.controller.js`)**:
+  - Introduced `OUTLET_CUTOFF_DATES = { 'Jail Road': '2026-09-21' }` with `DEFAULT_CUTOFF_DATE = '2026-09-15'`.
+  - Added `getOutletCutoffDate(outletName)` resolving the branch-specific cutoff cleanly.
+  - Updated `syncDailyRequirements`, `getDailyDeposits`, `submitDailyDeposit`, and `rebuildOutletDepositState` to use `outletCutoff`.
+  - Jail Road summary immediately computes `todayPending: 0`, `previousPending: 0`, `totalPendingAllTime: 0`.
+  - Returns dynamic `cutoffDate` in the JSON response payload.
+- **Frontend Implementation (`DailyCashDepositSection.jsx`)**:
+  - Dynamically formats subtitle, rebuild dialog confirmation, and rebuild button tooltip based on the backend `data?.cutoffDate` ("21 September 2026" for Jail Road, "15 September 2026" for Johar Town).
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-jail-road-deposit-reset.cjs`: 4/4 tests passed (Branch cutoff mapping, Historical data preservation, Jail Road zero pending balance & fresh cycle start, Johar Town isolation).
+  - Regression suite `backend/scripts/rebuild-and-verify-deposits.cjs`: 13/13 tests passed.
+  - Frontend production build (`npm run build`): Exit code 0, 3,203 modules bundled cleanly.
+  - Git commit `30fbe61` pushed to `origin/main`.
+  - Vercel production deployment `dpl_H6BneUK8Deob9hkHUpUMPLBC5fX2` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+
+### Implemented Prior Session — System-Wide Health Audit, My Tasks Refresh Buttons across All Profiles, Gender Preservation Flow & Abbottabad Clean Slate Reset
 - **Task 1 (My Tasks & Tasks Refresh Across All Profiles)**:
   - In `MyTasks.jsx`: Added `'OUT_FOR_DELIVERY'` and `'DELIVERY_BOY'` to `hasTaskFilters` to ensure their pipeline tasks display and refresh accurately. Upgraded `refreshTasks` with strict in-flight guards (`if (refreshing) return;`), cancellation of pending debounced socket re-fetches (`clearTimeout(debouncedRefresh.current)`), and `Promise.allSettled`. Upgraded sub-tab refresh buttons for Alterations and Engravings with spinners and disabled states during flight.
   - In `DispatchPage.jsx`: Added a prominent Refresh button in the header with an active loading spinner, disabled state during flight (`loading`), invoking `doRefresh()` and `fetchStats()`, and toast feedback.
