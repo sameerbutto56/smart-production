@@ -1,7 +1,19 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
 
-const CUTOFF_DATE = '2026-09-15'; // All cash prior to this is treated as cleared/deposited
+const DEFAULT_CUTOFF_DATE = '2026-09-15'; // Default baseline: all cash prior to this is treated as cleared/deposited
+const CUTOFF_DATE = DEFAULT_CUTOFF_DATE; // Preserved for backward compatibility
+
+// Specific outlet cutoff dates:
+// Jail Road: New deposit cycle starts 21 September 2026 (All transactions on or before 20 September 2026 are cleared)
+const OUTLET_CUTOFF_DATES = {
+  'Jail Road': '2026-09-21',
+};
+
+const getOutletCutoffDate = (outletName) => {
+  return OUTLET_CUTOFF_DATES[outletName] || DEFAULT_CUTOFF_DATE;
+};
+
 const PK_OFFSET = 5 * 60 * 60 * 1000;
 
 /**
@@ -178,12 +190,13 @@ const getDateRangeList = (startDateStr, endDateStr) => {
  * Recomputes cash generated in a vectorized batch, carries forward pending amounts FIFO, and assigns exact statuses.
  */
 const syncDailyRequirements = async (outletName, targetDate = getPktDateString()) => {
-  if (targetDate < CUTOFF_DATE) {
-    targetDate = CUTOFF_DATE;
+  const outletCutoff = getOutletCutoffDate(outletName);
+  if (targetDate < outletCutoff) {
+    targetDate = outletCutoff;
   }
 
-  const dates = getDateRangeList(CUTOFF_DATE, targetDate);
-  const intervalStart = getPktDayBounds(CUTOFF_DATE).start;
+  const dates = getDateRangeList(outletCutoff, targetDate);
+  const intervalStart = getPktDayBounds(outletCutoff).start;
   const intervalEnd = getPktDayBounds(targetDate).end;
 
   // 1. Parallel fetch for all days in the interval in a single round-trip
@@ -260,7 +273,7 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     prisma.dailyCashRequirement.findMany({
       where: {
         outletName,
-        businessDate: { gte: CUTOFF_DATE, lte: targetDate },
+        businessDate: { gte: outletCutoff, lte: targetDate },
       },
       include: {
         allocations: true,
@@ -474,21 +487,22 @@ const getDailyDeposits = async (req, res) => {
   try {
     const { outletName } = req.params;
     const todayPkt = getPktDateString();
+    const outletCutoff = getOutletCutoffDate(outletName);
 
     // Ensure state is synchronized up to today
     await syncDailyRequirements(outletName, todayPkt);
 
     // Date range filter
     const { range, dateFrom, dateTo } = req.query;
-    let queryStartStr = CUTOFF_DATE;
+    let queryStartStr = outletCutoff;
     let queryEndStr = todayPkt;
 
     if (dateFrom) queryStartStr = dateFrom.slice(0, 10);
     if (dateTo) queryEndStr = dateTo.slice(0, 10);
 
     // Enforce cutoff: never display pre-cutoff as pending
-    if (queryStartStr < CUTOFF_DATE && range !== 'all') {
-      queryStartStr = CUTOFF_DATE;
+    if (queryStartStr < outletCutoff && range !== 'all') {
+      queryStartStr = outletCutoff;
     }
 
     // Fetch requirements
@@ -541,11 +555,11 @@ const getDailyDeposits = async (req, res) => {
       orderBy: { actualDepositDate: 'desc' },
     });
 
-    // All active pending across all dates >= CUTOFF_DATE
+    // All active pending across all dates >= outletCutoff
     const allPendingReqs = await prisma.dailyCashRequirement.findMany({
       where: {
         outletName,
-        businessDate: { gte: CUTOFF_DATE },
+        businessDate: { gte: outletCutoff },
         pendingAmount: { gt: 0 },
       },
     });
@@ -574,7 +588,7 @@ const getDailyDeposits = async (req, res) => {
 
     res.json({
       outletName,
-      cutoffDate: CUTOFF_DATE,
+      cutoffDate: outletCutoff,
       todayDate: todayPkt,
       summary,
       requirements,
@@ -646,12 +660,13 @@ const submitDailyDeposit = async (req, res) => {
         },
       });
 
-      // Fetch all requirements chronologically from CUTOFF_DATE to effectiveBusinessDate
+      // Fetch all requirements chronologically from outletCutoff to effectiveBusinessDate
+      const outletCutoff = getOutletCutoffDate(outletName);
       const allRequirements = await tx.dailyCashRequirement.findMany({
         where: {
           outletName,
           businessDate: {
-            gte: CUTOFF_DATE,
+            gte: outletCutoff,
             lte: effectiveBusinessDate,
           },
         },
@@ -750,13 +765,15 @@ const rebuildOutletDepositState = async (req, res) => {
     const results = {};
 
     for (const outletName of outletsToRebuild) {
-      // 1. Wipe existing allocations and requirements from CUTOFF_DATE in one transaction
+      const outletCutoff = getOutletCutoffDate(outletName);
+
+      // 1. Wipe existing allocations and requirements from outletCutoff in one transaction
       await prisma.$transaction([
         prisma.cashDepositAllocation.deleteMany({
-          where: { cashDeposit: { outletName } },
+          where: { cashDeposit: { outletName }, businessDate: { gte: outletCutoff } },
         }),
         prisma.dailyCashRequirement.deleteMany({
-          where: { outletName, businessDate: { gte: CUTOFF_DATE } },
+          where: { outletName, businessDate: { gte: outletCutoff } },
         }),
       ]);
 
@@ -768,14 +785,14 @@ const rebuildOutletDepositState = async (req, res) => {
         prisma.dailyCashRequirement.findMany({
           where: {
             outletName,
-            businessDate: { gte: CUTOFF_DATE, lte: todayPkt },
+            businessDate: { gte: outletCutoff, lte: todayPkt },
           },
           orderBy: { businessDate: 'asc' },
         }),
         prisma.cashDeposit.findMany({
           where: {
             outletName,
-            businessDate: { gte: CUTOFF_DATE },
+            businessDate: { gte: outletCutoff },
           },
           orderBy: [
             { businessDate: 'asc' },
@@ -866,7 +883,10 @@ const rebuildOutletDepositState = async (req, res) => {
 };
 
 module.exports = {
+  DEFAULT_CUTOFF_DATE,
   CUTOFF_DATE,
+  OUTLET_CUTOFF_DATES,
+  getOutletCutoffDate,
   calculateAuthoritativeDailyCash,
   syncDailyRequirements,
   getDailyDeposits,

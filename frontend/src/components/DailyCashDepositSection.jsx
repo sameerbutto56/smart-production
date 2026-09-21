@@ -125,8 +125,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
     );
   });
 
+  const cutoffDisplay = data?.cutoffDate
+    ? new Date(data.cutoffDate + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : '15 September 2026';
+
   const handleRebuild = async () => {
-    if (!window.confirm(`Are you sure you want to rebuild and reallocate all cash deposit requirements for ${outlet} starting from 15 September 2026?`)) {
+    if (!window.confirm(`Are you sure you want to rebuild and reallocate all cash deposit requirements for ${outlet} starting from ${cutoffDisplay}?`)) {
       return;
     }
     setLoading(true);
@@ -153,7 +157,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
             </h3>
           </div>
           <p className="text-xs text-gray-400 mt-1">
-            Tracking daily cash generated, required deposits, partial deposits, excess amounts, and carry-forward allocations starting from 15 September 2026.
+            Tracking daily cash generated, required deposits, partial deposits, excess amounts, and carry-forward allocations starting from {cutoffDisplay}.
           </p>
         </div>
 
@@ -169,7 +173,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
           <button
             onClick={handleRebuild}
             className="px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-            title="Rebuild Deposit Allocations from 15 September"
+            title={`Rebuild Deposit Allocations from ${cutoffDisplay}`}
           >
             <RefreshCw size={14} /> Rebuild Ledger
           </button>
