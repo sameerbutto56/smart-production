@@ -549,9 +549,12 @@ const getDailyDeposits = async (req, res) => {
       },
     });
 
-    // Latest deposit made
+    // Latest deposit made in the active cycle
     const lastDeposit = await prisma.cashDeposit.findFirst({
-      where: { outletName },
+      where: {
+        outletName,
+        businessDate: { gte: outletCutoff },
+      },
       orderBy: { actualDepositDate: 'desc' },
     });
 

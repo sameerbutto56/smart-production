@@ -11,7 +11,9 @@
   - Introduced `OUTLET_CUTOFF_DATES = { 'Jail Road': '2026-09-21' }` with `DEFAULT_CUTOFF_DATE = '2026-09-15'`.
   - Added `getOutletCutoffDate(outletName)` resolving the branch-specific cutoff cleanly.
   - Updated `syncDailyRequirements`, `getDailyDeposits`, `submitDailyDeposit`, and `rebuildOutletDepositState` to use `outletCutoff`.
-  - Jail Road summary immediately computes `todayPending: 0`, `previousPending: 0`, `totalPendingAllTime: 0`.
+  - Added `businessDate: { gte: outletCutoff }` filter to `lastDeposit` in `getDailyDeposits` so historical deposits from prior cycles do not display as active cycle deposits.
+  - Cleared `DEP-847533` (Rs. 10,800 recorded early morning 21 Sep for previous cycle) from the 21 Sep active cycle by assigning `businessDate: '2026-09-20'`, deleting the extraneous 21 Sep excess allocation, and preserving full historical records in `CashDeposit` and `BankDeposit`.
+  - Jail Road summary immediately computes: `todayCashGenerated: 0`, `todayRequiredDeposit: 0`, `todayDeposited: 0`, `todayPending: 0`, `previousPending: 0`, `excessDeposit: 0`, `totalPendingAllTime: 0`, `lastDeposit: null`.
   - Returns dynamic `cutoffDate` in the JSON response payload.
 - **Frontend Implementation (`DailyCashDepositSection.jsx`)**:
   - Dynamically formats subtitle, rebuild dialog confirmation, and rebuild button tooltip based on the backend `data?.cutoffDate` ("21 September 2026" for Jail Road, "15 September 2026" for Johar Town).
