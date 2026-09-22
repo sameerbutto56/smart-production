@@ -1,6 +1,8 @@
 const prisma = require('../prisma');
 const notify = require('../utils/notify');
 
+const eqField = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
 /**
  * Generate atomic sequence number for ASM Stock Request (ASH-YYYYMMDD-#####)
  */
@@ -37,20 +39,10 @@ const nextReturnNumber = async (tx) => {
  */
 const getWarehouseCatalog = async (req, res) => {
   try {
-    const { search, category } = req.query;
+    const { search, category } = req.query || {};
     const where = {
       stock: { gt: 0 }
     };
-    if (search && search.trim()) {
-      const s = search.trim();
-      where.OR = [
-        { name: { contains: s, mode: 'insensitive' } },
-        { category: { contains: s, mode: 'insensitive' } },
-        { color: { contains: s, mode: 'insensitive' } },
-        { size: { contains: s, mode: 'insensitive' } },
-        { fabric: { contains: s, mode: 'insensitive' } }
-      ];
-    }
     if (category && category.trim()) {
       where.category = { equals: category.trim(), mode: 'insensitive' };
     }
@@ -60,7 +52,74 @@ const getWarehouseCatalog = async (req, res) => {
       orderBy: [{ category: 'asc' }, { name: 'asc' }]
     });
 
-    return res.json({ items });
+    const s = search ? search.trim().toLowerCase() : '';
+    const variantRows = [];
+
+    for (const item of items) {
+      let variants = typeof item.variants === 'string'
+        ? JSON.parse(item.variants)
+        : (Array.isArray(item.variants) ? item.variants : []);
+
+      if (variants && variants.length > 0) {
+        for (const v of variants) {
+          const vStock = parseInt(v.stock) || 0;
+          if (vStock <= 0) continue; // Only show available stock
+
+          if (s) {
+            const matches =
+              (item.name && item.name.toLowerCase().includes(s)) ||
+              (item.category && item.category.toLowerCase().includes(s)) ||
+              (item.fabric && item.fabric.toLowerCase().includes(s)) ||
+              (v.color && String(v.color).toLowerCase().includes(s)) ||
+              (v.size && String(v.size).toLowerCase().includes(s));
+            if (!matches) continue;
+          }
+
+          variantRows.push({
+            id: `${item.id}-${v.color || 'none'}-${v.size || 'none'}`,
+            inventoryItemId: item.id,
+            productName: item.name,
+            category: item.category,
+            fabric: item.fabric || '',
+            color: v.color || '—',
+            size: v.size || '—',
+            availableStock: vStock,
+            price: v.price !== undefined ? parseFloat(v.price) : (item.price || 0),
+            imageUrl: item.imageUrl || '',
+            parentTotalStock: item.stock
+          });
+        }
+      } else {
+        // Fallback for items without variants array
+        if (item.stock > 0) {
+          if (s) {
+            const matches =
+              (item.name && item.name.toLowerCase().includes(s)) ||
+              (item.category && item.category.toLowerCase().includes(s)) ||
+              (item.fabric && item.fabric.toLowerCase().includes(s)) ||
+              (item.color && item.color.toLowerCase().includes(s)) ||
+              (item.size && item.size.toLowerCase().includes(s));
+            if (!matches) continue;
+          }
+
+          variantRows.push({
+            id: item.id,
+            inventoryItemId: item.id,
+            productName: item.name,
+            category: item.category,
+            fabric: item.fabric || '',
+            color: item.color || '—',
+            size: item.size || '—',
+            availableStock: item.stock || 0,
+            price: item.price || 0,
+            imageUrl: item.imageUrl || '',
+            parentTotalStock: item.stock
+          });
+        }
+      }
+    }
+
+    return res.json({ items, variants: variantRows });
   } catch (err) {
     console.error('getWarehouseCatalog error:', err);
     return res.status(500).json({ message: err.message || 'Failed to fetch warehouse catalog' });
@@ -121,14 +180,56 @@ const createStockRequest = async (req, res) => {
         }
 
         if (inv) {
-          if (inv.stock < qty) {
-            throw new Error(`Insufficient stock for ${inv.name} (${inv.color || ''} ${inv.size || ''}). Available: ${inv.stock}, Requested: ${qty}`);
+          let variants = typeof inv.variants === 'string'
+            ? JSON.parse(inv.variants)
+            : (Array.isArray(inv.variants) ? [...inv.variants] : []);
+
+          if (variants.length > 0) {
+            const vIdx = variants.findIndex(v =>
+              eqField(v.color, item.color) && eqField(v.size, item.size)
+            );
+            if (vIdx !== -1) {
+              const currentStock = parseInt(variants[vIdx].stock) || 0;
+              if (currentStock < qty) {
+                throw new Error(
+                  `Insufficient stock for ${inv.name} (${item.color || 'Default'} / ${item.size || 'Standard'}). Available: ${currentStock}, Requested: ${qty}`
+                );
+              }
+              variants[vIdx] = {
+                ...variants[vIdx],
+                stock: currentStock - qty
+              };
+              const newTotalStock = Math.max(0, variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0));
+              await tx.inventoryItem.update({
+                where: { id: inv.id },
+                data: {
+                  stock: newTotalStock,
+                  variants: variants
+                }
+              });
+            } else {
+              // Variant not specifically found in array: validate against overall stock
+              if (inv.stock < qty) {
+                throw new Error(
+                  `Insufficient stock for ${inv.name} (${item.color || ''} ${item.size || ''}). Available: ${inv.stock}, Requested: ${qty}`
+                );
+              }
+              await tx.inventoryItem.update({
+                where: { id: inv.id },
+                data: { stock: { decrement: qty } }
+              });
+            }
+          } else {
+            if (inv.stock < qty) {
+              throw new Error(
+                `Insufficient stock for ${inv.name} (${item.color || ''} ${item.size || ''}). Available: ${inv.stock}, Requested: ${qty}`
+              );
+            }
+            await tx.inventoryItem.update({
+              where: { id: inv.id },
+              data: { stock: { decrement: qty } }
+            });
           }
-          // Deduct from inventory
-          await tx.inventoryItem.update({
-            where: { id: inv.id },
-            data: { stock: { decrement: qty } }
-          });
         }
 
         preparedItems.push({
@@ -502,17 +603,42 @@ const acceptStockReturn = async (req, res) => {
         const qty = retItem.quantityReturned;
         if (qty <= 0) continue;
 
-        // Restore to Warehouse InventoryItem
+        // Restore to Warehouse InventoryItem with accurate variant stock restoration
+        let inv = null;
         if (retItem.inventoryItemId) {
-          await tx.inventoryItem.update({
-            where: { id: retItem.inventoryItemId },
-            data: { stock: { increment: qty } }
-          });
+          inv = await tx.inventoryItem.findUnique({ where: { id: retItem.inventoryItemId } });
         } else if (retItem.productName) {
-          const inv = await tx.inventoryItem.findFirst({
-            where: { name: retItem.productName, color: retItem.color || null, size: retItem.size || null }
+          inv = await tx.inventoryItem.findFirst({
+            where: { name: retItem.productName }
           });
-          if (inv) {
+        }
+
+        if (inv) {
+          let variants = typeof inv.variants === 'string'
+            ? JSON.parse(inv.variants)
+            : (Array.isArray(inv.variants) ? [...inv.variants] : []);
+
+          if (variants.length > 0) {
+            const vIdx = variants.findIndex(v =>
+              eqField(v.color, retItem.color) && eqField(v.size, retItem.size)
+            );
+            if (vIdx !== -1) {
+              variants[vIdx] = {
+                ...variants[vIdx],
+                stock: (parseInt(variants[vIdx].stock) || 0) + qty
+              };
+              const newTotalStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+              await tx.inventoryItem.update({
+                where: { id: inv.id },
+                data: { stock: newTotalStock, variants }
+              });
+            } else {
+              await tx.inventoryItem.update({
+                where: { id: inv.id },
+                data: { stock: { increment: qty } }
+              });
+            }
+          } else {
             await tx.inventoryItem.update({
               where: { id: inv.id },
               data: { stock: { increment: qty } }

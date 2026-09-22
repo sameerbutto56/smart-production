@@ -4,20 +4,70 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   Package, ShoppingCart, Search, Plus, Trash2, CheckCircle2, RotateCcw,
-  Printer, ArrowRight, X, AlertCircle, RefreshCw, FileText, Check, User, Building2, ChevronRight
+  Printer, ArrowRight, X, AlertCircle, RefreshCw, FileText, Check, User,
+  Building2, ChevronRight, ChevronDown, Layers, LayoutGrid, List, Minus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
+
+// Status badge sub-component for ASM Handover Requests
+const StatusBadge = ({ status }) => {
+  switch (status) {
+    case 'SUBMITTED':
+      return (
+        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          Pending ASM Acceptance
+        </span>
+      );
+    case 'ACCEPTED':
+      return (
+        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">
+          Handed Over / With ASM
+        </span>
+      );
+    case 'PARTIALLY_RETURNED':
+      return (
+        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-purple-500/20 text-purple-400 border border-purple-500/30">
+          Partially Returned
+        </span>
+      );
+    case 'FULLY_RETURNED':
+      return (
+        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          ✓ Fully Returned
+        </span>
+      );
+    case 'REJECTED':
+    case 'CANCELLED':
+      return (
+        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-red-500/20 text-red-400 border border-red-500/30">
+          {status}
+        </span>
+      );
+    default:
+      return (
+        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-gray-500/20 text-gray-400 border border-gray-500/30">
+          {status || 'Unknown'}
+        </span>
+      );
+  }
+};
 
 const AsmAllowedStorePage = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('new-handover'); // 'new-handover' | 'requests' | 'returns' | 'history'
 
-  // Catalog & Cart state
+  // Catalog & Variants state
   const [catalog, setCatalog] = useState([]);
+  const [catalogVariants, setCatalogVariants] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [viewLayout, setViewLayout] = useState('table'); // 'table' | 'grouped'
+  const [expandedProducts, setExpandedProducts] = useState({});
+  const [rowAllocQty, setRowAllocQty] = useState({});
+
+  // Handover Cart state
   const [asmUsers, setAsmUsers] = useState([]);
   const [selectedAsmId, setSelectedAsmId] = useState('');
   const [cart, setCart] = useState([]);
@@ -37,7 +87,7 @@ const AsmAllowedStorePage = () => {
   // Print modal state
   const [printRequest, setPrintRequest] = useState(null);
 
-  // Fetch warehouse catalog
+  // Fetch warehouse catalog with product + color + size variants
   const fetchCatalog = useCallback(async () => {
     setCatalogLoading(true);
     try {
@@ -45,6 +95,7 @@ const AsmAllowedStorePage = () => {
         params: { search: searchQuery, category: selectedCategory }
       });
       setCatalog(res.data?.items || []);
+      setCatalogVariants(res.data?.variants || []);
     } catch (err) {
       toast.error('Failed to load warehouse catalog');
     }
@@ -92,37 +143,64 @@ const AsmAllowedStorePage = () => {
     else if (activeTab === 'returns') fetchReturns();
   }, [activeTab, fetchCatalog, fetchRequests, fetchReturns]);
 
-  // Cart helper functions
-  const addToCart = (item, color, size, qty) => {
-    const quantity = parseInt(qty) || 1;
-    if (quantity <= 0) return toast.error('Quantity must be at least 1');
-    if (quantity > item.stock) return toast.error(`Cannot add more than available stock (${item.stock})`);
+  // Categories list derived from loaded variants
+  const categories = useMemo(() => {
+    const set = new Set(catalog.map(i => i.category).filter(Boolean));
+    return Array.from(set).sort();
+  }, [catalog]);
 
-    const cartKey = `${item.id}-${color || ''}-${size || ''}`;
+  // Grouped variants by Product Name
+  const groupedProducts = useMemo(() => {
+    const map = new Map();
+    for (const v of catalogVariants) {
+      if (!map.has(v.productName)) {
+        map.set(v.productName, {
+          productName: v.productName,
+          category: v.category,
+          fabric: v.fabric,
+          imageUrl: v.imageUrl,
+          inventoryItemId: v.inventoryItemId,
+          variants: []
+        });
+      }
+      map.get(v.productName).variants.push(v);
+    }
+    return Array.from(map.values());
+  }, [catalogVariants]);
+
+  // Add a specific variant to the handover cart
+  const addToCart = (variant, qty) => {
+    const quantity = parseInt(qty) || 1;
+    if (quantity <= 0) return toast.error('Allocation quantity must be at least 1');
+    if (quantity > variant.availableStock) {
+      return toast.error(`Cannot allocate more than available warehouse stock (${variant.availableStock}) for ${variant.productName} (${variant.color} / ${variant.size})`);
+    }
+
+    const cartKey = `${variant.inventoryItemId}-${variant.color || ''}-${variant.size || ''}`;
     setCart(prev => {
       const existing = prev.find(c => c.cartKey === cartKey);
       if (existing) {
         const nextQty = existing.quantity + quantity;
-        if (nextQty > item.stock) {
-          toast.error(`Total quantity exceeds stock (${item.stock})`);
+        if (nextQty > variant.availableStock) {
+          toast.error(`Total handover quantity (${nextQty}) exceeds available warehouse stock (${variant.availableStock})`);
           return prev;
         }
-        toast.success(`Updated ${item.name} quantity to ${nextQty}`);
+        toast.success(`Updated ${variant.productName} (${variant.color} / ${variant.size}) to ${nextQty} units`);
         return prev.map(c => c.cartKey === cartKey ? { ...c, quantity: nextQty } : c);
       }
-      toast.success(`Added ${item.name} to cart`);
+      toast.success(`Added ${quantity}x ${variant.productName} (${variant.color} / ${variant.size}) to handover`);
       return [...prev, {
         cartKey,
-        inventoryItemId: item.id,
-        productName: item.name,
-        category: item.category,
-        color: color || item.color || '',
-        size: size || item.size || '',
-        fabric: item.fabric || '',
-        stock: item.stock,
+        inventoryItemId: variant.inventoryItemId,
+        productName: variant.productName,
+        category: variant.category,
+        color: variant.color,
+        size: variant.size,
+        fabric: variant.fabric || '',
+        stock: variant.availableStock, // authoritative variant available stock
         quantity,
         unit: 'Pieces',
-        price: item.price || 0
+        price: variant.price || 0
       }];
     });
   };
@@ -142,8 +220,8 @@ const AsmAllowedStorePage = () => {
 
   // Submit Handover Request
   const handleSubmitRequest = async () => {
-    if (cart.length === 0) return toast.error('Add at least one product to cart');
-    if (!selectedAsmId) return toast.error('Please select an ASM');
+    if (cart.length === 0) return toast.error('Add at least one product variant to allocate');
+    if (!selectedAsmId) return toast.error('Please select a target ASM');
 
     const selectedAsm = asmUsers.find(a => a.id === selectedAsmId);
 
@@ -167,7 +245,7 @@ const AsmAllowedStorePage = () => {
         }))
       });
 
-      toast.success(`ASM Stock Handover ${res.data?.request?.requestNumber} submitted!`);
+      toast.success(`ASM Stock Allocation ${res.data?.request?.requestNumber} submitted!`);
       const created = res.data?.request;
       setCart([]);
       setNotes('');
@@ -175,9 +253,10 @@ const AsmAllowedStorePage = () => {
       if (created) {
         setPrintRequest(created);
       }
+      fetchCatalog();
       setActiveTab('requests');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to submit request');
+      toast.error(err.response?.data?.message || 'Failed to submit allocation request');
     }
     setSubmitting(false);
   };
@@ -187,8 +266,9 @@ const AsmAllowedStorePage = () => {
     setAcceptingReturnId(returnId);
     try {
       const res = await api.post(`/api/asm-stock/returns/${returnId}/accept`);
-      toast.success(`Return ${res.data?.returnRecord?.returnNumber} accepted! Inventory restored.`);
+      toast.success(`Return ${res.data?.returnRecord?.returnNumber} accepted! Warehouse Inventory restored.`);
       fetchReturns();
+      fetchCatalog();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to accept return');
     }
@@ -228,29 +308,30 @@ const AsmAllowedStorePage = () => {
       <body>
         <div class="header">
           <h2 style="margin: 0;">ENAMELS WAREHOUSE</h2>
-          <h3 style="margin: 5px 0 0 0;">ASM STOCK HANDOVER SHEET</h3>
+          <h3 style="margin: 5px 0 0 0;">ASM STOCK ALLOCATION & HANDOVER SHEET</h3>
         </div>
         <div class="meta">
           <div>
-            <p><strong>Request Number:</strong> ${reqData.requestNumber}</p>
-            <p><strong>Store:</strong> ${reqData.storeName || 'Warehouse Store'}</p>
+            <p><strong>Handover Number:</strong> ${reqData.requestNumber}</p>
+            <p><strong>Store / Warehouse:</strong> ${reqData.storeName || 'Warehouse Store'}</p>
             <p><strong>Prepared By:</strong> ${reqData.submittedByName || 'Store'}</p>
           </div>
           <div>
             <p><strong>Date & Time:</strong> ${formatDateTime(reqData.submittedAt || new Date())}</p>
-            <p><strong>ASM:</strong> ${reqData.asmName || 'Unassigned ASM'}</p>
+            <p><strong>Target ASM:</strong> ${reqData.asmName || 'Authorized ASM'}</p>
             <p><strong>Status:</strong> ${reqData.status}</p>
           </div>
         </div>
+
         <table>
           <thead>
             <tr>
-              <th>#</th>
+              <th style="width: 40px; text-align: center;">#</th>
               <th>Product Name</th>
               <th>Category</th>
               <th>Color</th>
               <th>Size</th>
-              <th style="text-align: right;">Quantity</th>
+              <th style="text-align: right;">Quantity Given</th>
               <th>Unit</th>
             </tr>
           </thead>
@@ -258,10 +339,16 @@ const AsmAllowedStorePage = () => {
             ${itemsHtml}
           </tbody>
         </table>
-        ${reqData.notes ? `<p><strong>Notes / Special Instructions:</strong> ${reqData.notes}</p>` : ''}
+
+        ${reqData.notes ? `<p style="font-size: 13px;"><strong>Special Instructions:</strong> ${reqData.notes}</p>` : ''}
+
         <div class="signatures">
-          <div class="sig-box">Store Handover Signature & Date</div>
-          <div class="sig-box">ASM Received Signature & Date</div>
+          <div class="sig-box">
+            <p>Store In-Charge Signature</p>
+          </div>
+          <div class="sig-box">
+            <p>ASM Physical Receiving Signature</p>
+          </div>
         </div>
       </body>
       </html>
@@ -271,10 +358,9 @@ const AsmAllowedStorePage = () => {
     setTimeout(() => { printWindow.print(); }, 250);
   };
 
-  const categories = useMemo(() => {
-    const set = new Set(catalog.map(i => i.category).filter(Boolean));
-    return Array.from(set).sort();
-  }, [catalog]);
+  const totalAvailableUnits = useMemo(() => {
+    return catalogVariants.reduce((sum, v) => sum + (v.availableStock || 0), 0);
+  }, [catalogVariants]);
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
@@ -284,10 +370,10 @@ const AsmAllowedStorePage = () => {
           <BackButton />
           <div>
             <h1 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
-              <Package className="text-amber-400" size={28} /> ASM Allowed Stock Movement
+              <Package className="text-amber-400" size={28} /> ASM Stock Allocation
             </h1>
             <p className="text-xs text-gray-400 mt-1">
-              Store ↔ ASM Stock Handover & Verification Return System
+              Store ↔ ASM Stock Allocation, Live Warehouse Inventory (Product + Color + Size) & Returns
             </p>
           </div>
         </div>
@@ -296,11 +382,11 @@ const AsmAllowedStorePage = () => {
         <div className="flex flex-wrap gap-2 bg-gray-900/80 p-1.5 rounded-2xl border border-gray-800">
           <button onClick={() => setActiveTab('new-handover')}
             className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'new-handover' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:text-white'}`}>
-            <Plus size={14} /> New Handover
+            <Plus size={14} /> Allocate Stock
           </button>
           <button onClick={() => setActiveTab('requests')}
             className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'requests' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:text-white'}`}>
-            <FileText size={14} /> Handovers ({requests.length})
+            <FileText size={14} /> Allocation Records ({requests.length})
           </button>
           <button onClick={() => setActiveTab('returns')}
             className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'returns' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:text-white'}`}>
@@ -313,62 +399,336 @@ const AsmAllowedStorePage = () => {
         </div>
       </div>
 
-      {/* ═══════════════════ Tab 1: New Handover ═══════════════════ */}
+      {/* ═══════════════════ Tab 1: New Handover / Allocation ═══════════════════ */}
       {activeTab === 'new-handover' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Warehouse Catalog Panel */}
+          {/* Warehouse Inventory Panel */}
           <div className="lg:col-span-2 space-y-4">
             <div className="glass p-4 rounded-2xl border border-gray-800 space-y-3">
-              <div className="flex flex-wrap gap-3">
-                <div className="flex-1 min-w-[200px] relative">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex-1 min-w-[220px] relative">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search warehouse inventory by name, color, size..."
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-gray-500 outline-none focus:border-amber-500" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search by product, color, size, fabric, category..."
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-gray-500 outline-none focus:border-amber-500 font-medium"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
-                <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
-                  className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500">
-                  <option value="">All Categories</option>
+
+                <select
+                  value={selectedCategory}
+                  onChange={e => setSelectedCategory(e.target.value)}
+                  className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500 font-bold"
+                >
+                  <option value="">All Categories ({categories.length})</option>
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <button onClick={fetchCatalog} className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2.5 rounded-xl">
-                  <RefreshCw size={16} className={catalogLoading ? 'animate-spin' : ''} />
+
+                {/* View Layout Toggle */}
+                <div className="flex items-center bg-gray-900 rounded-xl p-1 border border-gray-700">
+                  <button
+                    onClick={() => setViewLayout('table')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewLayout === 'table' ? 'bg-amber-500 text-black shadow' : 'text-gray-400 hover:text-white'}`}
+                    title="Detailed Variant Table View (Product + Color + Size)"
+                  >
+                    <List size={14} /> Table
+                  </button>
+                  <button
+                    onClick={() => setViewLayout('grouped')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewLayout === 'grouped' ? 'bg-amber-500 text-black shadow' : 'text-gray-400 hover:text-white'}`}
+                    title="Grouped by Product View"
+                  >
+                    <LayoutGrid size={14} /> Grouped
+                  </button>
+                </div>
+
+                <button
+                  onClick={fetchCatalog}
+                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2.5 rounded-xl border border-gray-700 transition"
+                  title="Refresh Warehouse Inventory"
+                >
+                  <RefreshCw size={16} className={catalogLoading ? 'animate-spin text-amber-400' : ''} />
                 </button>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-gray-400 border-t border-gray-800/80 pt-2 px-1">
+                <span className="font-bold flex items-center gap-2 text-gray-300">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                  Warehouse Source of Truth: <span className="text-white font-black">{catalogVariants.length}</span> Active Variants ({catalog.length} Products)
+                </span>
+                <span className="font-black text-amber-400">
+                  Total Available: {totalAvailableUnits.toLocaleString()} units
+                </span>
               </div>
             </div>
 
-            {/* Inventory List */}
-            <div className="glass p-4 rounded-2xl border border-gray-800 space-y-3 max-h-[600px] overflow-y-auto">
-              <h2 className="text-xs font-black uppercase text-gray-400 tracking-wider">
-                Live Warehouse Stock ({catalog.length} Available)
-              </h2>
+            {/* Inventory Display Container */}
+            <div className="glass p-4 rounded-2xl border border-gray-800 space-y-3">
               {catalogLoading ? (
-                <div className="py-12 text-center text-gray-500 font-bold">Loading warehouse catalog...</div>
-              ) : catalog.length === 0 ? (
-                <div className="py-12 text-center text-gray-500 font-bold">No available stock matching query</div>
+                <div className="py-20 text-center text-gray-500 font-bold flex flex-col items-center justify-center gap-3">
+                  <RefreshCw size={24} className="animate-spin text-amber-400" />
+                  <span>Loading live warehouse inventory with color & size breakdown...</span>
+                </div>
+              ) : catalogVariants.length === 0 ? (
+                <div className="py-16 text-center text-gray-500 font-bold flex flex-col items-center justify-center gap-2">
+                  <Package size={32} className="text-gray-600" />
+                  <span>No warehouse inventory items found matching your filter</span>
+                </div>
+              ) : viewLayout === 'table' ? (
+                /* ═════════ Table View: Product + Color + Size Wise ═════════ */
+                <div className="overflow-x-auto rounded-xl border border-gray-800 max-h-[620px] overflow-y-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-950/90 sticky top-0 z-10 text-gray-400 font-bold uppercase text-[10px] tracking-wider border-b border-gray-800">
+                      <tr>
+                        <th className="py-3 px-4">Product</th>
+                        <th className="py-3 px-3">Category</th>
+                        <th className="py-3 px-3">Color</th>
+                        <th className="py-3 px-3">Size</th>
+                        <th className="py-3 px-3 text-right">Available Qty</th>
+                        <th className="py-3 px-3 text-center w-36">Allocation Qty</th>
+                        <th className="py-3 px-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/60 bg-gray-900/40">
+                      {catalogVariants.map(variant => {
+                        const cartKey = `${variant.inventoryItemId}-${variant.color || ''}-${variant.size || ''}`;
+                        const inCart = cart.find(c => c.cartKey === cartKey);
+                        const allocQty = rowAllocQty[variant.id] ?? 1;
+
+                        return (
+                          <tr key={variant.id} className={`hover:bg-gray-800/50 transition-colors ${inCart ? 'bg-amber-500/10' : ''}`}>
+                            <td className="py-2.5 px-4">
+                              <p className="font-bold text-white text-xs">{variant.productName}</p>
+                              {variant.fabric && <span className="text-[10px] text-gray-400">Fabric: {variant.fabric}</span>}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 uppercase">
+                                {variant.category}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-[11px] font-bold text-gray-200 bg-gray-800/90 px-2.5 py-0.5 rounded-lg border border-gray-700/60 inline-block">
+                                {variant.color}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-[11px] font-black text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/30 inline-block">
+                                {variant.size}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <span className={`text-xs font-black px-2.5 py-1 rounded-lg ${variant.availableStock <= 5 ? 'text-red-400 bg-red-500/15 border border-red-500/30' : variant.availableStock <= 20 ? 'text-yellow-400 bg-yellow-500/15 border border-yellow-500/30' : 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'}`}>
+                                {variant.availableStock} <span className="text-[10px] font-medium text-gray-400">units</span>
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setRowAllocQty(prev => ({ ...prev, [variant.id]: Math.max(1, allocQty - 1) }))}
+                                  className="w-6 h-6 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold flex items-center justify-center"
+                                >
+                                  <Minus size={11} />
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={variant.availableStock}
+                                  value={allocQty}
+                                  onChange={e => {
+                                    const val = parseInt(e.target.value) || 1;
+                                    setRowAllocQty(prev => ({ ...prev, [variant.id]: Math.min(variant.availableStock, Math.max(1, val)) }));
+                                  }}
+                                  className="w-14 bg-gray-950 border border-gray-700 rounded text-center text-xs font-black text-white py-1 outline-none focus:border-amber-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setRowAllocQty(prev => ({ ...prev, [variant.id]: Math.min(variant.availableStock, allocQty + 1) }))}
+                                  className="w-6 h-6 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold flex items-center justify-center"
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-4 text-center">
+                              {inCart ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                                    ✓ In Cart: {inCart.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => removeFromCart(cartKey)}
+                                    className="text-red-400 hover:text-red-300 p-1 rounded transition"
+                                    title="Remove from Cart"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => addToCart(variant, allocQty)}
+                                  disabled={variant.availableStock <= 0}
+                                  className="bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black font-black px-3 py-1 rounded-lg text-xs transition-all border border-amber-500/30 flex items-center gap-1 mx-auto whitespace-nowrap"
+                                >
+                                  <Plus size={12} /> Allocate
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {catalog.map(item => (
-                    <CatalogCard key={item.id} item={item} onAddToCart={addToCart} />
-                  ))}
+                /* ═════════ Grouped by Product View (with Color & Size expansion) ═════════ */
+                <div className="space-y-3 max-h-[620px] overflow-y-auto">
+                  {groupedProducts.map(group => {
+                    const isExpanded = expandedProducts[group.productName] ?? true; // default open
+                    const groupTotalStock = group.variants.reduce((sum, v) => sum + (v.availableStock || 0), 0);
+
+                    return (
+                      <div key={group.productName} className="bg-gray-900/90 rounded-2xl p-4 border border-gray-800 space-y-3">
+                        <div
+                          className="flex items-center justify-between cursor-pointer select-none"
+                          onClick={() => setExpandedProducts(prev => ({ ...prev, [group.productName]: !isExpanded }))}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              <Package size={18} />
+                            </span>
+                            <div>
+                              <h3 className="text-sm font-black text-white">{group.productName}</h3>
+                              <p className="text-[11px] text-gray-400">
+                                <span className="font-bold text-gray-300">{group.category}</span>
+                                {group.fabric && ` • Fabric: ${group.fabric}`} • {group.variants.length} Variants
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-black bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20">
+                              Total Stock: {groupTotalStock} units
+                            </span>
+                            {isExpanded ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+                          </div>
+                        </div>
+
+                        {/* Variants Breakdown Table */}
+                        {isExpanded && (
+                          <div className="pt-2 border-t border-gray-800 overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="text-gray-400 font-bold uppercase text-[10px] border-b border-gray-800">
+                                  <th className="py-2">Color</th>
+                                  <th className="py-2">Size</th>
+                                  <th className="py-2 text-right">Available Qty</th>
+                                  <th className="py-2 text-center w-32">Allocation Qty</th>
+                                  <th className="py-2 text-center">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-800/40">
+                                {group.variants.map(variant => {
+                                  const cartKey = `${variant.inventoryItemId}-${variant.color || ''}-${variant.size || ''}`;
+                                  const inCart = cart.find(c => c.cartKey === cartKey);
+                                  const allocQty = rowAllocQty[variant.id] ?? 1;
+
+                                  return (
+                                    <tr key={variant.id} className={`hover:bg-gray-800/40 ${inCart ? 'bg-amber-500/10' : ''}`}>
+                                      <td className="py-2 font-bold text-gray-200">{variant.color}</td>
+                                      <td className="py-2 font-black text-amber-300">{variant.size}</td>
+                                      <td className="py-2 text-right">
+                                        <span className="font-black text-emerald-400">{variant.availableStock}</span> units
+                                      </td>
+                                      <td className="py-2">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => setRowAllocQty(prev => ({ ...prev, [variant.id]: Math.max(1, allocQty - 1) }))}
+                                            className="w-5 h-5 rounded bg-gray-800 text-gray-300 font-bold flex items-center justify-center"
+                                          >
+                                            <Minus size={10} />
+                                          </button>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            max={variant.availableStock}
+                                            value={allocQty}
+                                            onChange={e => {
+                                              const val = parseInt(e.target.value) || 1;
+                                              setRowAllocQty(prev => ({ ...prev, [variant.id]: Math.min(variant.availableStock, Math.max(1, val)) }));
+                                            }}
+                                            className="w-12 bg-gray-950 border border-gray-700 rounded text-center text-xs font-black text-white py-0.5"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setRowAllocQty(prev => ({ ...prev, [variant.id]: Math.min(variant.availableStock, allocQty + 1) }))}
+                                            className="w-5 h-5 rounded bg-gray-800 text-gray-300 font-bold flex items-center justify-center"
+                                          >
+                                            <Plus size={10} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                      <td className="py-2 text-center">
+                                        {inCart ? (
+                                          <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">
+                                            ✓ In Cart ({inCart.quantity})
+                                          </span>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => addToCart(variant, allocQty)}
+                                            className="bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black font-black px-2.5 py-0.5 rounded text-[11px] border border-amber-500/30"
+                                          >
+                                            Allocate
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Cart & Submission Panel */}
+          {/* Handover Cart & Submission Panel */}
           <div className="space-y-4">
-            <div className="glass p-5 rounded-2xl border border-gray-800 space-y-4">
+            <div className="glass p-5 rounded-2xl border border-gray-800 space-y-4 sticky top-6">
               <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-2"><ShoppingCart size={16} className="text-amber-400" /> Handover Cart</span>
-                <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.quantity, 0)} Items</span>
+                <span className="flex items-center gap-2">
+                  <ShoppingCart size={16} className="text-amber-400" /> Handover Cart
+                </span>
+                <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-black">
+                  {cart.reduce((s, i) => s + i.quantity, 0)} Units ({cart.length} SKUs)
+                </span>
               </h2>
 
               {/* Target ASM Selector */}
               <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Target ASM *</label>
-                <select value={selectedAsmId} onChange={e => setSelectedAsmId(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500 font-bold">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                  Target ASM Profile *
+                </label>
+                <select
+                  value={selectedAsmId}
+                  onChange={e => setSelectedAsmId(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500 font-bold"
+                >
                   <option value="">Select ASM Profile</option>
                   {asmUsers.map(a => (
                     <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
@@ -376,31 +736,48 @@ const AsmAllowedStorePage = () => {
                 </select>
               </div>
 
-              {/* Cart List */}
-              <div className="space-y-2 max-h-[300px] overflow-y-auto border-t border-b border-gray-800 py-3">
+              {/* Cart Items List */}
+              <div className="space-y-2 max-h-[340px] overflow-y-auto border-t border-b border-gray-800 py-3">
                 {cart.length === 0 ? (
-                  <p className="text-xs text-center text-gray-500 py-6 font-bold">Cart is empty. Add products from the catalog.</p>
+                  <div className="py-8 text-center text-gray-500 text-xs font-bold flex flex-col items-center justify-center gap-2">
+                    <ShoppingCart size={24} className="text-gray-600" />
+                    <span>Handover cart is empty. Select product, color & size variants to allocate.</span>
+                  </div>
                 ) : (
                   cart.map(c => (
-                    <div key={c.cartKey} className="bg-gray-900/90 rounded-xl p-3 text-xs space-y-1 border border-gray-800">
+                    <div key={c.cartKey} className="bg-gray-900/90 rounded-xl p-3 text-xs space-y-1.5 border border-gray-800">
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="font-black text-white">{c.productName}</p>
-                          <p className="text-[10px] text-gray-400">
-                            {[c.category, c.color, c.size, c.fabric].filter(Boolean).join(' • ')}
-                          </p>
+                          <div className="flex items-center gap-2 text-[10px] mt-0.5">
+                            <span className="bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-bold">{c.color}</span>
+                            <span className="bg-amber-500/10 text-amber-300 px-1.5 py-0.5 rounded font-black">{c.size}</span>
+                            {c.category && <span className="text-gray-500">({c.category})</span>}
+                          </div>
                         </div>
-                        <button onClick={() => removeFromCart(c.cartKey)} className="text-red-400 hover:text-red-300 p-1">
+                        <button
+                          onClick={() => removeFromCart(c.cartKey)}
+                          className="text-red-400 hover:text-red-300 p-1"
+                          title="Remove from Cart"
+                        >
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[10px] text-gray-500">Max: {c.stock}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-400">Qty:</span>
-                          <input type="number" min="1" max={c.stock} value={c.quantity}
+
+                      <div className="flex items-center justify-between pt-1 border-t border-gray-800/60">
+                        <span className="text-[10px] text-gray-400">
+                          Warehouse Stock: <strong className="text-emerald-400">{c.stock}</strong>
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-gray-400 font-bold">Qty:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={c.stock}
+                            value={c.quantity}
                             onChange={e => updateCartQty(c.cartKey, e.target.value)}
-                            className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-xs text-white text-center font-bold outline-none" />
+                            className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-xs text-white text-center font-bold outline-none focus:border-amber-500"
+                          />
                         </div>
                       </div>
                     </div>
@@ -408,19 +785,28 @@ const AsmAllowedStorePage = () => {
                 )}
               </div>
 
-              {/* Special Instructions Notes */}
+              {/* Handover Notes */}
               <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Handover Notes / Instructions</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)}
-                  placeholder="Special instructions for ASM..."
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                  Handover Notes / Instructions
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Notes for ASM physical handover receipt..."
                   rows={2}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 outline-none focus:border-amber-500" />
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 outline-none focus:border-amber-500"
+                />
               </div>
 
               {/* Submit Button */}
-              <button onClick={handleSubmitRequest} disabled={submitting || cart.length === 0 || !selectedAsmId}
-                className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all">
-                {submitting ? 'Submitting Handover...' : 'Submit ASM Stock Request'} <ArrowRight size={14} />
+              <button
+                type="button"
+                onClick={handleSubmitRequest}
+                disabled={submitting || cart.length === 0 || !selectedAsmId}
+                className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20"
+              >
+                {submitting ? 'Allocating Warehouse Stock...' : 'Submit ASM Stock Allocation'} <ArrowRight size={14} />
               </button>
             </div>
           </div>
@@ -431,12 +817,12 @@ const AsmAllowedStorePage = () => {
       {(activeTab === 'requests' || activeTab === 'history') && (
         <div className="glass p-6 rounded-3xl border border-gray-800 space-y-4">
           <h2 className="text-sm font-black text-white uppercase tracking-wider">
-            {activeTab === 'history' ? 'Completed ASM Handover History' : 'Active ASM Handover Requests'}
+            {activeTab === 'history' ? 'Completed ASM Stock Allocation History' : 'Active ASM Stock Handover Requests'}
           </h2>
           {requestsLoading ? (
-            <div className="py-12 text-center text-gray-500">Loading requests...</div>
+            <div className="py-12 text-center text-gray-500 font-bold">Loading handover requests...</div>
           ) : requests.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">No requests found</div>
+            <div className="py-12 text-center text-gray-500 font-bold">No handover requests found</div>
           ) : (
             <div className="space-y-3">
               {requests.map(reqData => (
@@ -463,7 +849,7 @@ const AsmAllowedStorePage = () => {
                     </div>
                   </div>
 
-                  {/* Items Table */}
+                  {/* Items Table with Color + Size breakdown */}
                   {selectedRequest?.id === reqData.id && (
                     <div className="pt-2 space-y-3">
                       <div className="overflow-x-auto">
@@ -473,9 +859,9 @@ const AsmAllowedStorePage = () => {
                               <th className="py-2">Product</th>
                               <th className="py-2">Category</th>
                               <th className="py-2">Color / Size</th>
-                              <th className="py-2 text-right">Given</th>
-                              <th className="py-2 text-right">Returned</th>
-                              <th className="py-2 text-right">Remaining</th>
+                              <th className="py-2 text-right">Qty Given</th>
+                              <th className="py-2 text-right">Qty Returned</th>
+                              <th className="py-2 text-right">Remaining with ASM</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -483,7 +869,9 @@ const AsmAllowedStorePage = () => {
                               <tr key={item.id} className="border-b border-gray-800/50 text-gray-300">
                                 <td className="py-2 font-bold text-white">{item.productName}</td>
                                 <td className="py-2 text-gray-400">{item.category}</td>
-                                <td className="py-2 text-gray-400">{[item.color, item.size].filter(Boolean).join(' / ') || '—'}</td>
+                                <td className="py-2 text-gray-400">
+                                  <span className="font-bold text-gray-200">{item.color || '—'}</span> / <span className="font-bold text-amber-300">{item.size || '—'}</span>
+                                </td>
                                 <td className="py-2 text-right font-bold text-blue-400">{item.quantityGiven}</td>
                                 <td className="py-2 text-right font-bold text-emerald-400">{item.quantityReturned}</td>
                                 <td className="py-2 text-right font-bold text-amber-400">{item.quantityRemaining}</td>
@@ -519,14 +907,14 @@ const AsmAllowedStorePage = () => {
               Pending ASM Returned Stock Verification & Acceptance
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              Verify physical returned stock before accepting. Stock will be restored to Warehouse Inventory ONLY upon Store Accept.
+              Verify physical returned stock before accepting. Stock will be restored to Warehouse Inventory (exact Product, Color & Size) upon Store Accept.
             </p>
           </div>
 
           {returnsLoading ? (
-            <div className="py-12 text-center text-gray-500">Loading returned stock requests...</div>
+            <div className="py-12 text-center text-gray-500 font-bold">Loading returned stock requests...</div>
           ) : returns.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">No pending stock returns to verify</div>
+            <div className="py-12 text-center text-gray-500 font-bold">No pending stock returns to verify</div>
           ) : (
             <div className="space-y-4">
               {returns.map(retRec => (
@@ -536,7 +924,7 @@ const AsmAllowedStorePage = () => {
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-black text-emerald-400">{retRec.returnNumber}</span>
                         <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${retRec.status === 'STORE_ACCEPTED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                          {retRec.status === 'STORE_ACCEPTED' ? '✓ Accepted & Restored' : '⚠️ Pending Store Acceptance'}
+                          {retRec.status === 'STORE_ACCEPTED' ? '✓ Accepted & Restored to Warehouse' : '⚠️ Pending Store Acceptance'}
                         </span>
                       </div>
                       <p className="text-xs text-gray-400 mt-1">
@@ -547,7 +935,7 @@ const AsmAllowedStorePage = () => {
                     {retRec.status === 'PENDING_STORE_ACCEPT' && (
                       <button onClick={() => handleAcceptReturn(retRec.id)} disabled={acceptingReturnId === retRec.id}
                         className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-900/30">
-                        {acceptingReturnId === retRec.id ? 'Restoring Inventory...' : 'Verify & Accept Return'} <Check size={16} />
+                        {acceptingReturnId === retRec.id ? 'Restoring Warehouse Stock...' : 'Verify & Accept Return'} <Check size={16} />
                       </button>
                     )}
                   </div>
@@ -559,7 +947,8 @@ const AsmAllowedStorePage = () => {
                         <tr className="border-b border-gray-800 text-gray-500 font-bold uppercase">
                           <th className="py-2">Product Name</th>
                           <th className="py-2">Category</th>
-                          <th className="py-2">Color / Size</th>
+                          <th className="py-2">Color</th>
+                          <th className="py-2">Size</th>
                           <th className="py-2 text-right">Quantity Returned</th>
                         </tr>
                       </thead>
@@ -568,7 +957,8 @@ const AsmAllowedStorePage = () => {
                           <tr key={item.id} className="border-b border-gray-800/50 text-gray-300">
                             <td className="py-2 font-bold text-white">{item.productName}</td>
                             <td className="py-2 text-gray-400">{item.category}</td>
-                            <td className="py-2 text-gray-400">{[item.color, item.size].filter(Boolean).join(' / ') || '—'}</td>
+                            <td className="py-2 font-bold text-gray-200">{item.color || '—'}</td>
+                            <td className="py-2 font-black text-amber-300">{item.size || '—'}</td>
                             <td className="py-2 text-right font-black text-emerald-400">+{item.quantityReturned} {item.unit}</td>
                           </tr>
                         ))}
@@ -587,43 +977,6 @@ const AsmAllowedStorePage = () => {
           )}
         </div>
       )}
-    </div>
-  );
-};
-
-// Catalog Item Sub-component with variant selection
-const CatalogCard = ({ item, onAddToCart }) => {
-  const [selectedColor, setSelectedColor] = useState(item.color || '');
-  const [selectedSize, setSelectedSize] = useState(item.size || '');
-  const [qty, setQty] = useState(1);
-
-  return (
-    <div className="bg-gray-900/90 rounded-xl p-3 border border-gray-800 hover:border-amber-500/40 transition-all space-y-2">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-xs font-black text-white">{item.name}</p>
-          <span className="text-[10px] text-gray-500 font-bold uppercase">{item.category}</span>
-        </div>
-        <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-          Stock: {item.stock}
-        </span>
-      </div>
-
-      <div className="flex gap-2 text-[10px] text-gray-400">
-        {item.fabric && <span>Fabric: {item.fabric}</span>}
-        {item.color && <span>Color: {item.color}</span>}
-        {item.size && <span>Size: {item.size}</span>}
-      </div>
-
-      <div className="flex items-center gap-2 pt-1 border-t border-gray-800">
-        <input type="number" min="1" max={item.stock} value={qty}
-          onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-          className="w-14 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center font-bold outline-none" />
-        <button onClick={() => onAddToCart(item, selectedColor, selectedSize, qty)}
-          className="flex-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 font-black py-1 px-3 rounded text-xs flex items-center justify-center gap-1">
-          <Plus size={12} /> Add to Cart
-        </button>
-      </div>
     </div>
   );
 };

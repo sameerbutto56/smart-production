@@ -1,5 +1,31 @@
 ## Goals
-### Implemented This Session — Jail Road Branch Bank Deposit Reset & New Deposit Cycle from 21 September 2026 (commit 30fbe61, deployed & live-verified)
+### Implemented This Session — Store Profile ASM Allocate: Complete Warehouse Inventory Display & Variant Breakdown (commit, deployed & live-verified)
+- **Requirement**:
+  - Fix crash on `/asm-allowed`: `ReferenceError: StatusBadge is not defined at AsmAllowedStorePage`.
+  - Inside Store Profile → ASM Allocate (`/asm-allowed`), display actual Warehouse Inventory breakdown instead of coarse product-level counts.
+  - Full hierarchical breakdown: **Product → Color → Size → Available Quantity** (e.g. Scrub Suit → Black → Small: 10, Medium: 15, Large: 8, XL: 5; Navy → Small: 6, Medium: 12, etc.).
+  - Inventory must use actual Warehouse Inventory (`InventoryItem`) as the single source of truth without duplicating or creating separate counts.
+  - Allocation table: `Product | Color | Size | Available Qty | Allocation Qty` with strict validation preventing allocation exceeding available stock for the specific Product + Color + Size.
+  - Restore returned stock to the exact Product + Color + Size variant in `InventoryItem.variants` upon Store accept.
+  - Rename sidebar menu item from `ASM Allowed` to `ASM Allocate` for the `STORE` role.
+- **Backend Implementation (`asmStock.controller.js`)**:
+  - `getWarehouseCatalog`: Iterates through all warehouse inventory items (`stock > 0`), extracts each item's `variants` JSON array, and flattens into variant rows `{ id, inventoryItemId, productName, category, fabric, color, size, availableStock, price, imageUrl, parentTotalStock }`. Returns both `{ items, variants }`.
+  - `createStockRequest`: Validates requested allocation against the specific variant (`color` + `size`). Decrements the exact variant's stock in `inv.variants`, recomputes `newTotalStock = variants.reduce(...)`, and updates both `stock` and `variants` on `InventoryItem` atomically in the Prisma transaction.
+  - `acceptStockReturn`: Restores stock to the specific variant (`color` + `size`) in `inv.variants`, recomputes total `stock`, and atomically updates `InventoryItem`.
+  - Case-insensitive string matching helper `eqField(a, b)` ensuring robust variant lookup.
+- **Frontend Implementation (`AsmAllowedStorePage.jsx` & `Layout.jsx`)**:
+  - Defined `StatusBadge` component rendering clean semantic status pills (`SUBMITTED`, `ACCEPTED`, `PARTIALLY_RETURNED`, `FULLY_RETURNED`, `REJECTED`, `CANCELLED`).
+  - In `Layout.jsx`: Renamed sidebar menu entry for STORE role to `ASM Allocate`.
+  - Rebuilt inventory selection view in `AsmAllowedStorePage.jsx` with responsive table:
+    `Product | Category | Color | Size | Available Qty | Allocation Qty | Action`.
+  - Added view toggle (`Table View` vs `Grouped by Product View`), live multi-attribute search (product, color, size, fabric, category), category filter, quantity increment/decrement controls, "In Handover" badge, and cart validation against the variant's available stock.
+  - Updated print handover sheet to display Product, Category, Color, Size, and Quantity Given.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-asm-allocate-variants.cjs`: 8/8 tests passed (93 active warehouse items, 1,498 variants, 545 active variant rows in catalog, variant stock deduction and restoration).
+  - Frontend production build (`npm run build`): Exit code 0, 3,203 modules bundled cleanly.
+  - Live probe and deployment verification.
+
+### Implemented Prior Session — Jail Road Branch Bank Deposit Reset & New Deposit Cycle from 21 September 2026 (commit 30fbe61, deployed & live-verified)
 - **Requirement**:
   - Implement a completely fresh bank deposit cycle starting **21 September 2026** strictly for **Jail Road Branch**.
   - All deposit calculations up to and including **20 September 2026** considered cleared/settled for the current pending balance.
