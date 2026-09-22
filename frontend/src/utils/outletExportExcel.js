@@ -471,6 +471,7 @@ export const exportSectionToExcel = (sectionId, data, outlet = 'Outlet', rangeLa
 export const exportDailyDepositsToExcel = (requirements = [], outlet = 'Outlet') => {
   const rows = requirements.map(r => ({
     'Business Date': r.businessDate,
+    'Register Cash': fmt(r.registerCash ?? r.cashGenerated),
     'Cash Generated': fmt(r.cashGenerated),
     'Previous Pending': fmt(r.previousPending),
     'Required Deposit': fmt(r.requiredAmount),

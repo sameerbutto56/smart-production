@@ -5,7 +5,7 @@ import {
   Landmark, PlusCircle, RefreshCw, Calendar, Search, ArrowRight,
   CheckCircle, Clock, AlertTriangle, FileSpreadsheet, X, Sparkles
 } from 'lucide-react';
-import { formatDateTime, formatDateOnly } from '../utils/dateTime';
+import { formatDateTime, formatDateOnly, formatDateTimePKT } from '../utils/dateTime';
 import { exportDailyDepositsToExcel } from '../utils/outletExportExcel';
 import toast from 'react-hot-toast';
 
@@ -59,6 +59,14 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
   const requirements = data?.requirements || [];
   const deposits = data?.deposits || [];
 
+  const getPktInputDateTime = () => {
+    const now = new Date();
+    const pktMs = now.getTime() + (5 * 60 + now.getTimezoneOffset()) * 60000;
+    const pktDate = new Date(pktMs);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pktDate.getFullYear()}-${pad(pktDate.getMonth() + 1)}-${pad(pktDate.getDate())}T${pad(pktDate.getHours())}:${pad(pktDate.getMinutes())}`;
+  };
+
   const handleOpenModal = (targetDate = null) => {
     const todayStr = data?.todayDate || new Date().toISOString().slice(0, 10);
     
@@ -75,7 +83,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
       : (summary.todayRequiredDeposit > 0 ? summary.todayRequiredDeposit : '');
 
     setBusinessDate(selectedDate);
-    setActualDepositDate(new Date().toISOString().slice(0, 16));
+    setActualDepositDate(getPktInputDateTime());
     setDepositAmount(amountToSuggest ? amountToSuggest.toString() : '');
     setReferenceNumber(`DEP-${Date.now().toString().slice(-6)}`);
     setBankName('');
@@ -92,12 +100,21 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
       return;
     }
 
+    let actualIso;
+    if (actualDepositDate) {
+      actualIso = actualDepositDate.length === 16
+        ? new Date(`${actualDepositDate}:00+05:00`).toISOString()
+        : new Date(actualDepositDate).toISOString();
+    } else {
+      actualIso = new Date().toISOString();
+    }
+
     setSubmitting(true);
     try {
       await api.post(`/api/daily-deposits/${encodeURIComponent(outlet)}`, {
         amount: amt,
         businessDate,
-        actualDepositDate: new Date(actualDepositDate).toISOString(),
+        actualDepositDate: actualIso,
         referenceNumber,
         bankName,
         notes,
@@ -246,7 +263,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
             <span className="font-bold">Last Deposit:</span>
             <span className="font-black text-white">{fmt(summary.lastDeposit.amount)}</span>
             <span className="text-gray-400">({summary.lastDeposit.referenceNumber || 'Slip #'})</span>
-            <span className="text-gray-500 text-[11px]">• Actual Date: {formatDateTime(summary.lastDeposit.actualDepositDate)}</span>
+            <span className="text-gray-500 text-[11px]">• Actual Date: {formatDateTimePKT(summary.lastDeposit.actualDepositDate)}</span>
           </div>
           <div className="text-gray-400 text-[11px]">
             Recorded by: <span className="text-gray-200 font-bold">{summary.lastDeposit.createdByName || 'Staff'}</span>
@@ -286,14 +303,11 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
               <thead>
                 <tr className="bg-gray-800/80 text-gray-400 uppercase text-[9px] font-black tracking-wider border-b border-gray-700/50">
                   <th className="py-3 px-4 text-left">Cash Business Date</th>
-                  <th className="py-3 px-3 text-right">Cash Generated</th>
-                  <th className="py-3 px-3 text-right">Prev Pending</th>
+                  <th className="py-3 px-3 text-right">Register Cash</th>
+                  <th className="py-3 px-3 text-right">Adjustment / Excess</th>
                   <th className="py-3 px-3 text-right">Required Deposit</th>
                   <th className="py-3 px-3 text-right">Deposited</th>
-                  <th className="py-3 px-3 text-right">To Prev</th>
-                  <th className="py-3 px-3 text-right">To Today</th>
                   <th className="py-3 px-3 text-right">Remaining Pending</th>
-                  <th className="py-3 px-3 text-right">Excess</th>
                   <th className="py-3 px-4 text-center">Status</th>
                   <th className="py-3 px-3 text-center">Slips</th>
                   <th className="py-3 px-3 text-center">Action</th>
@@ -301,8 +315,6 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
               </thead>
               <tbody className="divide-y divide-gray-800/60">
                 {filteredRequirements.map((r) => {
-                  const toPrev = (r.allocations || []).filter(a => a.allocationType === 'PREVIOUS_PENDING').reduce((s, a) => s + a.amount, 0);
-                  const toToday = (r.allocations || []).filter(a => a.allocationType === 'CURRENT_DAY').reduce((s, a) => s + a.amount, 0);
                   const isExpanded = expandedDate === r.id;
 
                   return (
@@ -316,16 +328,21 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right font-bold text-gray-300">{fmt(r.cashGenerated)}</td>
-                        <td className="py-3 px-3 text-right font-bold text-amber-400/80">{fmt(r.previousPending)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-gray-300">{fmt(r.registerCash ?? r.cashGenerated)}</td>
+                        <td className="py-3 px-3 text-right font-bold">
+                          {r.excessAmount > 0 ? (
+                            <span className="text-purple-400 font-bold">+{fmt(r.excessAmount)} (Excess)</span>
+                          ) : r.previousPending > 0 ? (
+                            <span className="text-amber-400 font-bold">+{fmt(r.previousPending)} (Prev)</span>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
                         <td className="py-3 px-3 text-right font-black text-white">{fmt(r.requiredAmount)}</td>
                         <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(r.depositedAmount)}</td>
-                        <td className="py-3 px-3 text-right text-gray-400">{toPrev > 0 ? fmt(toPrev) : '—'}</td>
-                        <td className="py-3 px-3 text-right text-gray-400">{toToday > 0 ? fmt(toToday) : '—'}</td>
                         <td className={`py-3 px-3 text-right font-black ${r.pendingAmount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                           {fmt(r.pendingAmount)}
                         </td>
-                        <td className="py-3 px-3 text-right text-purple-400 font-bold">{r.excessAmount > 0 ? fmt(r.excessAmount) : '—'}</td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           <span className={`px-2 py-0.5 text-[9px] font-black rounded-lg border uppercase tracking-wider ${STATUS_BADGES[r.status] || 'bg-gray-800 text-gray-400 border-gray-700'}`}>
                             {r.status?.replace(/_/g, ' ')}
@@ -360,7 +377,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                       {/* Expanded Allocations Sub-Table */}
                       {isExpanded && (r.allocations || []).length > 0 && (
                         <tr className="bg-gray-900/80">
-                          <td colSpan="12" className="p-4 border-l-2 border-emerald-500">
+                          <td colSpan="9" className="p-4 border-l-2 border-emerald-500">
                             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-2">
                               Allocated Deposits Credited to {r.businessDate}:
                             </p>
@@ -382,7 +399,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                                     </span>
                                   </div>
                                   <div className="text-right text-[11px] text-gray-400">
-                                    <span>Actual Deposit Time: <span className="font-bold text-gray-300">{formatDateTime(a.cashDeposit?.actualDepositDate || a.createdAt)}</span></span>
+                                    <span>Actual Deposit Time: <span className="font-bold text-gray-300">{formatDateTimePKT(a.cashDeposit?.actualDepositDate || a.createdAt)}</span></span>
                                     {a.cashDeposit?.createdByName && (
                                       <span className="ml-2 text-gray-500">• By {a.cashDeposit.createdByName}</span>
                                     )}

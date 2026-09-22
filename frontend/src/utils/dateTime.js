@@ -33,4 +33,28 @@ export function formatDateTime(d) {
   return `${formatDateOnly(dt)}, ${formatTimeOnly(dt)}`;
 }
 
-export default { formatDateTime, formatDateOnly, formatTimeOnly, toDate };
+/** Formats strictly in Pakistan Standard Time (PKT / UTC+5) regardless of browser/system clock */
+export function formatDateTimePKT(d) {
+  const dt = toDate(d);
+  if (!dt) return '—';
+  try {
+    const datePart = dt.toLocaleDateString('en-GB', {
+      timeZone: 'Asia/Karachi',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timePart = dt.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Karachi',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${datePart}, ${timePart}`;
+  } catch (e) {
+    return formatDateTime(dt);
+  }
+}
+
+export default { formatDateTime, formatDateTimePKT, formatDateOnly, formatTimeOnly, toDate };
+

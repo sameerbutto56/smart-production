@@ -1,5 +1,31 @@
 ## Goals
-### Implemented This Session — Store Profile ASM Allocate: Complete Warehouse Inventory Display & Variant Breakdown (commit, deployed & live-verified)
+### Implemented This Session — Outlet Register → Bank Deposit Synchronization & Johar Town Deposit Regression Fix (commit, deployed & live-verified)
+- **Requirement**:
+  - Resolve mismatch between Outlet Closed Register cash amounts and Bank Deposit / Deposit Slip amounts across both branches.
+  - Establish the daily **Outlet Register (`PosBookSession`)** as the single authoritative source of truth for the base daily cash amount to be deposited (`Register Cash`), falling back to real-time sales query only if a day's register session is actively open/in-progress.
+  - Fix Johar Town deposit ledger regression caused by multi-day FIFO carry-forward loops that were erroneously allocating deposits backward and displaying spurious excess (Rs. 21,250 on 16 Sep and Rs. 7,350 on 17 Sep).
+  - Enforce strict 1:1 business date association: a deposit for business date X credits date X's requirement without polluting or distorting adjacent dates.
+  - Update table breakdown columns: `Business Date | Register Cash | Adjustment / Excess | Required Deposit | Deposited | Remaining Pending | Status | Slips | Action`.
+  - Enforce local Pakistan Standard Time (PKT / UTC+5) for input defaults, deposit submission timestamps, and display in last deposit banners and expanded slip histories.
+  - Preserve strict branch isolation between Johar Town (standard cycle from 15 Sep 2026) and Jail Road (fresh cycle from 21 Sep 2026).
+- **Backend Implementation (`dailyDeposit.controller.js`)**:
+  - `getAuthoritativeRegisterCash(outletName, businessDate)`: Directly reads the closed `PosBookSession.summary.paymentSummary.cashCollected` (e.g. Jail Road 21 Sep = Rs. 28,100; Johar Town 16 Sep = Rs. 28,300; Johar Town 17 Sep = Rs. 23,050).
+  - `syncDailyRequirements`: Uses `registerCash` as `requiredAmount`, calculates `depositedAmount` strictly from allocations credited to that business date, and eliminates compounding carry-forward loops.
+  - `submitDailyDeposit`: Strictly allocates 1:1 against the selected `businessDate`.
+  - `rebuildOutletDepositState`: Rebuilds isolated to single outlet, mapping deposits 1:1 to their business date and updating requirements cleanly.
+- **Frontend Implementation (`DailyCashDepositSection.jsx` & `dateTime.js` & `outletExportExcel.js`)**:
+  - Added `formatDateTimePKT` formatting strictly in Pakistan Standard Time (`Asia/Karachi`).
+  - In `DailyCashDepositSection.jsx`: Initialized modal with local PKT datetime `getPktInputDateTime()`, parsed deposit submissions with `+05:00` offset, formatted Last Deposit banner and slip records with `formatDateTimePKT`.
+  - Redesigned daily ledger table with columns: `Cash Business Date | Register Cash | Adjustment / Excess | Required Deposit | Deposited | Remaining Pending | Status | Slips | Action`.
+  - Updated Excel export in `outletExportExcel.js` to include `Register Cash`.
+  - Fixed import syntax errors.
+- **Data Realignment & Verification**:
+  - Re-aligned Jail Road deposit `DEP-168236` (Rs. 28,100) to `businessDate: '2026-09-21'`, instantly clearing Jail Road 21 Sep with Rs. 0 pending balance.
+  - Removed duplicate test slip `DEP-849245` on Johar Town.
+  - Automated test suite `backend/scripts/verify-register-bank-deposit-sync.cjs`: 11/11 tests passed.
+  - Frontend production build (`npm run build`): Exit code 0, 3,203 modules bundled cleanly.
+
+### Implemented Prior Session — Store Profile ASM Allocate: Complete Warehouse Inventory Display & Variant Breakdown (commit, deployed & live-verified)
 - **Requirement**:
   - Fix crash on `/asm-allowed`: `ReferenceError: StatusBadge is not defined at AsmAllowedStorePage`.
   - Inside Store Profile → ASM Allocate (`/asm-allowed`), display actual Warehouse Inventory breakdown instead of coarse product-level counts.
