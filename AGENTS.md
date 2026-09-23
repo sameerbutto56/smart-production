@@ -1,5 +1,35 @@
 ## Goals
-### Implemented This Session — Outlet Register → Bank Deposit Synchronization & Johar Town Deposit Regression Fix (commit, deployed & live-verified)
+### Implemented This Session — Register & Bank Deposit: General Entry Reduction Calculation Fix (commit, deployed & live-verified)
+- **Requirement**:
+  - Fix calculation of Available Cash across Outlet Register and Bank Deposit.
+  - Core Formula: `Available Cash = Generated Cash − Total Valid General Entry Reductions`.
+  - Bank Deposit base requirement must match Available Cash: `Required Bank Deposit = Available Cash`.
+  - Calculation sequence: `Generated Cash` → `Minus General Entry Reductions` → `Available Cash` → `Required Bank Deposit` → `Actual Deposited Amount` → `Remaining/Pending Amount`.
+  - Register and Bank Deposit must match on Available Cash.
+  - Strict 1:1 business date association: General Entry reductions of date X only affect date X.
+  - General Entry reduction must only be applied once (no double-deductions, and no deduction of bank deposits from operational available cash).
+  - Raw Generated Cash remains visible for audit and historical reference; Available Cash / Required Deposit clearly reflects the reduction.
+  - Real examples:
+    - Johar Town 17 Sep: Generated Cash = Rs. 23,050, General Entry Reduction = Rs. 3,470 (Tea Rs. 2,450 + Tissue Rs. 1,020) -> Available Cash = Rs. 19,580. Deposited = Rs. 18,580 -> Remaining Pending = Rs. 1,000 (NOT Rs. 4,470!).
+    - Johar Town 18 Sep: Generated Cash = Rs. 28,700, General Entry Reduction = Rs. 100 -> Available Cash = Rs. 28,600. Deposited = Rs. 29,600 -> Excess = Rs. 1,000 (clearing the Rs. 1,000 shortage from 17 Sep).
+    - Johar Town 19 Sep: Generated Cash = Rs. 26,900, General Entry Reduction = Rs. 300 -> Available Cash = Rs. 26,600. Deposited = Rs. 26,600 -> Remaining Pending = Rs. 0 (Fully Cleared).
+    - Jail Road 21 Sep: Generated Cash = Rs. 28,100, General Entry Reduction = Rs. 3,650 -> Available Cash = Rs. 24,450. Deposited = Rs. 28,100 -> Excess = Rs. 3,650.
+- **Backend Implementation (`pos.book.controller.js` & `dailyDeposit.controller.js`)**:
+  - In `pos.book.controller.js`: Corrected `availableCash = Math.max(0, Math.round((rawCashCollected - totalFaisalTake - totalJournalEntries - totalCashRefunded) * 100) / 100)` so it is the true operational available cash before bank deposits. Stored `remainingLockerCash = Math.max(0, Math.round((availableCash - totalBankDeposits) * 100) / 100)` for post-deposit locker tracking.
+  - In `dailyDeposit.controller.js`:
+    - `getAuthoritativeRegisterCash(outletName, businessDate)`: Reads the closed `PosBookSession` summary or active POS sales, extracts `cashCollected` (Generated Cash) and `totalJournalEntries` (General Entry Reduction), returning `{ generatedCash, generalEntryReduction, availableCash, journalEntries, isClosedSession, found }`.
+    - `syncDailyRequirements`: Sets `cashGenerated = regData.generatedCash`, `requiredAmount = regData.availableCash`, stores journal details in `notes`, and recalculates `pendingAmount` and `excessAmount` strictly against `availableCash`.
+    - `submitDailyDeposit`: Initializes requirements with `cashGenerated: regData.generatedCash`, `requiredAmount: regData.availableCash`, and `pendingAmount: regData.availableCash`.
+    - `getDailyDeposits`: Added `todayGeneralEntryReduction` and `todayAvailableCash` to API summary, and enriched requirement rows with `generatedCash`, `generalEntryReduction`, `availableCash`, and `journalEntries`.
+- **Frontend Implementation (`DailyCashDepositSection.jsx` & `outletExportExcel.js`)**:
+  - Updated KPI cards with dedicated "General Entry" (orange pill) and "Available Cash" metrics.
+  - Redesigned table columns: `Cash Business Date | Generated Cash | General Entry | Available / Required Deposit | Deposited | Remaining Pending | Status | Slips | Action`.
+  - Added expandable General Entry expense breakdown showing title, employee, and amount.
+  - Updated Excel export in `outletExportExcel.js` with `Generated Cash`, `General Entry Reduction`, and `Available / Required Deposit`.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-general-entry-available-cash.cjs`: 14/14 tests passed.
+  - Automated test suite `backend/scripts/verify-register-bank-deposit-sync.cjs`: 11/11 tests passed.
+  - Frontend production build (`npm run build`): Exit code 0, 3,203 modules bundled cleanly.
 - **Requirement**:
   - Resolve mismatch between Outlet Closed Register cash amounts and Bank Deposit / Deposit Slip amounts across both branches.
   - Establish the daily **Outlet Register (`PosBookSession`)** as the single authoritative source of truth for the base daily cash amount to be deposited (`Register Cash`), falling back to real-time sales query only if a day's register session is actively open/in-progress.

@@ -297,15 +297,16 @@ const computeBookSummary = async (session) => {
           return sum;
         }, 0);
 
-    // Available cash — Faisal Take cash leaves the till, so it is deducted here.
-    // returnSummary.CASH includes CASH_ONLINE cash returns portion (necessary for till calculation)
+    // Available cash — Generated Cash minus General Entry Reductions, Cash Returns and Faisal Take
+    // Operational cash available to be deposited in bank:
     const totalCashRefunded = returnSummary.CASH;
-    const availableCash = rawCashCollected - totalFaisalTake - totalJournalEntries - totalCashRefunded - totalBankDeposits;
+    const availableCash = Math.max(0, Math.round((rawCashCollected - totalFaisalTake - totalJournalEntries - totalCashRefunded) * 100) / 100);
+    const remainingLockerCash = Math.max(0, Math.round((availableCash - totalBankDeposits) * 100) / 100);
 
-    // Payment breakdown — gross matches the shared summary (incl. Faisal Takes); CASH net deducts
-    // Faisal Take cash from the till
+    // Payment breakdown — gross matches the shared summary (incl. Faisal Takes); CASH net reflects
+    // operational cash available (gross minus journals, returns, and faisal take)
     const paymentBreakdown = [
-      { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, bankDeposits: totalBankDeposits, faisalTake: totalFaisalTake, net: rawCashCollected - totalJournalEntries - returnSummary.CASH - totalBankDeposits - totalFaisalTake },
+      { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, bankDeposits: totalBankDeposits, faisalTake: totalFaisalTake, net: availableCash },
       { method: 'CARD', gross: totalCardSales, returns: returnSummary.CARD, journalExpenses: 0, net: totalCardSales - returnSummary.CARD },
       { method: 'ONLINE', gross: totalOnlineSales, returns: returnSummary.ONLINE, journalExpenses: 0, net: totalOnlineSales - returnSummary.ONLINE },
     ];
@@ -350,6 +351,7 @@ const computeBookSummary = async (session) => {
       },
       totalReturns: returnSummary.total,
       availableCash,
+      remainingLockerCash,
       totalSales: allSales.length, // invoice count — matches POS History / Excel for the same date
       totalFaisalTakesCount: faisalTakes.length,
       totalReturnsCount: returns.length,

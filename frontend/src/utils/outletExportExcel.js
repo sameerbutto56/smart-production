@@ -471,13 +471,10 @@ export const exportSectionToExcel = (sectionId, data, outlet = 'Outlet', rangeLa
 export const exportDailyDepositsToExcel = (requirements = [], outlet = 'Outlet') => {
   const rows = requirements.map(r => ({
     'Business Date': r.businessDate,
-    'Register Cash': fmt(r.registerCash ?? r.cashGenerated),
-    'Cash Generated': fmt(r.cashGenerated),
-    'Previous Pending': fmt(r.previousPending),
-    'Required Deposit': fmt(r.requiredAmount),
+    'Generated Cash': fmt(r.generatedCash ?? r.cashGenerated),
+    'General Entry Reduction': fmt(r.generalEntryReduction || 0),
+    'Available / Required Deposit': fmt(r.availableCash ?? r.requiredAmount),
     'Actual Deposit': fmt(r.depositedAmount),
-    'Applied to Previous': fmt((r.allocations || []).filter(a => a.allocationType === 'PREVIOUS_PENDING').reduce((s, a) => s + a.amount, 0)),
-    'Applied to Today': fmt((r.allocations || []).filter(a => a.allocationType === 'CURRENT_DAY').reduce((s, a) => s + a.amount, 0)),
     'Remaining Pending': fmt(r.pendingAmount),
     'Excess Deposit': fmt(r.excessAmount),
     'Status': r.status,

@@ -41,18 +41,23 @@ async function runTests() {
 
   // 2. Authoritative Register Cash Queries
   const jr21Register = await getAuthoritativeRegisterCash('Jail Road', '2026-09-21');
-  test('Jail Road 2026-09-21 Register Cash is exactly 28,100', () => {
-    assert.strictEqual(jr21Register, 28100);
+  test('Jail Road 2026-09-21 Register: Generated 28,100, Reduction 3,650, Available 24,450', () => {
+    assert.strictEqual(jr21Register.generatedCash, 28100);
+    assert.strictEqual(jr21Register.generalEntryReduction, 3650);
+    assert.strictEqual(jr21Register.availableCash, 24450);
   });
 
   const jt16Register = await getAuthoritativeRegisterCash('Johar Town', '2026-09-16');
-  test('Johar Town 2026-09-16 Register Cash is exactly 28,300', () => {
-    assert.strictEqual(jt16Register, 28300);
+  test('Johar Town 2026-09-16 Register: Generated 28,300, Available 28,300', () => {
+    assert.strictEqual(jt16Register.generatedCash, 28300);
+    assert.strictEqual(jt16Register.availableCash, 28300);
   });
 
   const jt17Register = await getAuthoritativeRegisterCash('Johar Town', '2026-09-17');
-  test('Johar Town 2026-09-17 Register Cash is exactly 23,050', () => {
-    assert.strictEqual(jt17Register, 23050);
+  test('Johar Town 2026-09-17 Register: Generated 23,050, Reduction 3,470, Available 19,580', () => {
+    assert.strictEqual(jt17Register.generatedCash, 23050);
+    assert.strictEqual(jt17Register.generalEntryReduction, 3470);
+    assert.strictEqual(jt17Register.availableCash, 19580);
   });
 
   // 3. Jail Road 2026-09-21 DailyCashRequirement State
@@ -70,15 +75,15 @@ async function runTests() {
     },
   });
 
-  test('Jail Road 2026-09-21 requirement matches register and is fully cleared', () => {
+  test('Jail Road 2026-09-21 requirement matches available cash (24,450) and deposited 28,100', () => {
     assert.ok(jr21Req, 'Jail Road 2026-09-21 requirement must exist');
-    assert.strictEqual(jr21Req.requiredAmount, 28100, 'Required amount must be 28,100');
+    assert.strictEqual(jr21Req.requiredAmount, 24450, 'Required amount must be 24,450');
     assert.strictEqual(jr21Req.depositedAmount, 28100, 'Deposited amount must be 28,100');
     assert.strictEqual(jr21Req.pendingAmount, 0, 'Pending amount must be 0');
-    assert.strictEqual(jr21Req.excessAmount, 0, 'Excess amount must be 0');
-    assert.strictEqual(jr21Req.status, 'DEPOSITED');
-    assert.strictEqual(jr21Req.allocations.length, 1);
-    assert.strictEqual(jr21Req.allocations[0].amount, 28100);
+    assert.strictEqual(jr21Req.excessAmount, 3650, 'Excess amount must be 3,650');
+    assert.strictEqual(jr21Req.status, 'EXCESS');
+    const totalAlloc = jr21Req.allocations.reduce((s, a) => s + a.amount, 0);
+    assert.strictEqual(totalAlloc, 28100);
     assert.strictEqual(jr21Req.allocations[0].cashDeposit.referenceNumber, 'DEP-168236');
   });
 
@@ -113,32 +118,32 @@ async function runTests() {
     assert.strictEqual(r.status, 'DEPOSITED');
   });
 
-  test('Johar Town 2026-09-17 reflects partial deposit (Required 23,050, Deposited 18,580, Pending 4,470)', () => {
+  test('Johar Town 2026-09-17 reflects available cash (Required 19,580, Deposited 18,580, Pending 1,000)', () => {
     const r = jtMap.get('2026-09-17');
     assert.ok(r);
-    assert.strictEqual(r.requiredAmount, 23050);
+    assert.strictEqual(r.requiredAmount, 19580);
     assert.strictEqual(r.depositedAmount, 18580);
-    assert.strictEqual(r.pendingAmount, 4470);
+    assert.strictEqual(r.pendingAmount, 1000);
     assert.strictEqual(r.status, 'PARTIALLY_DEPOSITED');
   });
 
-  test('Johar Town 2026-09-18 has 29,600 deposit (Required 28,700, Excess 900)', () => {
+  test('Johar Town 2026-09-18 has 29,600 deposit (Required 28,600, Excess 1,000)', () => {
     const r = jtMap.get('2026-09-18');
     assert.ok(r);
-    assert.strictEqual(r.requiredAmount, 28700);
+    assert.strictEqual(r.requiredAmount, 28600);
     assert.strictEqual(r.depositedAmount, 29600);
     assert.strictEqual(r.pendingAmount, 0);
-    assert.strictEqual(r.excessAmount, 900);
+    assert.strictEqual(r.excessAmount, 1000);
     assert.strictEqual(r.status, 'EXCESS');
   });
 
-  test('Johar Town 2026-09-19 reflects partial deposit (Required 26,900, Deposited 26,600, Pending 300)', () => {
+  test('Johar Town 2026-09-19 reflects full deposit (Required 26,600, Deposited 26,600, Pending 0)', () => {
     const r = jtMap.get('2026-09-19');
     assert.ok(r);
-    assert.strictEqual(r.requiredAmount, 26900);
+    assert.strictEqual(r.requiredAmount, 26600);
     assert.strictEqual(r.depositedAmount, 26600);
-    assert.strictEqual(r.pendingAmount, 300);
-    assert.strictEqual(r.status, 'PARTIALLY_DEPOSITED');
+    assert.strictEqual(r.pendingAmount, 0);
+    assert.strictEqual(r.status, 'DEPOSITED');
   });
 
   // 5. PKT Timezone test

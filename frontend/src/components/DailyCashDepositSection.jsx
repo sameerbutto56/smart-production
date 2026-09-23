@@ -222,12 +222,17 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
           <p className="text-[10px] text-gray-500 mt-0.5">Authoritative POS / Till Cash</p>
         </div>
 
-        {/* Required Deposit */}
+        {/* Required Deposit (Available Cash) */}
         <div className="glass rounded-2xl p-4 border border-gray-700/50">
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Required Deposit</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Required Deposit</p>
+            <span className="text-[9px] font-bold text-emerald-400/90 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Available Cash</span>
+          </div>
           <p className="text-xl font-black text-amber-400 mt-1">{fmt(summary.todayRequiredDeposit)}</p>
           <p className="text-[10px] text-gray-500 mt-0.5">
-            {summary.previousPending > 0 ? `Includes ${fmt(summary.previousPending)} prev pending` : 'No previous carry-forward'}
+            {summary.todayGeneralEntryReduction > 0
+              ? `After -${fmt(summary.todayGeneralEntryReduction)} General Entry`
+              : 'Generated Cash − Deductions'}
           </p>
         </div>
 
@@ -303,9 +308,9 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
               <thead>
                 <tr className="bg-gray-800/80 text-gray-400 uppercase text-[9px] font-black tracking-wider border-b border-gray-700/50">
                   <th className="py-3 px-4 text-left">Cash Business Date</th>
-                  <th className="py-3 px-3 text-right">Register Cash</th>
-                  <th className="py-3 px-3 text-right">Adjustment / Excess</th>
-                  <th className="py-3 px-3 text-right">Required Deposit</th>
+                  <th className="py-3 px-3 text-right">Generated Cash</th>
+                  <th className="py-3 px-3 text-right">General Entry</th>
+                  <th className="py-3 px-3 text-right">Available / Required Deposit</th>
                   <th className="py-3 px-3 text-right">Deposited</th>
                   <th className="py-3 px-3 text-right">Remaining Pending</th>
                   <th className="py-3 px-4 text-center">Status</th>
@@ -328,17 +333,17 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right font-bold text-gray-300">{fmt(r.registerCash ?? r.cashGenerated)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-gray-300">{fmt(r.generatedCash ?? r.registerCash ?? r.cashGenerated)}</td>
                         <td className="py-3 px-3 text-right font-bold">
-                          {r.excessAmount > 0 ? (
-                            <span className="text-purple-400 font-bold">+{fmt(r.excessAmount)} (Excess)</span>
-                          ) : r.previousPending > 0 ? (
-                            <span className="text-amber-400 font-bold">+{fmt(r.previousPending)} (Prev)</span>
+                          {r.generalEntryReduction > 0 ? (
+                            <span className="text-orange-400 font-bold bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20" title="General Entry Deduction">
+                              -{fmt(r.generalEntryReduction)}
+                            </span>
                           ) : (
                             <span className="text-gray-500">—</span>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right font-black text-white">{fmt(r.requiredAmount)}</td>
+                        <td className="py-3 px-3 text-right font-black text-white">{fmt(r.availableCash ?? r.requiredAmount)}</td>
                         <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(r.depositedAmount)}</td>
                         <td className={`py-3 px-3 text-right font-black ${r.pendingAmount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                           {fmt(r.pendingAmount)}
@@ -349,12 +354,14 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                           </span>
                         </td>
                         <td className="py-3 px-3 text-center">
-                          {(r.allocations || []).length > 0 ? (
+                          {(r.allocations || []).length > 0 || r.generalEntryReduction > 0 ? (
                             <button
                               onClick={() => setExpandedDate(isExpanded ? null : r.id)}
                               className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline"
                             >
-                              {r.allocations.length} {r.allocations.length === 1 ? 'Slip' : 'Slips'}
+                              {(r.allocations || []).length > 0
+                                ? `${r.allocations.length} ${r.allocations.length === 1 ? 'Slip' : 'Slips'}`
+                                : 'Details'}
                             </button>
                           ) : (
                             <span className="text-gray-600">—</span>
@@ -374,39 +381,69 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                         </td>
                       </tr>
 
-                      {/* Expanded Allocations Sub-Table */}
-                      {isExpanded && (r.allocations || []).length > 0 && (
+                      {/* Expanded Allocations & General Entry Sub-Table */}
+                      {isExpanded && (
                         <tr className="bg-gray-900/80">
                           <td colSpan="9" className="p-4 border-l-2 border-emerald-500">
-                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-2">
-                              Allocated Deposits Credited to {r.businessDate}:
-                            </p>
-                            <div className="space-y-2 max-w-3xl">
-                              {r.allocations.map((a, idx) => (
-                                <div key={idx} className="flex flex-wrap items-center justify-between text-xs bg-gray-800/80 p-2.5 rounded-xl border border-gray-700/60 gap-2">
-                                  <div className="flex items-center gap-3">
-                                    <span className="font-black text-white text-sm">{fmt(a.amount)}</span>
-                                    <span className="text-gray-400 text-[11px]">
-                                      Slip: <span className="font-bold text-gray-200">{a.cashDeposit?.referenceNumber || 'DEP'}</span>
-                                    </span>
-                                    {a.cashDeposit?.bankName && (
-                                      <span className="text-gray-400 text-[11px]">
-                                        Bank: <span className="font-bold text-gray-300">{a.cashDeposit.bankName}</span>
-                                      </span>
-                                    )}
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${a.allocationType === 'PREVIOUS_PENDING' ? 'bg-amber-500/20 text-amber-300' : a.allocationType === 'EXCESS' ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                                      {a.allocationType?.replace(/_/g, ' ')}
-                                    </span>
-                                  </div>
-                                  <div className="text-right text-[11px] text-gray-400">
-                                    <span>Actual Deposit Time: <span className="font-bold text-gray-300">{formatDateTimePKT(a.cashDeposit?.actualDepositDate || a.createdAt)}</span></span>
-                                    {a.cashDeposit?.createdByName && (
-                                      <span className="ml-2 text-gray-500">• By {a.cashDeposit.createdByName}</span>
-                                    )}
-                                  </div>
+                            {r.generalEntryReduction > 0 && (
+                              <div className="mb-3 p-3 bg-orange-950/20 rounded-xl border border-orange-500/30 max-w-3xl">
+                                <p className="text-[10px] font-black text-orange-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                                  <span>General Entry Reductions Credited to {r.businessDate}:</span>
+                                  <span className="text-red-400 font-black">Total: -{fmt(r.generalEntryReduction)}</span>
+                                </p>
+                                <div className="space-y-1">
+                                  {(r.journalEntries && r.journalEntries.length > 0) ? (
+                                    r.journalEntries.map((j, jIdx) => (
+                                      <div key={jIdx} className="flex justify-between items-center text-xs bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700/60">
+                                        <span className="text-gray-300 font-bold">{j.expenseTitle} <span className="text-gray-500 font-normal">— {j.employeeName}</span></span>
+                                        <span className="font-black text-red-400">-{fmt(j.amount)}</span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="flex justify-between items-center text-xs bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700/60">
+                                      <span className="text-gray-300">Total General Entry Deductions</span>
+                                      <span className="font-black text-red-400">-{fmt(r.generalEntryReduction)}</span>
+                                    </div>
+                                  )}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            )}
+
+                            {(r.allocations || []).length > 0 ? (
+                              <>
+                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-2">
+                                  Allocated Deposits Credited to {r.businessDate}:
+                                </p>
+                                <div className="space-y-2 max-w-3xl">
+                                  {r.allocations.map((a, idx) => (
+                                    <div key={idx} className="flex flex-wrap items-center justify-between text-xs bg-gray-800/80 p-2.5 rounded-xl border border-gray-700/60 gap-2">
+                                      <div className="flex items-center gap-3">
+                                        <span className="font-black text-white text-sm">{fmt(a.amount)}</span>
+                                        <span className="text-gray-400 text-[11px]">
+                                          Slip: <span className="font-bold text-gray-200">{a.cashDeposit?.referenceNumber || 'DEP'}</span>
+                                        </span>
+                                        {a.cashDeposit?.bankName && (
+                                          <span className="text-gray-400 text-[11px]">
+                                            Bank: <span className="font-bold text-gray-300">{a.cashDeposit.bankName}</span>
+                                          </span>
+                                        )}
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${a.allocationType === 'PREVIOUS_PENDING' ? 'bg-amber-500/20 text-amber-300' : a.allocationType === 'EXCESS' ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                                          {a.allocationType?.replace(/_/g, ' ')}
+                                        </span>
+                                      </div>
+                                      <div className="text-right text-[11px] text-gray-400">
+                                        <span>Actual Deposit Time: <span className="font-bold text-gray-300">{formatDateTimePKT(a.cashDeposit?.actualDepositDate || a.createdAt)}</span></span>
+                                        {a.cashDeposit?.createdByName && (
+                                          <span className="ml-2 text-gray-500">• By {a.cashDeposit.createdByName}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            ) : (
+                              <p className="text-xs text-gray-500 italic">No bank deposit slips recorded yet for this date.</p>
+                            )}
                           </td>
                         </tr>
                       )}

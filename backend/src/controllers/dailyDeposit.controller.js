@@ -192,14 +192,24 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
   if (session && session.summary) {
     try {
       const s = typeof session.summary === 'string' ? JSON.parse(session.summary) : session.summary;
-      const cash = s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash;
-      if (cash !== undefined && cash !== null) {
-        return Math.max(0, Math.round(Number(cash) * 100) / 100);
+      const rawCash = s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash;
+      if (rawCash !== undefined && rawCash !== null) {
+        const generatedCash = Math.max(0, Math.round(Number(rawCash) * 100) / 100);
+        const generalEntryReduction = Math.max(0, Math.round(Number(s.totalJournalEntries || 0) * 100) / 100);
+        const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction) * 100) / 100);
+        return {
+          generatedCash,
+          generalEntryReduction,
+          availableCash,
+          journalEntries: s.journalEntries || [],
+          isClosedSession: session.status === 'CLOSED',
+          found: true,
+        };
       }
     } catch (e) {}
   }
 
-  // 2. Fallback to real-time POS sales cash query
+  // 2. Fallback to real-time POS sales cash query and journal entries
   const sales = await prisma.posSale.findMany({
     where: {
       outletName,
@@ -251,7 +261,26 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
     }
   });
 
-  return Math.max(0, Math.round(totalCash * 100) / 100);
+  const journals = await prisma.journalEntry.findMany({
+    where: {
+      outletName,
+      createdAt: { gte: start, lt: end },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const generatedCash = Math.max(0, Math.round(totalCash * 100) / 100);
+  const generalEntryReduction = Math.max(0, Math.round(journals.reduce((sum, j) => sum + (j.amount || 0), 0) * 100) / 100);
+  const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction) * 100) / 100);
+
+  return {
+    generatedCash,
+    generalEntryReduction,
+    availableCash,
+    journalEntries: journals,
+    isClosedSession: false,
+    found: false,
+  };
 };
 
 /**
@@ -305,12 +334,17 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
   const syncedResults = [];
 
   for (const bDate of dates) {
-    // 1. Authoritative Register Cash is the base amount that needs to be deposited
-    const registerCash = await getAuthoritativeRegisterCash(outletName, bDate);
+    // 1. Authoritative Register Cash & General Entry Reduction
+    const regData = await getAuthoritativeRegisterCash(outletName, bDate);
     const req = reqMap.get(bDate);
 
-    // 2. Base required deposit equals register cash
-    const requiredAmount = registerCash;
+    // 2. Base required deposit equals Available Cash = Generated Cash - General Entry Reductions
+    const cashGenerated = regData.generatedCash;
+    const generalEntryReduction = regData.generalEntryReduction;
+    const requiredAmount = regData.availableCash;
+    const notes = generalEntryReduction > 0
+      ? JSON.stringify({ generalEntryReduction, journalEntries: regData.journalEntries })
+      : null;
 
     // 3. Deposited amount equals sum of all deposit allocations credited to this business date
     const allocations = req?.allocations || [];
@@ -337,60 +371,65 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
       toCreate.push({
         outletName,
         businessDate: bDate,
-        cashGenerated: registerCash,
+        cashGenerated,
         previousPending: 0,
         requiredAmount,
         depositedAmount,
         pendingAmount,
         excessAmount,
         status,
+        notes,
       });
       syncedResults.push({
         outletName,
         businessDate: bDate,
-        cashGenerated: registerCash,
+        cashGenerated,
         previousPending: 0,
         requiredAmount,
         depositedAmount,
         pendingAmount,
         excessAmount,
         status,
+        notes,
         allocations: [],
       });
     } else {
       const isDifferent =
-        req.cashGenerated !== registerCash ||
+        req.cashGenerated !== cashGenerated ||
         req.previousPending !== 0 ||
         req.requiredAmount !== requiredAmount ||
         req.depositedAmount !== depositedAmount ||
         req.pendingAmount !== pendingAmount ||
         req.excessAmount !== excessAmount ||
-        req.status !== status;
+        req.status !== status ||
+        req.notes !== notes;
 
       if (isDifferent) {
         toUpdate.push({
           id: req.id,
           data: {
-            cashGenerated: registerCash,
+            cashGenerated,
             previousPending: 0,
             requiredAmount,
             depositedAmount,
             pendingAmount,
             excessAmount,
             status,
+            notes,
           },
         });
       }
 
       syncedResults.push({
         ...req,
-        cashGenerated: registerCash,
+        cashGenerated,
         previousPending: 0,
         requiredAmount,
         depositedAmount,
         pendingAmount,
         excessAmount,
         status,
+        notes,
       });
     }
   }
@@ -416,7 +455,7 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
  */
 const getDailyDeposits = async (req, res) => {
   try {
-    const { outletName } = req.params;
+    const outletName = req.params?.outletName || req.query?.outletName || req.query?.outlet;
     const todayPkt = getPktDateString();
     const outletCutoff = getOutletCutoffDate(outletName);
 
@@ -424,7 +463,7 @@ const getDailyDeposits = async (req, res) => {
     await syncDailyRequirements(outletName, todayPkt);
 
     // Date range filter
-    const { range, dateFrom, dateTo } = req.query;
+    const { range, dateFrom, dateTo } = req.query || {};
     let queryStartStr = outletCutoff;
     let queryEndStr = todayPkt;
 
@@ -509,8 +548,21 @@ const getDailyDeposits = async (req, res) => {
     });
     const previousPending = pastPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0);
 
+    let todayReduction = 0;
+    if (todayReq?.notes) {
+      try {
+        const p = JSON.parse(todayReq.notes);
+        if (typeof p?.generalEntryReduction === 'number') todayReduction = p.generalEntryReduction;
+      } catch (e) {}
+    }
+    if (!todayReduction && todayReq && todayReq.cashGenerated > todayReq.requiredAmount) {
+      todayReduction = Math.max(0, Math.round((todayReq.cashGenerated - todayReq.requiredAmount) * 100) / 100);
+    }
+
     const summary = {
       todayCashGenerated: todayReq ? todayReq.cashGenerated : 0,
+      todayGeneralEntryReduction: todayReduction,
+      todayAvailableCash: todayReq ? todayReq.requiredAmount : 0,
       todayRequiredDeposit: todayReq ? todayReq.requiredAmount : 0,
       todayDeposited: todayReq ? todayReq.depositedAmount : 0,
       todayPending: todayReq ? todayReq.pendingAmount : 0,
@@ -530,11 +582,34 @@ const getDailyDeposits = async (req, res) => {
         : null,
     };
 
-    const enhancedRequirements = requirements.map(r => ({
-      ...r,
-      registerCash: r.cashGenerated,
-      remainingAmount: r.pendingAmount,
-    }));
+    const enhancedRequirements = requirements.map(r => {
+      let generalEntryReduction = 0;
+      let journalEntries = [];
+      if (r.notes) {
+        try {
+          const parsed = JSON.parse(r.notes);
+          if (typeof parsed?.generalEntryReduction === 'number') {
+            generalEntryReduction = parsed.generalEntryReduction;
+          }
+          if (Array.isArray(parsed?.journalEntries)) {
+            journalEntries = parsed.journalEntries;
+          }
+        } catch (e) {}
+      }
+      if (!generalEntryReduction && r.cashGenerated > r.requiredAmount) {
+        generalEntryReduction = Math.max(0, Math.round((r.cashGenerated - r.requiredAmount) * 100) / 100);
+      }
+
+      return {
+        ...r,
+        generatedCash: r.cashGenerated,
+        registerCash: r.cashGenerated,
+        generalEntryReduction,
+        journalEntries,
+        availableCash: r.requiredAmount,
+        remainingAmount: r.pendingAmount,
+      };
+    });
 
     res.json({
       outletName,
@@ -619,15 +694,18 @@ const submitDailyDeposit = async (req, res) => {
       });
 
       if (!targetReq) {
-        const regCash = await getAuthoritativeRegisterCash(outletName, effectiveBusinessDate);
+        const regData = await getAuthoritativeRegisterCash(outletName, effectiveBusinessDate);
         targetReq = await tx.dailyCashRequirement.create({
           data: {
             outletName,
             businessDate: effectiveBusinessDate,
-            cashGenerated: regCash,
-            requiredAmount: regCash,
-            pendingAmount: regCash,
-            status: regCash > 0 ? 'PENDING' : 'CLEARED',
+            cashGenerated: regData.generatedCash,
+            requiredAmount: regData.availableCash,
+            pendingAmount: regData.availableCash,
+            status: regData.availableCash > 0 ? 'PENDING' : 'CLEARED',
+            notes: regData.generalEntryReduction > 0
+              ? JSON.stringify({ generalEntryReduction: regData.generalEntryReduction, journalEntries: regData.journalEntries })
+              : null,
           },
           include: { allocations: true },
         });
