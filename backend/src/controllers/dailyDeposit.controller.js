@@ -344,7 +344,8 @@ const getDateRangeList = (startDateStr, endDateStr) => {
  * 3. Priority Rule for new deposits:
  *    Oldest Pending -> Current Day Requirement -> Excess Carry-Forward.
  */
-const syncDailyRequirements = async (outletName, targetDate = getPktDateString()) => {
+const syncDailyRequirements = async (outletName, targetDate = getPktDateString(), options = {}) => {
+  const { forceRequery = false } = options;
   const outletCutoff = getOutletCutoffDate(outletName);
   if (targetDate < outletCutoff) {
     targetDate = outletCutoff;
@@ -398,8 +399,34 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
   // 2. Ensure all requirement rows exist in database
   const dayBaseData = [];
   for (const bDate of dates) {
-    const regData = await getAuthoritativeRegisterCash(outletName, bDate);
     let req = reqMap.get(bDate);
+    let regData;
+
+    // Fast-path: if requirement row already exists for a past closed date,
+    // its register figures (generatedCash, requiredAmount, generalEntryReduction) are frozen.
+    // Reuse them directly to avoid slow sequential DB queries over remote network.
+    if (!forceRequery && req && bDate < targetDate && req.notes) {
+      let journalEntries = [];
+      let generalEntryReduction = 0;
+      try {
+        const parsed = typeof req.notes === 'string' ? JSON.parse(req.notes) : req.notes;
+        journalEntries = parsed.journalEntries || [];
+        generalEntryReduction = parsed.generalEntryReduction || 0;
+      } catch (e) {}
+
+      regData = {
+        generatedCash: req.cashGenerated,
+        generalEntryReduction,
+        cashReturns: 0,
+        faisalTake: 0,
+        availableCash: req.requiredAmount,
+        journalEntries,
+        isClosedSession: true,
+        found: true,
+      };
+    } else {
+      regData = await getAuthoritativeRegisterCash(outletName, bDate);
+    }
 
     if (!req) {
       req = await prisma.dailyCashRequirement.create({
@@ -559,6 +586,12 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     unfulfilledMap.set(u.reqId, u.needed);
   }
 
+  let hasChanges = false;
+  const existingTotalAllocations = existingReqs.reduce((sum, r) => sum + (r.allocations?.length || 0), 0);
+  if (allocationsToCreate.length !== existingTotalAllocations) {
+    hasChanges = true;
+  }
+
   const dbUpdateOps = [];
 
   for (const ru of reqUpdates) {
@@ -592,6 +625,19 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     ru.notesObj.status = status;
     const notesStr = JSON.stringify(ru.notesObj);
 
+    const existing = reqMap.get(ru.businessDate);
+    if (!existing ||
+        existing.cashGenerated !== ru.cashGenerated ||
+        existing.requiredAmount !== ru.requiredAmount ||
+        existing.previousPending !== ru.previousPending ||
+        existing.depositedAmount !== ru.depositedAmount ||
+        existing.pendingAmount !== remainingPending ||
+        existing.excessAmount !== newExcess ||
+        existing.status !== status ||
+        existing.notes !== notesStr) {
+      hasChanges = true;
+    }
+
     dbUpdateOps.push(
       prisma.dailyCashRequirement.update({
         where: { id: ru.id },
@@ -609,36 +655,42 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     );
   }
 
-  // G. Execute database updates & allocations atomically in a transaction
-  await prisma.$transaction([
-    prisma.cashDepositAllocation.deleteMany({
-      where: {
-        requirement: { outletName },
-        businessDate: { gte: outletCutoff },
-      },
-    }),
-    ...(allocationsToCreate.length > 0
-      ? [prisma.cashDepositAllocation.createMany({ data: allocationsToCreate })]
-      : []),
-    ...dbUpdateOps,
-  ]);
+  let finalRequirements;
+  if (hasChanges) {
+    // G. Execute database updates & allocations atomically in a transaction
+    await prisma.$transaction([
+      prisma.cashDepositAllocation.deleteMany({
+        where: {
+          requirement: { outletName },
+          businessDate: { gte: outletCutoff },
+        },
+      }),
+      ...(allocationsToCreate.length > 0
+        ? [prisma.cashDepositAllocation.createMany({ data: allocationsToCreate })]
+        : []),
+      ...dbUpdateOps,
+    ]);
 
-  // H. Return fresh requirements with allocations
-  const finalRequirements = await prisma.dailyCashRequirement.findMany({
-    where: {
-      outletName,
-      businessDate: { gte: outletCutoff, lte: targetDate },
-    },
-    include: {
-      allocations: {
-        include: {
-          cashDeposit: true,
+    // H. Return fresh requirements with allocations
+    finalRequirements = await prisma.dailyCashRequirement.findMany({
+      where: {
+        outletName,
+        businessDate: { gte: outletCutoff, lte: targetDate },
+      },
+      include: {
+        allocations: {
+          include: {
+            cashDeposit: true,
+          },
         },
       },
-    },
-    orderBy: { businessDate: 'desc' },
-  });
+      orderBy: { businessDate: 'desc' },
+    });
+  } else {
+    finalRequirements = [...existingReqs].sort((a, b) => b.businessDate.localeCompare(a.businessDate));
+  }
 
+  finalRequirements.deposits = allDeposits;
   return finalRequirements;
 };
 
@@ -652,7 +704,17 @@ const getDailyDeposits = async (req, res) => {
     const outletCutoff = getOutletCutoffDate(outletName);
 
     // Ensure state and running carry-forward ledger are synchronized up to today
-    await syncDailyRequirements(outletName, todayPkt);
+    const requirementsResult = await syncDailyRequirements(outletName, todayPkt);
+    const allDeposits = requirementsResult.deposits || (await prisma.cashDeposit.findMany({
+      where: {
+        outletName,
+        businessDate: { gte: outletCutoff },
+      },
+      include: {
+        allocations: true,
+      },
+      orderBy: { actualDepositDate: 'desc' },
+    }));
 
     // Date range filter
     const { range, dateFrom, dateTo } = req.query || {};
@@ -667,77 +729,29 @@ const getDailyDeposits = async (req, res) => {
       queryStartStr = outletCutoff;
     }
 
-    // Fetch requirements
-    const requirements = await prisma.dailyCashRequirement.findMany({
-      where: {
-        outletName,
-        businessDate: {
-          gte: queryStartStr,
-          lte: queryEndStr,
-        },
-      },
-      include: {
-        allocations: {
-          include: {
-            cashDeposit: true,
-          },
-        },
-      },
-      orderBy: { businessDate: 'desc' },
-    });
+    // Filter in-memory from sync results (zero extra redundant DB queries!)
+    const requirements = requirementsResult.filter(
+      r => r.businessDate >= queryStartStr && r.businessDate <= queryEndStr
+    );
 
-    // Fetch deposits
-    const deposits = await prisma.cashDeposit.findMany({
-      where: {
-        outletName,
-        businessDate: {
-          gte: queryStartStr,
-          lte: queryEndStr,
-        },
-      },
-      include: {
-        allocations: true,
-      },
-      orderBy: { actualDepositDate: 'desc' },
-    });
+    const deposits = allDeposits.filter(
+      d => d.businessDate >= queryStartStr && d.businessDate <= queryEndStr
+    );
 
     // Today's specific requirement
-    const todayReq = await prisma.dailyCashRequirement.findUnique({
-      where: {
-        outletName_businessDate: { outletName, businessDate: todayPkt },
-      },
-      include: {
-        allocations: true,
-      },
-    });
+    const todayReq = requirementsResult.find(r => r.businessDate === todayPkt) || null;
 
     // Latest deposit made in the active cycle
-    const lastDeposit = await prisma.cashDeposit.findFirst({
-      where: {
-        outletName,
-        businessDate: { gte: outletCutoff },
-      },
-      orderBy: { actualDepositDate: 'desc' },
-    });
+    const lastDeposit = allDeposits.length > 0
+      ? [...allDeposits].sort((a, b) => new Date(b.actualDepositDate) - new Date(a.actualDepositDate))[0]
+      : null;
 
     // All active pending across all dates >= outletCutoff
-    const allPendingReqs = await prisma.dailyCashRequirement.findMany({
-      where: {
-        outletName,
-        businessDate: { gte: outletCutoff },
-        pendingAmount: { gt: 0 },
-      },
-    });
+    const allPendingReqs = requirementsResult.filter(r => r.pendingAmount > 0);
     const totalPendingAllTime = allPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0);
 
     // Previous pending: sum of active pending for dates prior to today
-    const pastPendingReqs = await prisma.dailyCashRequirement.findMany({
-      where: {
-        outletName,
-        businessDate: { gte: outletCutoff, lt: todayPkt },
-        pendingAmount: { gt: 0 },
-      },
-    });
+    const pastPendingReqs = requirementsResult.filter(r => r.businessDate < todayPkt && r.pendingAmount > 0);
     const previousPending = pastPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0);
 
     let todayReduction = 0;
@@ -970,7 +984,7 @@ const rebuildOutletDepositState = async (req, res) => {
     const results = {};
 
     for (const outletName of outletsToRebuild) {
-      const updatedReqs = await syncDailyRequirements(outletName, todayPkt);
+      const updatedReqs = await syncDailyRequirements(outletName, todayPkt, { forceRequery: true });
       results[outletName] = updatedReqs.length;
     }
 
