@@ -1,5 +1,24 @@
 ## Goals
-### Implemented This Session — Bank Deposit: Excess, Short Deposit & Chronological Carry-Forward Reconciliation Ledger (commit 133912f, deployed & live-verified)
+### Implemented This Session — Bank Deposit & Chart Optimization: Timeout Resolution & Chart Dimensions (commit 8fbfbff, deployed & live-verified)
+- **Problem**:
+  1. `DailyCashDepositSection` timed out after 30 seconds (`AxiosError: timeout of 30000ms exceeded`) because `syncDailyRequirements` made sequential database calls across multiple dates for every GET request and `getDailyDeposits` executed 6 redundant database queries after sync.
+  2. `ResponsiveContainer` in `POSDashboard.jsx` threw console warning: `The width(-1) and height(-1) of chart should be greater than 0...`.
+- **Backend Optimization (`dailyDeposit.controller.js`)**:
+  - **Fast-path Register Cash Reuse**: Eliminated sequential database lookups for past dates by reusing frozen register values directly from `DailyCashRequirement` for past dates.
+  - **Zero-DB Redundant Queries in `getDailyDeposits`**: Replaced 6 separate database queries (`findMany`, `findFirst`, `findUnique`) with in-memory calculations directly from the synchronizer's result set.
+  - **Transaction Skip Optimization**: Evaluates `hasChanges` before triggering `prisma.$transaction`. If data is already in sync, updates are bypassed completely.
+  - **15-Second In-Memory Fast Cache**: Added `depositsResponseCache` (15s TTL) for fast polling and multi-tab responsiveness, with immediate cache invalidation on deposit submission or explicit rebuild.
+- **Frontend Optimization (`DailyCashDepositSection.jsx` & `POSDashboard.jsx`)**:
+  - Increased Axios client timeout to 60,000ms (`{ timeout: 60000 }`) on `api.get` for daily deposits as a robust failsafe.
+  - Added `minWidth={1}` and `minHeight={1}` to `<ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>` in `POSDashboard.jsx` to eliminate the chart dimension console warning.
+- **Verification & Deployment**:
+  - Test suite `verify-carry-forward-ledger.cjs`: 11/11 tests passed.
+  - Production build (`npm run build`): Exit code 0, 3,204 modules bundled cleanly.
+  - Git commits `e0c24ae`, `7a88ce7`, and `8fbfbff` pushed to `origin/main`.
+  - Vercel production deployment `dpl_Goe8sDSAfWwjpEhkvDh2ZhfKNvEY` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/daily-deposits/Johar%20Town` returned `200 OK`.
+
+### Implemented Prior Session — Bank Deposit: Excess, Short Deposit & Chronological Carry-Forward Reconciliation Ledger (commit 133912f, deployed & live-verified)
 - **Requirement**:
   - Implement automatic carry-forward of excess and short/pending deposit balances across business dates.
   - Priority Rule: Oldest Pending → Current Day Requirement → Excess Carry-Forward.
