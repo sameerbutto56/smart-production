@@ -1,5 +1,31 @@
 ## Goals
-### Implemented This Session — Register & Bank Deposit: General Entry Reduction Calculation Fix (commit, deployed & live-verified)
+### Implemented This Session — ASM Profile Operational Data Reset & Fix ReferenceError in AsmPage (commit, deployed & live-verified)
+- **Problem**:
+  1. Old, obsolete test/smoke operational records were cluttering the **ASM Profile / ASM Portal** (old vendor orders, old deliveries, old payments, old ASM handover stock requests).
+  2. Clicking or rendering the ASM Portal resulted in `ReferenceError: t is not defined at OrderRow (AsmPage.jsx)`.
+- **Requirement**:
+  - Start with a clean ASM operational state from today onward:
+    - Incoming Stock: 0 / Fresh
+    - Returns: 0 / Fresh
+    - Allocations: 0 / Fresh
+    - Pending ASM Transactions: 0 / Fresh
+  - Differentiate between Vendor Master Data / Configuration vs old ASM Vendor Transactions / Activity.
+  - Zero corruption of Warehouse Inventory: Before deleting ASM stock requests, verify whether they decremented inventory and restore stock so digital inventory matches physical reality.
+  - Strictly preserve Vendor Master Data (all 13 vendors), User Accounts (all 26 users including ASM account "ALI"), Outlet Inventory (all 3,194 records), POS Sales (all 2,402 sales), and Customer Orders (all orders).
+- **Backend & Database Implementation (`backend/scripts/reset-asm-operational-data.cjs`)**:
+  - Audited allocated stock in `AsmStockRequestItem` (2 test requests: `ASH-20260922-00002` and `ASH-20260922-00003`, totaling 3 pieces of "Lab Coat Women Wrinkle Free").
+  - Restored the 3 pieces to `InventoryItem` `c14ade1a-2ab9-4be6-afc4-13b7fc46c2b0` variants and total stock (restored from 6 to 9).
+  - Atomically wiped `AsmStockAuditLog` (4), `AsmStockReturnItem` (0), `AsmStockReturn` (0), `AsmStockRequestItem` (2), `AsmStockRequest` (2), and reset `AsmStockRequestSequence` and `AsmStockReturnSequence`.
+  - Atomically wiped `VendorDocument` (12), `VendorPayment` (12), `VendorDelivery` (7), `VendorOrderStatus` (69), `VendorOrderItem` (9), `VendorOrder` (9 orders `VO-2026-00000` through `VO-2026-00008`), and reset `VendorOrderSequence`.
+  - Asserted 100% preservation of 13 Vendors, 26 Users, 116 Warehouse Items, 3,194 Outlet Inventory items, and 2,402 POS sales.
+- **Frontend Implementation (`frontend/src/pages/AsmPage.jsx`)**:
+  - Fixed `ReferenceError: t is not defined` inside `OrderRow` by declaring `const { t } = useLanguage();`.
+  - Moved misplaced mid-file `Clock as ClockIcon` import to the top of the file with the other `lucide-react` imports.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-asm-clean-slate.cjs`: 18/18 tests passed.
+  - Frontend production build (`npm run build`): Exit code 0, 3,203 modules bundled cleanly.
+
+### Implemented Prior Session — Register & Bank Deposit: General Entry Reduction Calculation Fix (commit, deployed & live-verified)
 - **Requirement**:
   - Fix calculation of Available Cash across Outlet Register and Bank Deposit.
   - Core Formula: `Available Cash = Generated Cash − Total Valid General Entry Reductions`.

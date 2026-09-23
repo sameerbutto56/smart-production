@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import {
   Search, RefreshCcw, FileText, X, User, Phone, MapPin, Calendar,
   Hash, CreditCard, Package, Truck, Plus, CheckCircle2, Printer, Receipt,
-  Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban, RotateCcw, BarChart3,
+  Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban, RotateCcw, BarChart3, Clock as ClockIcon,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument } from '../utils/vendorDocumentPrint';
@@ -589,9 +589,8 @@ const AsmPage = () => {
   );
 };
 
-import { Clock as ClockIcon } from 'lucide-react';
-
 const OrderRow = ({ order, onOpen, flexDir }) => {
+  const { t } = useLanguage();
   const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
   const stage = order.status || order.currentStage;
