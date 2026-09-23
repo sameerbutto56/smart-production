@@ -1,4 +1,28 @@
 ## Goals
+### Implemented This Session — Dashboard Cash & Bank Deposit Separation + Simplified POS History Financial Summary (commit ddbad31, deployed & live-verified)
+- **Requirement**:
+  - Decouple Dashboard Cash from Bank Deposit tracking: Recording a bank deposit must NOT deduct from Dashboard Cash or cause it to reach Rs. 0 or become negative.
+  - Bank deposits belong strictly to the Bank Deposit module (Required -> Pending -> Deposited -> Remaining).
+  - Redesign POS History into a simplified 4-tier financial summary (Sales Summary, Payment Breakdown, Deductions / Adjustments, Final Position) across Screen UI, Excel Export, and Print.
+  - Isolate returns so they deduct from the original payment method (Online returns reduce Online, never Cash).
+  - Discounts reduce Net Revenue only; they are NOT cash deductions.
+  - 100% preservation of all existing historical BankDeposit and CashDeposit records.
+- **Backend Implementation**:
+  - In `backend/src/utils/posUnified.js`: Removed `totalBankDeposits` subtraction from `paymentBreakdown.net` for Cash. Returns prioritized to parent sale payment method. Added `availableCash`, `availableOnline`, and `availableCard`.
+  - In `backend/src/controllers/journal.controller.js`: Decoupled `availableCash` from `totalBankDeposits`.
+- **Frontend Implementation**:
+  - Created `frontend/src/utils/posFinancialSummary.js`: Authoritative 4-tier financial summary engine.
+  - In `frontend/src/components/OutletInvoiceHistory.jsx` & `POSHistory.jsx`: Upgraded summary cards to the 4-tier cards with prominent Available Cash pill, added A4 Print button next to Excel.
+  - In `frontend/src/utils/outletExportExcel.js` & `context/POSContext.jsx`: Standardized Excel exports with the 4-tier financial summary block at the bottom.
+  - In `frontend/src/utils/POSPrint.js`: Added `printPosFinancialSummary` generating clean A4 reports.
+  - In `frontend/src/components/OutletPOSDashboard.jsx`: Removed misleading Bank Dep deduction badge from Available Cash.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-simplified-pos-history.cjs`: 6/6 tests passed.
+  - Frontend production build (`npm run build`): 3,204 modules bundled cleanly in 56.16s.
+  - Git commit `ddbad31` pushed to `origin/main`.
+  - Vercel production deployment `dpl_2yWA6R4HDjK6xTsdAr5J63dbXzoy` (`READY`) aliased to `https://smart-production-v2.vercel.app` and `https://smart-production-v2-sameerbutt056-1019s-projects.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+
 ### Implemented This Session — Admin Dashboard: Restore ASM Card & Functionality (commit, deployed & live-verified)
 - **Requirement**:
   - Restore the **ASM Card / Widget** on the **Admin Dashboard** (`/dashboard`).
