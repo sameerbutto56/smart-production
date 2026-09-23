@@ -41,7 +41,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/daily-deposits/${encodeURIComponent(outlet)}`);
+      const res = await api.get(`/api/daily-deposits/${encodeURIComponent(outlet)}`, { timeout: 60000 });
       setData(res.data);
     } catch (err) {
       console.error('Failed to fetch daily deposits:', err);

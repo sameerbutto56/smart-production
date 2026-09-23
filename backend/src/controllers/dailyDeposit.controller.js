@@ -14,6 +14,21 @@ const getOutletCutoffDate = (outletName) => {
   return OUTLET_CUTOFF_DATES[outletName] || DEFAULT_CUTOFF_DATE;
 };
 
+const DEPOSIT_CACHE_TTL_MS = 15 * 1000; // 15 seconds in-memory cache for fast polling
+const depositsResponseCache = new Map();
+
+const invalidateDepositCache = (outletName) => {
+  if (!outletName || outletName === 'all') {
+    depositsResponseCache.clear();
+  } else {
+    for (const key of depositsResponseCache.keys()) {
+      if (key.startsWith(outletName)) {
+        depositsResponseCache.delete(key);
+      }
+    }
+  }
+};
+
 const PK_OFFSET = 5 * 60 * 60 * 1000;
 
 /**
@@ -700,6 +715,14 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
 const getDailyDeposits = async (req, res) => {
   try {
     const outletName = req.params?.outletName || req.query?.outletName || req.query?.outlet;
+    const { range, dateFrom, dateTo } = req.query || {};
+    const cacheKey = `${outletName}:${range || ''}:${dateFrom || ''}:${dateTo || ''}`;
+
+    const cached = depositsResponseCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < DEPOSIT_CACHE_TTL_MS)) {
+      return res.json(cached.payload);
+    }
+
     const todayPkt = getPktDateString();
     const outletCutoff = getOutletCutoffDate(outletName);
 
@@ -716,8 +739,6 @@ const getDailyDeposits = async (req, res) => {
       orderBy: { actualDepositDate: 'desc' },
     }));
 
-    // Date range filter
-    const { range, dateFrom, dateTo } = req.query || {};
     let queryStartStr = outletCutoff;
     let queryEndStr = todayPkt;
 
@@ -863,14 +884,17 @@ const getDailyDeposits = async (req, res) => {
       };
     });
 
-    res.json({
+    const payload = {
       outletName,
       cutoffDate: outletCutoff,
       todayDate: todayPkt,
       summary,
       requirements: enhancedRequirements,
       deposits,
-    });
+    };
+
+    depositsResponseCache.set(cacheKey, { payload, timestamp: Date.now() });
+    res.json(payload);
   } catch (error) {
     console.error('getDailyDeposits error:', error);
     res.status(500).json({ message: 'Failed to fetch daily deposits', error: error.message });
@@ -937,6 +961,7 @@ const submitDailyDeposit = async (req, res) => {
 
     // 2. Reconcile running carry-forward ledger and build priority allocations
     await syncDailyRequirements(outletName, todayPkt);
+    invalidateDepositCache(outletName);
 
     // 3. Fetch newly generated allocations for this deposit
     const allocations = await prisma.cashDepositAllocation.findMany({
@@ -987,6 +1012,8 @@ const rebuildOutletDepositState = async (req, res) => {
       const updatedReqs = await syncDailyRequirements(outletName, todayPkt, { forceRequery: true });
       results[outletName] = updatedReqs.length;
     }
+
+    invalidateDepositCache(targetOutlet);
 
     if (res) {
       res.json({ message: 'Outlet deposit state rebuilt successfully', results });
