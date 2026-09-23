@@ -152,7 +152,8 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
 
   const returnsByMethod = { CASH: 0, CARD: 0, ONLINE: 0 };
   returns.forEach((r) => {
-    const refundMethod = r.refundPaymentMethod || r.sale?.paymentMethod || 'CASH';
+    // Return must deduct from the same payment method as the original transaction
+    const refundMethod = r.sale?.paymentMethod || r.refundPaymentMethod || 'CASH';
     if (refundMethod === 'CASH_ONLINE') {
       const cashAmt = r.sale?.cashAmount || 0;
       const onlineAmt = r.sale?.onlineAmount || 0;
@@ -170,7 +171,8 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
     const gross = paymentTotals[method] || 0;
     const ret = returnsByMethod[method] || 0;
     let net = gross - ret;
-    if (method === 'CASH') net -= (cashJournalExpenses + totalBankDeposits);
+    // General entries (expenses) are deducted from Cash. Bank deposits are tracked separately in the Bank Deposit module.
+    if (method === 'CASH') net -= cashJournalExpenses;
     return { method, gross, returns: ret, net };
   });
 
@@ -237,6 +239,9 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
     totalJournalExpenses,
     cashJournalExpenses,
     totalBankDeposits,
+    availableCash: Math.round(((paymentTotals['CASH'] || 0) - (returnsByMethod['CASH'] || 0) - cashJournalExpenses) * 100) / 100,
+    availableOnline: Math.round(((paymentTotals['ONLINE'] || 0) - (returnsByMethod['ONLINE'] || 0)) * 100) / 100,
+    availableCard: Math.round(((paymentTotals['CARD'] || 0) - (returnsByMethod['CARD'] || 0)) * 100) / 100,
     paymentTotals,
     paymentSummary,
     returnSummary,

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { formatDateTime, formatDateOnly } from './dateTime';
 import { toUrduName } from './urduDictionary';
+import { computePosFinancialSummary } from './posFinancialSummary';
 
 const fmt = (n) => typeof n === 'number' ? Math.round(n) : '';
 
@@ -178,53 +179,47 @@ export const exportInvoicesToExcel = ({
     };
   });
 
-  // 5. Authoritative Summary Section
+  // 5. Authoritative Simplified Financial Summary Section
+  const fin = computePosFinancialSummary({
+    sales,
+    returns,
+    balancePayments,
+    journalEntries,
+    backendSummary: summary,
+  });
+
   const S = (label, value) => ({ 'Receipt #': label, 'Amount Received': typeof value === 'number' ? Math.round(value) : (value || '') });
-  const grossSales = summary.grossSales ?? summary.totalSales ?? 0;
-  const discountTotal = summary.totalDiscount ?? summary.discountTotal ?? 0;
-  const totalReceived = summary.totalReceived ?? 0;
-  const returnedAmount = summary.totalReturns ?? summary.refundAmount ?? 0;
-  const netSales = summary.netSales ?? Math.max(0, grossSales - discountTotal - returnedAmount);
-  const netRevenue = summary.netRevenue ?? 0;
-  const totalGeneralEntries = summary.totalJournalExpenses ?? journalEntries.reduce((s, j) => s + (j.amount || 0), 0);
-  const cashGeneralEntries = summary.cashJournalExpenses ?? journalEntries.filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH').reduce((s, j) => s + (j.amount || 0), 0);
-
-  const cashGross = paymentSummary.CASH?.gross ?? paymentSummary.cash ?? 0;
-  const cardGross = paymentSummary.CARD?.gross ?? paymentSummary.card ?? 0;
-  const onlineGross = paymentSummary.ONLINE?.gross ?? paymentSummary.online ?? 0;
-
   const summaryRows = [
     {}, {},
-    S('═══════════════════════════════', ''),
-    S('S U M M A R Y', ''),
-    S('═══════════════════════════════', ''),
+    S('═══════════════════════════════════════════════════════', ''),
+    S('SIMPLIFIED FINANCIAL SUMMARY', ''),
+    S('═══════════════════════════════════════════════════════', ''),
+    S('Branch / Outlet', outlet),
+    S('Business Date / Period', rangeLabel),
+    S('Invoice Count', fin.invoiceCount),
     {},
-    S('Invoice Count', sales.length),
-    S('Gross Sales (before discounts)', grossSales),
-    S('Discounts', discountTotal),
-    S('Sales Received (after discounts)', summary.salesReceived ?? (totalReceived - (summary.totalBalanceCollections || 0))),
-    S('Balance Collections', summary.totalBalanceCollections ?? 0),
-    S('Total Received (Sales + Balance)', totalReceived),
+    S('─── 1. SALES SUMMARY ───', ''),
+    S('Gross Sales', fin.salesSummary.grossSales),
+    S('Discount', fin.salesSummary.discount),
+    S('Net Revenue', fin.salesSummary.netRevenue),
     {},
-    S('─── Payment Breakdown (Sales + Balance Collections) ───', ''),
-    S('Cash — Gross', cashGross),
-    S('Card — Gross', cardGross),
-    S('Online — Gross', onlineGross),
+    S('─── 2. PAYMENT BREAKDOWN ───', ''),
+    S('Cash Sales', fin.paymentBreakdown.cash),
+    S('Online Sales', fin.paymentBreakdown.online),
+    S('Card Sales', fin.paymentBreakdown.card),
+    S('Total Payments', fin.paymentBreakdown.total),
     {},
-    S('─── Returns / Refunds ───', ''),
-    S('Total Returns', returnedAmount),
+    S('─── 3. DEDUCTIONS / ADJUSTMENTS ───', ''),
+    S('Cash Returns', fin.deductions.cashReturns),
+    S('Online Returns', fin.deductions.onlineReturns),
+    S('Card Returns', fin.deductions.cardReturns),
+    S('General Entries', fin.deductions.generalEntries),
     {},
-    S('─── Net per Payment Method ───', ''),
-    S('Cash Net (gross − returns − expenses)', paymentSummary.CASH?.net ?? Math.max(0, cashGross - (paymentSummary.CASH?.returns || 0) - cashGeneralEntries)),
-    S('Card Net (gross − returns)', paymentSummary.CARD?.net ?? Math.max(0, cardGross - (paymentSummary.CARD?.returns || 0))),
-    S('Online Net (gross − returns)', paymentSummary.ONLINE?.net ?? Math.max(0, onlineGross - (paymentSummary.ONLINE?.returns || 0))),
-    {},
-    S('─── Other ───', ''),
-    S('General Entries (Expenses)', totalGeneralEntries),
-    {},
-    S('─── Final ───', ''),
-    S('Net Sales (received − returns)', netSales),
-    S('Net Revenue (total received − returns − expenses)', netRevenue),
+    S('─── 4. FINAL POSITION ───', ''),
+    S('Available Cash', fin.finalPosition.availableCash),
+    S('Available Online', fin.finalPosition.availableOnline),
+    S('Available Card', fin.finalPosition.availableCard),
+    S('═══════════════════════════════════════════════════════', ''),
   ];
 
   // 6. Assemble workbook

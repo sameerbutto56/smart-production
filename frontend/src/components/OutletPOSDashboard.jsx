@@ -623,7 +623,7 @@ const OutletPOSDashboard = ({ outlet }) => {
                   {formatCurrency(cashSummary.availableCash)}
                 </span>
                 <span className="text-[10px] text-gray-600">Expenses: -{formatCurrency(cashSummary.totalExpenses)}</span>
-                <span className="text-[10px] text-gray-600">Bank Dep: -{formatCurrency(cashSummary.totalBankDeposits || 0)}</span>
+                
               </div>
             )}
             {journalLoading ? (

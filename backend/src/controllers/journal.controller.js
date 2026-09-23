@@ -110,7 +110,8 @@ const getCashSummary = async (req, res) => {
     const totalExpenses = summary.totalJournalExpenses || 0;
     const totalBankDeposits = summary.totalBankDeposits || 0;
     const netCash = totalCashCollected - totalCashRefunded;
-    const availableCash = netCash - totalExpenses - totalBankDeposits;
+    // Available Cash = Net Cash − General Entries/Expenses (Bank deposits are tracked separately in the Bank Deposit module)
+    const availableCash = Math.max(0, netCash - totalExpenses);
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.json({ totalCashCollected, totalCashRefunded, totalExpenses, totalBankDeposits, netCash, availableCash });
   } catch (error) {

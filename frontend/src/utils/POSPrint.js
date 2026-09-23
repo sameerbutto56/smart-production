@@ -813,4 +813,227 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
       ${getPrintFooterHTML()}
     </body></html>`);
   }
-}
+};
+
+/**
+ * Clean, professional print function for the simplified POS Financial Summary.
+ * Suitable for physical record keeping, audits, and daily cash handovers.
+ */
+export const printPosFinancialSummary = ({
+  outlet = 'Outlet',
+  dateRangeLabel = 'Today',
+  salesSummary = {},
+  paymentBreakdown = {},
+  deductions = {},
+  finalPosition = {},
+  invoiceCount = 0,
+}) => {
+  const grossSales = salesSummary.grossSales || 0;
+  const discount = salesSummary.discount || 0;
+  const netRevenue = salesSummary.netRevenue || 0;
+
+  const cash = paymentBreakdown.cash || 0;
+  const online = paymentBreakdown.online || 0;
+  const card = paymentBreakdown.card || 0;
+
+  const cashReturns = deductions.cashReturns || 0;
+  const onlineReturns = deductions.onlineReturns || 0;
+  const cardReturns = deductions.cardReturns || 0;
+  const generalEntries = deductions.generalEntries || 0;
+
+  const availableCash = finalPosition.availableCash || 0;
+  const availableOnline = finalPosition.availableOnline || 0;
+  const availableCard = finalPosition.availableCard || 0;
+
+  const printW = window.open('', '_blank', 'width=700,height=900');
+  if (!printW) {
+    toast.error('Popup blocked. Please allow popups to print report.');
+    return;
+  }
+
+  printW.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>POS Financial Summary — ${outlet}</title>
+  <style>
+    @page { margin: 15mm 20mm; size: A4 portrait; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #111827;
+      background: #fff;
+      margin: 0;
+      padding: 24px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .header { text-align: center; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 16px; }
+    .header h1 { margin: 0 0 4px; font-size: 22px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
+    .header .subtitle { font-size: 14px; font-weight: 700; color: #374151; margin: 0 0 6px; }
+    .meta-bar {
+      display: flex;
+      justify-content: space-between;
+      background: #f3f4f6;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 18px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1.5px solid #e5e7eb;
+      color: #1f2937;
+    }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th, td { padding: 7px 10px; text-align: left; font-size: 12px; }
+    th { background: #f9fafb; font-weight: 700; color: #4b5563; border-bottom: 1px solid #e5e7eb; }
+    td.num, th.num { text-align: right; }
+    tr.border-b td { border-bottom: 1px solid #f3f4f6; }
+    tr.highlight { background: #f0fdf4; font-weight: 800; font-size: 13px; }
+    tr.highlight td { border-top: 1.5px solid #86efac; border-bottom: 1.5px solid #86efac; color: #15803d; }
+    tr.sub-total { font-weight: 800; background: #f8fafc; border-top: 1.5px solid #cbd5e1; border-bottom: 1.5px solid #cbd5e1; }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 8px;
+      margin-bottom: 16px;
+    }
+    .final-card {
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: #fafafa;
+    }
+    .final-card.cash-card {
+      border-color: #10b981;
+      background: #ecfdf5;
+    }
+    .final-card .card-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6b7280;
+    }
+    .final-card.cash-card .card-label { color: #047857; font-weight: 800; }
+    .final-card .card-val {
+      font-size: 18px;
+      font-weight: 900;
+      margin-top: 4px;
+      color: #111827;
+    }
+    .final-card.cash-card .card-val { color: #065f46; font-size: 20px; }
+    .signatures {
+      margin-top: 48px;
+      display: flex;
+      justify-content: space-between;
+      padding-top: 12px;
+    }
+    .sig-line {
+      width: 200px;
+      border-top: 1.5px solid #9ca3af;
+      text-align: center;
+      padding-top: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #4b5563;
+    }
+    .footer-note {
+      text-align: center;
+      margin-top: 36px;
+      font-size: 10px;
+      color: #9ca3af;
+      border-top: 1px dashed #e5e7eb;
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${outlet}</h1>
+    <div class="subtitle">POS FINANCIAL SUMMARY REPORT</div>
+  </div>
+
+  <div class="meta-bar">
+    <div><strong>Period:</strong> ${dateRangeLabel}</div>
+    <div><strong>Invoices:</strong> ${invoiceCount}</div>
+    <div><strong>Printed:</strong> ${formatDateTime(new Date())}</div>
+  </div>
+
+  <!-- 1. Sales Summary -->
+  <div class="section-title">1. Sales Summary</div>
+  <table>
+    <thead><tr><th>Item</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      <tr class="border-b"><td>Gross Sales (Total value of sales before discount)</td><td class="num">${formatCurrency(grossSales)}</td></tr>
+      <tr class="border-b"><td>Discount (Sales reduction — not a cash withdrawal)</td><td class="num" style="color:#b45309;">-${formatCurrency(discount)}</td></tr>
+      <tr class="sub-total"><td>Net Revenue</td><td class="num">${formatCurrency(netRevenue)}</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 2. Payment Breakdown -->
+  <div class="section-title">2. Payment Breakdown</div>
+  <table>
+    <thead><tr><th>Payment Method</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      <tr class="border-b"><td>Cash Payments</td><td class="num">${formatCurrency(cash)}</td></tr>
+      <tr class="border-b"><td>Online Payments</td><td class="num">${formatCurrency(online)}</td></tr>
+      <tr class="border-b"><td>Card Payments</td><td class="num">${formatCurrency(card)}</td></tr>
+      <tr class="sub-total"><td>Total Payments (Matches Net Revenue)</td><td class="num">${formatCurrency(cash + online + card)}</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 3. Deductions / Adjustments -->
+  <div class="section-title">3. Deductions / Adjustments</div>
+  <table>
+    <thead><tr><th>Item</th><th>Deducted From</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      <tr class="border-b"><td>Cash Returns</td><td>Cash</td><td class="num" style="color:#dc2626;">-${formatCurrency(cashReturns)}</td></tr>
+      <tr class="border-b"><td>Online Returns</td><td>Online</td><td class="num" style="color:#dc2626;">-${formatCurrency(onlineReturns)}</td></tr>
+      <tr class="border-b"><td>Card Returns</td><td>Card</td><td class="num" style="color:#dc2626;">-${formatCurrency(cardReturns)}</td></tr>
+      <tr class="border-b"><td>General Entries (Operational Expenses)</td><td>Cash</td><td class="num" style="color:#ea580c;">-${formatCurrency(generalEntries)}</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 4. Final Position -->
+  <div class="section-title">4. Final Position</div>
+  <div class="card-grid">
+    <div class="final-card cash-card">
+      <div class="card-label">Available Cash</div>
+      <div class="card-val">${formatCurrency(availableCash)}</div>
+    </div>
+    <div class="final-card">
+      <div class="card-label">Available Online</div>
+      <div class="card-val">${formatCurrency(availableOnline)}</div>
+    </div>
+    <div class="final-card">
+      <div class="card-label">Available Card</div>
+      <div class="card-val">${formatCurrency(availableCard)}</div>
+    </div>
+  </div>
+
+  <div class="signatures">
+    <div class="sig-line">Cashier / Prepared By</div>
+    <div class="sig-line">Store In-Charge / Manager</div>
+    <div class="sig-line">Auditor / Accounts</div>
+  </div>
+
+  <div class="footer-note">
+    Generated automatically by Smart Production ERP &bull; Official Financial Audit Slip
+  </div>
+</body>
+</html>`);
+
+  printW.document.close();
+  setTimeout(() => {
+    printW.focus();
+    printW.print();
+  }, 300);
+};

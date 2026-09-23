@@ -1075,6 +1075,12 @@ const createReturn = async (req, res) => {
     if (!inv) return res.status(400).json({ message: 'Inventory item not found' });
     const refundAmount = (inv.price || 0) * parseInt(quantity);
 
+    let resolvedPaymentMethod = refundPaymentMethod;
+    if (!resolvedPaymentMethod && saleId) {
+      const parentSale = await prisma.posSale.findUnique({ where: { id: saleId }, select: { paymentMethod: true } });
+      if (parentSale?.paymentMethod) resolvedPaymentMethod = parentSale.paymentMethod;
+    }
+
     const ret = await prisma.$transaction(async (tx) => {
       await tx.outletInventory.update({ where: { id: variantId }, data: { stock: { increment: parseInt(quantity) } } });
       return tx.posReturn.create({
@@ -1085,7 +1091,7 @@ const createReturn = async (req, res) => {
           reason: reason || null,
           quantity: parseInt(quantity),
           refundAmount,
-          refundPaymentMethod: refundPaymentMethod || 'CASH'
+          refundPaymentMethod: resolvedPaymentMethod || 'CASH'
         }
       });
     }, { timeout: 30000 });

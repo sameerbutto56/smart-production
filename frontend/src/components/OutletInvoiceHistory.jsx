@@ -3,12 +3,13 @@ import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { getPrintFooterHTML } from '../utils/printTemplate';
-import { printReceipt, printBalanceReceipt, printBalanceGatePass, printReturnReceipt } from '../utils/POSPrint';
+import { printReceipt, printBalanceReceipt, printBalanceGatePass, printReturnReceipt, printPosFinancialSummary } from '../utils/POSPrint';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
-import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw } from 'lucide-react';
+import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw, FileText } from 'lucide-react';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+import { computePosFinancialSummary } from '../utils/posFinancialSummary';
+import { exportInvoicesToExcel } from '../utils/outletExportExcel';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
@@ -34,8 +35,9 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [sales, setSales] = useState([]);
   const [returns, setReturns] = useState([]);
   const [balancePayments, setBalancePayments] = useState([]);
+  const [journalEntries, setJournalEntries] = useState([]);
   const [backendSummary, setBackendSummary] = useState(null);
-  const [transactionTab, setTransactionTab] = useState('all'); // 'all', 'sales', 'returns', 'balance'
+  const [transactionTab, setTransactionTab] = useState('all'); // 'all', 'sales', 'returns', 'balance', 'general'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -70,7 +72,17 @@ const OutletInvoiceHistory = ({ outlet }) => {
       if (dateTo) url += `&dateTo=${dateTo}`;
       if (statusFilter !== 'all') url += `&statusFilter=${statusFilter}`;
       if (cashier) url += `&cashier=${encodeURIComponent(cashier)}`;
-      const res = await api.get(url);
+
+      const jParams = { outlet };
+      if (dateFrom) jParams.dateFrom = dateFrom;
+      if (dateTo) jParams.dateTo = dateTo;
+      if (!dateFrom && !dateTo && range !== 'all') jParams.range = range;
+
+      const [res, jRes] = await Promise.all([
+        api.get(url),
+        api.get('/api/pos/journal-entries', { params: jParams }).catch(() => ({ data: [] }))
+      ]);
+
       if (res.data && res.data.sales) {
         setSales(res.data.sales);
         setReturns(res.data.returns || []);
@@ -82,6 +94,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
         setBalancePayments([]);
         setBackendSummary(null);
       }
+      setJournalEntries(jRes.data || []);
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load sales');
     } finally {
@@ -167,314 +180,6 @@ const OutletInvoiceHistory = ({ outlet }) => {
     }
   };
 
-  /* ─── Download Excel ─── */
-  const downloadExcel = async () => {
-    try {
-      const fmtPayment = (s) => s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '';
-      const src = filteredSales;
-
-      // ── Fetch journal/expense entries ──
-      let journalEntries = [];
-      try {
-        const params = { outlet };
-        if (dateFrom) params.dateFrom = dateFrom;
-        if (dateTo) params.dateTo = dateTo;
-        if (!dateFrom && !dateTo && range !== 'all') params.range = range;
-        const res = await api.get('/api/pos/journal-entries', { params });
-        journalEntries = res.data || [];
-      } catch (e) { /* silent */ }
-
-      const totalGeneralEntries = journalEntries.reduce((sum, ge) => sum + (ge.amount || 0), 0);
-
-      // ── Helper: resolve per-invoice Cash / Online / Card amounts ──
-      const resolvePaymentAmounts = (s) => {
-        const received = s._amountReceived || 0;
-        let cash = 0, online = 0, card = 0;
-        if (s.paymentMethod === 'CASH_ONLINE') {
-          cash = s.cashAmount || 0;
-          online = s.onlineAmount || 0;
-          // Scale if advance/partial: e.g. grandTotal=10k, advance=5k → ratio=0.5
-          const declared = cash + online;
-          if (declared > 0 && Math.abs(declared - received) > 0.5) {
-            const ratio = received / declared;
-            cash = Math.round(cash * ratio);
-            online = received - cash; // remainder to avoid rounding drift
-          }
-        } else if (s.paymentMethod === 'CARD') {
-          card = received;
-        } else if (s.paymentMethod === 'ONLINE') {
-          online = received;
-        } else {
-          cash = received; // CASH or unknown → cash
-        }
-        return { cash, online, card };
-      };
-
-      // ── Per-invoice data rows with full payment breakdown ──
-      const data = src.map(s => {
-        const pay = resolvePaymentAmounts(s);
-        return {
-          'Receipt #': s.receiptNumber || '',
-          'Date': formatDateTime(s.createdAt),
-          'Cashier': s.cashierName || '',
-          'Customer': s.customerName || '',
-          'Phone': s.customerPhone || '',
-          'Items': (s.items || []).map(i => `${i.productName}${i.color ? ' ('+(isUrdu ? toUrduName(i.color) : i.color)+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
-          'Subtotal': s.subtotal || 0,
-          'Discount': s.discountAmount || 0,
-          'Card Charges': s.cardChargesAmount || 0,
-          'Invoice Total': s.grandTotal || 0,
-          'Amount Received': s._amountReceived || 0,
-          'Payment Method': fmtPayment(s),
-          'Cash Amount': pay.cash,
-          'Card Amount': pay.card,
-          'Online Amount': pay.online,
-          'Advance': s.advanceAmount || 0,
-          'Balance Remaining': s._balanceRemaining || 0,
-          'Status': s.refundedAt ? 'RETURN' : (s._balanceStatus === 'balance' ? 'BALANCE' : 'PAID'),
-        };
-      });
-
-      // ── Authoritative summary from backend (same source as Register / Dashboard) ──
-      // The backend computeUnifiedSalesSummary already routes balance clearances to
-      // their actual payment method: Cash clearance → Cash total, Online → Online, etc.
-      let summary = null;
-      if (!(search || '').trim()) {
-        try {
-          const params = { outlet, skipCache: 'true' };
-          if (dateFrom) params.dateFrom = dateFrom;
-          if (dateTo) params.dateTo = dateTo;
-          if (!dateFrom && !dateTo && range !== 'all') params.range = range;
-          const res = await api.get('/api/pos/sales-summary', { params });
-          summary = res.data || null;
-        } catch (e) { /* silent fallback below */ }
-      }
-
-      // Client-side fallback only when no backend summary (e.g. search mode)
-      if (!summary) {
-        let CASH = 0, ONLINE = 0, CARD = 0;
-        src.forEach(s => {
-          const pay = resolvePaymentAmounts(s);
-          CASH += pay.cash; ONLINE += pay.online; CARD += pay.card;
-        });
-        const bpCash = filteredBalancePayments.filter(b => b.paymentMethod === 'CASH' || (!b.paymentMethod)).reduce((s, b) => s + (b.amountPaidNow || 0), 0);
-        const bpOnline = filteredBalancePayments.filter(b => b.paymentMethod === 'ONLINE').reduce((s, b) => s + (b.amountPaidNow || 0), 0);
-        const bpCard = filteredBalancePayments.filter(b => b.paymentMethod === 'CARD').reduce((s, b) => s + (b.amountPaidNow || 0), 0);
-        const bpCashOnline = filteredBalancePayments.filter(b => b.paymentMethod === 'CASH_ONLINE');
-        bpCashOnline.forEach(b => {
-          const c = b.cashAmount || ((b.amountPaidNow || 0) / 2);
-          const o = b.onlineAmount || ((b.amountPaidNow || 0) / 2);
-          CASH += c; ONLINE += o;
-        });
-        CASH += bpCash; ONLINE += bpOnline; CARD += bpCard;
-        const returnedAmount = filteredReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
-        const discountTotal = src.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
-        const balTotal = filteredBalancePayments.reduce((sum, b) => sum + (b.amountPaidNow || 0), 0);
-        const salesReceived = src.reduce((sum, s) => sum + (s._amountReceived || 0), 0);
-        summary = {
-          paymentSummary: { cash: CASH, card: CARD, online: ONLINE, cashOnlineTotal: 0 },
-          paymentBreakdown: [
-            { method: 'CASH', gross: CASH, returns: 0, net: CASH - totalGeneralEntries },
-            { method: 'CARD', gross: CARD, returns: 0, net: CARD },
-            { method: 'ONLINE', gross: ONLINE, returns: 0, net: ONLINE },
-          ],
-          grossSales: salesReceived + discountTotal,
-          salesReceived,
-          totalReceived: salesReceived + balTotal,
-          refundAmount: returnedAmount,
-          totalReturns: returnedAmount,
-          totalDiscount: discountTotal,
-          discountTotal,
-          totalBalanceCollections: balTotal,
-          netSales: Math.max(0, salesReceived - returnedAmount),
-          netRevenue: Math.max(0, salesReceived + balTotal - returnedAmount - totalGeneralEntries),
-          invoiceCount: src.length,
-          totalJournalExpenses: totalGeneralEntries,
-          totalBankDeposits: 0,
-        };
-      }
-
-      // ── Extract authoritative figures from summary ──
-      const ps = summary.paymentSummary || {};
-      const pb = summary.paymentBreakdown || [];
-      const cashGross = Math.round(ps.cash ?? 0);
-      const cardGross = Math.round(ps.card ?? 0);
-      const onlineGross = Math.round(ps.online ?? 0);
-      const cashOnlineRaw = Math.round(ps.cashOnlineTotal ?? 0);
-      // Note: paymentSummary.cash already includes Cash+Online's cash portion,
-      // so grandTotalReceived = cash + card + online (no need to add cashOnlineTotal separately)
-      const salesReceived = Math.round(summary.salesReceived ?? (cashGross + cardGross + onlineGross));
-      const balanceCollections = Math.round(summary.totalBalanceCollections ?? summary.totalBalanceCleared ?? 0);
-      const totalReceived = Math.round(summary.totalReceived ?? (salesReceived + balanceCollections));
-      const grossSales = Math.round(summary.grossSales ?? 0);
-      const discountTotal = Math.round(summary.discountTotal ?? summary.totalDiscount ?? 0);
-      const returnedAmount = Math.round(summary.refundAmount ?? summary.totalReturns ?? summary.returnedAmount ?? 0);
-      const invoiceCount = summary.invoiceCount ?? src.length;
-      const netSales = Math.round(summary.netSales ?? Math.max(0, salesReceived - returnedAmount));
-      const netRevenue = Math.round(summary.netRevenue ?? 0);
-      const totalAdvancePayments = src.reduce((sum, s) => sum + (s.advanceAmount || 0), 0);
-      const outstandingBalance = src.reduce((sum, s) => sum + (s._outstandingBalance || 0), 0);
-      const bankDeposits = Math.round(summary.totalBankDeposits ?? 0);
-
-      // Per-method net (gross − returns − expenses for Cash)
-      const findPB = (m) => pb.find(p => p.method === m) || { gross: 0, returns: 0, net: 0 };
-      const cashPB = findPB('CASH');
-      const cardPB = findPB('CARD');
-      const onlinePB = findPB('ONLINE');
-
-      // ── Journal / Expense data rows ──
-      const emptyPayCols = { 'Cash Amount': '', 'Card Amount': '', 'Online Amount': '' };
-      const journalDataRows = journalEntries.map(ge => ({
-        'Receipt #': 'GENERAL ENTRY',
-        'Date': formatDateTime(ge.createdAt),
-        'Cashier': ge.employeeName || '',
-        'Customer': ge.expenseTitle || '',
-        'Phone': '',
-        'Items': ge.notes || '',
-        'Subtotal': '',
-        'Discount': '',
-        'Card Charges': '',
-        'Invoice Total': '',
-        'Amount Received': -(ge.amount || 0),
-        'Payment Method': 'EXPENSE',
-        ...emptyPayCols,
-        'Advance': '',
-        'Balance Remaining': '',
-        'Status': 'GENERAL',
-      }));
-
-      // ── Return rows ──
-      const returnRows = filteredReturns.map(r => ({
-        'Receipt #': r.receiptNumber || `RET-${r.id?.slice(0, 8)}`,
-        'Date': formatDateTime(r.createdAt),
-        'Cashier': r.processedBy || r.cashierName || r.sale?.cashierName || '',
-        'Customer': r.customerName || r.sale?.customerName || '',
-        'Phone': r.sale?.customerPhone || '',
-        'Items': (r.sale?.items || []).map(i => `${i.productName} x${i.quantity}`).join(', '),
-        'Subtotal': 0,
-        'Discount': 0,
-        'Card Charges': 0,
-        'Invoice Total': -(r.refundAmount || 0),
-        'Amount Received': -(r.refundAmount || 0),
-        'Payment Method': r.refundPaymentMethod || r.sale?.paymentMethod || 'CASH',
-        'Cash Amount': '',
-        'Card Amount': '',
-        'Online Amount': '',
-        'Advance': 0,
-        'Balance Remaining': 0,
-        'Status': 'RETURN / REFUND',
-      }));
-
-      // ── Balance Clearance rows — payment method shows actual method used ──
-      const balanceRows = filteredBalancePayments.map(bp => {
-        let bpCash = 0, bpCard = 0, bpOnline = 0;
-        const amt = bp.amountPaidNow || 0;
-        if (bp.paymentMethod === 'CASH_ONLINE') {
-          bpCash = bp.cashAmount ?? Math.round(amt / 2);
-          bpOnline = bp.onlineAmount ?? (amt - bpCash);
-        } else if (bp.paymentMethod === 'CARD') {
-          bpCard = amt;
-        } else if (bp.paymentMethod === 'ONLINE') {
-          bpOnline = amt;
-        } else {
-          bpCash = amt;
-        }
-        return {
-          'Receipt #': bp.receiptNumber || `BP-${bp.id?.slice(0, 8)}`,
-          'Date': formatDateTime(bp.paidAt),
-          'Cashier': bp.cashierName || '',
-          'Customer': bp.posSale?.customerName || '',
-          'Phone': '',
-          'Items': `Balance clearance for ${bp.originalInvoiceNumber || ''}`,
-          'Subtotal': 0,
-          'Discount': 0,
-          'Card Charges': 0,
-          'Invoice Total': amt,
-          'Amount Received': amt,
-          'Payment Method': fmtPayment(bp),
-          'Cash Amount': bpCash,
-          'Card Amount': bpCard,
-          'Online Amount': bpOnline,
-          'Advance': 0,
-          'Balance Remaining': bp.outstandingBalanceAfterPayment || 0,
-          'Status': 'BALANCE CLEARANCE',
-        };
-      });
-
-      // ── Comprehensive Summary Section ──
-      const S = (label, value) => ({ 'Receipt #': label, 'Amount Received': typeof value === 'number' ? value : '' });
-      const summaryRows = [
-        {}, {},
-        S('═══════════════════════════════', ''),
-        S('S U M M A R Y', ''),
-        S('═══════════════════════════════', ''),
-        {},
-        S('Invoice Count', invoiceCount),
-        S('Gross Sales (before discounts)', grossSales),
-        S('Discounts', discountTotal),
-        S('Sales Received (after discounts)', salesReceived),
-        S('Balance Collections', balanceCollections),
-        S('Total Received (Sales + Balance)', totalReceived),
-        {},
-        S('─── Payment Breakdown (Sales + Balance Collections) ───', ''),
-        S('Cash — Gross', cashGross),
-        S('Card — Gross', cardGross),
-        S('Online — Gross', onlineGross),
-        ...(cashOnlineRaw > 0 ? [S('Cash+Online (combined raw)', cashOnlineRaw)] : []),
-        {},
-        S('─── Returns / Refunds ───', ''),
-        S('Total Returns', returnedAmount),
-        S('Returns via Cash', Math.round(cashPB.returns || 0)),
-        S('Returns via Card', Math.round(cardPB.returns || 0)),
-        S('Returns via Online', Math.round(onlinePB.returns || 0)),
-        {},
-        S('─── Net per Payment Method ───', ''),
-        S('Cash Net (gross − returns − expenses − deposits)', Math.round(cashPB.net || 0)),
-        S('Card Net (gross − returns)', Math.round(cardPB.net || 0)),
-        S('Online Net (gross − returns)', Math.round(onlinePB.net || 0)),
-        {},
-        S('─── Other ───', ''),
-        S('Total Advance Payments', totalAdvancePayments),
-        S('Outstanding Balance', outstandingBalance),
-        S('General Entries (Expenses)', Math.round(totalGeneralEntries)),
-        S('Bank Deposits', bankDeposits),
-        {},
-        S('─── Final ───', ''),
-        S('Net Sales (received − returns)', netSales),
-        S('Net Revenue (total received − returns − expenses)', netRevenue),
-      ];
-
-      // ── Assemble workbook ──
-      const allRows = [...data, ...returnRows, ...balanceRows, ...journalDataRows, ...summaryRows];
-      const ws = XLSX.utils.json_to_sheet(allRows);
-
-      const colWidths = [
-        { wch: 20 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
-        { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-        { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-        { wch: 10 }, { wch: 14 }, { wch: 10 },
-      ];
-      ws['!cols'] = colWidths;
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'POS History');
-      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([buf], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `pos_history_${outlet}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Excel downloaded');
-    } catch (err) {
-      console.error('Excel download failed:', err);
-      toast.error('Excel download failed');
-    }
-  };
-
   /* ─── Derived Filters ─── */
   const filteredSales = useMemo(() => {
     return sales.filter(s => {
@@ -512,6 +217,71 @@ const OutletInvoiceHistory = ({ outlet }) => {
     });
   }, [balancePayments, search, statusFilter]);
 
+  const filteredGeneralEntries = useMemo(() => {
+    return journalEntries.filter(ge => {
+      if (statusFilter !== 'all') return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (ge.expenseTitle || '').toLowerCase().includes(q)
+          || (ge.employeeName || '').toLowerCase().includes(q)
+          || (ge.notes || '').toLowerCase().includes(q);
+    });
+  }, [journalEntries, search, statusFilter]);
+
+  /* ─── Range Label for Print & Export ─── */
+  const rangeLabel = useMemo(() => {
+    if (range === 'custom' && dateFrom && dateTo) return `${formatDateOnly(dateFrom)} to ${formatDateOnly(dateTo)}`;
+    if (range === 'today') return `Today (${formatDateOnly(new Date())})`;
+    const p = datePresets.find(x => x.value === range);
+    return p ? p.label : range;
+  }, [range, dateFrom, dateTo]);
+
+  /* ─── Authoritative 4-Tier Financial Summary ─── */
+  const isFiltered = !!(search || (statusFilter !== 'all') || cashier);
+  const finSummary = useMemo(() => {
+    return computePosFinancialSummary({
+      sales: filteredSales,
+      returns: filteredReturns,
+      balancePayments: filteredBalancePayments,
+      journalEntries: filteredGeneralEntries,
+      backendSummary,
+      isFiltered,
+    });
+  }, [filteredSales, filteredReturns, filteredBalancePayments, filteredGeneralEntries, backendSummary, isFiltered]);
+
+  /* ─── Export to Excel ─── */
+  const downloadExcel = () => {
+    try {
+      exportInvoicesToExcel({
+        sales: filteredSales,
+        returns: filteredReturns,
+        balancePayments: filteredBalancePayments,
+        journalEntries: filteredGeneralEntries,
+        summary: backendSummary,
+        outlet,
+        rangeLabel,
+        isUrdu,
+      });
+      toast.success('Excel downloaded');
+    } catch (err) {
+      console.error('Excel download failed:', err);
+      toast.error('Excel download failed');
+    }
+  };
+
+  /* ─── Print Financial Summary ─── */
+  const handlePrintSummary = () => {
+    printPosFinancialSummary({
+      outlet,
+      dateRangeLabel: rangeLabel,
+      salesSummary: finSummary.salesSummary,
+      paymentBreakdown: finSummary.paymentBreakdown,
+      deductions: finSummary.deductions,
+      finalPosition: finSummary.finalPosition,
+      invoiceCount: finSummary.invoiceCount,
+    });
+  };
+
   /* ─── Unified Transaction List ─── */
   const allTransactions = useMemo(() => {
     const list = [];
@@ -524,37 +294,11 @@ const OutletInvoiceHistory = ({ outlet }) => {
     if (transactionTab === 'all' || transactionTab === 'balance') {
       filteredBalancePayments.forEach(bp => list.push({ type: 'BALANCE', id: `balance-${bp.id}`, date: new Date(bp.paidAt).getTime(), data: bp }));
     }
+    if (transactionTab === 'all' || transactionTab === 'general') {
+      filteredGeneralEntries.forEach(ge => list.push({ type: 'GENERAL', id: `ge-${ge.id}`, date: new Date(ge.createdAt).getTime(), data: ge }));
+    }
     return list.sort((a, b) => b.date - a.date);
-  }, [filteredSales, filteredReturns, filteredBalancePayments, transactionTab]);
-
-  /* ─── Authoritative Summary Figures ─── */
-  const grossSalesVal = backendSummary?.grossSales ?? (
-    filteredSales.reduce((sum, s) => sum + (s._amountReceived || 0) + (s.discountAmount || 0), 0)
-  );
-  const discountTotalVal = backendSummary?.totalDiscount ?? (
-    filteredSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0)
-  );
-  const salesReceivedVal = backendSummary?.salesReceived ?? (
-    filteredSales.reduce((sum, s) => sum + (s._amountReceived || 0), 0)
-  );
-  const totalReturnsVal = backendSummary?.totalReturns ?? (
-    filteredReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0)
-  );
-  const netRevenueVal = backendSummary?.netRevenue ?? (salesReceivedVal - totalReturnsVal);
-
-  const paymentSummary = {
-    CASH: backendSummary?.paymentSummary?.cash ?? filteredSales.filter(s => s.paymentMethod === 'CASH').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
-    CARD: backendSummary?.paymentSummary?.card ?? filteredSales.filter(s => s.paymentMethod === 'CARD').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
-    ONLINE: backendSummary?.paymentSummary?.online ?? filteredSales.filter(s => s.paymentMethod === 'ONLINE').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
-    CASH_ONLINE: backendSummary?.paymentSummary?.cashOnlineTotal ?? filteredSales.filter(s => s.paymentMethod === 'CASH_ONLINE').reduce((acc, s) => acc + (s._amountReceived || 0), 0),
-  };
-
-  const paymentMethods = [
-    { key: 'CASH', label: 'Cash', color: 'from-emerald-600 to-green-600' },
-    { key: 'ONLINE', label: 'Online', color: 'from-blue-600 to-indigo-600' },
-    { key: 'CARD', label: 'Card', color: 'from-purple-600 to-violet-600' },
-    { key: 'CASH_ONLINE', label: 'Cash+Online', color: 'from-cyan-600 to-teal-600' },
-  ];
+  }, [filteredSales, filteredReturns, filteredBalancePayments, filteredGeneralEntries, transactionTab]);
 
   return (
     <div className="space-y-6">
@@ -602,56 +346,130 @@ const OutletInvoiceHistory = ({ outlet }) => {
           <option value="">All Employees</option>
           {employees.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
-        <button onClick={fetchSales} className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-xl transition-all">
+        <button onClick={fetchSales} className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-xl transition-all" title="Refresh">
           <RefreshCw size={14} />
         </button>
-        <button onClick={downloadExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition-all">
-          <Download size={14} /> Excel
+        <button onClick={handlePrintSummary} className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-all shadow-md">
+          <Printer size={14} /> Print
+        </button>
+        <button onClick={downloadExcel} className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition-all shadow-md">
+          <Download size={14} /> Export to Excel
         </button>
       </div>
 
-      {/* Authoritative Financial KPI Cards */}
+      {/* 4-Tier Simplified Financial Summary Dashboard */}
       {!loading && !error && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <div className="bg-gray-950 border border-gray-800 rounded-xl p-3">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Gross Sales</p>
-              <p className="text-sm font-black text-white mt-1">{formatCurrency(grossSalesVal)}</p>
-            </div>
-            <div className="bg-gray-950 border border-gray-800 rounded-xl p-3">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Discounts</p>
-              <p className="text-sm font-black text-amber-400 mt-1">-{formatCurrency(discountTotalVal)}</p>
-            </div>
-            <div className="bg-gray-950 border border-gray-800 rounded-xl p-3">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Received</p>
-              <p className="text-sm font-black text-cyan-400 mt-1">{formatCurrency(salesReceivedVal)}</p>
-            </div>
-            <div className="bg-gray-950 border border-red-500/30 rounded-xl p-3">
-              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Returns / Refunds</p>
-              <p className="text-sm font-black text-red-400 mt-1">-{formatCurrency(totalReturnsVal)}</p>
-            </div>
-            <div className="bg-gradient-to-br from-emerald-950/60 to-gray-950 border border-emerald-500/40 rounded-xl p-3 col-span-2 sm:col-span-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Net Revenue / Sales</p>
-                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Exact Rupee</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {/* Tier 1: Sales Summary */}
+          <div className="bg-gray-950 border border-blue-500/20 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-800">
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">1. Sales Summary</span>
+                <span className="text-[9px] font-bold text-gray-500">{finSummary.invoiceCount} invoices</span>
               </div>
-              <p className="text-base font-black text-emerald-400 mt-1">{formatCurrency(netRevenueVal)}</p>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Gross Sales:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.salesSummary.grossSales)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Discount:</span>
+                  <span className="font-bold text-amber-400">-{formatCurrency(finSummary.salesSummary.discount)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-2.5 border-t border-gray-800 flex items-center justify-between bg-blue-950/20 -mx-4 -mb-4 p-3 rounded-b-2xl border-t border-blue-500/20">
+              <span className="text-xs font-black uppercase text-blue-300">Net Revenue</span>
+              <span className="text-base font-black text-blue-400">{formatCurrency(finSummary.salesSummary.netRevenue)}</span>
             </div>
           </div>
 
-          {/* Payment Method Breakdown */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {paymentMethods.map(pm => {
-              const total = paymentSummary[pm.key] || 0;
-              return (
-                <div key={pm.key} className={`bg-gradient-to-br ${pm.color} p-[1px] rounded-xl`}>
-                  <div className="bg-gray-950 rounded-xl p-3">
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{pm.label}</p>
-                    <p className="text-sm font-black text-white mt-1">{formatCurrency(total)}</p>
-                  </div>
+          {/* Tier 2: Payment Breakdown */}
+          <div className="bg-gray-950 border border-purple-500/20 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-800">
+                <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">2. Payment Breakdown</span>
+                <span className="text-[9px] font-bold text-gray-500">Net: {formatCurrency(finSummary.paymentBreakdown.total)}</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>Cash:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.paymentBreakdown.cash)}</span>
                 </div>
-              );
-            })}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>Online:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.paymentBreakdown.online)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"></span>Card:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.paymentBreakdown.card)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-2.5 border-t border-gray-800 flex items-center justify-between bg-purple-950/20 -mx-4 -mb-4 p-3 rounded-b-2xl border-t border-purple-500/20">
+              <span className="text-xs font-black uppercase text-purple-300">Total Payments</span>
+              <span className="text-base font-black text-purple-400">{formatCurrency(finSummary.paymentBreakdown.total)}</span>
+            </div>
+          </div>
+
+          {/* Tier 3: Deductions / Adjustments */}
+          <div className="bg-gray-950 border border-red-500/20 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-800">
+                <span className="text-[10px] font-black uppercase tracking-widest text-red-400">3. Deductions & Adjustments</span>
+                <span className="text-[9px] font-bold text-red-400">-{formatCurrency(finSummary.deductions.totalReturns + finSummary.deductions.generalEntries)}</span>
+              </div>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Cash Returns:</span>
+                  <span className="font-bold text-red-400">-{formatCurrency(finSummary.deductions.cashReturns)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Online Returns:</span>
+                  <span className="font-bold text-red-400">-{formatCurrency(finSummary.deductions.onlineReturns)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Card Returns:</span>
+                  <span className="font-bold text-gray-500">{finSummary.deductions.cardReturns > 0 ? `-${formatCurrency(finSummary.deductions.cardReturns)}` : '₨0'}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-gray-800/60">
+                  <span className="text-gray-400">General Entries:</span>
+                  <span className="font-bold text-orange-400">-{formatCurrency(finSummary.deductions.generalEntries)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-gray-800 flex items-center justify-between bg-red-950/20 -mx-4 -mb-4 p-3 rounded-b-2xl border-t border-red-500/20">
+              <span className="text-xs font-black uppercase text-red-300">Total Deductions</span>
+              <span className="text-base font-black text-red-400">-{formatCurrency(finSummary.deductions.totalReturns + finSummary.deductions.generalEntries)}</span>
+            </div>
+          </div>
+
+          {/* Tier 4: Final Position */}
+          <div className="bg-gradient-to-br from-emerald-950/80 to-gray-950 border-2 border-emerald-500/50 rounded-2xl p-4 shadow-xl flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-emerald-800/40">
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">4. Final Position</span>
+                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Authoritative</span>
+              </div>
+              <div className="mb-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Available Cash</p>
+                <p className="text-2xl font-black text-emerald-400 tracking-tight mt-0.5">{formatCurrency(finSummary.finalPosition.availableCash)}</p>
+              </div>
+              <div className="space-y-1.5 text-xs pt-2 border-t border-gray-800/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Available Online:</span>
+                  <span className="font-bold text-blue-300">{formatCurrency(finSummary.finalPosition.availableOnline)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Available Card:</span>
+                  <span className="font-bold text-purple-300">{formatCurrency(finSummary.finalPosition.availableCard)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 text-[10px] text-gray-500 italic">
+              * Cash − Cash Returns − General Entries
+            </div>
           </div>
         </div>
       )}
@@ -666,7 +484,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
         >
           <span>All Transactions</span>
           <span className="text-[10px] bg-gray-800 px-1.5 py-0.5 rounded-full">
-            {filteredSales.length + filteredReturns.length + filteredBalancePayments.length}
+            {filteredSales.length + filteredReturns.length + filteredBalancePayments.length + filteredGeneralEntries.length}
           </span>
         </button>
         <button
@@ -704,6 +522,19 @@ const OutletInvoiceHistory = ({ outlet }) => {
             filteredBalancePayments.length > 0 ? 'bg-purple-950 text-purple-400' : 'bg-gray-800 text-gray-500'
           }`}>
             {filteredBalancePayments.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setTransactionTab('general')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            transactionTab === 'general' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>General Entries</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+            filteredGeneralEntries.length > 0 ? 'bg-orange-950 text-orange-400' : 'bg-gray-800 text-gray-500'
+          }`}>
+            {filteredGeneralEntries.length}
           </span>
         </button>
       </div>
@@ -942,6 +773,40 @@ const OutletInvoiceHistory = ({ outlet }) => {
                       <div className="text-right ml-4">
                         <p className="text-base font-black text-emerald-400">+{formatCurrency(bp.amountPaidNow)}</p>
                         <span className="text-[9px] text-gray-400">Paid Now</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (tx.type === 'GENERAL') {
+              const ge = tx.data;
+              return (
+                <div key={tx.id} className="bg-gray-900 border border-orange-500/30 rounded-2xl overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-black text-orange-400 truncate">
+                            {ge.expenseTitle || 'General Entry'}
+                          </span>
+                          <span className="text-[9px] bg-orange-600 text-white px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                            <FileText size={10} /> GENERAL ENTRY / EXPENSE
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-300">
+                          Recorded by: <span className="font-bold text-white">{ge.employeeName || 'Staff'}</span>
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-500 mt-1">
+                          <span>{formatDateTime(ge.createdAt)}</span>
+                          <span className="text-orange-300 font-bold">Deducted From: Cash</span>
+                          {ge.notes && <span className="text-gray-400 italic">"{ge.notes}"</span>}
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-base font-black text-orange-400">-{formatCurrency(ge.amount)}</p>
+                        <span className="text-[9px] text-orange-400 font-bold bg-orange-500/10 px-1.5 py-0.5 rounded">Expense Deducted</span>
                       </div>
                     </div>
                   </div>

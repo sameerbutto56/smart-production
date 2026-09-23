@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { usePOS } from '../context/POSContext';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
-import { formatCurrency, formatPaymentMethod, printBalanceReceipt, printBalanceGatePass } from '../utils/POSPrint';
+import { formatCurrency, formatPaymentMethod, printBalanceReceipt, printBalanceGatePass, printPosFinancialSummary } from '../utils/POSPrint';
+import { computePosFinancialSummary } from '../utils/posFinancialSummary';
 import { formatDateTime } from '../utils/dateTime';
 import api from '../services/api';
 import { Clock, ShoppingCart, BarChart3, Search, Download, Printer, RotateCcw, FileText, CreditCard } from 'lucide-react';
@@ -167,6 +168,31 @@ const POSHistory = () => {
     };
   }, [filteredSales, filteredBalancePayments, totalGE]);
 
+  // Authoritative 4-tier financial summary calculation
+  const finSummary = React.useMemo(() => {
+    return computePosFinancialSummary({
+      sales: filteredSales || [],
+      balancePayments: filteredBalancePayments || [],
+      journalEntries: filteredGeneralEntries || [],
+      isFiltered: true,
+    });
+  }, [filteredSales, filteredBalancePayments, filteredGeneralEntries]);
+
+  const handlePrintSummary = () => {
+    const rangeLabel = salesRange === 'custom'
+      ? `${salesDateFrom || 'Start'} to ${salesDateTo || 'End'}`
+      : (salesRange ? salesRange.toUpperCase() : 'ALL');
+    printPosFinancialSummary({
+      outlet: selectedOutlet || 'Outlet',
+      dateRangeLabel: rangeLabel,
+      salesSummary: finSummary.salesSummary,
+      paymentBreakdown: finSummary.paymentBreakdown,
+      deductions: finSummary.deductions,
+      finalPosition: finSummary.finalPosition,
+      invoiceCount: finSummary.invoiceCount,
+    });
+  };
+
   const filterTabs = [
     { key: 'all', label: 'All', icon: ShoppingCart, badge: totalBPSales + filteredBalancePayments.length + filteredGeneralEntries.length, activeBg: 'bg-purple-700', activeBorder: 'border-purple-500' },
     { key: 'general', label: 'General', icon: FileText, badge: filteredGeneralEntries.length, activeBg: 'bg-orange-700', activeBorder: 'border-orange-500' },
@@ -210,35 +236,123 @@ const POSHistory = () => {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-purple-400 animate-pulse">Searching…</span>
           )}
         </div>
-        <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1"><Download size={14} />Excel</button>
+        <button onClick={handlePrintSummary} className="bg-blue-700 hover:bg-blue-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1 shadow-md"><Printer size={14} />Print</button>
+        <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1 shadow-md"><Download size={14} />Excel</button>
       </div>
 
-      {/* Financial Summary KPI Banner */}
-      {!anyLoading && (summaryMetrics.totalReceived > 0 || totalGE > 0) && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-          <div className="bg-gray-900/90 border border-purple-500/30 rounded-xl p-2.5">
-            <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Total Received</p>
-            <p className="text-sm font-black text-white mt-0.5">{formatCurrency(summaryMetrics.totalReceived)}</p>
+      {/* 4-Tier Simplified Financial Summary Dashboard */}
+      {!anyLoading && (finSummary.invoiceCount > 0 || finSummary.deductions.generalEntries > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {/* Tier 1: Sales Summary */}
+          <div className="bg-gray-950 border border-blue-500/20 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-800">
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">1. Sales Summary</span>
+                <span className="text-[9px] font-bold text-gray-500">{finSummary.invoiceCount} invoices</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Gross Sales:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.salesSummary.grossSales)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Discount:</span>
+                  <span className="font-bold text-amber-400">-{formatCurrency(finSummary.salesSummary.discount)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-2.5 border-t border-gray-800 flex items-center justify-between bg-blue-950/20 -mx-4 -mb-4 p-3 rounded-b-2xl border-t border-blue-500/20">
+              <span className="text-xs font-black uppercase text-blue-300">Net Revenue</span>
+              <span className="text-base font-black text-blue-400">{formatCurrency(finSummary.salesSummary.netRevenue)}</span>
+            </div>
           </div>
-          <div className="bg-gray-900/90 border border-emerald-500/30 rounded-xl p-2.5">
-            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Cash</p>
-            <p className="text-sm font-black text-emerald-400 mt-0.5">{formatCurrency(summaryMetrics.cash)}</p>
+
+          {/* Tier 2: Payment Breakdown */}
+          <div className="bg-gray-950 border border-purple-500/20 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-800">
+                <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">2. Payment Breakdown</span>
+                <span className="text-[9px] font-bold text-gray-500">Net: {formatCurrency(finSummary.paymentBreakdown.total)}</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>Cash:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.paymentBreakdown.cash)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>Online:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.paymentBreakdown.online)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"></span>Card:</span>
+                  <span className="font-black text-white">{formatCurrency(finSummary.paymentBreakdown.card)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-2.5 border-t border-gray-800 flex items-center justify-between bg-purple-950/20 -mx-4 -mb-4 p-3 rounded-b-2xl border-t border-purple-500/20">
+              <span className="text-xs font-black uppercase text-purple-300">Total Payments</span>
+              <span className="text-base font-black text-purple-400">{formatCurrency(finSummary.paymentBreakdown.total)}</span>
+            </div>
           </div>
-          <div className="bg-gray-900/90 border border-blue-500/30 rounded-xl p-2.5">
-            <p className="text-[9px] font-black text-blue-400 uppercase tracking-wider">Online</p>
-            <p className="text-sm font-black text-blue-400 mt-0.5">{formatCurrency(summaryMetrics.online)}</p>
+
+          {/* Tier 3: Deductions / Adjustments */}
+          <div className="bg-gray-950 border border-red-500/20 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-800">
+                <span className="text-[10px] font-black uppercase tracking-widest text-red-400">3. Deductions & Adjustments</span>
+                <span className="text-[9px] font-bold text-red-400">-{formatCurrency(finSummary.deductions.totalReturns + finSummary.deductions.generalEntries)}</span>
+              </div>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Cash Returns:</span>
+                  <span className="font-bold text-red-400">-{formatCurrency(finSummary.deductions.cashReturns)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Online Returns:</span>
+                  <span className="font-bold text-red-400">-{formatCurrency(finSummary.deductions.onlineReturns)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Card Returns:</span>
+                  <span className="font-bold text-gray-500">{finSummary.deductions.cardReturns > 0 ? `-${formatCurrency(finSummary.deductions.cardReturns)}` : '₨0'}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-gray-800/60">
+                  <span className="text-gray-400">General Entries:</span>
+                  <span className="font-bold text-orange-400">-{formatCurrency(finSummary.deductions.generalEntries)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-gray-800 flex items-center justify-between bg-red-950/20 -mx-4 -mb-4 p-3 rounded-b-2xl border-t border-red-500/20">
+              <span className="text-xs font-black uppercase text-red-300">Total Deductions</span>
+              <span className="text-base font-black text-red-400">-{formatCurrency(finSummary.deductions.totalReturns + finSummary.deductions.generalEntries)}</span>
+            </div>
           </div>
-          <div className="bg-gray-900/90 border border-violet-500/30 rounded-xl p-2.5">
-            <p className="text-[9px] font-black text-violet-400 uppercase tracking-wider">Card</p>
-            <p className="text-sm font-black text-violet-400 mt-0.5">{formatCurrency(summaryMetrics.card)}</p>
-          </div>
-          <div className="bg-gray-900/90 border border-orange-500/30 rounded-xl p-2.5">
-            <p className="text-[9px] font-black text-orange-400 uppercase tracking-wider">Expenses</p>
-            <p className="text-sm font-black text-orange-400 mt-0.5">-{formatCurrency(totalGE)}</p>
-          </div>
-          <div className="bg-gray-900/90 border border-cyan-500/30 rounded-xl p-2.5">
-            <p className="text-[9px] font-black text-cyan-400 uppercase tracking-wider">Net Cash</p>
-            <p className="text-sm font-black text-cyan-400 mt-0.5">{formatCurrency(summaryMetrics.netCash)}</p>
+
+          {/* Tier 4: Final Position */}
+          <div className="bg-gradient-to-br from-emerald-950/80 to-gray-950 border-2 border-emerald-500/50 rounded-2xl p-4 shadow-xl flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-emerald-800/40">
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">4. Final Position</span>
+                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Authoritative</span>
+              </div>
+              <div className="mb-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Available Cash</p>
+                <p className="text-2xl font-black text-emerald-400 tracking-tight mt-0.5">{formatCurrency(finSummary.finalPosition.availableCash)}</p>
+              </div>
+              <div className="space-y-1.5 text-xs pt-2 border-t border-gray-800/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Available Online:</span>
+                  <span className="font-bold text-blue-300">{formatCurrency(finSummary.finalPosition.availableOnline)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Available Card:</span>
+                  <span className="font-bold text-purple-300">{formatCurrency(finSummary.finalPosition.availableCard)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 text-[10px] text-gray-500 italic">
+              * Cash − Cash Returns − General Entries
+            </div>
           </div>
         </div>
       )}
