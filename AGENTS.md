@@ -1,6 +1,34 @@
 ## Goals
-### Implemented This Session — Dashboard Cash & Bank Deposit Separation + Simplified POS History Financial Summary (commit ddbad31, deployed & live-verified)
+### Implemented This Session — Register & Bank Deposit: General Entry Deduction & Available Cash Alignment (commit 4566495, deployed & live-verified)
 - **Requirement**:
+  - Fix calculation of Available Cash across Outlet Register and Bank Deposit.
+  - Core Formula: `Available Cash = Generated Cash − General Entries − Cash Returns − Other Valid Cash Deductions`.
+  - Non-cash payment methods (Online, Card) remain isolated and never reduced by General Entries.
+  - Business dates strictly associate 1:1 (date X expenses only reduce date X).
+  - Register Available Cash MUST equal Bank Deposit Required Amount for every date: `Register Available Cash = Bank Deposit Required Amount`.
+  - Deposited amount clears against Required Amount (if Deposited = Required -> Remaining Pending = 0).
+  - Raw Generated Cash remains visible for audit and historical reference alongside General Entry deduction and Available Cash.
+  - Zero negative values across all registers and deposit requirements.
+- **Root Cause & Database Repair**:
+  - Found that 10 historical closed sessions in `PosBookSession` stored frozen negative `availableCash` (e.g. Johar Town 17 Sep was `-1,670`, 18 Sep was `-20,950`, Jail Road 17 Sep was `-19,860`) because legacy code subtracted bank deposits (`totalBankDeposits`) directly from till cash upon closing.
+  - Executed `backend/scripts/repair-pos-sessions.cjs`: repaired all 10 historical sessions directly in PostgreSQL. Verified with audit script: 0 of 141 sessions require repair.
+  - Rebuilt daily deposit requirements using `backend/scripts/realign-and-verify-deposits.cjs` to ensure 100% synchronization.
+- **Backend Implementation (`pos.book.controller.js` & `dailyDeposit.controller.js`)**:
+  - In `pos.book.controller.js`:
+    - In `getBookById` and `getBookHistory`: Enforced defensive sanitization `availableCash = Math.max(0, Math.round((rawCash - journalDeduction - cashReturns - faisalTake) * 100) / 100)` and set `paymentBreakdown[CASH].net = availableCash`.
+    - In `closeBook`: Enforced server-side canonical computation via `await computeBookSummary(session)` to prevent client-side summary drift or tainted JSON payloads.
+  - In `dailyDeposit.controller.js`:
+    - Updated `getAuthoritativeRegisterCash`: Both when reading `PosBookSession` and in fallback real-time sales queries, factors in `generalEntryReduction`, `cashReturns`, and `faisalTake` to yield the exact identical Available Cash formula.
+- **Frontend Implementation (`OutletRegisters.jsx`)**:
+  - Added exported helper `getRegisterCashMetrics(reg)` computing `rawCash`, `genEntry`, `cashReturns`, `faisalTake`, `availCash`, and `remaining`.
+  - Updated thermal print (`buildThermalLines`), A4 print (`buildA4Body`), Excel export (`exportExcel`), register list row card pill (`Avail Cash`), and expanded Cash Summary card to display authoritative, non-negative Available Cash and clearly break down Generated Cash vs General Entry Deduction.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-register-general-entry-fix.cjs`: 9/9 tests passed (Johar Town 17, 18, 19 Sep, Jail Road 21, 22 Sep, zero negative values, Register Available Cash === Bank Deposit Required Amount).
+  - Production build (`npm run build`): Exit code 0, 3,204 modules bundled cleanly.
+  - Git commit `4566495` pushed to `origin/main`.
+  - Vercel production deployment `dpl_9yev94drrNk9GjMNRjfpdZtCxGsa` (`READY`) aliased to `https://smart-production-v2.vercel.app` and `https://smart-production-v2-sameerbutt056-1019s-projects.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+
   - Decouple Dashboard Cash from Bank Deposit tracking: Recording a bank deposit must NOT deduct from Dashboard Cash or cause it to reach Rs. 0 or become negative.
   - Bank deposits belong strictly to the Bank Deposit module (Required -> Pending -> Deposited -> Remaining).
   - Redesign POS History into a simplified 4-tier financial summary (Sales Summary, Payment Breakdown, Deductions / Adjustments, Final Position) across Screen UI, Excel Export, and Print.
