@@ -420,14 +420,16 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     // Fast-path: if requirement row already exists for a past closed date,
     // its register figures (generatedCash, requiredAmount, generalEntryReduction) are frozen.
     // Reuse them directly to avoid slow sequential DB queries over remote network.
-    if (!forceRequery && req && bDate < targetDate && req.notes) {
+    if (!forceRequery && req && bDate < targetDate) {
       let journalEntries = [];
-      let generalEntryReduction = 0;
-      try {
-        const parsed = typeof req.notes === 'string' ? JSON.parse(req.notes) : req.notes;
-        journalEntries = parsed.journalEntries || [];
-        generalEntryReduction = parsed.generalEntryReduction || 0;
-      } catch (e) {}
+      let generalEntryReduction = Math.max(0, Math.round(((req.cashGenerated || 0) - (req.requiredAmount || 0)) * 100) / 100);
+      if (req.notes) {
+        try {
+          const parsed = typeof req.notes === 'string' ? JSON.parse(req.notes) : req.notes;
+          if (Array.isArray(parsed?.journalEntries)) journalEntries = parsed.journalEntries;
+          if (typeof parsed?.generalEntryReduction === 'number') generalEntryReduction = parsed.generalEntryReduction;
+        } catch (e) {}
+      }
 
       regData = {
         generatedCash: req.cashGenerated,
