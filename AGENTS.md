@@ -1,5 +1,20 @@
 ## Goals
-### Implemented This Session — ASM Profile Operational Data Reset & Fix ReferenceError in AsmPage (commit, deployed & live-verified)
+### Implemented This Session — Admin Dashboard: Restore ASM Card & Functionality (commit, deployed & live-verified)
+- **Requirement**:
+  - Restore the **ASM Card / Widget** on the **Admin Dashboard** (`/dashboard`).
+  - Keep the ASM option strictly removed from the Admin Dashboard's sidebar, top navigation bar, and main navigation menu.
+  - Maintain the previous working functionality of the ASM Dashboard card, navigating seamlessly to `/asm` (ASM Portal / Dashboard).
+  - Unblock Admin profile from opening `/asm` while maintaining strict sidebar isolation.
+  - Zero modification to ASM backend logic, database, or permissions.
+- **Frontend Implementation (`AdminDashboard.jsx` & `App.jsx` & `Layout.jsx`)**:
+  - In `frontend/src/pages/AdminDashboard.jsx`: Restored the ASM module card in the overview cards array:
+    `{ id: 'asm', label: 'ASM', desc: 'Area Sales Manager orders, approvals, analytics & delivery tracking', icon: Users, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20', path: '/asm' }`.
+  - In `frontend/src/App.jsx`: Updated `<Route path="asm" element={<AsmPage />} />`, removing `AdminBlockedRoute` so Admin users can open and interact with the ASM Dashboard directly from the Admin Dashboard card.
+  - In `frontend/src/components/Layout.jsx`: Confirmed ASM Dashboard remains strictly restricted in the navigation sidebar to `roles: ['ASM']` only, so it does not clutter Admin's navigation menu.
+- **Verification & Deployment**:
+  - Frontend production build (`npm run build`): Exit code 0, 3,203 modules bundled cleanly.
+
+### Implemented Prior Session — ASM Profile Operational Data Reset & Fix ReferenceError in AsmPage (commit, deployed & live-verified)
 - **Problem**:
   1. Old, obsolete test/smoke operational records were cluttering the **ASM Profile / ASM Portal** (old vendor orders, old deliveries, old payments, old ASM handover stock requests).
   2. Clicking or rendering the ASM Portal resulted in `ReferenceError: t is not defined at OrderRow (AsmPage.jsx)`.

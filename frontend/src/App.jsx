@@ -241,7 +241,7 @@ function App() {
                   <Route path="software-settings" element={<SoftwareSettings />} />
                   <Route path="postex-dashboard" element={<AdminBlockedRoute><PostExDashboard /></AdminBlockedRoute>} />
                   <Route path="demand-history" element={<DemandDeliveriesHistory />} />
-                  <Route path="asm" element={<AdminBlockedRoute><AsmPage /></AdminBlockedRoute>} />
+                  <Route path="asm" element={<AsmPage />} />
                   <Route path="asm-allowed" element={<AdminBlockedRoute><AsmAllowedStorePage /></AdminBlockedRoute>} />
                   <Route path="vendors-admin" element={<AdminBlockedRoute><VendorsPage /></AdminBlockedRoute>} />
                   <Route path="office-supply" element={<OfficeSupplyRoute><OfficeSupply /></OfficeSupplyRoute>} />
