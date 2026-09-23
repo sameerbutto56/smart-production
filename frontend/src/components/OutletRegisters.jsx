@@ -8,6 +8,20 @@ import * as XLSX from 'xlsx';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
+export const getRegisterCashMetrics = (reg) => {
+  const s = reg?.summary || {};
+  const rawCash = Number(s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash ?? 0);
+  const genEntry = Number(s.totalJournalEntries || 0);
+  const cashReturns = Number(s.returnSummary?.cash || 0);
+  const faisalTake = Number(s.totalFaisalTake || 0);
+  const availCash = s.availableCash !== undefined && s.availableCash >= 0
+    ? s.availableCash
+    : Math.max(0, Math.round((rawCash - genEntry - cashReturns - faisalTake) * 100) / 100);
+  const transferred = Number(s.transferToSystem || 0);
+  const remaining = Math.max(0, availCash - transferred);
+  return { rawCash, genEntry, cashReturns, faisalTake, availCash, transferred, remaining };
+};
+
 const PRESETS = [
   { label: 'Today', range: 'today' },
   { label: 'Yesterday', range: 'yesterday' },
@@ -84,6 +98,7 @@ const OutletRegisters = ({ outlet }) => {
   const buildThermalLines = (reg) => {
     const s = reg.summary;
     if (!s) return null;
+    const m = getRegisterCashMetrics(reg);
     const lines = [];
     lines.push(`${outlet.toUpperCase()}\nCLOSE BOOK REPORT\n`);
     lines.push('REGISTER INFORMATION');
@@ -114,14 +129,13 @@ const OutletRegisters = ({ outlet }) => {
     lines.push('');
     lines.push('CASH SUMMARY');
     lines.push('─'.repeat(32));
-    lines.push(`Cash Sales:      ${formatCurrency(s.paymentSummary?.cashCollected || s.paymentSummary?.cash || 0)}`);
-    lines.push(`Gen Entry:      -${formatCurrency(s.totalJournalEntries || 0)}`);
-    lines.push(`Cash Returns:   -${formatCurrency(s.returnSummary?.cash || 0)}`);
-    lines.push(`Available Cash:  ${formatCurrency(s.availableCash || 0)}`);
-    const transferred = s.transferToSystem || 0;
-    if (transferred > 0) {
-      lines.push(`Transfer to Sys: ${formatCurrency(transferred)}`);
-      lines.push(`Remaining:       ${formatCurrency((s.availableCash || 0) - transferred)}`);
+    lines.push(`Cash Sales:      ${formatCurrency(m.rawCash)}`);
+    lines.push(`Gen Entry:      -${formatCurrency(m.genEntry)}`);
+    lines.push(`Cash Returns:   -${formatCurrency(m.cashReturns)}`);
+    lines.push(`Available Cash:  ${formatCurrency(m.availCash)}`);
+    if (m.transferred > 0) {
+      lines.push(`Transfer to Sys: ${formatCurrency(m.transferred)}`);
+      lines.push(`Remaining:       ${formatCurrency(m.remaining)}`);
     }
     lines.push('');
     lines.push('─'.repeat(32));
@@ -133,9 +147,10 @@ const OutletRegisters = ({ outlet }) => {
   const buildA4Body = (reg) => {
     const s = reg.summary;
     if (!s) return '';
-    const avail = s.availableCash || 0;
-    const transferred = s.transferToSystem || 0;
-    const remaining = avail - transferred;
+    const m = getRegisterCashMetrics(reg);
+    const avail = m.availCash;
+    const transferred = m.transferred;
+    const remaining = m.remaining;
     return `
       <div class="section" style="page-break-inside:avoid;">
         <h3>Register Information</h3>
@@ -297,6 +312,7 @@ const OutletRegisters = ({ outlet }) => {
     if (filtered.length === 0) { toast.error('No registers to export'); return; }
     const rows = [];
     for (const reg of filtered) {
+      const m = getRegisterCashMetrics(reg);
       const s = reg.summary || {};
       const ps = s.paymentSummary || {};
       const rs = s.returnSummary || {};
@@ -318,15 +334,15 @@ const OutletRegisters = ({ outlet }) => {
         'Card': ps.card || 0,
         'Online': ps.online || 0,
         'Cash+Online': ps.cashOnlineTotal || 0,
-        'Cash Collected (Raw)': ps.cashCollected || 0,
-        'Total Faisal Take': s.totalFaisalTake || 0,
-        'Journal Entries': s.totalJournalEntries || 0,
+        'Cash Collected (Raw)': m.rawCash,
+        'Total Faisal Take': m.faisalTake,
+        'Journal Entries': m.genEntry,
         'Total Returns': rs.total || 0,
-        'Cash Returns': rs.cash || 0,
+        'Cash Returns': m.cashReturns,
         'Card Returns': rs.card || 0,
         'Online Returns': rs.online || 0,
-        'Available Cash': s.availableCash || 0,
-        'Transfer to System': s.transferToSystem || 0,
+        'Available Cash': m.availCash,
+        'Transfer to System': m.transferred,
       });
 
       // Employee collections sub-rows
@@ -375,6 +391,7 @@ const OutletRegisters = ({ outlet }) => {
 
     // Summary sheet
     const summaryRows = filtered.map(reg => {
+      const m = getRegisterCashMetrics(reg);
       const s = reg.summary || {};
       const ps = s.paymentSummary || {};
       const rs = s.returnSummary || {};
@@ -388,11 +405,11 @@ const OutletRegisters = ({ outlet }) => {
         'Cash': ps.cash || 0,
         'Card': ps.card || 0,
         'Online': ps.online || 0,
-        'Faisal Take': s.totalFaisalTake || 0,
-        'Journal': s.totalJournalEntries || 0,
+        'Faisal Take': m.faisalTake,
+        'Journal': m.genEntry,
         'Returns': rs.total || 0,
-        'Available Cash': s.availableCash || 0,
-        'Transfer': s.transferToSystem || 0,
+        'Available Cash': m.availCash,
+        'Transfer': m.transferred,
       };
     });
     const ws2 = XLSX.utils.json_to_sheet(summaryRows);
@@ -502,7 +519,9 @@ const OutletRegisters = ({ outlet }) => {
         <div className="text-center py-20 text-gray-500 font-bold">No closed registers found</div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(reg => (
+          {filtered.map(reg => {
+            const m = getRegisterCashMetrics(reg);
+            return (
             <div key={reg.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
               {/* Summary row */}
               <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-800/50 transition-all" onClick={() => setExpandedId(expandedId === reg.id ? null : reg.id)}>
@@ -529,11 +548,11 @@ const OutletRegisters = ({ outlet }) => {
                     </span>
                     <p className="text-[10px] text-gray-500 font-bold">Net Sales</p>
                   </div>
-                  <div className="text-right hidden sm:block">
-                    <span className="text-xs font-bold text-gray-400">
-                      {formatCurrency(reg.summary?.availableCash || 0)}
+                  <div className="text-right">
+                    <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      {formatCurrency(m.availCash)}
                     </span>
-                    <p className="text-[10px] text-gray-600 font-bold">Avail Cash</p>
+                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">Avail Cash</p>
                   </div>
                   {expandedId === reg.id ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
                 </div>
@@ -642,14 +661,14 @@ const OutletRegisters = ({ outlet }) => {
                   <div className="bg-gray-950 p-3 rounded-xl border border-gray-800">
                     <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Cash Summary</h4>
                     <div className="space-y-1 text-xs">
-                      <div className="flex justify-between"><span className="text-gray-400">Cash Sales</span><span className="font-bold text-emerald-400">{formatCurrency(reg.summary?.paymentSummary?.cashCollected || reg.summary?.paymentSummary?.cash || 0)}</span></div>
-                      <div className="flex justify-between"><span className="text-orange-400 font-bold">General Entry Deduction</span><span className="font-bold text-red-400">-{formatCurrency(reg.summary?.totalJournalEntries || 0)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-400">Cash Returns</span><span className="font-bold text-red-400">-{formatCurrency(reg.summary?.returnSummary?.cash || 0)}</span></div>
-                      <div className="flex justify-between pt-2 border-t border-gray-700"><span className="font-bold text-white">Available Cash</span><span className="font-bold text-emerald-400">{formatCurrency(reg.summary?.availableCash || 0)}</span></div>
-                      {(reg.summary?.transferToSystem || 0) > 0 && (
+                      <div className="flex justify-between"><span className="text-gray-400">Cash Sales (Generated Cash)</span><span className="font-bold text-emerald-400">{formatCurrency(m.rawCash)}</span></div>
+                      <div className="flex justify-between"><span className="text-orange-400 font-bold">General Entry Deduction</span><span className="font-bold text-red-400">-{formatCurrency(m.genEntry)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-400">Cash Returns</span><span className="font-bold text-red-400">-{formatCurrency(m.cashReturns)}</span></div>
+                      <div className="flex justify-between pt-2 border-t border-gray-700"><span className="font-black text-white">Available Cash</span><span className="font-black text-emerald-400">{formatCurrency(m.availCash)}</span></div>
+                      {m.transferred > 0 && (
                         <>
-                          <div className="flex justify-between"><span className="text-gray-400">Transfer to System</span><span className="font-bold text-red-400">-{formatCurrency(reg.summary.transferToSystem)}</span></div>
-                          <div className="flex justify-between pt-2 border-t border-gray-700"><span className="font-bold text-white">Remaining Cash</span><span className="font-bold text-emerald-400">{formatCurrency((reg.summary?.availableCash || 0) - reg.summary.transferToSystem)}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Transfer to System</span><span className="font-bold text-red-400">-{formatCurrency(m.transferred)}</span></div>
+                          <div className="flex justify-between pt-2 border-t border-gray-700"><span className="font-bold text-white">Remaining Cash</span><span className="font-bold text-emerald-400">{formatCurrency(m.remaining)}</span></div>
                         </>
                       )}
                     </div>
@@ -667,7 +686,8 @@ const OutletRegisters = ({ outlet }) => {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

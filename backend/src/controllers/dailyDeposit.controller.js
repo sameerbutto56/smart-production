@@ -196,10 +196,14 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
       if (rawCash !== undefined && rawCash !== null) {
         const generatedCash = Math.max(0, Math.round(Number(rawCash) * 100) / 100);
         const generalEntryReduction = Math.max(0, Math.round(Number(s.totalJournalEntries || 0) * 100) / 100);
-        const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction) * 100) / 100);
+        const cashReturns = Math.max(0, Math.round(Number(s.returnSummary?.cash || 0) * 100) / 100);
+        const faisalTake = Math.max(0, Math.round(Number(s.totalFaisalTake || 0) * 100) / 100);
+        const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction - cashReturns - faisalTake) * 100) / 100);
         return {
           generatedCash,
           generalEntryReduction,
+          cashReturns,
+          faisalTake,
           availableCash,
           journalEntries: s.journalEntries || [],
           isClosedSession: session.status === 'CLOSED',
@@ -209,21 +213,52 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
     } catch (e) {}
   }
 
-  // 2. Fallback to real-time POS sales cash query and journal entries
-  const sales = await prisma.posSale.findMany({
-    where: {
-      outletName,
-      createdAt: { gte: start, lt: end },
-      faisalTake: false,
-    },
-    select: {
-      grandTotal: true,
-      advanceAmount: true,
-      paymentMethod: true,
-      cashAmount: true,
-      onlineAmount: true,
-    },
-  });
+  // 2. Fallback to real-time POS sales cash query, returns, and journal entries
+  const [sales, balancePayments, returns, journals] = await Promise.all([
+    prisma.posSale.findMany({
+      where: {
+        outletName,
+        createdAt: { gte: start, lt: end },
+        faisalTake: false,
+      },
+      select: {
+        grandTotal: true,
+        advanceAmount: true,
+        paymentMethod: true,
+        cashAmount: true,
+        onlineAmount: true,
+      },
+    }),
+    prisma.posBalancePayment.findMany({
+      where: {
+        posSale: { outletName },
+        paidAt: { gte: start, lt: end },
+      },
+      select: {
+        amountPaidNow: true,
+        paymentMethod: true,
+        cashAmount: true,
+      },
+    }),
+    prisma.posReturn.findMany({
+      where: {
+        OR: [{ sale: { outletName } }, { outletName }],
+        createdAt: { gte: start, lt: end },
+      },
+      select: {
+        refundAmount: true,
+        refundPaymentMethod: true,
+        sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } },
+      },
+    }),
+    prisma.journalEntry.findMany({
+      where: {
+        outletName,
+        createdAt: { gte: start, lt: end },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ]);
 
   let totalCash = 0;
   sales.forEach((s) => {
@@ -235,18 +270,6 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
       const ratio = totalCO > 0 ? (s.cashAmount || 0) / totalCO : 1;
       totalCash += received * ratio;
     }
-  });
-
-  const balancePayments = await prisma.posBalancePayment.findMany({
-    where: {
-      posSale: { outletName },
-      paidAt: { gte: start, lt: end },
-    },
-    select: {
-      amountPaidNow: true,
-      paymentMethod: true,
-      cashAmount: true,
-    },
   });
 
   balancePayments.forEach((bp) => {
@@ -261,21 +284,31 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
     }
   });
 
-  const journals = await prisma.journalEntry.findMany({
-    where: {
-      outletName,
-      createdAt: { gte: start, lt: end },
-    },
-    orderBy: { createdAt: 'asc' },
+  let cashRefunded = 0;
+  returns.forEach((r) => {
+    const refundMethod = r.refundPaymentMethod || r.sale?.paymentMethod || 'CASH';
+    const amt = r.refundAmount || 0;
+    if (refundMethod === 'CASH') {
+      cashRefunded += amt;
+    } else if (refundMethod === 'CASH_ONLINE') {
+      const cashAmt = r.sale?.cashAmount || 0;
+      const onlineAmt = r.sale?.onlineAmount || 0;
+      const total = cashAmt + onlineAmt || 1;
+      const ratio = cashAmt / total;
+      cashRefunded += amt * ratio;
+    }
   });
 
   const generatedCash = Math.max(0, Math.round(totalCash * 100) / 100);
   const generalEntryReduction = Math.max(0, Math.round(journals.reduce((sum, j) => sum + (j.amount || 0), 0) * 100) / 100);
-  const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction) * 100) / 100);
+  const cashReturns = Math.max(0, Math.round(cashRefunded * 100) / 100);
+  const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction - cashReturns) * 100) / 100);
 
   return {
     generatedCash,
     generalEntryReduction,
+    cashReturns,
+    faisalTake: 0,
     availableCash,
     journalEntries: journals,
     isClosedSession: false,

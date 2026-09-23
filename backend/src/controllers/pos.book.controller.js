@@ -51,13 +51,25 @@ const getCurrentBook = async (req, res) => {
   }
 };
 
-// Get book session by id
 const getBookById = async (req, res) => {
   try {
     const session = await prisma.posBookSession.findUnique({
       where: { id: req.params.id },
     });
     if (!session) return res.status(404).json({ message: 'Book session not found' });
+    if (session.summary) {
+      const summary = typeof session.summary === 'string' ? JSON.parse(session.summary) : (session.summary || {});
+      const rawCash = Number(summary.paymentSummary?.cashCollected ?? summary.paymentSummary?.cash ?? 0);
+      const journalDeduction = Number(summary.totalJournalEntries || 0);
+      const cashReturns = Number(summary.returnSummary?.cash || 0);
+      const faisalTake = Number(summary.totalFaisalTake || 0);
+      summary.availableCash = Math.max(0, Math.round((rawCash - journalDeduction - cashReturns - faisalTake) * 100) / 100);
+      if (Array.isArray(summary.paymentBreakdown)) {
+        const cashRow = summary.paymentBreakdown.find(p => p.method === 'CASH');
+        if (cashRow) cashRow.net = summary.availableCash;
+      }
+      session.summary = summary;
+    }
     res.json(session);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch book session', error: error.message });
@@ -392,11 +404,18 @@ const closeBook = async (req, res) => {
   try {
     const { id } = req.params;
     const closedBy = req.body.closedBy || req.user?.name || 'Unknown';
-    const summary = req.body.summary;
+    const clientSummary = req.body.summary;
 
     const session = await prisma.posBookSession.findUnique({ where: { id } });
     if (!session) return res.status(404).json({ message: 'Book session not found' });
     if (session.status === 'CLOSED') return res.status(400).json({ message: 'Book session is already closed' });
+
+    // Canonical summary computation directly on backend to prevent client calculation discrepancies
+    const computedSummary = await computeBookSummary(session);
+    if (clientSummary?.transferredCash !== undefined) {
+      computedSummary.transferToSystem = clientSummary.transferredCash;
+      computedSummary.remainingLockerCash = Math.max(0, computedSummary.availableCash - clientSummary.transferredCash);
+    }
 
     const updated = await prisma.posBookSession.update({
       where: { id },
@@ -404,7 +423,7 @@ const closeBook = async (req, res) => {
         status: 'CLOSED',
         closedAt: new Date(),
         closedBy,
-        summary: JSON.stringify(summary),
+        summary: JSON.stringify(computedSummary),
       },
     });
     await notify.create(req, { type: 'register_close', moduleName: 'POS', path: '/pos', role: 'OUTLET', title: 'Register Closed', message: `${session.outletName} register closed by ${closedBy}`, action: 'Register Closed', employeeName: req.user?.name }).catch(() => {});
@@ -435,6 +454,16 @@ const getBookHistory = async (req, res) => {
     });
     const result = sessions.map(s => {
       const summary = typeof s.summary === 'string' ? JSON.parse(s.summary) : (s.summary || {});
+      const rawCash = Number(summary.paymentSummary?.cashCollected ?? summary.paymentSummary?.cash ?? 0);
+      const journalDeduction = Number(summary.totalJournalEntries || 0);
+      const cashReturns = Number(summary.returnSummary?.cash || 0);
+      const faisalTake = Number(summary.totalFaisalTake || 0);
+      const cleanAvailableCash = Math.max(0, Math.round((rawCash - journalDeduction - cashReturns - faisalTake) * 100) / 100);
+      summary.availableCash = cleanAvailableCash;
+      if (Array.isArray(summary.paymentBreakdown)) {
+        const cashRow = summary.paymentBreakdown.find(p => p.method === 'CASH');
+        if (cashRow) cashRow.net = cleanAvailableCash;
+      }
       return { ...s, summary };
     });
     res.json(result);
