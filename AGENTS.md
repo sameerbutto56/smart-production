@@ -1,4 +1,37 @@
 ## Goals
+### Implemented This Session — Bank Deposit: Excess, Short Deposit & Chronological Carry-Forward Reconciliation Ledger (commit 133912f, deployed & live-verified)
+- **Requirement**:
+  - Implement automatic carry-forward of excess and short/pending deposit balances across business dates.
+  - Priority Rule: Oldest Pending → Current Day Requirement → Excess Carry-Forward.
+  - Excess deposits carry forward as credits to reduce the following day's required deposit.
+  - Short deposits carry forward as pending balances that must be cleared before current day's requirement.
+  - Immutable audit trail: Base Required, Previous Balance, Net Required, Deposited, Applied to Previous, Applied to Current, Remaining Pending, Excess Credit.
+  - Never modify Register Cash, Generated Cash, General Entries, or POS Sales for any date.
+  - Branch isolation maintained: Johar Town cycle from `2026-09-15`, Jail Road cycle from `2026-09-21`.
+- **Backend Implementation (`dailyDeposit.controller.js`)**:
+  - Rebuilt `syncDailyRequirements` as a chronological carry-forward ledger engine:
+    - For each date from cutoff to today: fetches Base Available Cash, applies Previous Excess Credit to reduce effective requirement, allocates deposits in priority order (Oldest Pending → Current Day → Excess), carries forward remaining pending and new excess to next day.
+    - `CashDepositAllocation` records created with `allocationType`: `PREVIOUS_PENDING`, `CURRENT_DAY`, `EXCESS`.
+    - `DailyCashRequirement` fields updated: `cashGenerated`, `requiredAmount` (Base), `previousPending`, `depositedAmount`, `pendingAmount`, `excessAmount`, `status`, `notes` (JSON audit breakdown).
+    - Status values: `DEPOSITED`, `CLEARED_BY_CARRY_FORWARD`, `PARTIALLY_DEPOSITED`, `PENDING`, `EXCESS`, `CLEARED`.
+  - `getDailyDeposits`: Enhanced summary with `todayPreviousPending`, `todayPreviousExcess`, `todayConsumedCredit`, `todayNetRequired`. Enhanced requirement rows with `previousPending`, `previousExcess`, `consumedCredit`, `netRequired`, `appliedToPrev`, `appliedToCurrent`.
+  - `submitDailyDeposit`: Records deposit then re-syncs entire carry-forward ledger.
+  - `rebuildOutletDepositState`: Full chronological rebuild from cutoff.
+- **Frontend Implementation (`DailyCashDepositSection.jsx`)**:
+  - Redesigned table with full audit columns: Cash Business Date | Generated Cash | General Entry | Base Required | Prev Balance | Net Required | Deposited | Applied Prev | Applied Day | Remaining Pending | Excess Credit | Status | Slips | Action.
+  - KPI cards: Net Required Deposit (factoring carried pending/excess), Carried Credit/Excess banner.
+  - Deposit modal defaults suggested amount to Net Required for selected date.
+  - Expanded row shows: General Entry breakdown, Previous Excess Credit consumed, Applied to Previous Pending, and allocated deposit slips with allocation type badges.
+- **Excel Export (`outletExportExcel.js`)**:
+  - Updated `exportDailyDepositsToExcel` with columns: Business Date, Generated Cash, General Entry Reduction, Base Required, Previous Balance, Net Required, Actual Deposit, Applied to Prev Pending, Applied to Current Day, Remaining Pending, Excess Credit, Status.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-carry-forward-ledger.cjs`: 11/11 tests passed (Normal deposit, Excess deposit, Short deposit, Previous pending cleared first, Carried excess reduces net required, Over-payment edge case, Johar Town 17 Sep shortage cleared by 18 Sep, Jail Road 21 Sep excess carried to 22 Sep, Register data integrity).
+  - Real-world verified: Johar Town 17 Sep Rs. 1,000 shortage → 18 Sep deposit Rs. 29,600 cleared both days (appliedToPrev=1,000). Jail Road 21 Sep Rs. 3,650 excess → 22 Sep netRequired reduced from Rs. 17,100 to Rs. 13,450.
+  - Frontend production build (`npm run build`): Exit code 0, 3,204 modules bundled cleanly.
+  - Git commit `133912f` pushed to `origin/main`.
+  - Vercel production deployment `dpl_14HSrwXP92hrG8owj7hZDuZPTGYY` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+
 ### Implemented This Session — Register & Bank Deposit: General Entry Deduction & Available Cash Alignment (commit 4566495, deployed & live-verified)
 - **Requirement**:
   - Fix calculation of Available Cash across Outlet Register and Bank Deposit.
