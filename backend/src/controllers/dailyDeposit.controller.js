@@ -334,6 +334,16 @@ const getDateRangeList = (startDateStr, endDateStr) => {
  * Synchronizes daily deposit requirements for an outlet from outletCutoff to targetDate.
  * Enforces Outlet Register as the single source of truth for base cash and date-specific 1:1 allocations.
  */
+/**
+ * Synchronizes daily deposit requirements and running carry-forward ledger for an outlet from outletCutoff to targetDate.
+ * Enforces:
+ * 1. Outlet Register as single source of truth for base cash and general entry deductions.
+ * 2. Running Ledger Carry-Forward:
+ *    - Short / Pending balance carries forward as previous pending to next business day.
+ *    - Excess balance carries forward as credit to reduce next business day's required deposit.
+ * 3. Priority Rule for new deposits:
+ *    Oldest Pending -> Current Day Requirement -> Excess Carry-Forward.
+ */
 const syncDailyRequirements = async (outletName, targetDate = getPktDateString()) => {
   const outletCutoff = getOutletCutoffDate(outletName);
   if (targetDate < outletCutoff) {
@@ -342,8 +352,279 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
 
   const dates = getDateRangeList(outletCutoff, targetDate);
 
-  // Fetch all existing requirements with allocations in range
-  const existingReqs = await prisma.dailyCashRequirement.findMany({
+  // 1. Fetch existing requirements and cash deposits in range
+  const [existingReqs, allDeposits] = await Promise.all([
+    prisma.dailyCashRequirement.findMany({
+      where: {
+        outletName,
+        businessDate: { gte: outletCutoff, lte: targetDate },
+      },
+      include: {
+        allocations: {
+          include: {
+            cashDeposit: true,
+          },
+        },
+      },
+      orderBy: { businessDate: 'asc' },
+    }),
+    prisma.cashDeposit.findMany({
+      where: {
+        outletName,
+        businessDate: { gte: outletCutoff },
+      },
+      orderBy: [
+        { businessDate: 'asc' },
+        { actualDepositDate: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    }),
+  ]);
+
+  const reqMap = new Map();
+  for (const r of existingReqs) {
+    reqMap.set(r.businessDate, r);
+  }
+
+  // Group deposits by their businessDate
+  const depositsByDate = new Map();
+  for (const d of allDeposits) {
+    if (!depositsByDate.has(d.businessDate)) {
+      depositsByDate.set(d.businessDate, []);
+    }
+    depositsByDate.get(d.businessDate).push(d);
+  }
+
+  // 2. Ensure all requirement rows exist in database
+  const dayBaseData = [];
+  for (const bDate of dates) {
+    const regData = await getAuthoritativeRegisterCash(outletName, bDate);
+    let req = reqMap.get(bDate);
+
+    if (!req) {
+      req = await prisma.dailyCashRequirement.create({
+        data: {
+          outletName,
+          businessDate: bDate,
+          cashGenerated: regData.generatedCash,
+          previousPending: 0,
+          requiredAmount: regData.availableCash,
+          depositedAmount: 0,
+          pendingAmount: regData.availableCash,
+          excessAmount: 0,
+          status: regData.availableCash > 0 ? 'PENDING' : 'CLEARED',
+        },
+      });
+      reqMap.set(bDate, req);
+    }
+
+    dayBaseData.push({
+      businessDate: bDate,
+      reqId: req.id,
+      regData,
+    });
+  }
+
+  // 3. Chronological priority allocation & running ledger simulation
+  const allocationsToCreate = [];
+  const reqUpdates = [];
+
+  // Track unresolved requirement needs from past dates: array of { reqId, date, needed }
+  const unfulfilledReqQueue = [];
+  let carriedExcess = 0;
+
+  for (const day of dayBaseData) {
+    const { businessDate: bDate, reqId, regData } = day;
+    const baseRequired = regData.availableCash;
+    const generatedCash = regData.generatedCash;
+    const generalEntryReduction = regData.generalEntryReduction;
+    const journalEntries = regData.journalEntries;
+
+    const dayDeposits = depositsByDate.get(bDate) || [];
+    const totalDayDeposit = Math.round(dayDeposits.reduce((sum, d) => sum + (d.amount || 0), 0) * 100) / 100;
+
+    // A. Apply Previous Excess Credit (if any) to reduce current day requirement
+    const prevExcess = carriedExcess;
+    let excessConsumed = 0;
+    let unconsumedExcess = 0;
+    let effectiveDayReq = baseRequired;
+
+    if (prevExcess > 0) {
+      excessConsumed = Math.min(baseRequired, prevExcess);
+      effectiveDayReq = Math.max(0, Math.round((baseRequired - prevExcess) * 100) / 100);
+      unconsumedExcess = Math.max(0, Math.round((prevExcess - baseRequired) * 100) / 100);
+    }
+
+    // B. Calculate previous pending from unfulfilled requirements queue
+    const prevPending = Math.round(unfulfilledReqQueue.reduce((sum, u) => sum + u.needed, 0) * 100) / 100;
+    const netRequired = Math.round((effectiveDayReq + prevPending) * 100) / 100;
+
+    // C. Allocate today's deposits according to Priority:
+    //    1. Oldest Pending -> 2. Current Day Effective Requirement -> 3. New Excess
+    let todaySatisfiedSoFar = 0;
+    let todayExcessSoFar = 0;
+    let totalAppliedToPrev = 0;
+
+    for (const dep of dayDeposits) {
+      let depLeft = dep.amount;
+
+      // Priority 1: Clear older unfulfilled requirements
+      while (depLeft > 0 && unfulfilledReqQueue.length > 0) {
+        const oldest = unfulfilledReqQueue[0];
+        const allocAmt = Math.min(depLeft, oldest.needed);
+        if (allocAmt > 0) {
+          allocationsToCreate.push({
+            cashDepositId: dep.id,
+            requirementId: oldest.reqId,
+            businessDate: oldest.date,
+            amount: Math.round(allocAmt * 100) / 100,
+            allocationType: 'PREVIOUS_PENDING',
+          });
+          oldest.needed = Math.round((oldest.needed - allocAmt) * 100) / 100;
+          depLeft = Math.round((depLeft - allocAmt) * 100) / 100;
+          totalAppliedToPrev = Math.round((totalAppliedToPrev + allocAmt) * 100) / 100;
+        }
+        if (oldest.needed <= 0.001) {
+          unfulfilledReqQueue.shift();
+        }
+      }
+
+      // Priority 2: Clear current day's effective requirement
+      const neededForToday = Math.max(0, Math.round((effectiveDayReq - todaySatisfiedSoFar) * 100) / 100);
+      if (depLeft > 0 && neededForToday > 0) {
+        const allocAmt = Math.min(depLeft, neededForToday);
+        allocationsToCreate.push({
+          cashDepositId: dep.id,
+          requirementId: reqId,
+          businessDate: bDate,
+          amount: Math.round(allocAmt * 100) / 100,
+          allocationType: 'CURRENT_DAY',
+        });
+        todaySatisfiedSoFar = Math.round((todaySatisfiedSoFar + allocAmt) * 100) / 100;
+        depLeft = Math.round((depLeft - allocAmt) * 100) / 100;
+      }
+
+      // Priority 3: Excess
+      if (depLeft > 0) {
+        allocationsToCreate.push({
+          cashDepositId: dep.id,
+          requirementId: reqId,
+          businessDate: bDate,
+          amount: Math.round(depLeft * 100) / 100,
+          allocationType: 'EXCESS',
+        });
+        todayExcessSoFar = Math.round((todayExcessSoFar + depLeft) * 100) / 100;
+        depLeft = 0;
+      }
+    }
+
+    // D. Check leftover needed for today's requirement
+    const todayLeftover = Math.max(0, Math.round((effectiveDayReq - todaySatisfiedSoFar) * 100) / 100);
+    if (todayLeftover > 0) {
+      unfulfilledReqQueue.push({ reqId, date: bDate, needed: todayLeftover });
+    }
+
+    // E. Running totals and carry-forward to next day
+    const appliedToCurrent = todaySatisfiedSoFar;
+    const newExcess = Math.round((todayExcessSoFar + unconsumedExcess) * 100) / 100;
+    carriedExcess = newExcess;
+
+    const notesObj = {
+      generalEntryReduction,
+      journalEntries,
+      previousPending: prevPending,
+      previousExcess: prevExcess,
+      consumedCredit: excessConsumed,
+      netRequired,
+      appliedToPrev: totalAppliedToPrev,
+      appliedToCurrent,
+      newExcess,
+    };
+
+    reqUpdates.push({
+      id: reqId,
+      businessDate: bDate,
+      cashGenerated: generatedCash,
+      requiredAmount: baseRequired,
+      previousPending: prevPending,
+      depositedAmount: totalDayDeposit,
+      excessAmount: newExcess,
+      notesObj,
+    });
+  }
+
+  // F. Final pass: Map unfulfilled amounts to each requirement's remaining pendingAmount
+  const unfulfilledMap = new Map();
+  for (const u of unfulfilledReqQueue) {
+    unfulfilledMap.set(u.reqId, u.needed);
+  }
+
+  const dbUpdateOps = [];
+
+  for (const ru of reqUpdates) {
+    const remainingPending = Math.round((unfulfilledMap.get(ru.id) || 0) * 100) / 100;
+    const newExcess = ru.excessAmount;
+    const baseReq = ru.requiredAmount;
+    const depAmt = ru.depositedAmount;
+    const prevExcess = ru.notesObj.previousExcess;
+    const netReq = ru.notesObj.netRequired;
+
+    let status = 'PENDING';
+    if (newExcess > 0) {
+      status = 'EXCESS';
+    } else if (remainingPending === 0) {
+      if (baseReq > 0 && depAmt === 0 && prevExcess >= baseReq) {
+        status = 'CLEARED_BY_CARRY_FORWARD';
+      } else if (depAmt > 0 || baseReq === 0) {
+        status = 'DEPOSITED';
+      } else {
+        status = 'CLEARED';
+      }
+    } else if (depAmt > 0 && remainingPending > 0) {
+      status = 'PARTIALLY_DEPOSITED';
+    } else if (baseReq === 0 && netReq === 0) {
+      status = 'CLEARED';
+    } else {
+      status = 'PENDING';
+    }
+
+    ru.notesObj.remainingPending = remainingPending;
+    ru.notesObj.status = status;
+    const notesStr = JSON.stringify(ru.notesObj);
+
+    dbUpdateOps.push(
+      prisma.dailyCashRequirement.update({
+        where: { id: ru.id },
+        data: {
+          cashGenerated: ru.cashGenerated,
+          requiredAmount: ru.requiredAmount,
+          previousPending: ru.previousPending,
+          depositedAmount: ru.depositedAmount,
+          pendingAmount: remainingPending,
+          excessAmount: newExcess,
+          status,
+          notes: notesStr,
+        },
+      })
+    );
+  }
+
+  // G. Execute database updates & allocations atomically in a transaction
+  await prisma.$transaction([
+    prisma.cashDepositAllocation.deleteMany({
+      where: {
+        requirement: { outletName },
+        businessDate: { gte: outletCutoff },
+      },
+    }),
+    ...(allocationsToCreate.length > 0
+      ? [prisma.cashDepositAllocation.createMany({ data: allocationsToCreate })]
+      : []),
+    ...dbUpdateOps,
+  ]);
+
+  // H. Return fresh requirements with allocations
+  const finalRequirements = await prisma.dailyCashRequirement.findMany({
     where: {
       outletName,
       businessDate: { gte: outletCutoff, lte: targetDate },
@@ -355,132 +636,10 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
         },
       },
     },
+    orderBy: { businessDate: 'desc' },
   });
 
-  const reqMap = new Map();
-  for (const r of existingReqs) {
-    reqMap.set(r.businessDate, r);
-  }
-
-  const toCreate = [];
-  const toUpdate = [];
-  const syncedResults = [];
-
-  for (const bDate of dates) {
-    // 1. Authoritative Register Cash & General Entry Reduction
-    const regData = await getAuthoritativeRegisterCash(outletName, bDate);
-    const req = reqMap.get(bDate);
-
-    // 2. Base required deposit equals Available Cash = Generated Cash - General Entry Reductions
-    const cashGenerated = regData.generatedCash;
-    const generalEntryReduction = regData.generalEntryReduction;
-    const requiredAmount = regData.availableCash;
-    const notes = generalEntryReduction > 0
-      ? JSON.stringify({ generalEntryReduction, journalEntries: regData.journalEntries })
-      : null;
-
-    // 3. Deposited amount equals sum of all deposit allocations credited to this business date
-    const allocations = req?.allocations || [];
-    const totalAllocated = allocations.reduce((sum, a) => sum + (a.amount || 0), 0);
-    const depositedAmount = Math.round(totalAllocated * 100) / 100;
-
-    // 4. Calculate exact remaining and excess
-    const pendingAmount = Math.max(0, Math.round((requiredAmount - depositedAmount) * 100) / 100);
-    const excessAmount = Math.max(0, Math.round((depositedAmount - requiredAmount) * 100) / 100);
-
-    // 5. Determine exact status
-    let status = 'PENDING';
-    if (depositedAmount >= requiredAmount && (requiredAmount > 0 || depositedAmount > 0)) {
-      status = depositedAmount > requiredAmount ? 'EXCESS' : 'DEPOSITED';
-    } else if (depositedAmount > 0 && pendingAmount > 0) {
-      status = 'PARTIALLY_DEPOSITED';
-    } else if (requiredAmount === 0 && depositedAmount === 0) {
-      status = 'CLEARED';
-    } else {
-      status = 'PENDING';
-    }
-
-    if (!req) {
-      toCreate.push({
-        outletName,
-        businessDate: bDate,
-        cashGenerated,
-        previousPending: 0,
-        requiredAmount,
-        depositedAmount,
-        pendingAmount,
-        excessAmount,
-        status,
-        notes,
-      });
-      syncedResults.push({
-        outletName,
-        businessDate: bDate,
-        cashGenerated,
-        previousPending: 0,
-        requiredAmount,
-        depositedAmount,
-        pendingAmount,
-        excessAmount,
-        status,
-        notes,
-        allocations: [],
-      });
-    } else {
-      const isDifferent =
-        req.cashGenerated !== cashGenerated ||
-        req.previousPending !== 0 ||
-        req.requiredAmount !== requiredAmount ||
-        req.depositedAmount !== depositedAmount ||
-        req.pendingAmount !== pendingAmount ||
-        req.excessAmount !== excessAmount ||
-        req.status !== status ||
-        req.notes !== notes;
-
-      if (isDifferent) {
-        toUpdate.push({
-          id: req.id,
-          data: {
-            cashGenerated,
-            previousPending: 0,
-            requiredAmount,
-            depositedAmount,
-            pendingAmount,
-            excessAmount,
-            status,
-            notes,
-          },
-        });
-      }
-
-      syncedResults.push({
-        ...req,
-        cashGenerated,
-        previousPending: 0,
-        requiredAmount,
-        depositedAmount,
-        pendingAmount,
-        excessAmount,
-        status,
-        notes,
-      });
-    }
-  }
-
-  // Batch database writes
-  const ops = [];
-  for (const c of toCreate) {
-    ops.push(prisma.dailyCashRequirement.create({ data: c, include: { allocations: true } }));
-  }
-  for (const u of toUpdate) {
-    ops.push(prisma.dailyCashRequirement.update({ where: { id: u.id }, data: u.data, include: { allocations: true } }));
-  }
-
-  if (ops.length > 0) {
-    await prisma.$transaction(ops);
-  }
-
-  return syncedResults;
+  return finalRequirements;
 };
 
 /**
@@ -492,7 +651,7 @@ const getDailyDeposits = async (req, res) => {
     const todayPkt = getPktDateString();
     const outletCutoff = getOutletCutoffDate(outletName);
 
-    // Ensure state is synchronized up to today
+    // Ensure state and running carry-forward ledger are synchronized up to today
     await syncDailyRequirements(outletName, todayPkt);
 
     // Date range filter
@@ -582,10 +741,19 @@ const getDailyDeposits = async (req, res) => {
     const previousPending = pastPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0);
 
     let todayReduction = 0;
+    let todayPrevPending = 0;
+    let todayPrevExcess = 0;
+    let todayNetRequired = todayReq ? todayReq.requiredAmount : 0;
+    let todayConsumedCredit = 0;
+
     if (todayReq?.notes) {
       try {
         const p = JSON.parse(todayReq.notes);
         if (typeof p?.generalEntryReduction === 'number') todayReduction = p.generalEntryReduction;
+        if (typeof p?.previousPending === 'number') todayPrevPending = p.previousPending;
+        if (typeof p?.previousExcess === 'number') todayPrevExcess = p.previousExcess;
+        if (typeof p?.consumedCredit === 'number') todayConsumedCredit = p.consumedCredit;
+        if (typeof p?.netRequired === 'number') todayNetRequired = p.netRequired;
       } catch (e) {}
     }
     if (!todayReduction && todayReq && todayReq.cashGenerated > todayReq.requiredAmount) {
@@ -596,7 +764,12 @@ const getDailyDeposits = async (req, res) => {
       todayCashGenerated: todayReq ? todayReq.cashGenerated : 0,
       todayGeneralEntryReduction: todayReduction,
       todayAvailableCash: todayReq ? todayReq.requiredAmount : 0,
-      todayRequiredDeposit: todayReq ? todayReq.requiredAmount : 0,
+      todayBaseRequired: todayReq ? todayReq.requiredAmount : 0,
+      todayPreviousPending: todayPrevPending,
+      todayPreviousExcess: todayPrevExcess,
+      todayConsumedCredit: todayConsumedCredit,
+      todayNetRequired: todayNetRequired,
+      todayRequiredDeposit: todayNetRequired,
       todayDeposited: todayReq ? todayReq.depositedAmount : 0,
       todayPending: todayReq ? todayReq.pendingAmount : 0,
       previousPending: Math.round(previousPending * 100) / 100,
@@ -618,6 +791,13 @@ const getDailyDeposits = async (req, res) => {
     const enhancedRequirements = requirements.map(r => {
       let generalEntryReduction = 0;
       let journalEntries = [];
+      let previousPending = r.previousPending || 0;
+      let previousExcess = 0;
+      let consumedCredit = 0;
+      let netRequired = r.requiredAmount;
+      let appliedToPrev = 0;
+      let appliedToCurrent = r.depositedAmount;
+
       if (r.notes) {
         try {
           const parsed = JSON.parse(r.notes);
@@ -626,6 +806,24 @@ const getDailyDeposits = async (req, res) => {
           }
           if (Array.isArray(parsed?.journalEntries)) {
             journalEntries = parsed.journalEntries;
+          }
+          if (typeof parsed?.previousPending === 'number') {
+            previousPending = parsed.previousPending;
+          }
+          if (typeof parsed?.previousExcess === 'number') {
+            previousExcess = parsed.previousExcess;
+          }
+          if (typeof parsed?.consumedCredit === 'number') {
+            consumedCredit = parsed.consumedCredit;
+          }
+          if (typeof parsed?.netRequired === 'number') {
+            netRequired = parsed.netRequired;
+          }
+          if (typeof parsed?.appliedToPrev === 'number') {
+            appliedToPrev = parsed.appliedToPrev;
+          }
+          if (typeof parsed?.appliedToCurrent === 'number') {
+            appliedToCurrent = parsed.appliedToCurrent;
           }
         } catch (e) {}
       }
@@ -639,7 +837,14 @@ const getDailyDeposits = async (req, res) => {
         registerCash: r.cashGenerated,
         generalEntryReduction,
         journalEntries,
+        baseRequired: r.requiredAmount,
         availableCash: r.requiredAmount,
+        previousPending,
+        previousExcess,
+        consumedCredit,
+        netRequired,
+        appliedToPrev,
+        appliedToCurrent,
         remainingAmount: r.pendingAmount,
       };
     });
@@ -660,7 +865,7 @@ const getDailyDeposits = async (req, res) => {
 
 /**
  * POST /api/daily-deposits/:outletName
- * Records a cash deposit and allocates it directly to the specified businessDate requirement.
+ * Records a cash deposit and reconciles it through the chronological carry-forward ledger.
  */
 const submitDailyDeposit = async (req, res) => {
   try {
@@ -684,13 +889,9 @@ const submitDailyDeposit = async (req, res) => {
     const effectiveBusinessDate = reqBusinessDate || todayPkt;
     const effectiveActualDate = actualDepositDate ? new Date(actualDepositDate) : new Date();
 
-    // 1. Ensure requirements are synchronized up to today
-    await syncDailyRequirements(outletName, todayPkt);
-
-    // 2. Perform deposit and 1:1 date allocation inside a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Create CashDeposit record
-      const cashDeposit = await tx.cashDeposit.create({
+    // 1. Create CashDeposit and BankDeposit records in transaction
+    const cashDeposit = await prisma.$transaction(async (tx) => {
+      const cd = await tx.cashDeposit.create({
         data: {
           outletName,
           businessDate: effectiveBusinessDate,
@@ -704,12 +905,11 @@ const submitDailyDeposit = async (req, res) => {
         },
       });
 
-      // Also create a BankDeposit for backward compatibility and till cash synchronization
       await tx.bankDeposit.create({
         data: {
           outletName,
           employeeName: employeeName || req.user?.name || 'Authorized Staff',
-          slipNumber: cashDeposit.referenceNumber,
+          slipNumber: cd.referenceNumber,
           amount: depositAmount,
           notes: notes || `Daily deposit for ${effectiveBusinessDate}`,
           status: 'COMPLETED',
@@ -718,69 +918,17 @@ const submitDailyDeposit = async (req, res) => {
         },
       });
 
-      // Fetch or ensure requirement for effectiveBusinessDate
-      let targetReq = await tx.dailyCashRequirement.findUnique({
-        where: {
-          outletName_businessDate: { outletName, businessDate: effectiveBusinessDate },
-        },
-        include: { allocations: true },
-      });
-
-      if (!targetReq) {
-        const regData = await getAuthoritativeRegisterCash(outletName, effectiveBusinessDate);
-        targetReq = await tx.dailyCashRequirement.create({
-          data: {
-            outletName,
-            businessDate: effectiveBusinessDate,
-            cashGenerated: regData.generatedCash,
-            requiredAmount: regData.availableCash,
-            pendingAmount: regData.availableCash,
-            status: regData.availableCash > 0 ? 'PENDING' : 'CLEARED',
-            notes: regData.generalEntryReduction > 0
-              ? JSON.stringify({ generalEntryReduction: regData.generalEntryReduction, journalEntries: regData.journalEntries })
-              : null,
-          },
-          include: { allocations: true },
-        });
-      }
-
-      const existingDeposited = (targetReq.allocations || []).reduce((s, a) => s + (a.amount || 0), 0);
-      const neededToClear = Math.max(0, targetReq.requiredAmount - existingDeposited);
-      const allocToCurrent = Math.min(neededToClear, depositAmount);
-      const excess = Math.max(0, depositAmount - allocToCurrent);
-
-      const allocationsToCreate = [];
-      if (allocToCurrent > 0) {
-        allocationsToCreate.push({
-          cashDepositId: cashDeposit.id,
-          requirementId: targetReq.id,
-          businessDate: effectiveBusinessDate,
-          amount: Math.round(allocToCurrent * 100) / 100,
-          allocationType: 'CURRENT_DAY',
-        });
-      }
-
-      if (excess > 0) {
-        allocationsToCreate.push({
-          cashDepositId: cashDeposit.id,
-          requirementId: targetReq.id,
-          businessDate: effectiveBusinessDate,
-          amount: Math.round(excess * 100) / 100,
-          allocationType: 'EXCESS',
-        });
-      }
-
-      if (allocationsToCreate.length > 0) {
-        await tx.cashDepositAllocation.createMany({
-          data: allocationsToCreate,
-        });
-      }
-
-      return { cashDeposit, allocations: allocationsToCreate };
+      return cd;
     });
 
-    // 3. Re-sync all requirements to update exact pendingAmount, depositedAmount, and statuses
+    // 2. Reconcile running carry-forward ledger and build priority allocations
     await syncDailyRequirements(outletName, todayPkt);
+
+    // 3. Fetch newly generated allocations for this deposit
+    const allocations = await prisma.cashDepositAllocation.findMany({
+      where: { cashDepositId: cashDeposit.id },
+      include: { requirement: true },
+    });
 
     // Notify administrators
     await notify.create(req, {
@@ -796,8 +944,8 @@ const submitDailyDeposit = async (req, res) => {
 
     res.status(201).json({
       message: 'Daily cash deposit recorded successfully',
-      deposit: result.cashDeposit,
-      allocations: result.allocations,
+      deposit: cashDeposit,
+      allocations,
     });
   } catch (error) {
     console.error('submitDailyDeposit error:', error);
@@ -806,7 +954,7 @@ const submitDailyDeposit = async (req, res) => {
 };
 
 /**
- * Re-allocates all cash deposits directly to their business date requirements.
+ * Re-allocates all cash deposits and rebuilds the running carry-forward ledger.
  * Strictly respects branch isolation: only rebuilds the requested outlet.
  */
 const rebuildOutletDepositState = async (req, res) => {
@@ -822,87 +970,6 @@ const rebuildOutletDepositState = async (req, res) => {
     const results = {};
 
     for (const outletName of outletsToRebuild) {
-      const outletCutoff = getOutletCutoffDate(outletName);
-
-      // 1. Wipe existing allocations and requirements from outletCutoff in one transaction
-      await prisma.$transaction([
-        prisma.cashDepositAllocation.deleteMany({
-          where: { cashDeposit: { outletName }, businessDate: { gte: outletCutoff } },
-        }),
-        prisma.dailyCashRequirement.deleteMany({
-          where: { outletName, businessDate: { gte: outletCutoff } },
-        }),
-      ]);
-
-      // 2. Compute initial requirements with 0 allocations
-      await syncDailyRequirements(outletName, todayPkt);
-
-      // 3. Fetch all base requirements and deposits for this outlet
-      const [allRequirements, allDeposits] = await Promise.all([
-        prisma.dailyCashRequirement.findMany({
-          where: {
-            outletName,
-            businessDate: { gte: outletCutoff, lte: todayPkt },
-          },
-          orderBy: { businessDate: 'asc' },
-        }),
-        prisma.cashDeposit.findMany({
-          where: {
-            outletName,
-            businessDate: { gte: outletCutoff },
-          },
-          orderBy: [
-            { businessDate: 'asc' },
-            { actualDepositDate: 'asc' },
-            { createdAt: 'asc' },
-          ],
-        }),
-      ]);
-
-      // 4. Map deposits 1:1 to their business date requirements
-      const reqMap = new Map();
-      allRequirements.forEach(r => reqMap.set(r.businessDate, { ...r, depositedSum: 0 }));
-
-      const allocationsToCreate = [];
-
-      for (const deposit of allDeposits) {
-        const r = reqMap.get(deposit.businessDate);
-        if (r) {
-          const needed = Math.max(0, r.requiredAmount - r.depositedSum);
-          const allocAmt = Math.min(needed, deposit.amount);
-          const excessAmt = Math.max(0, deposit.amount - allocAmt);
-
-          if (allocAmt > 0) {
-            allocationsToCreate.push({
-              cashDepositId: deposit.id,
-              requirementId: r.id,
-              businessDate: r.businessDate,
-              amount: Math.round(allocAmt * 100) / 100,
-              allocationType: 'CURRENT_DAY',
-            });
-            r.depositedSum += allocAmt;
-          }
-          if (excessAmt > 0) {
-            allocationsToCreate.push({
-              cashDepositId: deposit.id,
-              requirementId: r.id,
-              businessDate: r.businessDate,
-              amount: Math.round(excessAmt * 100) / 100,
-              allocationType: 'EXCESS',
-            });
-            r.depositedSum += excessAmt;
-          }
-        }
-      }
-
-      // 5. Batch insert all allocations in a single database call
-      if (allocationsToCreate.length > 0) {
-        await prisma.cashDepositAllocation.createMany({
-          data: allocationsToCreate,
-        });
-      }
-
-      // 6. Final fast sync to update exact pendingAmount, depositedAmount, and statuses
       const updatedReqs = await syncDailyRequirements(outletName, todayPkt);
       results[outletName] = updatedReqs.length;
     }
