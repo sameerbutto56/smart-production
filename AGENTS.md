@@ -1,5 +1,37 @@
 ## Goals
-### Implemented This Session — Delivery Boy Admin Dashboard: Carry Forward Workload Parity, Advance Paid Clearance & Split Payment Validation (deployed & live-verified)
+### Implemented This Session — Software Settings: Deposit Record Edit / Reverse Exception in Price / Exceptions (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Software Settings Only**: Add the Deposit Record Edit / Reverse Exception exclusively inside **Software Settings → Price / Exceptions**. Must NOT be linked with Admin Profile, Admin Dashboard permissions, or any separate Admin permission system (no Admin Dashboard permission, no Admin Profile permission, no Admin role toggle, no Admin navigation permission).
+  2. **Full Historical & Real-Time Business Date Flexibility**: Authorized users can select any outlet (Jail Road, Johar Town, Abbottabad) and any business date (past, present, or future) to inspect the recorded deposit, edit/correct the deposit amount (e.g. from ₨25,000 to ₨28,000), or reverse it to ₨0.
+  3. **Zero Impact on POS Sales & Registers**: Modifying or reversing a deposit record must NEVER touch or mutate POS sales, Register Generated Cash, Available Cash, General Entries, Returns, or Online/Card transactions. All baseline figures remain 100% frozen and authentic.
+  4. **Automatic Running Carry-Forward Ledger Recalculation**: Immediately and atomically recalculates the chronological carry-forward ledger across all subsequent dates from cutoff to today (`syncDailyRequirements(outletName, todayPkt, { forceRequery: true })`), updating `depositedAmount`, `previousPending`, `pendingAmount`, `excessAmount`, and `status`.
+  5. **Immediate Outlet Portal Synchronization**: The relevant outlet portal (`DailyCashDepositSection.jsx`) immediately reflects the corrected deposit amount with zero manual intervention or cache lag.
+  6. **Immutable Audit History**: Every edit or reversal records an immutable audit log (`DepositCorrectionAudit`) capturing: Outlet, Business Date, Previous Amount, Corrected Amount, Difference, Timestamp, User, Reason/Note, Original References, and Before/After metadata.
+- **Backend Implementation (`schema.prisma`, `dailyDeposit.controller.js`, `softwareSettings.routes.js`)**:
+  - `schema.prisma`: Added `model DepositCorrectionAudit` with indexes on `[outletName]`, `[businessDate]`, and `[createdAt]`. Synced with database via `npx prisma db push` and `npx prisma generate`.
+  - `dailyDeposit.controller.js`:
+    - `getDepositRecordForDate`: Retrieves authoritative register figures (`generatedCash`, `generalEntryReduction`, `availableCash`), existing `CashDeposit` slips, `DailyCashRequirement` status, and recent audit logs.
+    - `correctDepositRecord`: Atomic `$transaction` that handles slip update/consolidation, new slip creation, or reversal/deletion (`CashDeposit.deleteMany`, `BankDeposit.status = 'REVERSED'`). Inserts immutable `DepositCorrectionAudit`. Recalculates full chronological carry-forward ledger and clears cache (`invalidateDepositCache`). Dispatches administrative notification.
+    - `getDepositCorrectionHistory`: Retrieves audit history filtered by outlet and date.
+  - `softwareSettings.routes.js`: Registered endpoints strictly protected by `authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN'])`:
+    - `GET /api/software-settings/deposit-exception/record`
+    - `POST /api/software-settings/deposit-exception/correct`
+    - `GET /api/software-settings/deposit-exception/history`
+- **Frontend Implementation (`DepositRecordExceptionPanel.jsx`, `SoftwareSettings.jsx`)**:
+  - `DepositRecordExceptionPanel.jsx`:
+    - Outlet selector (Jail Road, Johar Town, Abbottabad) & business date picker with Quick Today / Yesterday actions.
+    - Read-only register baseline summary card (Generated Cash, General Entry Deduction, Available Cash) highlighting the preservation guarantee.
+    - Current deposit status badge and existing deposit slips breakdown.
+    - Correction & Reversal form with live financial impact indicator (`₨25,000 → ₨28,000 (+₨3,000)`), quick helper buttons ("Fill Available Cash", "Set to ₨0 (Reverse)"), bank & reference inputs, and mandatory reason field.
+    - Financial confirmation modal before execution.
+    - Searchable and filterable immutable audit history table.
+  - `SoftwareSettings.jsx`:
+    - Added tab `{ key: 'price-exceptions', label: 'Price / Exceptions', icon: <Banknote size={16} /> }`.
+    - Rendered `<DepositRecordExceptionPanel />` under `activeTab === 'price-exceptions'`.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-deposit-record-exception.cjs`: 15/15 tests passed (100% pass rate) covering baseline retrieval, correction, +₨3,000 difference, DB slips updates, reversal to ₨0, audit history logging, zero impact on POS sales/registers/general entries/returns, and full state cleanup.
+  - Production build (`cd frontend && npm run build`): Exit code 0, 3,204 modules bundled cleanly.
+
 - **Problem & Requirements**:
   1. **Carry Forward Workload Parity**: Orders carried forward from previous days were correctly appearing in Delivery Boy Profile (`DeliveryDashboard.jsx`) and Gate Pass (`tahirSheet.controller.js`), but were missing from the Admin Dashboard (`EnamelsDeliveryCard.jsx` / `/api/delivery/analytics`) when viewing "Today" because event filters strictly checked assignment timestamps within the day filter window.
   2. **Advance Paid Orders Clearance**: Orders marked as `PAID` or fully covered by advance payments were improperly classified as COD upon delivery, demanding collection from riders and inflating outstanding COD.

@@ -1032,6 +1032,344 @@ const rebuildOutletDepositState = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/software-settings/deposit-exception/record
+ * Retrieves existing deposit details, register baseline, and requirement status for any business date.
+ * Exclusively used by Software Settings -> Price / Exceptions.
+ */
+const getDepositRecordForDate = async (req, res) => {
+  try {
+    const { outletName, businessDate } = req.query;
+    if (!outletName || !businessDate) {
+      return res.status(400).json({ message: 'Both outletName and businessDate are required' });
+    }
+
+    // Fetch existing cash deposits for this outlet and business date
+    const deposits = await prisma.cashDeposit.findMany({
+      where: { outletName, businessDate },
+      include: {
+        allocations: true,
+      },
+      orderBy: [{ actualDepositDate: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    // Fetch requirement record for this outlet and business date
+    let requirement = await prisma.dailyCashRequirement.findUnique({
+      where: {
+        outletName_businessDate: { outletName, businessDate },
+      },
+      include: {
+        allocations: {
+          include: {
+            cashDeposit: true,
+          },
+        },
+      },
+    });
+
+    // If no requirement record yet, compute authoritative register cash
+    const regData = await getAuthoritativeRegisterCash(outletName, businessDate);
+
+    // Sum total currently recorded deposit for this date
+    const totalDepositedAmount = Math.round(deposits.reduce((sum, d) => sum + (d.amount || 0), 0) * 100) / 100;
+
+    // Fetch audit history for this specific outlet and date
+    const audits = await prisma.depositCorrectionAudit.findMany({
+      where: { outletName, businessDate },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    res.json({
+      outletName,
+      businessDate,
+      generatedCash: requirement?.cashGenerated ?? regData.generatedCash ?? 0,
+      generalEntryReduction: regData.generalEntryReduction ?? 0,
+      availableCash: requirement?.requiredAmount ?? regData.availableCash ?? 0,
+      totalDepositedAmount,
+      pendingAmount: requirement?.pendingAmount ?? 0,
+      excessAmount: requirement?.excessAmount ?? 0,
+      status: requirement?.status || (totalDepositedAmount > 0 ? 'DEPOSITED' : 'PENDING'),
+      notes: requirement?.notes,
+      slips: deposits,
+      audits,
+    });
+  } catch (error) {
+    console.error('getDepositRecordForDate error:', error);
+    res.status(500).json({ message: 'Failed to fetch deposit record', error: error.message });
+  }
+};
+
+/**
+ * POST /api/software-settings/deposit-exception/correct
+ * Corrects or reverses an existing deposit record for any business date.
+ * Strictly preserves POS sales and register cash.
+ * Recalculates chronological carry-forward ledger across all subsequent dates.
+ */
+const correctDepositRecord = async (req, res) => {
+  try {
+    const {
+      outletName,
+      businessDate,
+      correctedAmount: rawCorrectedAmount,
+      actionType: reqActionType,
+      reason,
+      bankName,
+      referenceNumber,
+    } = req.body;
+
+    if (!outletName || !businessDate) {
+      return res.status(400).json({ message: 'outletName and businessDate are required' });
+    }
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ message: 'A reason/note for this correction or reversal is required' });
+    }
+
+    const correctedAmount = Math.round(Math.max(0, parseFloat(rawCorrectedAmount || 0)) * 100) / 100;
+    if (isNaN(correctedAmount)) {
+      return res.status(400).json({ message: 'Valid corrected deposit amount is required' });
+    }
+
+    const actionType = correctedAmount === 0 ? 'REVERSAL' : (reqActionType || 'CORRECTION');
+    const todayPkt = getPktDateString();
+
+    // Perform database changes atomically
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Fetch all existing deposits on this business date
+      const existingDeposits = await tx.cashDeposit.findMany({
+        where: { outletName, businessDate },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const previousDepositAmount = Math.round(
+        existingDeposits.reduce((sum, d) => sum + (d.amount || 0), 0) * 100
+      ) / 100;
+
+      const difference = Math.round((correctedAmount - previousDepositAmount) * 100) / 100;
+      const originalReferences = existingDeposits
+        .map((d) => d.referenceNumber)
+        .filter(Boolean)
+        .join(', ');
+
+      const metadata = JSON.stringify({
+        previousSlips: existingDeposits.map((d) => ({
+          id: d.id,
+          amount: d.amount,
+          referenceNumber: d.referenceNumber,
+          bankName: d.bankName,
+          actualDepositDate: d.actualDepositDate,
+          createdByName: d.createdByName,
+        })),
+        correctedAmount,
+        difference,
+        correctedBy: req.user?.name || 'Software Settings',
+        timestamp: new Date().toISOString(),
+      });
+
+      // 2. Apply correction or reversal to CashDeposit and BankDeposit
+      if (actionType === 'REVERSAL' || correctedAmount === 0) {
+        // Delete CashDeposit records (cascades to allocations)
+        if (existingDeposits.length > 0) {
+          const idsToDelete = existingDeposits.map((d) => d.id);
+          await tx.cashDeposit.deleteMany({
+            where: { id: { in: idsToDelete } },
+          });
+
+          // Mark corresponding BankDeposit slips as REVERSED
+          const slipNumbers = existingDeposits
+            .map((d) => d.referenceNumber)
+            .filter(Boolean);
+          if (slipNumbers.length > 0) {
+            await tx.bankDeposit.updateMany({
+              where: {
+                outletName,
+                slipNumber: { in: slipNumbers },
+              },
+              data: {
+                status: 'REVERSED',
+                notes: `[REVERSED on ${new Date().toISOString()}] Reason: ${reason.trim()}`,
+              },
+            });
+          }
+        }
+      } else {
+        // CORRECTION to a positive amount
+        if (existingDeposits.length === 1) {
+          const single = existingDeposits[0];
+          const newRef = referenceNumber?.trim() || single.referenceNumber;
+          const newBank = bankName !== undefined ? bankName : single.bankName;
+
+          await tx.cashDeposit.update({
+            where: { id: single.id },
+            data: {
+              amount: correctedAmount,
+              referenceNumber: newRef,
+              bankName: newBank,
+              notes: `${single.notes ? single.notes + ' ' : ''}[Corrected from ₨${previousDepositAmount.toLocaleString()} to ₨${correctedAmount.toLocaleString()}: ${reason.trim()}]`,
+            },
+          });
+
+          if (single.referenceNumber) {
+            await tx.bankDeposit.updateMany({
+              where: {
+                outletName,
+                slipNumber: single.referenceNumber,
+              },
+              data: {
+                amount: correctedAmount,
+                slipNumber: newRef,
+                notes: `[Corrected to ₨${correctedAmount.toLocaleString()}] Reason: ${reason.trim()}`,
+              },
+            });
+          }
+        } else if (existingDeposits.length > 1) {
+          // Multiple slips exist: consolidate into the first slip with the corrected amount and delete redundant ones
+          const [primary, ...rest] = existingDeposits;
+          const newRef = referenceNumber?.trim() || primary.referenceNumber;
+          const newBank = bankName !== undefined ? bankName : primary.bankName;
+
+          await tx.cashDeposit.update({
+            where: { id: primary.id },
+            data: {
+              amount: correctedAmount,
+              referenceNumber: newRef,
+              bankName: newBank,
+              notes: `[Consolidated from ${existingDeposits.length} slips (total was ₨${previousDepositAmount.toLocaleString()}) to ₨${correctedAmount.toLocaleString()}: ${reason.trim()}]`,
+            },
+          });
+
+          if (rest.length > 0) {
+            await tx.cashDeposit.deleteMany({
+              where: { id: { in: rest.map((d) => d.id) } },
+            });
+          }
+
+          if (primary.referenceNumber) {
+            await tx.bankDeposit.updateMany({
+              where: {
+                outletName,
+                slipNumber: primary.referenceNumber,
+              },
+              data: {
+                amount: correctedAmount,
+                slipNumber: newRef,
+                notes: `[Consolidated and Corrected to ₨${correctedAmount.toLocaleString()}] Reason: ${reason.trim()}`,
+              },
+            });
+          }
+        } else {
+          // No deposit existed previously for this date: create fresh CashDeposit and BankDeposit
+          const newRef = referenceNumber?.trim() || `DEP-CORR-${Date.now().toString().slice(-6)}`;
+          await tx.cashDeposit.create({
+            data: {
+              outletName,
+              businessDate,
+              actualDepositDate: new Date(),
+              amount: correctedAmount,
+              bankName: bankName || null,
+              referenceNumber: newRef,
+              notes: `[Created via Software Settings Exception]: ${reason.trim()}`,
+              createdById: req.user?.id || null,
+              createdByName: req.user?.name || 'Software Settings',
+            },
+          });
+
+          await tx.bankDeposit.create({
+            data: {
+              outletName,
+              employeeName: req.user?.name || 'Software Settings',
+              slipNumber: newRef,
+              amount: correctedAmount,
+              notes: `[Created via Software Settings Exception]: ${reason.trim()}`,
+              status: 'COMPLETED',
+              createdBy: req.user?.name || 'Software Settings',
+            },
+          });
+        }
+      }
+
+      // 3. Record immutable audit entry
+      const audit = await tx.depositCorrectionAudit.create({
+        data: {
+          outletName,
+          businessDate,
+          previousDepositAmount,
+          correctedDepositAmount: correctedAmount,
+          difference,
+          actionType,
+          performedById: req.user?.id || null,
+          performedByName: req.user?.name || 'Software Settings Admin',
+          reason: reason.trim(),
+          originalReference: originalReferences || null,
+          metadata,
+        },
+      });
+
+      return {
+        audit,
+        previousDepositAmount,
+        correctedDepositAmount: correctedAmount,
+        difference,
+      };
+    });
+
+    // 4. Recalculate the running carry-forward ledger from cutoff to today
+    // forceRequery: true ensures past closed dates reflect the corrected deposit amount!
+    await syncDailyRequirements(outletName, todayPkt, { forceRequery: true });
+    invalidateDepositCache(outletName);
+
+    // Notify administrators
+    await notify.create(req, {
+      type: 'bank_deposit',
+      moduleName: 'Software Settings Deposit Exception',
+      path: '/software-settings?tab=price-exceptions',
+      role: 'SOFTWARE_SETTINGS',
+      title: `Deposit Record ${actionType === 'REVERSAL' ? 'Reversed' : 'Corrected'}`,
+      message: `${outletName} (${businessDate}): ₨${result.previousDepositAmount.toLocaleString()} → ₨${result.correctedDepositAmount.toLocaleString()} (Diff: ₨${result.difference.toLocaleString()}) by ${req.user?.name}`,
+      action: actionType,
+      employeeName: req.user?.name,
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: `Deposit record successfully ${actionType === 'REVERSAL' ? 'reversed' : 'corrected'} and carry-forward ledger recalculated.`,
+      ...result,
+    });
+  } catch (error) {
+    console.error('correctDepositRecord error:', error);
+    res.status(500).json({ message: 'Failed to correct deposit record', error: error.message });
+  }
+};
+
+/**
+ * GET /api/software-settings/deposit-exception/history
+ * Returns the immutable audit history of deposit corrections and reversals.
+ */
+const getDepositCorrectionHistory = async (req, res) => {
+  try {
+    const { outletName, businessDate, limit = 50 } = req.query;
+    const where = {};
+    if (outletName && outletName !== 'all') {
+      where.outletName = outletName;
+    }
+    if (businessDate) {
+      where.businessDate = businessDate;
+    }
+
+    const history = await prisma.depositCorrectionAudit.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(200, parseInt(limit, 10) || 50),
+    });
+
+    res.json({ history });
+  } catch (error) {
+    console.error('getDepositCorrectionHistory error:', error);
+    res.status(500).json({ message: 'Failed to fetch deposit correction history', error: error.message });
+  }
+};
+
 module.exports = {
   DEFAULT_CUTOFF_DATE,
   CUTOFF_DATE,
@@ -1043,6 +1381,9 @@ module.exports = {
   getDailyDeposits,
   submitDailyDeposit,
   rebuildOutletDepositState,
+  getDepositRecordForDate,
+  correctDepositRecord,
+  getDepositCorrectionHistory,
 };
 
 

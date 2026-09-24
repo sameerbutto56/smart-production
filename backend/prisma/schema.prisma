@@ -1518,6 +1518,26 @@ model CashDepositAllocation {
   @@index([businessDate])
 }
 
+model DepositCorrectionAudit {
+  id                     String    @id @default(uuid())
+  outletName             String
+  businessDate           String    // YYYY-MM-DD
+  previousDepositAmount  Float
+  correctedDepositAmount Float
+  difference             Float
+  actionType             String    @default("CORRECTION") // CORRECTION, REVERSAL
+  performedById          String?
+  performedByName        String
+  reason                 String?
+  originalReference      String?
+  metadata               String?   // JSON with detailed before/after slips or calculation impact
+  createdAt              DateTime  @default(now())
+
+  @@index([outletName])
+  @@index([businessDate])
+  @@index([createdAt])
+}
+
 
 model DeliveryDeposit {
   id              String   @id @default(uuid())

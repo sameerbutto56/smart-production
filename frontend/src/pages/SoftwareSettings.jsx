@@ -12,6 +12,7 @@ import OrderPhaseHistoryPanel from '../components/OrderPhaseHistoryPanel';
 import PostExIntegrationPanel from '../components/PostExIntegrationPanel';
 import OrderRangePanel from '../components/OrderRangePanel';
 import DeleteInvoicePanel from '../components/DeleteInvoicePanel';
+import DepositRecordExceptionPanel from '../components/DepositRecordExceptionPanel';
 
 const PROFILE_LABELS = {
   POS: 'POS',
@@ -598,6 +599,7 @@ const SoftwareSettings = () => {
     { key: 'employees', label: 'Employee Management', icon: <Users size={16} /> },
     { key: 'login-users', label: 'Login Users', icon: <UserPlus size={16} /> },
     { key: 'payment', label: 'Payment Method Change', icon: <ArrowLeftRight size={16} /> },
+    { key: 'price-exceptions', label: 'Price / Exceptions', icon: <Banknote size={16} /> },
     { key: 'delete-invoice', label: 'Delete Invoice', icon: <Trash2 size={16} /> },
     { key: 'delay', label: 'Set Delay', icon: <Clock size={16} /> },
     { key: 'devices', label: 'Device Management', icon: <Laptop size={16} /> },
@@ -960,6 +962,9 @@ const SoftwareSettings = () => {
           </div>
         </>
       )}
+
+      {/* ═══════════════ PRICE / EXCEPTIONS TAB (DEPOSIT RECORD EXCEPTION) ═══════════════ */}
+      {activeTab === 'price-exceptions' && <DepositRecordExceptionPanel />}
 
       {/* ═══════════════ DELETE INVOICE TAB ═══════════════ */}
       {activeTab === 'delete-invoice' && <DeleteInvoicePanel />}

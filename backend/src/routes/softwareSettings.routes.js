@@ -17,6 +17,11 @@ const {
   lookupInvoiceForDeletion,
   deleteInvoicePermanently,
 } = require('../controllers/softwareSettings.controller');
+const {
+  getDepositRecordForDate,
+  correctDepositRecord,
+  getDepositCorrectionHistory,
+} = require('../controllers/dailyDeposit.controller');
 
 const router = express.Router();
 
@@ -46,5 +51,10 @@ router.post('/delay-config', authenticate, authorize('SOFTWARE_SETTINGS'), updat
 // Order range configuration — read: any authenticated user; write: SOFTWARE_SETTINGS only
 router.get('/order-range', authenticate, getOrderRange);
 router.post('/order-range', authenticate, authorize('SOFTWARE_SETTINGS'), updateOrderRange);
+
+// Deposit Record Edit / Reverse Exception — SOFTWARE_SETTINGS, SUPER_ADMIN only
+router.get('/deposit-exception/record', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN']), getDepositRecordForDate);
+router.post('/deposit-exception/correct', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN']), correctDepositRecord);
+router.get('/deposit-exception/history', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN']), getDepositCorrectionHistory);
 
 module.exports = router;
