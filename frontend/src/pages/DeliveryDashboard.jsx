@@ -336,15 +336,15 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               </div>
             )}
             {(() => {
-              const paid = isPaidOrder(order);
+              const paid = isPaidOrder(order) || totalRemaining <= 0.01;
               const statusBanner = paid
-                ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID — No COD Due</span></div>
-                : <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">COD: ₨{Number(totalRemaining || 0).toLocaleString()}</span></div>;
+                ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center justify-between"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID — No COD Due (₨0)</span></div>
+                : <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center justify-between"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">Amount to Collect: ₨{Number(totalRemaining || 0).toLocaleString()}</span></div>;
               if (paid) return (
                 <div className="space-y-3">
                   {statusBanner}
                   <div className="grid grid-cols-3 gap-3">
-                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'DELIVERED', '', 'CASH', 0, 0, [])} className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-1.5">
+                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'DELIVERED', '', 'PAID', 0, 0, [])} className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-1.5">
                       <span>✓</span> Deliver
                     </button>
                     <button disabled={loading === order.id} onClick={() => onAction(order.id, 'NOT_RESPONDED', '')} className="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40 flex items-center justify-center gap-1.5">
@@ -359,51 +359,78 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               return (
                 <div className="space-y-3">
                   {statusBanner}
-                  {/* Payment Method Selection */}
+                  {/* Payment Method Selection — strictly Cash, Online, and Cash + Online */}
                   <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
                     <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'CASH' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); setMultiOnlineEntries(prev => ({ ...prev, [orderId]: [{ provider: '', amount: totalRemaining || '', ref: '' }] })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${(paymentMethods[orderId] || 'CASH') === 'CASH' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'CASH' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); }}
+                        className={`py-2.5 rounded-xl text-xs font-black transition-all ${(paymentMethods[orderId] || 'CASH') === 'CASH' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
                         💵 Cash
                       </button>
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'ONLINE' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); setMultiOnlineEntries(prev => ({ ...prev, [orderId]: [{ provider: '', amount: totalRemaining || '', ref: '' }] })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'ONLINE' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
+                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'ONLINE' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); }}
+                        className={`py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'ONLINE' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
                         💳 Online
                       </button>
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'CASH_ONLINE' })); if (!halfPayments?.[orderId]) { setHalfPayments(prev => ({ ...prev, [orderId]: { cash: Math.floor(totalRemaining / 2), online: Math.ceil(totalRemaining / 2) } })); } setMultiOnlineEntries(prev => ({ ...prev, [orderId]: [{ provider: '', amount: totalRemaining || '', ref: '' }] })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'CASH_ONLINE' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
+                      <button onClick={() => {
+                        setPaymentMethods(prev => ({ ...prev, [orderId]: 'CASH_ONLINE' }));
+                        if (!halfPayments?.[orderId]) {
+                          const halfCash = Math.floor(totalRemaining / 2);
+                          setHalfPayments(prev => ({ ...prev, [orderId]: { cash: halfCash, online: totalRemaining - halfCash } }));
+                        }
+                      }}
+                        className={`py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'CASH_ONLINE' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
                         💜 Cash + Online
-                      </button>
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'MULTIPLE_ONLINE' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'MULTIPLE_ONLINE' ? 'bg-cyan-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
-                        📱 Multiple Online
                       </button>
                     </div>
 
-                    {/* Cash+Online split inputs */}
-                    {paymentMethods[orderId] === 'CASH_ONLINE' && (
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div>
-                          <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount</p>
-                          <input type="number" value={halfPayments?.[orderId]?.cash || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [orderId]: { ...prev?.[orderId], cash: Math.min(Number(e.target.value) || 0, totalRemaining) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={totalRemaining} />
-                        </div>
-                        <div>
-                          <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount</p>
-                          <input type="number" value={halfPayments?.[orderId]?.online || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [orderId]: { ...prev?.[orderId], online: Math.min(Number(e.target.value) || 0, totalRemaining) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={totalRemaining} />
-                        </div>
-                      </div>
-                    )}
+                    {/* Cash+Online split inputs with live validation */}
+                    {paymentMethods[orderId] === 'CASH_ONLINE' && (() => {
+                      const hp = halfPayments?.[orderId] || { cash: 0, online: 0 };
+                      const cashVal = parseFloat(hp.cash) || 0;
+                      const onlineVal = parseFloat(hp.online) || 0;
+                      const splitSum = Math.round((cashVal + onlineVal) * 100) / 100;
+                      const splitDiff = Math.round((totalRemaining - splitSum) * 100) / 100;
+                      const isValid = Math.abs(splitDiff) <= 0.01;
 
-                    {/* Multiple Online inputs */}
-                    {paymentMethods[orderId] === 'MULTIPLE_ONLINE' && (
-                      <div className="mt-3">
-                        <MultipleOnlineInputs entries={multiEntries} setEntries={(updater) => {
-                          const next = typeof updater === 'function' ? updater(multiEntries) : updater;
-                          setMultiOnlineEntries(prev => ({ ...prev, [orderId]: next }));
-                        }} />
-                      </div>
-                    )}
+                      return (
+                        <div className="space-y-2 mt-3 pt-3 border-t border-gray-700/60">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount (₨)</p>
+                              <input type="number" value={hp.cash ?? ''} onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setHalfPayments(prev => ({ ...prev, [orderId]: { cash: val, online: Math.max(0, totalRemaining - val) } }));
+                              }} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" placeholder="0" />
+                            </div>
+                            <div>
+                              <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount (₨)</p>
+                              <input type="number" value={hp.online ?? ''} onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setHalfPayments(prev => ({ ...prev, [orderId]: { ...prev?.[orderId], online: val } }));
+                              }} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" placeholder="0" />
+                            </div>
+                          </div>
+
+                          <div className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center justify-between ${
+                            isValid
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-red-500/10 text-red-400 border-red-500/20'
+                          }`}>
+                            {isValid ? (
+                              <span>✓ Sum: ₨{splitSum.toLocaleString()} matches Amount Due (₨{totalRemaining.toLocaleString()})</span>
+                            ) : splitDiff > 0 ? (
+                              <>
+                                <span>✗ Remaining to allocate: ₨{splitDiff.toLocaleString()}</span>
+                                <button type="button" onClick={() => setHalfPayments(prev => ({ ...prev, [orderId]: { ...hp, online: Math.round((onlineVal + splitDiff) * 100) / 100 } }))}
+                                  className="underline text-[11px] font-black text-amber-300 hover:text-white">Auto-fill</button>
+                              </>
+                            ) : (
+                              <span>✗ Over-allocated by ₨{(-splitDiff).toLocaleString()} (Sum: ₨{splitSum.toLocaleString()})</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Action buttons */}
@@ -413,10 +440,13 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                         const method = paymentMethods[orderId] || 'CASH';
                         if (method === 'CASH_ONLINE') {
                           const hp = halfPayments?.[orderId] || { cash: 0, online: 0 };
-                          onAction(orderId, 'DELIVERED', '', method, hp.cash, hp.online, []);
-                        } else if (method === 'MULTIPLE_ONLINE') {
-                          const totalMulti = multiEntries.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
-                          onAction(orderId, 'DELIVERED', '', method, 0, totalMulti, multiEntries.filter(e => e.amount));
+                          const cashVal = parseFloat(hp.cash) || 0;
+                          const onlineVal = parseFloat(hp.online) || 0;
+                          const splitSum = Math.round((cashVal + onlineVal) * 100) / 100;
+                          if (Math.abs(splitSum - totalRemaining) > 0.01) {
+                            return toast.error(`The sum of Cash (₨${cashVal.toLocaleString()}) and Online (₨${onlineVal.toLocaleString()}) must equal the amount due of ₨${totalRemaining.toLocaleString()}`);
+                          }
+                          onAction(orderId, 'DELIVERED', '', method, cashVal, onlineVal, []);
                         } else if (method === 'CASH') {
                           onAction(orderId, 'DELIVERED', '', method, totalRemaining, 0, []);
                         } else {
@@ -1326,15 +1356,15 @@ const DeliveryDashboard = () => {
         return;
       }
       const body = { paymentMethod, riderName: user?.name };
-      if (paymentMethod === 'CASH') { body.cashAmount = onlineAmount ? 0 : parseFloat(cashAmount) || 0; body.onlineAmount = 0; }
+      if (paymentMethod === 'PAID') { body.cashAmount = 0; body.onlineAmount = 0; }
+      else if (paymentMethod === 'CASH') { body.cashAmount = parseFloat(cashAmount) || 0; body.onlineAmount = 0; }
       else if (paymentMethod === 'ONLINE') { body.cashAmount = 0; body.onlineAmount = parseFloat(onlineAmount) || 0; }
-      else if (paymentMethod === 'CASH_ONLINE') { body.cashAmount = cashAmount || 0; body.onlineAmount = onlineAmount || 0; }
-      else if (paymentMethod === 'MULTIPLE_ONLINE') { body.cashAmount = 0; body.onlineAmount = parseFloat(onlineAmount) || 0; body.multipleOnlineDetails = multiOnline || []; }
+      else if (paymentMethod === 'CASH_ONLINE') { body.cashAmount = parseFloat(cashAmount) || 0; body.onlineAmount = parseFloat(onlineAmount) || 0; }
       await api.put(`/api/delivery/${orderId}/deliver`, body);
       toast.success('Delivered!', { duration: 3000 });
       refresh();
-    } catch {
-      toast.error('Update failed. Try again.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Update failed. Try again.');
     } finally {
       setActionLoading(null);
     }
@@ -1401,13 +1431,14 @@ const DeliveryDashboard = () => {
           }
         }
       } else {
-        const collected = Number(o.totalPrice || 0) - Number(o.advanceAmount || 0);
-        if (o.paymentMethod === 'CASH') cashCollected += collected;
-        else if (o.paymentMethod === 'ONLINE') onlineCollected += collected;
-        else if (o.paymentMethod === 'CARD') cardCollected += collected;
-        else if (o.paymentMethod === 'CASH_ONLINE') { cashCollected += collected / 2; onlineCollected += collected / 2; }
-        else if (o.paymentMethod === 'MULTIPLE_ONLINE') onlineCollected += collected;
-        else cashCollected += collected;
+        if (!isPaidOrder(o)) {
+          const collected = Math.max(0, Number(o.totalPrice || 0) - Number(o.advanceAmount || 0));
+          if (o.paymentMethod === 'CASH') cashCollected += collected;
+          else if (o.paymentMethod === 'ONLINE') onlineCollected += collected;
+          else if (o.paymentMethod === 'CARD') cardCollected += collected;
+          else if (o.paymentMethod === 'CASH_ONLINE') { cashCollected += collected / 2; onlineCollected += collected / 2; }
+          else cashCollected += collected;
+        }
       }
       const orderCollected = dps && dps.length > 0
         ? dps.reduce((s, dp) => s + (dp.cashAmount || 0) + (dp.onlineAmount || 0), 0)

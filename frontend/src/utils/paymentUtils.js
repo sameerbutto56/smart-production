@@ -8,8 +8,16 @@
  *   codAmount         = isPaid ? 0 : remainingBalance
  */
 
-export const isPaidOrder = (order) =>
-  order?.paymentStatus === 'PAID' || order?.paymentStatus === 'FULL_PAID';
+export const isPaidOrder = (order) => {
+  if (!order) return false;
+  if (order.isPrepaid === true) return true;
+  if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') return true;
+  const totalPrice = Number(order.totalPrice) || 0;
+  const advanceAmount = Number(order.advanceAmount) || 0;
+  if (totalPrice > 0 && advanceAmount >= totalPrice - 0.01) return true;
+  if (order.advancePaid && advanceAmount >= totalPrice - 0.01) return true;
+  return false;
+};
 
 export const isBalanceOrder = (order) =>
   order?.paymentStatus === 'BALANCE' && !isPaidOrder(order);
@@ -20,7 +28,9 @@ export const getDeliveryCollected = (order) =>
 export const getRemainingBalance = (order) => {
   if (isPaidOrder(order)) return 0;
   const deliveryPaid = getDeliveryCollected(order);
-  return Math.max(0, (order?.totalPrice || 0) - parseFloat(order?.advanceAmount || 0) - deliveryPaid);
+  const totalPrice = Number(order?.totalPrice || 0);
+  const advanceAmount = Number(order?.advanceAmount || 0);
+  return Math.max(0, Math.round((totalPrice - advanceAmount - deliveryPaid) * 100) / 100);
 };
 
 export const getCodAmount = (order) => getRemainingBalance(order);

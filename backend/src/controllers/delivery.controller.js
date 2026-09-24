@@ -13,6 +13,18 @@ const parseDateRange = (dateFrom, dateTo) => {
   return Object.keys(dateFilter).length > 0 ? dateFilter : null;
 };
 
+// Authoritative check: Is this order already paid/financially cleared in advance?
+const isOrderPaidInAdvance = (o) => {
+  if (!o) return false;
+  const status = (o.paymentStatus || '').toUpperCase();
+  if (status === 'PAID' || status === 'FULL_PAID') return true;
+  const total = parseFloat(o.totalPrice) || 0;
+  const advance = parseFloat(o.advanceAmount) || 0;
+  if (total > 0 && advance >= total - 0.01) return true;
+  if (o.advancePaid && advance >= total - 0.01 && total > 0) return true;
+  return false;
+};
+
 // GET /api/delivery/orders — get all delivery orders for delivery boy
 const getDeliveryOrders = async (req, res) => {
   try {
@@ -42,11 +54,13 @@ const getDeliveryOrders = async (req, res) => {
     }
     const dateFilter = parseDateRange(dateFrom, dateTo);
     // Use assignment-date-based filtering: match when the order was assigned to
-    // the delivery boy, not when the order was created.  This aligns the Delivery
-    // Boy profile with the Admin EnamelsDeliveryCard for the same date range.
+    // the delivery boy, while always preserving active carry-forward orders.
     if (dateFilter) {
       where.AND = [...(where.AND || []), {
-        orderAcceptances: { some: { assignedAt: dateFilter } }
+        OR: [
+          { orderAcceptances: { some: { assignedAt: dateFilter } } },
+          { currentStage: { in: ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'] }, status: { notIn: ['RETURNED', 'CANCELLED', 'COMPLETED'] } }
+        ]
       }];
     }
 
@@ -209,12 +223,51 @@ const acceptDelivery = async (req, res) => {
 const deliverOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { paymentMethod, cashAmount, onlineAmount, multipleOnlineDetails, riderName } = req.body;
+    const { paymentMethod, cashAmount, onlineAmount, riderName } = req.body;
 
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     const now = new Date();
+    const isPaid = isOrderPaidInAdvance(order);
+    const totalPrice = parseFloat(order.totalPrice) || 0;
+    const advanceAmount = parseFloat(order.advanceAmount) || 0;
+    const amountDue = isPaid ? 0 : Math.max(0, Math.round((totalPrice - advanceAmount) * 100) / 100);
+
+    let finalMethod = paymentMethod;
+    let finalCash = 0;
+    let finalOnline = 0;
+
+    if (isPaid || amountDue <= 0.01) {
+      finalMethod = 'PAID';
+      finalCash = 0;
+      finalOnline = 0;
+    } else {
+      if (finalMethod === 'CASH') {
+        finalCash = amountDue;
+        finalOnline = 0;
+      } else if (finalMethod === 'ONLINE') {
+        finalCash = 0;
+        finalOnline = amountDue;
+      } else if (finalMethod === 'CASH_ONLINE') {
+        finalCash = parseFloat(cashAmount) || 0;
+        finalOnline = parseFloat(onlineAmount) || 0;
+        const totalSplit = Math.round((finalCash + finalOnline) * 100) / 100;
+        if (Math.abs(totalSplit - amountDue) > 0.01) {
+          return res.status(400).json({
+            message: `Split payment (Cash ₨${finalCash.toLocaleString()} + Online ₨${finalOnline.toLocaleString()} = ₨${totalSplit.toLocaleString()}) must equal amount due of ₨${amountDue.toLocaleString()}`
+          });
+        }
+      } else {
+        // Default to CASH if unspecified
+        finalMethod = 'CASH';
+        finalCash = amountDue;
+        finalOnline = 0;
+      }
+    }
 
     // Update order status
     const updateData = {
@@ -223,10 +276,9 @@ const deliverOrder = async (req, res) => {
       deliveredAt: now,
       paymentStatus: 'PAID'
     };
-    if (paymentMethod === 'CASH') updateData.paymentMethod = 'CASH';
-    else if (paymentMethod === 'ONLINE') updateData.paymentMethod = 'ONLINE';
-    else if (paymentMethod === 'CASH_ONLINE') updateData.paymentMethod = 'CASH_ONLINE';
-    else if (paymentMethod === 'MULTIPLE_ONLINE') updateData.paymentMethod = 'MULTIPLE_ONLINE';
+    if (finalMethod === 'CASH') updateData.paymentMethod = 'CASH';
+    else if (finalMethod === 'ONLINE') updateData.paymentMethod = 'ONLINE';
+    else if (finalMethod === 'CASH_ONLINE') updateData.paymentMethod = 'CASH_ONLINE';
 
     await prisma.order.update({ where: { id: orderId }, data: updateData });
     await syncReplacementCaseOnOrderCompletion(order, req.user?.id);
@@ -235,7 +287,7 @@ const deliverOrder = async (req, res) => {
     await markAssignmentTerminal(orderId, { delivered: true });
 
     // Complete OUT_FOR_DELIVERY stage if exists
-    const stage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status !== 'COMPLETED');
+    const stage = order.stages?.find(s => ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'].includes(s.stageName) && s.status !== 'COMPLETED');
     if (stage) {
       await prisma.orderStage.update({ where: { id: stage.id }, data: { status: 'COMPLETED', completedAt: now } });
     }
@@ -249,11 +301,10 @@ const deliverOrder = async (req, res) => {
     await prisma.deliveryPayment.create({
       data: {
         orderId,
-        paymentMethod,
-        cashAmount: parseFloat(cashAmount) || 0,
-        onlineAmount: parseFloat(onlineAmount) || 0,
-        multipleOnlineDetails: multipleOnlineDetails ? JSON.parse(JSON.stringify(multipleOnlineDetails)) : null,
-        collectedBy: riderName
+        paymentMethod: finalMethod,
+        cashAmount: finalCash,
+        onlineAmount: finalOnline,
+        collectedBy: riderName || req.user?.name || 'Enamels Delivery'
       }
     });
 
@@ -269,7 +320,7 @@ const deliverOrder = async (req, res) => {
         orderId,
         orderNumber: order.orderNumber,
         customerName: order.customerName,
-        riderName,
+        riderName: riderName || req.user?.name || 'Enamels Delivery',
         deliveredAt: now
       }
     });
@@ -281,22 +332,22 @@ const deliverOrder = async (req, res) => {
         orderId,
         attemptNumber: attemptCount + 1,
         status: 'DELIVERED',
-        riderName,
+        riderName: riderName || req.user?.name || 'Enamels Delivery',
         attemptedAt: now
       }
     });
 
     await prisma.routingHistory.create({
-      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: `Delivered by ${riderName}` }
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: `Delivered by ${riderName || req.user?.name || 'Enamels Delivery'} via ${finalMethod}` }
     });
 
     await prisma.auditLog.create({
-      data: { orderId, action: 'DELIVERED', details: `Order delivered by ${riderName} via ${paymentMethod || 'CASH'}`, performedBy: req.user?.id || 'SYSTEM' }
+      data: { orderId, action: 'DELIVERED', details: `Order delivered by ${riderName || req.user?.name || 'Enamels Delivery'} via ${finalMethod} (Cash: ₨${finalCash}, Online: ₨${finalOnline})`, performedBy: req.user?.id || 'SYSTEM' }
     });
 
     await notify.create(req, { type: 'delivery_done', moduleName: 'Orders', path: '/orders', role: 'FAISAL', title: 'Order Delivered', message: `Order #${order.orderNumber} delivered`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Delivered', employeeName: req.user?.name }).catch(() => {});
 
-    res.json({ message: 'Order delivered successfully' });
+    res.json({ message: 'Order delivered successfully', cashAmount: finalCash, onlineAmount: finalOnline, paymentMethod: finalMethod });
   } catch (error) {
     res.status(500).json({ message: 'Delivery failed', error: error.message });
   }
@@ -525,13 +576,23 @@ const getCODSummary = async (req, res) => {
 
     const filteredDeliveries = await prisma.order.findMany({
       where: deliveredWhere,
-      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true, paymentStatus: true }
+      select: {
+        id: true, orderNumber: true, customerName: true, totalPrice: true,
+        deliveredAt: true, advanceAmount: true, advancePaid: true, paymentMethod: true, paymentStatus: true,
+        deliveryPayments: true
+      }
     });
 
-    const filteredCODAmount = filteredDeliveries.reduce((s, o) => {
-      if (o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID') return s;
-      const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
-      return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
+    const eligibleFilteredDeliveries = filteredDeliveries.filter(o => !isOrderPaidInAdvance(o));
+
+    const filteredCODAmount = eligibleFilteredDeliveries.reduce((s, o) => {
+      const remainingDue = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
+      const delivPay = o.deliveryPayments || [];
+      if (delivPay.length > 0) {
+        const cashPart = delivPay.reduce((sum, p) => sum + (p.paymentMethod === 'ONLINE' ? 0 : (p.cashAmount || 0)), 0);
+        return s + (cashPart > 0 ? cashPart : remainingDue);
+      }
+      return s + (o.paymentMethod === 'ONLINE' ? 0 : remainingDue);
     }, 0);
 
     // All pending COD (delivered but not cleared)
@@ -549,23 +610,33 @@ const getCODSummary = async (req, res) => {
 
     const pendingCODDeliveries = await prisma.order.findMany({
       where: pendingWhere,
-      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true, paymentStatus: true }
+      select: {
+        id: true, orderNumber: true, customerName: true, totalPrice: true,
+        deliveredAt: true, advanceAmount: true, advancePaid: true, paymentMethod: true, paymentStatus: true,
+        deliveryPayments: true
+      }
     });
 
-    const pendingCODAmount = pendingCODDeliveries.reduce((s, o) => {
-      if (o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID') return s;
-      const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
-      return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
+    const eligiblePendingDeliveries = pendingCODDeliveries.filter(o => !isOrderPaidInAdvance(o));
+
+    const pendingCODAmount = eligiblePendingDeliveries.reduce((s, o) => {
+      const remainingDue = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
+      const delivPay = o.deliveryPayments || [];
+      if (delivPay.length > 0) {
+        const cashPart = delivPay.reduce((sum, p) => sum + (p.paymentMethod === 'ONLINE' ? 0 : (p.cashAmount || 0)), 0);
+        return s + (cashPart > 0 ? cashPart : remainingDue);
+      }
+      return s + (o.paymentMethod === 'ONLINE' ? 0 : remainingDue);
     }, 0);
 
     const collections = await prisma.cODCollection.findMany({ orderBy: { clearedAt: 'desc' } });
 
     res.json({
-      filteredCODAmount: filteredCODAmount,
-      filteredCODOrders: filteredDeliveries.length,
+      filteredCODAmount,
+      filteredCODOrders: eligibleFilteredDeliveries.length,
       pendingCODAmount,
-      pendingCODOrders: pendingCODDeliveries.length,
-      pendingDeliveries: pendingCODDeliveries,
+      pendingCODOrders: eligiblePendingDeliveries.length,
+      pendingDeliveries: eligiblePendingDeliveries,
       collections
     });
   } catch (error) {
@@ -600,6 +671,19 @@ const clearCOD = async (req, res) => {
 const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, deliveryStatus, paymentType, outlet }) => {
   const dateFilter = parseDateRange(dateFrom, dateTo);
 
+  // Fetch DeliveryAssignment records for Enamels delivery boys to guarantee all assigned and carried-forward orders are captured
+  const assignedRecords = await prisma.deliveryAssignment.findMany({
+    where: {
+      deliveryBoyName: { in: ['ENAMELS', 'Enamels Delivery', 'Tahir'] }
+    },
+    orderBy: { assignedAt: 'desc' }
+  }).catch(() => []);
+
+  const daMap = new Map();
+  for (const a of assignedRecords) {
+    if (!daMap.has(a.orderId)) daMap.set(a.orderId, a);
+  }
+
   const identityOR = [
     { deliveryType: 'ENAMELS' },
     { deliveryMethod: 'Enamels Delivery' },
@@ -610,6 +694,9 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     { orderAcceptances: { some: {} } },
     { noResponseLogs: { some: {} } }
   ];
+  if (daMap.size > 0) {
+    identityOR.push({ id: { in: [...daMap.keys()] } });
+  }
 
   const candidateOrders = await prisma.order.findMany({
     where: { OR: identityOR },
@@ -620,6 +707,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       deliveryPayments: true,
       deliveryChargeRecords: true,
       returnExchangeCases: { orderBy: { createdAt: 'desc' } },
+      stages: { where: { stageName: { in: ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'] } }, orderBy: { createdAt: 'desc' } },
       createdBy: { select: { name: true } }
     },
     orderBy: { updatedAt: 'desc' }
@@ -644,14 +732,20 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     const pay = o.deliveryPayments || [];
     const ch = o.deliveryChargeRecords || [];
     const acc = o.orderAcceptances || [];
-    return att[att.length - 1]?.riderName || pay[0]?.collectedBy || ch[0]?.riderName || acc[0]?.riderName || null;
+    const da = daMap.get(o.id);
+    let r = att[att.length - 1]?.riderName || pay[0]?.collectedBy || ch[0]?.riderName || acc[0]?.riderName || da?.deliveryBoyName || null;
+    if (r === 'ENAMELS') r = 'Enamels Delivery';
+    return r;
   };
 
   const classify = (o) => {
     const acc = o.orderAcceptances || [];
     const attempts = o.deliveryAttempts || [];
     const lastAttempt = attempts[attempts.length - 1];
-    const assignedAt = acc[0]?.assignedAt || o.createdAt;
+    const da = daMap.get(o.id);
+    const stageRecord = (o.stages || [])[0];
+
+    const assignedAt = acc[0]?.assignedAt || da?.assignedAt || stageRecord?.createdAt || o.createdAt;
     const acceptedAt = o.riderAcceptedAt || acc[0]?.acceptedAt || null;
     const deliveredAt = o.deliveredAt || attempts.find(a => a.status === 'DELIVERED')?.attemptedAt || null;
     const returnedAt = o.returnedAt || attempts.find(a => a.status === 'RETURNED')?.attemptedAt || null;
@@ -676,35 +770,35 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     let durationMinutes = null;
     if (deliveredAt && assignedAt) durationMinutes = Math.round((new Date(deliveredAt) - new Date(assignedAt)) / 60000);
 
-    let cashCollected = 0, onlineCollected = 0;
-    (o.deliveryPayments || []).forEach(p => {
-      if (inWindow(p.collectedAt)) {
-        if (p.paymentMethod === 'CASH') cashCollected += (p.cashAmount || 0);
-        else if (p.paymentMethod === 'ONLINE') onlineCollected += (p.onlineAmount || 0);
-        else if (p.paymentMethod === 'CASH_ONLINE') { cashCollected += (p.cashAmount || 0); onlineCollected += (p.onlineAmount || 0); }
-        else if (p.paymentMethod === 'MULTIPLE_ONLINE') onlineCollected += (p.onlineAmount || 0);
-      }
-    });
-    const totalCollected = cashCollected + onlineCollected;
-    const advance = o.advanceAmount || 0;
+    const isPrepaid = isOrderPaidInAdvance(o);
     const totalPrice = o.totalPrice || 0;
-    const delivPayments = o.deliveryPayments || [];
-    const hasDelivPay = delivPayments.length > 0;
-
-    // A PAID (Prepaid) Order is an order paid in full before delivery assignment (no doorstep payment collected by rider)
-    const isPrepaid = !hasDelivPay && totalPrice > 0 && (
-      o.paymentStatus === 'PAID' ||
-      o.paymentMethod === 'ONLINE' ||
-      advance >= totalPrice - 0.01
-    );
-    const isCOD = !isPrepaid && (totalPrice > 0 || hasDelivPay);
+    const advance = o.advanceAmount || 0;
+    const isCOD = !isPrepaid && totalPrice > 0;
     const expectedCodAmount = isPrepaid ? 0 : Math.max(0, totalPrice - advance);
+
+    let cashCollected = 0, onlineCollected = 0;
+    if (!isPrepaid) {
+      (o.deliveryPayments || []).forEach(p => {
+        if (inWindow(p.collectedAt)) {
+          if (p.paymentMethod === 'CASH') cashCollected += (p.cashAmount || 0);
+          else if (p.paymentMethod === 'ONLINE') onlineCollected += (p.onlineAmount || 0);
+          else if (p.paymentMethod === 'CASH_ONLINE') { cashCollected += (p.cashAmount || 0); onlineCollected += (p.onlineAmount || 0); }
+          else if (p.paymentMethod === 'MULTIPLE_ONLINE') onlineCollected += (p.onlineAmount || 0);
+        }
+      });
+    }
+
+    const totalCollected = isPrepaid ? 0 : (cashCollected + onlineCollected);
     const outstanding = Math.max(0, expectedCodAmount - totalCollected);
-    const isPaid = outstanding <= 0.01;
+    const isPaid = isPrepaid || outstanding <= 0.01;
 
     const charge = (o.deliveryChargeRecords || [])[0] || null;
     const orderDate = deliveredAt || returnedAt || acceptedAt || assignedAt || o.createdAt;
     const firstAttempt = attempts.find(a => a && a.status);
+
+    const assignedBefore = beforeWindow(assignedAt);
+    const isTerminal = ['delivered', 'returned', 'cancelled'].includes(primaryStatus);
+    const isCarryForward = assignedBefore && !isTerminal;
 
     return {
       id: o.id,
@@ -715,7 +809,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       city: o.city,
       address: o.address,
       outletName: o.outletName,
-      totalPrice: o.totalPrice || 0,
+      totalPrice,
       advanceAmount: advance,
       expectedCodAmount,
       paymentMethod: o.paymentMethod,
@@ -728,6 +822,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       orderDate,
       isPrepaid,
       isCOD,
+      isCarryForward,
       timeline: {
         assignedAt,
         acceptedAt,
@@ -744,7 +839,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
         deliveredInWindow: inWindow(deliveredAt),
         returnedInWindow: inWindow(returnedAt),
         cancelledInWindow: inWindow(cancelledAt),
-        assignedBeforeWindow: beforeWindow(assignedAt),
+        assignedBeforeWindow: assignedBefore,
         paymentsInWindow: (o.deliveryPayments || []).filter(p => inWindow(p.collectedAt)),
         attemptsInWindow: (attempts || []).filter(a => inWindow(a.attemptedAt)),
         noResponseInWindow: (o.noResponseLogs || []).filter(n => inWindow(n.createdAt))
@@ -768,12 +863,19 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
   const matchedOrders = allClassified.filter(e => {
     if (!dateFilter) return true;
     const ev = e.events;
-    return ev.assignedInWindow || ev.acceptedInWindow || ev.deliveredInWindow || ev.returnedInWindow || ev.cancelledInWindow || ev.paymentsInWindow.length > 0 || ev.attemptsInWindow.length > 0 || ev.noResponseInWindow.length > 0;
+    const hasEventInWindow = ev.assignedInWindow || ev.acceptedInWindow || ev.deliveredInWindow || ev.returnedInWindow || ev.cancelledInWindow || ev.paymentsInWindow.length > 0 || ev.attemptsInWindow.length > 0 || ev.noResponseInWindow.length > 0;
+    return hasEventInWindow || e.isCarryForward;
   });
 
   let filtered = matchedOrders;
   if (status) filtered = filtered.filter(e => e.orderStatus === status || e.orderStage === status);
-  if (deliveryStatus) filtered = filtered.filter(e => e.primaryStatus === deliveryStatus);
+  if (deliveryStatus) {
+    if (deliveryStatus === 'carryForward') {
+      filtered = filtered.filter(e => e.isCarryForward);
+    } else {
+      filtered = filtered.filter(e => e.primaryStatus === deliveryStatus);
+    }
+  }
   if (paymentType) filtered = filtered.filter(e =>
     e.paymentMethod === paymentType || e.payments.some(p => p.paymentMethod === paymentType)
   );
@@ -808,7 +910,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     if (e.primaryStatus === 'inTransit') inTransitCount++;
     if (e.primaryStatus === 'failed') failedCount++;
 
-    if (ev.assignedBeforeWindow && ['pending', 'inTransit', 'noResponse'].includes(e.primaryStatus)) {
+    if (e.isCarryForward) {
       carryForwardCount++;
     }
   }
@@ -835,11 +937,11 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
   const grossOnlineOnCOD = codOrders.reduce((s, e) => s + e.onlineCollected, 0);
   const cashReceived = Math.max(0, grossCashOnCOD - totalDeposited);
   const onlineReceived = grossOnlineOnCOD;
-  const totalReceived = cashReceived + onlineReceived;
-  const remainingCOD = Math.max(0, codExpectedAmount - (grossCashOnCOD + grossOnlineOnCOD));
+  const totalReceived = grossCashOnCOD + grossOnlineOnCOD;
+  const remainingCOD = Math.max(0, codExpectedAmount - totalReceived);
 
   const stats = {
-    totalAssigned: dateFilter ? totalAssigned : filtered.length,
+    totalAssigned: dateFilter ? (totalAssigned + carryForwardCount) : filtered.length,
     accepted: dateFilter ? acceptedCount : filtered.filter(e => e.accepted).length,
     pickedUp: dateFilter ? pickedUpCount : filtered.filter(e => e.accepted).length,
     delivered: dateFilter ? deliveredCount : filtered.filter(e => e.primaryStatus === 'delivered').length,
@@ -866,6 +968,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     onlinePrepaid: onlineReceived, // alias
     totalReceived,
     remainingCOD,
+    outstandingCollection: remainingCOD, // alias
     totalDeposited,
     cashCollected: cashReceived, // alias
     overallOutstanding: remainingCOD // alias

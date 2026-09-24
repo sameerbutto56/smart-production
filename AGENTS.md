@@ -1,5 +1,44 @@
 ## Goals
-### Implemented This Session — Delivery Dashboard: Resolution of Crash on Null Numbers & Robust Ledger Calculation (commit 03fe35a, deployed & live-verified)
+### Implemented This Session — Delivery Boy Admin Dashboard: Carry Forward Workload Parity, Advance Paid Clearance & Split Payment Validation (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Carry Forward Workload Parity**: Orders carried forward from previous days were correctly appearing in Delivery Boy Profile (`DeliveryDashboard.jsx`) and Gate Pass (`tahirSheet.controller.js`), but were missing from the Admin Dashboard (`EnamelsDeliveryCard.jsx` / `/api/delivery/analytics`) when viewing "Today" because event filters strictly checked assignment timestamps within the day filter window.
+  2. **Advance Paid Orders Clearance**: Orders marked as `PAID` or fully covered by advance payments were improperly classified as COD upon delivery, demanding collection from riders and inflating outstanding COD.
+  3. **Actual Amount Due**: Only show $\text{Amount Due} = \text{Total Order Price} - \text{Advance / Already Paid Amount}$. Fully paid orders must show ₨0 COD.
+  4. **Simplified Payment Options**: Limit rider delivery collection options strictly to `Cash`, `Online`, and `Cash + Online` (removed confusing `Multiple Online`).
+  5. **Strict Split Payment Validation**: For `Cash + Online`, enforce $\text{Cash Amount} + \text{Online Amount} == \text{Amount Due}$ both client-side and server-side.
+  6. **Payment Breakdown Parity**: Admin Dashboard payment breakdown must reflect actual collections (`deliveryPayments` cash/online), isolated from advance payments, with no double-counting.
+- **Backend Implementation (`delivery.controller.js`)**:
+  - `isOrderPaidInAdvance(o)` helper: Checks `isPaidStatus`, `advanceAmount >= totalPrice - 0.01`, or `o.advancePaid`.
+  - `deliverOrder`:
+    - Computes `amountDue = isPaid ? 0 : Math.max(0, totalPrice - advance)`.
+    - For paid orders, automatically records `paymentMethod = 'PAID'`, `cash = 0`, `online = 0`, and `status = 'DELIVERED'` without demanding rider collection.
+    - For `CASH_ONLINE`, validates `Math.abs((cash + online) - amountDue) <= 0.01`, returning HTTP 400 with a clear error message if they do not match.
+  - `getCODSummary`: Filters out `isOrderPaidInAdvance(o)` orders and reads actual cash from `deliveryPayments` instead of artificial division.
+  - `getDeliveryAnalyticsData`:
+    - Queries `deliveryAssignment` to attach `daMap` (key: `orderId`) for all assigned orders.
+    - Adds `{ id: { in: [...daMap.keys()] } }` and `stages` to `candidateOrders`.
+    - Normalizes rider names (`'ENAMELS'` -> `'Enamels Delivery'`).
+    - Resolves `assignedAt = acc[0]?.assignedAt || da?.assignedAt || stageRecord?.createdAt || o.createdAt`.
+    - Computes `isCarryForward = assignedBefore && !isTerminal`.
+    - Includes active carry-forward orders in `matchedOrders`: `hasEventInWindow || e.isCarryForward`.
+    - Supports `deliveryStatus === 'carryForward'` filtering.
+    - Enriched KPI analytics: `totalAssigned = dateFilter ? (totalAssigned + carryForwardCount) : filtered.length`, `carryForward = carryForwardCount`, `paidOrderCount`, `totalPaidAmount`, `codExpectedAmount`, `cashReceived`, `onlineReceived`, `totalReceived`, `remainingCOD`.
+- **Frontend Implementation (`paymentUtils.js`, `DeliveryDashboard.jsx`, `EnamelsDeliveryCard.jsx`)**:
+  - `paymentUtils.js`: Upgraded `isPaidOrder(order)` and `getRemainingBalance(order)` to guarantee `0` for prepaid/advance orders.
+  - `DeliveryDashboard.jsx`:
+    - Shows green banner `Payment Status: PAID — No COD Due (₨0)` and simple one-click `Deliver` button for paid orders.
+    - Restricts payment options strictly to `💵 Cash`, `💳 Online`, `💜 Cash + Online`.
+    - Real-time split validation widget for `Cash + Online`: live visual indicator showing exact match, remaining to allocate with Auto-fill button, or over-allocated difference.
+    - Form submission validation blocking any mismatched split amounts.
+  - `EnamelsDeliveryCard.jsx`:
+    - Added clickable `Carry Forward` filter card linking directly to `deliveryStatus: 'carryForward'`.
+    - Integrated comprehensive payment breakdown: Total Order Value, Paid Orders, Advance Amount, COD Orders, Expected COD, Cash Collected, Online Collected, Total Collected, Remaining COD.
+    - Added `CARRY FORWARD` badge and `PAID IN ADVANCE` vs `COD` badges in modal and timeline views.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-delivery-carry-forward-and-payments.cjs`: 21/21 assertions passed (100% pass rate).
+  - Production build (`cd frontend && npm run build`): Exit code 0, 3,204 modules bundled cleanly.
+
+### Implemented Prior Session — Delivery Dashboard: Resolution of Crash on Null Numbers & Robust Ledger Calculation (commit 03fe35a, deployed & live-verified)
 - **Problem**:
   - Delivery Dashboard / Delivery Sheet crashed or failed to render when encountering orders or riders with null, undefined, or malformed numeric fields (e.g. `order.totalPrice`, `order.advanceAmount`, `deliveryPayments`, `day.cashCollected`, `filteredCODAmount`, `ledgerOutstanding`) triggering `TypeError: Cannot read properties of undefined (reading 'toLocaleString')` or unhandled arithmetic on `NaN`.
   - Backend delivery ledger endpoints (`getDeliveryLedgerSummary`, `getDeliveryLedger`) performed full in-memory filtering across all orders regardless of status, slowing response times for riders.
@@ -21,6 +60,7 @@
   - Git commit `03fe35a` pushed to `origin/main`.
   - Vercel production deployment `dpl_8R3HJASZJBGqPVovybb66jXeSHvp` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
   - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+
 
 ### Implemented Prior Session — Bank Deposit & Chart Optimization: Timeout Resolution & Chart Dimensions (commit 8fbfbff, deployed & live-verified)
 - **Problem**:

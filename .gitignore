@@ -14,3 +14,5 @@ backups/
 backend/err.log
 backend/out.log
 .env*
+*.zip
+README_*.txt

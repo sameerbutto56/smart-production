@@ -85,8 +85,13 @@ const OrderDetailModal = ({ order, onClose }) => {
               <p className="text-sm font-black theme-text-primary">{order.city || '—'}</p>
             </div>
             <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Amount</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Order Amount</p>
               <p className="text-sm font-black text-emerald-400">₨{parseFloat(order.totalPrice || 0).toLocaleString()}</p>
+              {order.isPrepaid ? (
+                <span className="text-[9px] font-black text-emerald-400 block mt-0.5 uppercase">PAID IN ADVANCE</span>
+              ) : (
+                <span className="text-[9px] font-black text-amber-400 block mt-0.5 uppercase">COD Due: ₨{(order.expectedCodAmount || 0).toLocaleString()}</span>
+              )}
             </div>
             <div className="theme-bg-subtle rounded-xl p-3 border theme-border">
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Outlet</p>
@@ -160,10 +165,12 @@ const OrderDetailModal = ({ order, onClose }) => {
             </div>
           )}
           <div className="theme-bg-subtle rounded-xl p-3 border theme-border grid grid-cols-2 gap-2 text-[10px]">
+            <div><span className="text-gray-500">Payment Status:</span> <span className={`font-black ${order.isPrepaid ? 'text-emerald-400' : 'text-amber-400'}`}>{order.isPrepaid ? 'PAID IN ADVANCE' : 'COD'}</span></div>
+            <div><span className="text-gray-500">Advance Paid:</span> <span className="font-black text-blue-400">₨{(order.advanceAmount || 0).toLocaleString()}</span></div>
             <div><span className="text-gray-500">Cash Collected:</span> <span className="font-black text-emerald-400">₨{(order.cashCollected || 0).toLocaleString()}</span></div>
-            <div><span className="text-gray-500">Online:</span> <span className="font-black text-purple-400">₨{(order.onlineCollected || 0).toLocaleString()}</span></div>
-            <div><span className="text-gray-500">Outstanding:</span> <span className="font-black text-amber-400">₨{(order.outstanding || 0).toLocaleString()}</span></div>
-            <div><span className="text-gray-500">Advance:</span> <span className="font-black text-blue-400">₨{(order.advanceAmount || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Online Collected:</span> <span className="font-black text-purple-400">₨{(order.onlineCollected || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Total Collected:</span> <span className="font-black text-cyan-400">₨{(order.totalCollected || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Remaining COD:</span> <span className="font-black text-orange-400">₨{(order.outstanding || 0).toLocaleString()}</span></div>
           </div>
         </div>
       </motion.div>
@@ -187,12 +194,17 @@ const InlineOrderList = ({ orders, title, onClose, onSelect }) => (
             className="flex items-center justify-between p-2.5 theme-bg-subtle rounded-xl border theme-border hover:border-emerald-500/30 transition-all cursor-pointer">
             <div className="flex items-center gap-3 min-w-0">
               <span className="text-xs font-black theme-text-primary shrink-0">#{o.orderNumber || o.id?.slice(0, 6)}</span>
+              {(o.isCarryForward || isCarryForwardOrder(o)) && (
+                <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 shrink-0 uppercase tracking-wider">CARRY FORWARD</span>
+              )}
               <span className="text-xs font-bold theme-text-muted truncate">{o.customerName || '—'}</span>
               {o.riderName && <span className="text-[10px] font-bold text-indigo-400 shrink-0">{o.riderName}</span>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-[10px] font-bold text-gray-500">{o.outletName || '—'}</span>
-              <span className="text-xs font-black text-emerald-400">₨{parseFloat(o.totalPrice || 0).toLocaleString()}</span>
+              <span className={`text-xs font-black ${o.isPrepaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {o.isPrepaid ? 'PAID' : `COD: ₨${(o.expectedCodAmount || 0).toLocaleString()}`}
+              </span>
             </div>
           </div>
         ))}
@@ -542,10 +554,13 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
   const riders = data?.riders || [];
   const orders = data?.orders || [];
 
-  const carryForwardCount = useMemo(() => orders.filter(o => isCarryForwardOrder(o) && ['pending', 'inTransit', 'noResponse'].includes(o.primaryStatus)).length, [orders]);
+  const carryForwardCount = useMemo(() => orders.filter(o => o.isCarryForward || (isCarryForwardOrder(o) && ['pending', 'inTransit', 'noResponse'].includes(o.primaryStatus))).length, [orders]);
 
   const filteredOrders = useMemo(() => {
     if (!selectedFilter) return [];
+    if (selectedFilter === 'carryForward') {
+      return orders.filter(o => o.isCarryForward || (isCarryForwardOrder(o) && ['pending', 'inTransit', 'noResponse', 'failed'].includes(o.primaryStatus)));
+    }
     return orders.filter(o => o.primaryStatus === selectedFilter);
   }, [orders, selectedFilter]);
 
@@ -585,7 +600,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     { label: 'Delivered', key: 'delivered', value: safeStats.delivered || 0, filterKey: 'delivered' },
     { label: 'Pending', key: 'pending', value: safeStats.pending || 0, filterKey: 'pending' },
     { label: 'In Transit', key: 'inTransit', value: safeStats.inTransit || 0, filterKey: 'inTransit' },
-    { label: 'Carry Forward', key: 'carryForward', value: safeStats.carryForward ?? carryForwardCount, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: null },
+    { label: 'Carry Forward', key: 'carryForward', value: safeStats.carryForward ?? carryForwardCount, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: 'carryForward' },
     { label: 'Returned', key: 'returned', value: safeStats.returned || 0, filterKey: 'returned' },
     { label: 'No Response', key: 'noResponse', value: safeStats.noResponse || 0, filterKey: 'noResponse' },
     { label: 'Cancelled', key: 'cancelled', value: safeStats.cancelled || 0, filterKey: 'cancelled' },
@@ -595,12 +610,12 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
   const paymentCards = [
     { label: 'Total Order Value', value: safeStats.totalOrderValue || 0, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
     { label: '# Paid Orders', value: safeStats.paidOrderCount || 0, isCount: true, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    { label: 'Paid Orders Amount', value: safeStats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: 'Paid in Advance', value: safeStats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
     { label: '# COD Orders', value: safeStats.codOrderCount || 0, isCount: true, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     { label: 'COD Expected Amount', value: safeStats.codExpectedAmount ?? safeStats.totalCOD ?? 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-    { label: 'Cash Received', value: safeStats.cashReceived ?? safeStats.cashCollected ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (safeStats.totalDeposited || 0) > 0 ? `₨${safeStats.totalDeposited.toLocaleString()} deposited` : undefined },
-    { label: 'Online Received', value: safeStats.onlineReceived ?? safeStats.onlinePrepaid ?? 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-    { label: 'Total Received', value: safeStats.totalReceived ?? 0, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
+    { label: 'Cash Collected', value: safeStats.cashBeforeDeposits ?? safeStats.cashReceived ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (safeStats.totalDeposited || 0) > 0 ? `₨${safeStats.totalDeposited.toLocaleString()} deposited` : undefined },
+    { label: 'Online Collected', value: safeStats.onlineReceived ?? 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+    { label: 'Total Collected', value: safeStats.totalReceived ?? 0, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
     { label: 'Remaining COD', value: safeStats.remainingCOD ?? safeStats.overallOutstanding ?? 0, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
   ];
 
@@ -863,7 +878,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
                     onClick={() => setSelectedOrder(o)}>
                     <td className="py-2 pr-2 font-bold theme-text-primary">
                       #{o.orderNumber || o.id?.slice(0, 6)}
-                      {isCarryForwardOrder(o) && (
+                      {(o.isCarryForward || isCarryForwardOrder(o)) && (
                         <span className="ml-1.5 text-[8px] font-black text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded-full border border-amber-500/25 uppercase tracking-wider">
                           CARRY
                         </span>
@@ -874,7 +889,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
                     <td className="px-1 text-gray-400">{o.outletName || '—'}</td>
                     <td className="px-1">
                       <span className="text-gray-400">{fmt(o.timeline?.assignedAt)}</span>
-                      {isCarryForwardOrder(o) && <span className="block text-[8px] font-black text-amber-400 uppercase">Carry Forward</span>}
+                      {(o.isCarryForward || isCarryForwardOrder(o)) && <span className="block text-[8px] font-black text-amber-400 uppercase">Carry Forward</span>}
                     </td>
                     <td className="px-1 text-gray-400">{fmt(o.timeline?.acceptedAt)}</td>
                     <td className="px-1 text-gray-400">{fmt(o.timeline?.pickedUpAt)}</td>
