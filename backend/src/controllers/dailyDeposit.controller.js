@@ -929,6 +929,23 @@ const submitDailyDeposit = async (req, res) => {
     const effectiveBusinessDate = reqBusinessDate || todayPkt;
     const effectiveActualDate = actualDepositDate ? new Date(actualDepositDate) : new Date();
 
+    // Guard against duplicate submissions of the exact same slip number for the same outlet on the same date
+    const trimmedRef = referenceNumber ? referenceNumber.trim() : null;
+    if (trimmedRef) {
+      const existingSlip = await prisma.cashDeposit.findFirst({
+        where: {
+          outletName,
+          referenceNumber: trimmedRef,
+          businessDate: effectiveBusinessDate,
+        },
+      });
+      if (existingSlip) {
+        return res.status(400).json({
+          message: `Deposit slip #${trimmedRef} has already been recorded for ${outletName} on ${effectiveBusinessDate} (Amount: ₨${existingSlip.amount.toLocaleString()}). Duplicate submissions are blocked. To edit or consolidate, use Software Settings > Price / Exceptions.`,
+        });
+      }
+    }
+
     // 1. Create CashDeposit and BankDeposit records in transaction
     const cashDeposit = await prisma.$transaction(async (tx) => {
       const cd = await tx.cashDeposit.create({
@@ -1384,6 +1401,7 @@ module.exports = {
   getDepositRecordForDate,
   correctDepositRecord,
   getDepositCorrectionHistory,
+  invalidateDepositCache,
 };
 
 
