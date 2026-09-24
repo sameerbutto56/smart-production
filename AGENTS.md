@@ -37,6 +37,10 @@
 - **Verification & Deployment**:
   - Automated test suite `backend/scripts/verify-delivery-carry-forward-and-payments.cjs`: 21/21 assertions passed (100% pass rate).
   - Production build (`cd frontend && npm run build`): Exit code 0, 3,204 modules bundled cleanly.
+  - Git commit `537df37` pushed to `origin/main`.
+  - Re-aliased `smart-production-v2.vercel.app` -> `smart-production-v2-sameerbutt056-1019s-projects.vercel.app` (Success).
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+  - Live bundle: serves `index-CY4Kc1v2.js`, chunk `DeliveryDashboard-KGZKbSeS.js` contains `No COD Due (₨0)`.
 
 ### Implemented Prior Session — Delivery Dashboard: Resolution of Crash on Null Numbers & Robust Ledger Calculation (commit 03fe35a, deployed & live-verified)
 - **Problem**:
