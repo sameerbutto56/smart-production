@@ -1,5 +1,28 @@
 ## Goals
-### Implemented This Session — Bank Deposit & Chart Optimization: Timeout Resolution & Chart Dimensions (commit 8fbfbff, deployed & live-verified)
+### Implemented This Session — Delivery Dashboard: Resolution of Crash on Null Numbers & Robust Ledger Calculation (commit 03fe35a, deployed & live-verified)
+- **Problem**:
+  - Delivery Dashboard / Delivery Sheet crashed or failed to render when encountering orders or riders with null, undefined, or malformed numeric fields (e.g. `order.totalPrice`, `order.advanceAmount`, `deliveryPayments`, `day.cashCollected`, `filteredCODAmount`, `ledgerOutstanding`) triggering `TypeError: Cannot read properties of undefined (reading 'toLocaleString')` or unhandled arithmetic on `NaN`.
+  - Backend delivery ledger endpoints (`getDeliveryLedgerSummary`, `getDeliveryLedger`) performed full in-memory filtering across all orders regardless of status, slowing response times for riders.
+- **Frontend Hardening (`DeliveryDashboard.jsx` & `DeliverySheet.jsx`)**:
+  - Safeguarded all numeric calculations and `.toLocaleString()` calls with `Number(val || 0).toLocaleString()` across:
+    - Order summary pills & remaining COD amounts (`order.totalPrice`, `order.advanceAmount`, `totalRemaining`).
+    - Payment summary cards (`paymentSummary?.cashCollected`, `paymentSummary?.onlineCollected`, `paymentSummary?.cardCollected`, `paymentSummary?.codCollected`, `approvedDeposits`, `ledgerOutstanding`).
+    - Fixed bottom status bar (`bottomBarCOD`, `ledgerOutstanding`, `approvedDeposits`).
+    - Daily ledger balance table (`day.cashCollected`, `day.deposits`, `day.net`, `day.closingCash`, `summary.totalCashCollected`, `summary.totalDeposited`, `summary.net`).
+    - Performance and COD collection panels (`totalPending`, `totalPaid`, `filteredCODAmount`, `pendingCODAmount`).
+    - Deposit panel statistics (`totalApprovedCash`, `d.cashAmount`, `d.totalAmount`).
+    - Print sheet view (`DeliverySheet.jsx`: COD breakdown, advance deduction, and totals summary box).
+- **Backend Optimization (`delivery.controller.js`)**:
+  - Filtered database queries at the Prisma level (`currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'] }` or `orderType: 'DELIVERY'`) instead of loading all orders into memory.
+  - Added defensive parsing (`Number(dp.cashAmount || 0)`, `Number(dp.onlineAmount || 0)`) for multi-payment arrays.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-delivery-dashboard-crash-fix.cjs`: all tests passed (paid order edge cases, multi-payment delivery arrays, null formatting safety, live DB orders probe).
+  - Frontend production build: Exit code 0, 3,204 modules bundled cleanly.
+  - Git commit `03fe35a` pushed to `origin/main`.
+  - Vercel production deployment `dpl_8R3HJASZJBGqPVovybb66jXeSHvp` (`READY`) aliased to `https://smart-production-v2.vercel.app`.
+  - Live probe: `GET https://smart-production-v2.vercel.app/api/health` returned `200 {"status":"ok","message":"Backend is alive!"}`.
+
+### Implemented Prior Session — Bank Deposit & Chart Optimization: Timeout Resolution & Chart Dimensions (commit 8fbfbff, deployed & live-verified)
 - **Problem**:
   1. `DailyCashDepositSection` timed out after 30 seconds (`AxiosError: timeout of 30000ms exceeded`) because `syncDailyRequirements` made sequential database calls across multiple dates for every GET request and `getDailyDeposits` executed 6 redundant database queries after sync.
   2. `ResponsiveContainer` in `POSDashboard.jsx` threw console warning: `The width(-1) and height(-1) of chart should be greater than 0...`.
