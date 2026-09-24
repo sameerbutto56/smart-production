@@ -240,7 +240,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                 const paid = isPaidOrder(order);
                 const remaining = getRemainingBalance(order);
                 if (paid) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                if (remaining > 0) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{remaining.toLocaleString()}</span>;
+                if (remaining > 0) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{Number(remaining || 0).toLocaleString()}</span>;
                 return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
               })()}
             </div>
@@ -304,11 +304,11 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               <p className="font-black text-emerald-400 text-base mt-0.5">₨{Number(order.totalPrice || 0).toLocaleString()}</p>
               {!isPaidOrder(order) && totalRemaining > 0 ? (
                 <button onClick={() => setShowCODSummary(true)} className="w-full text-left mt-0.5 group">
-                  <p className="text-xs md:text-sm font-bold mt-0.5 text-orange-400 group-hover:text-orange-300 underline decoration-dotted">💰 COD: ₨{totalRemaining.toLocaleString()} — tap for breakdown</p>
+                  <p className="text-xs md:text-sm font-bold mt-0.5 text-orange-400 group-hover:text-orange-300 underline decoration-dotted">💰 COD: ₨{Number(totalRemaining || 0).toLocaleString()} — tap for breakdown</p>
                 </button>
               ) : (
                 <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
-                  {isPaidOrder(order) ? '✅ PAID — No COD Due' : `💰 COD: ₨${totalRemaining.toLocaleString()}`}
+                  {isPaidOrder(order) ? '✅ PAID — No COD Due' : `💰 COD: ₨${Number(totalRemaining || 0).toLocaleString()}`}
                 </p>
               )}
             </div>
@@ -339,7 +339,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               const paid = isPaidOrder(order);
               const statusBanner = paid
                 ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID — No COD Due</span></div>
-                : <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">COD: ₨{totalRemaining.toLocaleString()}</span></div>;
+                : <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">COD: ₨{Number(totalRemaining || 0).toLocaleString()}</span></div>;
               if (paid) return (
                 <div className="space-y-3">
                   {statusBanner}
@@ -735,12 +735,12 @@ const DeliveryChargesPanel = ({ refresh }) => {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-gray-800/60 rounded-xl p-3 border border-emerald-500/20">
           <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Pending</p>
-          <p className="text-xl font-black text-emerald-400">₨{totalPending.toLocaleString()}</p>
+          <p className="text-xl font-black text-emerald-400">₨{Number(totalPending || 0).toLocaleString()}</p>
           <p className="text-[10px] text-gray-500 font-bold">{charges.length} orders</p>
         </div>
         <div className="bg-gray-800/60 rounded-xl p-3 border border-blue-500/20">
           <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Total Paid</p>
-          <p className="text-xl font-black text-blue-400">₨{totalPaid.toLocaleString()}</p>
+          <p className="text-xl font-black text-blue-400">₨{Number(totalPaid || 0).toLocaleString()}</p>
           <p className="text-[10px] text-gray-500 font-bold">{payments?.length || 0} clearances</p>
         </div>
       </div>
@@ -755,13 +755,13 @@ const DeliveryChargesPanel = ({ refresh }) => {
             <span className="text-right">Amount</span>
           </div>
           {charges.map((c) => {
-            runningTotal += c.amount;
+            runningTotal += Number(c.amount || 0);
             return (
               <div key={c.id} className="px-3 py-2 border-b border-gray-800/30 grid grid-cols-4 gap-2 text-xs font-bold text-gray-300">
                 <span className="text-blue-400">#{c.orderNumber || '—'}</span>
                 <span className="truncate">{c.customerName || '—'}</span>
                 <span className="text-gray-500">{formatDateOnly(c.deliveredAt)}</span>
-                <span className="text-right text-emerald-400">₨{c.amount.toLocaleString()}</span>
+                <span className="text-right text-emerald-400">₨{Number(c.amount || 0).toLocaleString()}</span>
               </div>
             );
           })}
@@ -769,7 +769,7 @@ const DeliveryChargesPanel = ({ refresh }) => {
             <span>Total</span>
             <span />
             <span />
-            <span className="text-right text-emerald-400">₨{runningTotal.toLocaleString()}</span>
+            <span className="text-right text-emerald-400">₨{Number(runningTotal || 0).toLocaleString()}</span>
           </div>
         </div>
       )}
@@ -822,12 +822,12 @@ const CODCollectionPanel = ({ refresh }) => {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
           <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest">Filtered COD</p>
-          <p className="text-xl font-black text-amber-400">₨{filteredCODAmount.toLocaleString()}</p>
+          <p className="text-xl font-black text-amber-400">₨{Number(filteredCODAmount || 0).toLocaleString()}</p>
           <p className="text-[10px] text-gray-500 font-bold">{filteredCODOrders} orders</p>
         </div>
         <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">
           <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest">Pending COD</p>
-          <p className="text-xl font-black text-orange-400">₨{pendingCODAmount.toLocaleString()}</p>
+          <p className="text-xl font-black text-orange-400">₨{Number(pendingCODAmount || 0).toLocaleString()}</p>
           <p className="text-[10px] text-gray-500 font-bold">{pendingCODOrders} orders</p>
         </div>
       </div>
@@ -853,7 +853,7 @@ const CODCollectionPanel = ({ refresh }) => {
                   <div key={o.id} className="px-3 py-2 border-b border-gray-800/30 grid grid-cols-4 gap-2 text-xs font-bold text-gray-300">
                     <span className="text-blue-400">#{o.orderNumber || '—'}</span>
                     <span className="truncate">{o.customerName}</span>
-                    <span className="text-amber-400">₨{codAmount.toLocaleString()}</span>
+                    <span className="text-amber-400">₨{Number(codAmount || 0).toLocaleString()}</span>
                     <span className="text-gray-500">{o.deliveredAt ? formatDateOnly(o.deliveredAt) : '—'}</span>
                   </div>
                 );
@@ -861,7 +861,7 @@ const CODCollectionPanel = ({ refresh }) => {
               <div className="px-3 py-2 bg-gray-900/60 grid grid-cols-4 gap-2 text-xs font-black text-white">
                 <span>Total COD</span>
                 <span />
-                <span className="text-amber-400">₨{pendingCODAmount.toLocaleString()}</span>
+                <span className="text-amber-400">₨{Number(pendingCODAmount || 0).toLocaleString()}</span>
                 <span />
               </div>
             </div>
@@ -1013,7 +1013,7 @@ const DepositPanel = () => {
         <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 text-center">
           <p className="text-[9px] text-emerald-400 font-black uppercase">Approved</p>
           <p className="text-lg font-black text-emerald-400">{approvedCount}</p>
-          <p className="text-[9px] text-gray-500 font-bold">₨{totalApprovedCash.toLocaleString()} cash deposited</p>
+          <p className="text-[9px] text-gray-500 font-bold">₨{Number(totalApprovedCash || 0).toLocaleString()} cash deposited</p>
         </div>
         <div className="bg-amber-500/10 rounded-xl p-2.5 border border-amber-500/20 text-center">
           <p className="text-[9px] text-amber-400 font-black uppercase">Pending</p>
@@ -1159,22 +1159,22 @@ const CashLedgerPanel = ({ refresh }) => {
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 text-center">
           <p className="text-[9px] text-emerald-400 font-black uppercase">Opening Cash</p>
-          <p className="text-lg font-black text-emerald-400">₨{openingCash.toLocaleString()}</p>
+          <p className="text-lg font-black text-emerald-400">₨{Number(openingCash || 0).toLocaleString()}</p>
         </div>
         <div className="bg-blue-500/10 rounded-xl p-2.5 border border-blue-500/20 text-center">
           <p className="text-[9px] text-blue-400 font-black uppercase">Total Deposited</p>
-          <p className="text-lg font-black text-blue-400">₨{totalDepositedAllTime.toLocaleString()}</p>
+          <p className="text-lg font-black text-blue-400">₨{Number(totalDepositedAllTime || 0).toLocaleString()}</p>
         </div>
         <div className={`rounded-xl p-2.5 border text-center ${currentBalance > 0 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-gray-800/60 border-gray-700/50'}`}>
           <p className={`text-[9px] font-black uppercase ${currentBalance > 0 ? 'text-amber-400' : 'text-gray-500'}`}>Outstanding</p>
-          <p className={`text-lg font-black ${currentBalance > 0 ? 'text-amber-400' : 'text-gray-500'}`}>₨{currentBalance.toLocaleString()}</p>
+          <p className={`text-lg font-black ${currentBalance > 0 ? 'text-amber-400' : 'text-gray-500'}`}>₨{Number(currentBalance || 0).toLocaleString()}</p>
         </div>
       </div>
 
       {pendingDepositsTotal > 0 && (
         <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
           <p className="text-[10px] text-amber-400 font-black uppercase">Pending Deposits (not yet deducted)</p>
-          <p className="text-sm font-black text-amber-400">₨{pendingDepositsTotal.toLocaleString()} from {pendingDeposits?.length || 0} deposit(s)</p>
+          <p className="text-sm font-black text-amber-400">₨{Number(pendingDepositsTotal || 0).toLocaleString()} from {pendingDeposits?.length || 0} deposit(s)</p>
         </div>
       )}
 
@@ -1194,17 +1194,19 @@ const CashLedgerPanel = ({ refresh }) => {
                 {formatDateOnly(day.date)}
                 {i === days.length - 1 && <span className="text-[8px] text-blue-400 ml-1 font-black">TODAY</span>}
               </span>
-              <span className="text-right text-emerald-400">₨{day.cashCollected.toLocaleString()}</span>
-              <span className="text-right text-red-400">-₨{day.deposits.toLocaleString()}</span>
-              <span className={`text-right ${day.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{day.net >= 0 ? '+' : ''}₨{day.net.toLocaleString()}</span>
-              <span className={`text-right font-black ${day.closingCash > 0 ? 'text-amber-400' : 'text-gray-500'}`}>₨{day.closingCash.toLocaleString()}</span>
+              <span className="text-right text-emerald-400">₨{Number(day.cashCollected || 0).toLocaleString()}</span>
+              <span className="text-right text-red-400">-₨{Number(day.deposits || 0).toLocaleString()}</span>
+              <span className={`text-right ${(day.net || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{(day.net || 0) >= 0 ? '+' : ''}₨{Number(day.net || 0).toLocaleString()}</span>
+              <span className={`text-right font-black ${(day.closingCash || 0) > 0 ? 'text-amber-400' : 'text-gray-500'}`}>₨{Number(day.closingCash || 0).toLocaleString()}</span>
             </div>
           ))}
           <div className="px-3 py-2 bg-gray-900/60 grid grid-cols-5 gap-2 text-xs font-black text-white">
             <span>Total</span>
-            <span className="text-right text-emerald-400">₨{summary.totalCashCollected.toLocaleString()}</span>
-            <span className="text-right text-red-400">-₨{summary.totalDeposited.toLocaleString()}</span>
-            <span className={`text-right ${summary.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{summary.net >= 0 ? '+' : ''}₨{summary.net.toLocaleString()}</span>
+            <span className="text-right text-emerald-400">₨{Number(summary?.totalCashCollected || 0).toLocaleString()}</span>
+            <span className="text-right text-red-400">-₨{Number(summary?.totalDeposited || 0).toLocaleString()}</span>
+            <span className={`text-right ${Number(summary?.net ?? summary?.netChange ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {Number(summary?.net ?? summary?.netChange ?? 0) >= 0 ? '+' : ''}₨{Number(summary?.net ?? summary?.netChange ?? 0).toLocaleString()}
+            </span>
             <span />
           </div>
         </div>
@@ -1507,33 +1509,33 @@ const DeliveryDashboard = () => {
               </div>
               <div className="bg-gray-800/60 rounded-xl p-2.5 border border-emerald-500/20">
                 <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest">Cash Collected</p>
-                <p className="text-lg font-black text-emerald-400">₨{paymentSummary.cashCollected.toLocaleString()}</p>
-                {approvedDeposits > 0 && (
-                  <p className="text-[9px] text-amber-400 font-bold">Deposited: -₨{approvedDeposits.toLocaleString()}</p>
+                <p className="text-lg font-black text-emerald-400">₨{Number(paymentSummary?.cashCollected || 0).toLocaleString()}</p>
+                {Number(approvedDeposits || 0) > 0 && (
+                  <p className="text-[9px] text-amber-400 font-bold">Deposited: -₨{Number(approvedDeposits || 0).toLocaleString()}</p>
                 )}
               </div>
               <div className="bg-gray-800/60 rounded-xl p-2.5 border border-blue-500/20">
                 <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Online Collected</p>
-                <p className="text-lg font-black text-blue-400">₨{paymentSummary.onlineCollected.toLocaleString()}</p>
+                <p className="text-lg font-black text-blue-400">₨{Number(paymentSummary?.onlineCollected || 0).toLocaleString()}</p>
               </div>
               <div className="bg-gray-800/60 rounded-xl p-2.5 border border-purple-500/20">
                 <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest">Cash + Online</p>
-                <p className="text-lg font-black text-purple-400">₨{(paymentSummary.cashCollected + paymentSummary.onlineCollected).toLocaleString()}</p>
+                <p className="text-lg font-black text-purple-400">₨{Number((paymentSummary?.cashCollected || 0) + (paymentSummary?.onlineCollected || 0)).toLocaleString()}</p>
               </div>
-              {paymentSummary.cardCollected > 0 && (
+              {Number(paymentSummary?.cardCollected || 0) > 0 && (
                 <div className="bg-gray-800/60 rounded-xl p-2.5 border border-amber-500/20">
                   <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Card Collected</p>
-                  <p className="text-lg font-black text-amber-400">₨{paymentSummary.cardCollected.toLocaleString()}</p>
+                  <p className="text-lg font-black text-amber-400">₨{Number(paymentSummary?.cardCollected || 0).toLocaleString()}</p>
                 </div>
               )}
               <div className="bg-gray-800/60 rounded-xl p-2.5 border border-orange-500/20">
                 <p className="text-[9px] text-orange-400 font-black uppercase tracking-widest">COD Collected</p>
-                <p className="text-lg font-black text-orange-400">₨{paymentSummary.codCollected.toLocaleString()}</p>
+                <p className="text-lg font-black text-orange-400">₨{Number(paymentSummary?.codCollected || 0).toLocaleString()}</p>
               </div>
               {ledgerOutstanding != null && (
                 <div className="bg-gray-800/60 rounded-xl p-2.5 border border-amber-500/20">
                   <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Outstanding</p>
-                  <p className="text-lg font-black text-amber-400">₨{ledgerOutstanding.toLocaleString()}</p>
+                  <p className="text-lg font-black text-amber-400">₨{Number(ledgerOutstanding || 0).toLocaleString()}</p>
                 </div>
               )}
             </div>
@@ -1636,17 +1638,17 @@ const DeliveryDashboard = () => {
           <div className="max-w-xl mx-auto flex items-center justify-between">
             <div>
               <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
-              <p className="text-lg font-black text-amber-400">₨{bottomBarCOD.toLocaleString()}</p>
+              <p className="text-lg font-black text-amber-400">₨{Number(bottomBarCOD || 0).toLocaleString()}</p>
             </div>
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-center">
               <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Outstanding</p>
-              <p className="text-lg font-black text-amber-400">₨{(ledgerOutstanding != null ? ledgerOutstanding : Math.max(0, completed.reduce((s, o) => {
+              <p className="text-lg font-black text-amber-400">₨{Number(ledgerOutstanding != null ? ledgerOutstanding : Math.max(0, completed.reduce((s, o) => {
                 const dps = o.deliveryPayments;
                 if (dps && dps.length > 0) return s + dps.reduce((ds, dp) => ds + (dp.cashAmount || 0) + (dp.onlineAmount || 0), 0);
                 return s + Math.max(0, Number(o.totalPrice || 0) - Number(o.advanceAmount || 0));
-              }, 0) - approvedDeposits)).toLocaleString()}</p>
-              {approvedDeposits > 0 && <p className="text-[9px] text-emerald-400 font-bold">₨{approvedDeposits.toLocaleString()} deposited</p>}
+              }, 0) - (approvedDeposits || 0))).toLocaleString()}</p>
+              {Number(approvedDeposits || 0) > 0 && <p className="text-[9px] text-emerald-400 font-bold">₨{Number(approvedDeposits || 0).toLocaleString()} deposited</p>}
             </div>
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-right">

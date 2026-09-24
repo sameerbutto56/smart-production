@@ -1423,6 +1423,7 @@ const getCashLedger = async (req, res) => {
       summary: {
         totalCashCollected: ledger.reduce((s, e) => s + e.cashCollected, 0),
         totalDeposited: ledger.reduce((s, e) => s + e.deposits, 0),
+        net: ledger.reduce((s, e) => s + e.net, 0),
         netChange: ledger.reduce((s, e) => s + e.net, 0),
         daysInRange: ledger.length
       }

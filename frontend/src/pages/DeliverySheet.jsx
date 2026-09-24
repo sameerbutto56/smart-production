@@ -417,7 +417,7 @@ const DeliverySheet = () => {
                             const remaining = getRemainingBalance(order);
                             const hasAdv = parseFloat(order.advanceAmount || 0) > 0;
                             if (paid) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                            if (hasAdv) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{remaining.toLocaleString()}</span>;
+                            if (hasAdv) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{Number(remaining || 0).toLocaleString()}</span>;
                             return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20">CASH ON DELIVERY</span>;
                           })()}
                         </td>
@@ -508,7 +508,7 @@ const DeliverySheet = () => {
               <div className="theme-bg p-4 md:p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
                   <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-wider">COD Collected</p>
-                  <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalCash.toLocaleString()}</p>
+                  <p className="text-2xl font-black theme-text-primary mt-1">₨{Number(summary.totalCash || 0).toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center font-black">
                   💵
@@ -518,7 +518,7 @@ const DeliverySheet = () => {
               <div className="theme-bg p-4 md:p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
                   <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-wider">Online / Prepaid</p>
-                  <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalOnline.toLocaleString()}</p>
+                  <p className="text-2xl font-black theme-text-primary mt-1">₨{Number(summary.totalOnline || 0).toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center font-black">
                   💳
@@ -528,7 +528,7 @@ const DeliverySheet = () => {
               <div className="bg-yellow-500/10 p-4 md:p-6 rounded-3xl border-2 border-yellow-500/20 flex justify-between items-center shadow-lg">
                 <div>
                   <p className="text-xs md:text-sm text-yellow-500 font-black uppercase tracking-wider">Total Value</p>
-                  <p className="text-xl md:text-3xl font-black theme-text-primary mt-1">₨{summary.totalAmount.toLocaleString()}</p>
+                  <p className="text-xl md:text-3xl font-black theme-text-primary mt-1">₨{Number(summary.totalAmount || 0).toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-yellow-500 text-black rounded-xl flex items-center justify-center font-black text-xl shadow-lg">
                   ₨
@@ -595,7 +595,7 @@ const DeliverySheet = () => {
                     <td>{deliveryDate?.completedAt ? formatDateOnly(deliveryDate.completedAt) : '—'}</td>
                     <td style={{ fontWeight: 'bold', color: order.noResponseCount >= 3 ? '#dc2626' : order.noResponseCount > 0 ? '#d97706' : '#000' }}>{order.noResponseCount ? `${order.noResponseCount}/3` : '—'}</td>
                     <td>{order.nextDeliveryDate ? formatDateOnly(order.nextDeliveryDate) : '—'}</td>
-                    <td style={{ fontWeight: 'bold', color: isPaidOrder(order) ? '#059669' : '#dc2626' }}>{isPaidOrder(order) ? 'PAID' : getRemainingBalance(order) > 0 ? `COD: ₨${getRemainingBalance(order).toLocaleString()}` : 'CASH ON DELIVERY'}</td>
+                    <td style={{ fontWeight: 'bold', color: isPaidOrder(order) ? '#059669' : '#dc2626' }}>{isPaidOrder(order) ? 'PAID' : getRemainingBalance(order) > 0 ? `COD: ₨${Number(getRemainingBalance(order) || 0).toLocaleString()}` : 'CASH ON DELIVERY'}</td>
                     <td>{order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? 'Completed' : 'Pending'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
                   </tr>
@@ -608,15 +608,15 @@ const DeliverySheet = () => {
         <div className="summary-box">
           <div className="summary-row">
             <span>Total Cash (COD):</span>
-            <span>₨ {summary.totalCash.toLocaleString()}</span>
+            <span>₨ {Number(summary.totalCash || 0).toLocaleString()}</span>
           </div>
           <div className="summary-row">
             <span>Total Online:</span>
-            <span>₨ {summary.totalOnline.toLocaleString()}</span>
+            <span>₨ {Number(summary.totalOnline || 0).toLocaleString()}</span>
           </div>
           <div className="summary-row" style={{ fontSize: '14px', borderTop: '2px solid #000000', paddingTop: '6px', marginTop: '6px' }}>
             <span>Total Amount:</span>
-            <span>₨ {summary.totalAmount.toLocaleString()}</span>
+            <span>₨ {Number(summary.totalAmount || 0).toLocaleString()}</span>
           </div>
         </div>
 
