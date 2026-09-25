@@ -1,5 +1,53 @@
 ## Goals
-### Implemented This Session — ASM Bulk Order: Admin Approval Button & Enforced Approval-First Workflow (deployed & live-verified)
+### Implemented This Session — ASM Complete Workflow: Store Handover, Delivery Sheet & Admin Payment Dashboard (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Preserve ASM Portal & Vendor Workflow**: The ASM Vendor creation, Vendor selection, catalog item selection, line-item entry, and order creation/submission workflow remains 100% intact and functional.
+  2. **Part A — Store Handover, Delivery Sheet & ASM Receiving**:
+     - **Admin Approval & Routing**: Admin approves request (`AWAITED ADMIN` $\rightarrow$ `APPROVED`), then selects fulfillment method: **Send to Store** (`SENT_TO_STORE`) or **Buy Itself** (`BUY_ITSELF`).
+     - **Zero Inventory Deduction Prior to Store Allocation**: Admin approval and sending to Store do NOT deduct warehouse inventory.
+     - **Store Warehouse Allocation**: Store reviews requested items enriched with live warehouse stock (`Product + Color + Size`). Allocation confirms actual quantities, deducts stock atomically from `InventoryItem.variants`, and transitions order to `SENT_TO_ASM`.
+     - **Authoritative Allocation Record**: Creates immutable `VendorOrderAllocation` records (`allocationNumber`, `requestedQuantity`, `allocatedQuantity`, `remainingQuantity`, `sentBy`, `sentAt`, `handoverStatus: 'SENT_TO_ASM'`).
+     - **A4 Delivery Sheet (2 Copies)**: Dedicated delivery document with standard 3-inch top and bottom letterhead margins, zero pricing/financial figures, exact allocated quantities (`item.allocatedQuantity || 0`), 3 signature blocks (`Prepared By`, `Issued By`, `Received By`), and two clean copies (`COPY 1 — STORE`, `COPY 2 — ASM`).
+     - **ASM Receiving**: ASM reviews allocated stock and clicks **`ACCEPT / RECEIVE STOCK`**, transitioning to `ASM_RECEIVED` (`asmReceivedAt`, `asmReceivedByName`). Transitions `VendorOrderAllocation.handoverStatus` to `ASM_RECEIVED` with zero secondary inventory deduction.
+     - **Delivery to Vendor**: Order smoothly transitions from `['ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVER']` to `DELIVERED`.
+  3. **Part B — Admin Financial Dashboard & Reconciliation**:
+     - **Admin Dashboard Integration**: Comprehensive ASM financial overview in Admin Dashboard (`AsmPage.jsx` $\rightarrow$ `💰 Financial Dashboard` tab) backed by `AsmFinancialDashboard.jsx`.
+     - **7 Top Summary Cards**: `TOTAL ASM ORDERS`, `TOTAL ORDER VALUE`, `TOTAL ADVANCE RECEIVED`, `TOTAL PAID`, `TOTAL REMAINING`, `TOTAL SPENT / FULFILLED`, `TOTAL OUTSTANDING`.
+     - **Visual Financial Progress Chart**: Interactive progress comparison between Total Order Value, Total Paid, and Remaining Balance.
+     - **Payment Method Breakdown**: Breakdown for `Cash`, `Online / Bank Transfer`, `Cheque`, and `Card`. Reconciles mathematically: $\text{Total Paid} = \sum \text{Payment Methods}$.
+     - **Cheque Tracking**: Separate tracking for Cleared vs Pending cheques (`chequeNumber`, `bankName`, `status: CLEARED | PENDING`). Unverified cheques do not inflate cleared `totalPaid`.
+     - **Vendor-Wise Summary Table**: Comprehensive financial summary per vendor with search, metrics, and dedicated Vendor Drawer.
+     - **Vendor Drawer**: Detailed drawer showing vendor metrics, all orders with payment & fulfillment status, and full chronological payment history.
+     - **Payment Correction & Audit Trail**: Admin can edit/correct payments (`PUT /api/vendors/payments/:paymentId`). Automatically creates an immutable audit record in `VendorPaymentAudit` (`previousAmount`, `newAmount`, `difference`, `editedBy`, `reason`) and atomically updates the order's `remainingBalance`.
+- **Backend Implementation (`schema.prisma`, `vendor.controller.js`, `vendor.routes.js`)**:
+  - `schema.prisma`:
+    - Added `model VendorOrderAllocation` for Store-to-ASM handover tracking.
+    - Added `model VendorPaymentAudit` for immutable payment correction audit trails.
+    - Added cheque tracking fields to `VendorPayment`: `chequeNumber`, `bankName`, `chequeDate`, `status`, `vendorId`.
+    - Added `asmReceivedAt` and `asmReceivedByName` to `VendorOrder`.
+    - Synced database via `npx prisma db push` and `npx prisma generate`.
+  - `vendor.controller.js`:
+    - `storeAllocate`: Atomic `$transaction` deducting inventory variant stocks, updating line items, creating `VendorOrderAllocation` records, and transitioning to `SENT_TO_ASM`.
+    - `asmAccept`: Transitions to `ASM_RECEIVED`, updates allocation records to `ASM_RECEIVED`, records timestamps, zero secondary deduction.
+    - `deliverOrder`: Allows delivery from `['ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVER']`.
+    - `recordPayment`: Supports `CHEQUE` tracking with `status`, `chequeNumber`, `bankName`. Cleared payments update `totalPaid` and `remainingBalance`.
+    - `updatePayment`: Logs audit trail in `VendorPaymentAudit` and recalculates order `remainingBalance`.
+    - `getFinancialSummary`: Aggregates the 7 KPIs, payment method reconciliation, vendor-wise summary, and recent payments ledger.
+    - `getVendorFinancialDetail`: Returns specific vendor summary, orders, and payment history with audit logs.
+  - `vendor.routes.js`: Registered all endpoints with strict role-based access (`SUPER_ADMIN`, `ADMIN`, `STORE`, `ASM`).
+- **Frontend Implementation (`AsmFinancialDashboard.jsx`, `AsmPage.jsx`, `AsmAllowedStorePage.jsx`, `VendorsPage.jsx`, `vendorDocumentPrint.js`)**:
+  - `AsmFinancialDashboard.jsx`: Standalone component featuring 7 summary KPI cards, progress bar, 4-column payment breakdown, searchable vendor-wise summary table, vendor drawer, payment ledger, and payment correction modal with live difference and reason requirements.
+  - `AsmPage.jsx`: Added `💰 Financial Dashboard` tab switcher for Admin. Updated `OrderRow` to display `paymentStatus` badge, `Allocated units`, quick `Accept / Receive Stock` button, and `Delivery Sheet` print button. Enhanced `OrderDetailDrawer` payment modal with cheque fields and `ASM_RECEIVED` stage handling.
+  - `AsmAllowedStorePage.jsx`: Added `Print Delivery Sheet` button to the Processed allocation list.
+  - `VendorsPage.jsx`: Added `ASM_RECEIVED` stage label, badge, filter, and delivery sheet printing.
+  - `vendorDocumentPrint.js`: Updated `buildDeliverySheetHTML` and `printDeliverySheet` to strictly use `item.allocatedQuantity || 0`, zero financials, 2 physical copies, 3 signature blocks, and 3-inch margins.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-asm-complete-workflow.cjs`: All 33/33 tests passed (100% pass rate) covering the complete lifecycle: ASM bulk order creation $\rightarrow$ Admin approve $\rightarrow$ Send to Store $\rightarrow$ Zero inventory deduction pre-allocation $\rightarrow$ Store allocation with atomic stock deduction (50 $\rightarrow$ 42) $\rightarrow$ Authoritative `VendorOrderAllocation` record $\rightarrow$ Delivery Sheet exact allocated quantity (8) $\rightarrow$ ASM accept to `ASM_RECEIVED` $\rightarrow$ Zero secondary inventory deduction $\rightarrow$ Deliver order $\rightarrow$ Payment recording (Cash, Online, Pending Cheque, Cleared Cheque) $\rightarrow$ Payment correction with immutable `VendorPaymentAudit` log $\rightarrow$ Dashboard mathematical reconciliation $\rightarrow$ Teardown.
+  - Production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Git: Committed and pushed to `main` (`9a95bd3`).
+  - Production Deployment: Deployed on Vercel (`smart-production-v2.vercel.app`), verified `/api/health` status OK.
+
+### Implemented Prior Session — ASM Bulk Order: Admin Approval Button & Enforced Approval-First Workflow (deployed & live-verified)
 - **Problem & Requirements**:
   1. **Preserve ASM Portal & Vendor Workflow**: The ASM Vendor creation, Vendor selection, catalog item selection, line-item entry, and order creation/submission workflow remains 100% intact.
   2. **Admin Approval Button Visibility**: In Admin Dashboard $\rightarrow$ ASM (`AsmPage.jsx`), orders in `AWAITED ADMIN` (`SUBMITTED` / `AWAITED_ADMIN`) must display the **`APPROVE`** button and **`REJECT`** button for Admin (`ADMIN`, `SUPER_ADMIN`).
