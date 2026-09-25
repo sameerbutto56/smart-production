@@ -10,13 +10,16 @@ import {
   Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban, RotateCcw, BarChart3, Clock as ClockIcon,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
-import { printOrderDocument, printThermalReceipt, printDataDocument } from '../utils/vendorDocumentPrint';
+import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet } from '../utils/vendorDocumentPrint';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
   SUBMITTED: 'Submitted',
   ADMIN_APPROVED: 'Admin Approved',
   PRODUCTION_READY: 'Production Ready',
+  SENT_TO_STORE: 'Sent to Store',
+  BUY_ITSELF: 'Buy Itself',
+  SENT_TO_ASM: 'Ready for ASM',
   GIVE_STOCK: 'Stock Given',
   ASM_ACCEPTED: 'Accepted by ASM',
   DELIVER: 'Deliver',
@@ -31,6 +34,9 @@ const STAGE_COLORS = {
   SUBMITTED: 'bg-amber-500',
   ADMIN_APPROVED: 'bg-blue-500',
   PRODUCTION_READY: 'bg-indigo-500',
+  SENT_TO_STORE: 'bg-teal-500',
+  BUY_ITSELF: 'bg-pink-500',
+  SENT_TO_ASM: 'bg-cyan-500',
   GIVE_STOCK: 'bg-violet-500',
   ASM_ACCEPTED: 'bg-cyan-500',
   DELIVER: 'bg-orange-500',
@@ -40,7 +46,7 @@ const STAGE_COLORS = {
   REJECTED: 'bg-rose-600',
 };
 
-const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'PRODUCTION_READY', 'GIVE_STOCK', 'ASM_ACCEPTED', 'DELIVER', 'DELIVERED', 'COMPLETED'];
+const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_ASM', 'GIVE_STOCK', 'ASM_ACCEPTED', 'DELIVER', 'DELIVERED', 'COMPLETED'];
 
 const fmtCurrency = (n) => `Rs. ${(n || 0).toLocaleString()}`;
 
@@ -169,6 +175,7 @@ const AsmPage = () => {
     else if (kind === 'invoice') printOrderDocument(docOrder, 'invoice');
     else if (kind === 'quotation-data') printDataDocument(docOrder, 'quotation-data');
     else if (kind === 'invoice-data') printDataDocument(docOrder, 'invoice-data');
+    else if (kind === 'delivery-sheet') printDeliverySheet(docOrder);
     else printThermalReceipt(docOrder);
   };
 
@@ -711,7 +718,14 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, flexDi
                   {(order.items || []).map((it, idx) => (
                     <div key={idx} className="flex items-center justify-between text-sm gap-2">
                       <div className="min-w-0">
-                        <p className="text-white truncate">{it.productName} {it.color ? `· ${it.color}` : ''} {it.size ? `· ${it.size}` : ''}</p>
+                        <p className="text-white truncate">
+                          {it.productName} {it.color ? `· ${it.color}` : ''} {it.size ? `· ${it.size}` : ''}
+                          {it.allocatedQuantity !== undefined && it.allocatedQuantity !== null && it.allocatedQuantity > 0 && (
+                            <span className="ml-2 text-xs font-semibold text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20">
+                              {t('Allocated')}: {it.allocatedQuantity} / {it.quantity}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-slate-500">{it.quantity} × {fmtCurrency(it.unitPrice)}</p>
                       </div>
                       <p className="text-white font-semibold whitespace-nowrap">{fmtCurrency(it.lineTotal)}</p>
@@ -762,8 +776,8 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, flexDi
               </div>
 
               <div className="flex flex-wrap gap-2 pt-2">
-                {stage === 'GIVE_STOCK' && (
-                  <ActionBtn icon={CheckCircle2} color="bg-cyan-600 hover:bg-cyan-500" label={t('Accept Stock')}
+                {(stage === 'GIVE_STOCK' || stage === 'SENT_TO_ASM') && (
+                  <ActionBtn icon={CheckCircle2} color="bg-cyan-600 hover:bg-cyan-500" label={stage === 'SENT_TO_ASM' ? t('Accept Allocated Stock') : t('Accept Stock')}
                     onClick={() => runAction(order.id, `/accept`, t('Stock accepted'), { confirmText: t('Accept this stock?') })} />
                 )}
 
@@ -792,10 +806,16 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, flexDi
                   onClick={() => onPrint(order, 'invoice-data')} />
                 <ActionBtn icon={Receipt} color="bg-slate-700 hover:bg-slate-600" label={t('Thermal')}
                   onClick={() => onPrint(order, 'thermal')} />
+                <ActionBtn icon={Truck} color="bg-teal-600 hover:bg-teal-500" label={t('Delivery Sheet')}
+                  onClick={() => onPrint(order, 'delivery-sheet')} />
 
                 {(stage === 'SUBMITTED' || stage === 'ADMIN_APPROVED' || stage === 'PRODUCTION_READY') && (
                   <ActionBtn icon={Ban} color="bg-slate-700 hover:bg-slate-600" label={t('Awaiting Admin')}
-                    onClick={() => toast(t('This order is awaiting admin action'))} />
+                    onClick={() => toast(t('This order is awaiting admin review / approval'))} />
+                )}
+                {stage === 'SENT_TO_STORE' && (
+                  <ActionBtn icon={ClockIcon} color="bg-teal-700 hover:bg-teal-600" label={t('Awaiting Store Allocation')}
+                    onClick={() => toast(t('This order is at Store for warehouse stock allocation'))} />
                 )}
               </div>
 

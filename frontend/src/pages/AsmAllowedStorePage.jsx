@@ -87,6 +87,11 @@ const AsmAllowedStorePage = () => {
   // Print modal state
   const [printRequest, setPrintRequest] = useState(null);
 
+  // Bulk Allocation state
+  const [bulkOrders, setBulkOrders] = useState([]);
+  const [bulkOrdersLoading, setBulkOrdersLoading] = useState(false);
+  const [bulkAllocations, setBulkAllocations] = useState({});
+
   // Fetch warehouse catalog with product + color + size variants
   const fetchCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -137,11 +142,36 @@ const AsmAllowedStorePage = () => {
     setReturnsLoading(false);
   }, [activeTab]);
 
+  // Fetch Bulk Orders
+  const fetchBulkOrders = useCallback(async () => {
+    setBulkOrdersLoading(true);
+    try {
+      const res = await api.get('/api/vendors/orders/store-allocation');
+      const orders = res.data?.orders || [];
+      setBulkOrders(orders);
+      
+      const initialAllocs = {};
+      orders.forEach(order => {
+        if (order.currentStage === 'SENT_TO_STORE') {
+          initialAllocs[order.id] = {};
+          order.items.forEach(item => {
+            initialAllocs[order.id][item.id] = Math.max(0, Math.min(item.quantity, item.availableWarehouseStock || 0));
+          });
+        }
+      });
+      setBulkAllocations(initialAllocs);
+    } catch (err) {
+      toast.error('Failed to load bulk allocation orders');
+    }
+    setBulkOrdersLoading(false);
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'new-handover') fetchCatalog();
     else if (activeTab === 'requests' || activeTab === 'history') fetchRequests();
     else if (activeTab === 'returns') fetchReturns();
-  }, [activeTab, fetchCatalog, fetchRequests, fetchReturns]);
+    else if (activeTab === 'bulk-allocation') fetchBulkOrders();
+  }, [activeTab, fetchCatalog, fetchRequests, fetchReturns, fetchBulkOrders]);
 
   // Categories list derived from loaded variants
   const categories = useMemo(() => {
@@ -275,6 +305,25 @@ const AsmAllowedStorePage = () => {
     setAcceptingReturnId(null);
   };
 
+  // Handle Bulk Allocation Submit
+  const handleBulkAllocate = async (orderId) => {
+    const orderAllocs = bulkAllocations[orderId];
+    if (!orderAllocs) return;
+    
+    const allocations = Object.entries(orderAllocs).map(([itemId, allocatedQuantity]) => ({
+      itemId: parseInt(itemId) || itemId,
+      allocatedQuantity: parseInt(allocatedQuantity) || 0
+    }));
+
+    try {
+      await api.post(`/api/vendors/orders/${orderId}/store-allocate`, { allocations });
+      toast.success('Order allocated and sent to ASM!');
+      fetchBulkOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to allocate order');
+    }
+  };
+
   // Printable Handover Sheet generator
   const triggerPrint = (reqData) => {
     const printWindow = window.open('', '_blank');
@@ -395,6 +444,10 @@ const AsmAllowedStorePage = () => {
           <button onClick={() => setActiveTab('history')}
             className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'history' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:text-white'}`}>
             <CheckCircle2 size={14} /> History
+          </button>
+          <button onClick={() => setActiveTab('bulk-allocation')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'bulk-allocation' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:text-white'}`}>
+            <Layers size={14} /> Bulk Order Allocation
           </button>
         </div>
       </div>
@@ -975,6 +1028,156 @@ const AsmAllowedStorePage = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ═══════════════════ Tab 4: Bulk Allocation ═══════════════════ */}
+      {activeTab === 'bulk-allocation' && (
+        <div className="space-y-6">
+          <div className="glass p-6 rounded-3xl border border-gray-800">
+            <h2 className="text-sm font-black text-white uppercase tracking-wider mb-1">
+              Pending Bulk Allocations
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">
+              Review requests from vendors and allocate available warehouse stock.
+            </p>
+            
+            {bulkOrdersLoading ? (
+              <div className="py-12 text-center text-gray-500 font-bold">Loading bulk orders...</div>
+            ) : bulkOrders.filter(o => o.currentStage === 'SENT_TO_STORE').length === 0 ? (
+              <div className="py-12 text-center text-gray-500 font-bold">No pending bulk allocation orders</div>
+            ) : (
+              <div className="space-y-6">
+                {bulkOrders.filter(o => o.currentStage === 'SENT_TO_STORE').map(order => (
+                  <div key={order.id} className="bg-gray-900/90 rounded-2xl p-5 border border-gray-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-black text-amber-400">{order.orderNumber}</span>
+                          <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-amber-500/20 text-amber-400">
+                            Pending Store Allocation
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Vendor: <span className="text-white font-bold">{order.vendor?.name}</span> | ASM: <span className="text-gray-300">{order.asm?.name}</span> | Date: {formatDateTime(order.createdAt)}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => handleBulkAllocate(order.id)}
+                        className="bg-amber-500 hover:bg-amber-400 text-black font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                      >
+                        Confirm Allocation & Send to ASM <ArrowRight size={16} />
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-800 text-gray-500 font-bold uppercase">
+                            <th className="py-2">Product</th>
+                            <th className="py-2">Color</th>
+                            <th className="py-2">Size</th>
+                            <th className="py-2 text-right">Requested Qty</th>
+                            <th className="py-2 text-right">Warehouse Available</th>
+                            <th className="py-2 text-center w-36">Allocate Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {order.items.map(item => {
+                            const allocQty = bulkAllocations[order.id]?.[item.id] || 0;
+                            const stockLow = (item.availableWarehouseStock || 0) < item.quantity;
+                            
+                            return (
+                              <tr key={item.id} className={`border-b border-gray-800/50 text-gray-300 ${stockLow ? 'bg-amber-500/10' : ''}`}>
+                                <td className="py-2 font-bold text-white">{item.productName}</td>
+                                <td className="py-2 font-bold text-gray-200">{item.color || '—'}</td>
+                                <td className="py-2 font-black text-amber-300">{item.size || '—'}</td>
+                                <td className="py-2 text-right font-bold text-blue-400">{item.quantity}</td>
+                                <td className="py-2 text-right font-bold text-emerald-400">{item.availableWarehouseStock || 0}</td>
+                                <td className="py-2">
+                                  <div className="flex items-center justify-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={item.availableWarehouseStock || 0}
+                                      value={allocQty}
+                                      onChange={e => {
+                                        const val = parseInt(e.target.value) || 0;
+                                        setBulkAllocations(prev => ({
+                                          ...prev,
+                                          [order.id]: {
+                                            ...prev[order.id],
+                                            [item.id]: Math.max(0, Math.min(item.availableWarehouseStock || 0, val))
+                                          }
+                                        }));
+                                      }}
+                                      className="w-16 bg-gray-950 border border-gray-700 rounded text-center text-xs font-black text-white py-1 outline-none focus:border-amber-500"
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Already Allocated Section */}
+          <div className="glass p-6 rounded-3xl border border-gray-800">
+            <h2 className="text-sm font-black text-white uppercase tracking-wider mb-4">
+              Processed / Allocated Orders
+            </h2>
+            {bulkOrdersLoading ? (
+              <div className="py-8 text-center text-gray-500 font-bold">Loading...</div>
+            ) : bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED'].includes(o.currentStage)).length === 0 ? (
+              <div className="py-8 text-center text-gray-500 font-bold">No processed orders</div>
+            ) : (
+              <div className="space-y-4">
+                {bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED'].includes(o.currentStage)).map(order => (
+                  <div key={order.id} className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-black text-gray-300">{order.orderNumber}</span>
+                          <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-blue-500/20 text-blue-400">
+                            {order.currentStage.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Vendor: <span className="text-gray-400">{order.vendor?.name}</span> | ASM: <span className="text-gray-400">{order.asm?.name}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto opacity-75">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-800 text-gray-600 font-bold uppercase">
+                            <th className="py-1">Product</th>
+                            <th className="py-1 text-right">Requested</th>
+                            <th className="py-1 text-right">Allocated</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {order.items.map(item => (
+                            <tr key={item.id} className="border-b border-gray-800/30 text-gray-400">
+                              <td className="py-1">{item.productName} ({item.color}/{item.size})</td>
+                              <td className="py-1 text-right">{item.quantity}</td>
+                              <td className="py-1 text-right font-bold text-emerald-400">{item.allocatedQuantity || 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

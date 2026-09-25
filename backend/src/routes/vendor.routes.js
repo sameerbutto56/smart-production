@@ -11,6 +11,10 @@ const {
   getVendorOrder,
   submitVendorOrder,
   approveVendorOrder,
+  sendToStore,
+  buyItself,
+  getStoreAllocationOrders,
+  storeAllocate,
   rejectVendorOrder,
   markProductionReady,
   giveStock,
@@ -49,22 +53,29 @@ router.put('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), updateVend
 // ── PAYMENTS (shared — ASM records, Admin view) ─────────────────────────────
 router.get('/payments', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), listPayments);
 
-// ── ORDERS ─────────────────────────────────────────────────────────────────
-router.get('/orders', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), listVendorOrders);
+// ── ORDERS & STORE ALLOCATION ──────────────────────────────────────────────
+// NOTE: /orders/store-allocation MUST be declared before /orders/:id
+router.get('/orders/store-allocation', authenticate, authorize(['STORE', 'ASM', 'SUPER_ADMIN', 'ADMIN']), getStoreAllocationOrders);
+router.get('/orders', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'STORE']), listVendorOrders);
 router.post('/orders', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), createVendorOrder);
-router.get('/orders/:id', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getVendorOrder);
+router.get('/orders/:id', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'STORE']), getVendorOrder);
 
 // ── ORDER WORKFLOW ──────────────────────────────────────────────────────────
+// Store actions
+router.post('/orders/:id/store-allocate', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), storeAllocate);
+
+// Admin actions
+router.post('/orders/:id/approve', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), approveVendorOrder);
+router.post('/orders/:id/send-to-store', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), sendToStore);
+router.post('/orders/:id/buy-itself', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), buyItself);
+router.post('/orders/:id/reject', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), rejectVendorOrder);
+router.post('/orders/:id/production-ready', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), markProductionReady);
+router.post('/orders/:id/give-stock', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), giveStock);
+
 // ASM actions
 router.post('/orders/:id/submit', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), submitVendorOrder);
 router.post('/orders/:id/accept', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), asmAccept);
 router.post('/orders/:id/deliver', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), deliverOrder);
-
-// Admin actions
-router.post('/orders/:id/approve', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), approveVendorOrder);
-router.post('/orders/:id/reject', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), rejectVendorOrder);
-router.post('/orders/:id/production-ready', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), markProductionReady);
-router.post('/orders/:id/give-stock', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), giveStock);
 
 // Both — completion + payments + documents
 router.post('/orders/:id/complete', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), completeOrder);

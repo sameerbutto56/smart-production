@@ -606,18 +606,347 @@ const giveStock = async (req, res) => {
   }
 };
 
+// POST /api/vendors/orders/:id/send-to-store — Admin sends approved order to Store for allocation
+const sendToStore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await transition({
+      orderId: id,
+      from: ['ADMIN_APPROVED', 'SUBMITTED'],
+      to: 'SENT_TO_STORE',
+      req,
+      db: prisma,
+      set: {
+        fulfillmentMethod: 'SEND_TO_STORE',
+        sentToStoreAt: new Date(),
+        sentToStoreByName: req.user?.name || null,
+        adminApprovedAt: new Date(),
+        approvedByName: req.user?.name || null,
+      },
+      remarks: 'Order sent to Store for Warehouse inventory allocation',
+    });
+    if (result.error) return res.status(result.status || 400).json({ message: result.error });
+    try {
+      await notify.create(req, {
+        type: 'vendor_order',
+        moduleName: 'Store',
+        path: '/asm-allowed',
+        role: ['STORE', 'SUPER_ADMIN', 'ADMIN'],
+        title: 'New ASM Allocation Request',
+        message: `ASM Bulk Order ${result.order.orderNumber} sent to Store for inventory allocation.`,
+        orderNumber: result.order.orderNumber,
+        customerName: result.order.vendor?.name,
+        action: 'NOTIFY',
+        employeeName: req.user?.name || null,
+      });
+    } catch (e) {}
+    res.json({ order: result.order, message: 'Order sent to Store for ASM Allocation.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to send order to store', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/buy-itself — Admin marks fulfillment as Buy Itself
+const buyItself = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await transition({
+      orderId: id,
+      from: ['ADMIN_APPROVED', 'SUBMITTED'],
+      to: 'BUY_ITSELF',
+      req,
+      db: prisma,
+      set: {
+        fulfillmentMethod: 'BUY_ITSELF',
+        adminApprovedAt: new Date(),
+        approvedByName: req.user?.name || null,
+      },
+      remarks: 'Fulfillment method set to Buy Itself by Admin',
+    });
+    if (result.error) return res.status(result.status || 400).json({ message: result.error });
+    res.json({ order: result.order, message: 'Order marked as Buy Itself.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update order', error: error.message });
+  }
+};
+
+// GET /api/vendors/orders/store-allocation — List orders sent to store with live warehouse inventory checks
+const getStoreAllocationOrders = async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    const where = {};
+    if (status) {
+      where.currentStage = status;
+    } else {
+      where.currentStage = { in: ['SENT_TO_STORE', 'SENT_TO_ASM', 'GIVE_STOCK', 'ASM_ACCEPTED'] };
+    }
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: String(search).trim(), mode: 'insensitive' } },
+        { vendor: { name: { contains: String(search).trim(), mode: 'insensitive' } } },
+      ];
+    }
+    const orders = await prisma.vendorOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        vendor: true,
+        items: true,
+        payments: { orderBy: { createdAt: 'asc' } },
+        statusHistory: { orderBy: { createdAt: 'asc' } },
+        asm: { select: { id: true, name: true, phone: true } },
+      }
+    });
+
+    // Enrich each item with actual warehouse stock (Product + Color + Size)
+    const enrichedOrders = await Promise.all(orders.map(async (ord) => {
+      const enrichedItems = await Promise.all(ord.items.map(async (item) => {
+        let warehouseStock = 0;
+        let matchedInventoryItem = null;
+
+        // Try lookup by catalogItemId first
+        if (item.catalogItemId) {
+          matchedInventoryItem = await prisma.inventoryItem.findUnique({
+            where: { id: item.catalogItemId }
+          });
+        }
+        // Fallback by product name
+        if (!matchedInventoryItem && item.productName) {
+          matchedInventoryItem = await prisma.inventoryItem.findFirst({
+            where: {
+              name: { equals: item.productName.trim(), mode: 'insensitive' }
+            }
+          });
+        }
+
+        if (matchedInventoryItem) {
+          let variants = typeof matchedInventoryItem.variants === 'string'
+            ? JSON.parse(matchedInventoryItem.variants)
+            : (Array.isArray(matchedInventoryItem.variants) ? matchedInventoryItem.variants : []);
+
+          if (variants && variants.length > 0) {
+            const v = variants.find(vr =>
+              String(vr.color || '').trim().toLowerCase() === String(item.color || '').trim().toLowerCase() &&
+              String(vr.size || '').trim().toLowerCase() === String(item.size || '').trim().toLowerCase()
+            );
+            if (v) {
+              warehouseStock = parseInt(v.stock, 10) || 0;
+            } else {
+              // Try matching color only if size is empty, or size only if color is empty
+              const vColor = variants.filter(vr => String(vr.color || '').trim().toLowerCase() === String(item.color || '').trim().toLowerCase());
+              if (vColor.length === 1) {
+                warehouseStock = parseInt(vColor[0].stock, 10) || 0;
+              } else {
+                warehouseStock = parseInt(matchedInventoryItem.stock, 10) || 0;
+              }
+            }
+          } else {
+            warehouseStock = parseInt(matchedInventoryItem.stock, 10) || 0;
+          }
+        }
+
+        const requestedQuantity = item.quantity || 0;
+        const allocatedQuantity = item.allocatedQuantity || 0;
+        const remainingQuantity = Math.max(0, requestedQuantity - allocatedQuantity);
+
+        return {
+          ...item,
+          availableWarehouseStock: warehouseStock,
+          remainingQuantity,
+        };
+      }));
+
+      return {
+        ...ord,
+        items: enrichedItems
+      };
+    }));
+
+    res.json({ orders: enrichedOrders });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch store allocation orders', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/store-allocate — Store allocates warehouse inventory and sends/marks to ASM
+const storeAllocate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { allocations } = req.body || {}; // [{ itemId, allocatedQuantity }]
+
+    if (!Array.isArray(allocations) || allocations.length === 0) {
+      return res.status(400).json({ message: 'Allocations array is required.' });
+    }
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { items: true, vendor: true, asm: true }
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+    if (!['SENT_TO_STORE', 'ADMIN_APPROVED'].includes(order.currentStage)) {
+      return res.status(400).json({ message: `Order cannot be allocated in stage ${order.currentStage}.` });
+    }
+
+    // Atomic transaction for inventory deduction and allocation finalization
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      let totalAllocatedUnits = 0;
+
+      for (const alloc of allocations) {
+        const item = order.items.find(it => it.id === alloc.itemId);
+        if (!item) continue;
+
+        const allocQty = parseInt(alloc.allocatedQuantity, 10) || 0;
+        if (allocQty < 0) {
+          throw new Error(`Allocated quantity cannot be negative for ${item.productName}`);
+        }
+        if (allocQty > item.quantity) {
+          throw new Error(`Allocated quantity (${allocQty}) cannot exceed requested quantity (${item.quantity}) for ${item.productName}`);
+        }
+
+        // Deduct inventory only if allocQty > 0
+        if (allocQty > 0) {
+          // Find matching InventoryItem
+          let inv = null;
+          if (item.catalogItemId) {
+            inv = await tx.inventoryItem.findUnique({ where: { id: item.catalogItemId } });
+          }
+          if (!inv && item.productName) {
+            inv = await tx.inventoryItem.findFirst({
+              where: { name: { equals: item.productName.trim(), mode: 'insensitive' } }
+            });
+          }
+
+          if (inv) {
+            let variants = typeof inv.variants === 'string'
+              ? JSON.parse(inv.variants)
+              : (Array.isArray(inv.variants) ? inv.variants : []);
+
+            if (variants && variants.length > 0) {
+              const vIdx = variants.findIndex(vr =>
+                String(vr.color || '').trim().toLowerCase() === String(item.color || '').trim().toLowerCase() &&
+                String(vr.size || '').trim().toLowerCase() === String(item.size || '').trim().toLowerCase()
+              );
+
+              if (vIdx !== -1) {
+                const currentVStock = parseInt(variants[vIdx].stock, 10) || 0;
+                if (currentVStock < allocQty) {
+                  throw new Error(`Insufficient warehouse stock for ${inv.name} (${item.color || ''} / ${item.size || ''}). Available: ${currentVStock}, Allocated: ${allocQty}`);
+                }
+                variants[vIdx] = {
+                  ...variants[vIdx],
+                  stock: currentVStock - allocQty
+                };
+                const newTotal = Math.max(0, variants.reduce((s, v) => s + (parseInt(v.stock, 10) || 0), 0));
+                await tx.inventoryItem.update({
+                  where: { id: inv.id },
+                  data: {
+                    stock: newTotal,
+                    variants: variants
+                  }
+                });
+              } else {
+                // Fallback to parent stock
+                if (inv.stock < allocQty) {
+                  throw new Error(`Insufficient warehouse stock for ${inv.name}. Available: ${inv.stock}, Allocated: ${allocQty}`);
+                }
+                await tx.inventoryItem.update({
+                  where: { id: inv.id },
+                  data: { stock: { decrement: allocQty } }
+                });
+              }
+            } else {
+              if (inv.stock < allocQty) {
+                throw new Error(`Insufficient warehouse stock for ${inv.name}. Available: ${inv.stock}, Allocated: ${allocQty}`);
+              }
+              await tx.inventoryItem.update({
+                where: { id: inv.id },
+                data: { stock: { decrement: allocQty } }
+              });
+            }
+          }
+        }
+
+        // Update allocatedQuantity on VendorOrderItem
+        await tx.vendorOrderItem.update({
+          where: { id: item.id },
+          data: { allocatedQuantity: allocQty }
+        });
+
+        totalAllocatedUnits += allocQty;
+      }
+
+      // Finalize order status to SENT_TO_ASM (and GIVE_STOCK for backwards compatibility)
+      const now = new Date();
+      const updated = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          currentStage: 'SENT_TO_ASM',
+          status: 'SENT_TO_ASM',
+          allocatedAt: now,
+          allocatedByName: req.user?.name || null,
+          storeName: 'Main Store / Warehouse',
+          giveStockAt: now,
+          stockGivenByName: req.user?.name || null,
+          updatedAt: now
+        },
+        include: {
+          vendor: true,
+          items: true,
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          asm: { select: { id: true, name: true, phone: true } },
+          payments: true
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'SENT_TO_ASM',
+          fromStage: order.currentStage,
+          toStage: 'SENT_TO_ASM',
+          changedBy: req.user?.name || null,
+          changedById: req.user?.id || null,
+          remarks: `Store verified warehouse inventory and allocated ${totalAllocatedUnits} units. Marked to ASM.`,
+        }
+      });
+
+      return updated;
+    }, { timeout: 30000 });
+
+    try {
+      await notify.create(req, {
+        type: 'vendor_order',
+        moduleName: 'ASM',
+        path: '/asm',
+        role: ['ASM', 'SUPER_ADMIN', 'ADMIN'],
+        title: 'Stock Allocated to ASM',
+        message: `Store allocated inventory for Bulk Order ${updatedOrder.orderNumber} (${updatedOrder.vendor?.name}). Ready for ASM Acceptance.`,
+        orderNumber: updatedOrder.orderNumber,
+        customerName: updatedOrder.vendor?.name,
+        action: 'NOTIFY',
+        employeeName: req.user?.name || null,
+      });
+    } catch (e) {}
+
+    res.json({ order: updatedOrder, message: 'Stock allocated from Warehouse and marked to ASM successfully.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Failed to allocate stock', error: error.message });
+  }
+};
+
 // POST /api/vendors/orders/:id/accept — ASM accepts
 const asmAccept = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await transition({
       orderId: id,
-      from: ['GIVE_STOCK'],
+      from: ['GIVE_STOCK', 'SENT_TO_ASM'],
       to: 'ASM_ACCEPTED',
       req,
       db: prisma,
       set: { asmAcceptedAt: new Date(), acceptedByName: req.user?.name || null },
-      remarks: 'ASM accepted stock',
+      remarks: 'ASM received and accepted allocated stock',
     });
     if (result.error) return res.status(result.status || 400).json({ message: result.error });
     res.json({ order: result.order, message: 'Stock accepted.' });
@@ -933,6 +1262,10 @@ module.exports = {
   rejectVendorOrder,
   markProductionReady,
   giveStock,
+  sendToStore,
+  buyItself,
+  getStoreAllocationOrders,
+  storeAllocate,
   asmAccept,
   deliverOrder,
   completeOrder,

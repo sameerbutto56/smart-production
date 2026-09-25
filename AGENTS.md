@@ -1,5 +1,37 @@
 ## Goals
-### Implemented This Session — Software Settings: Deposit Record Edit / Reverse Exception in Price / Exceptions (deployed & live-verified)
+### Implemented This Session — ASM Bulk Order Workflow: Complete End-to-End Implementation (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Preserve ASM Portal Workflow**: The existing ASM Vendor creation, Vendor selection, catalog product selection, line-item entry, and order creation/submission workflow remains 100% intact and untouched.
+  2. **Admin Review & Two-Pronged Fulfillment Decision**: After ASM submits (`SUBMITTED`), Admin reviews and approves. Admin has two fulfillment options:
+     - **Send to Store**: Transfers the order to Store Profile (`SENT_TO_STORE`, `fulfillmentMethod: 'SEND_TO_STORE'`).
+     - **Buy Itself**: Separate fulfillment pathway (`BUY_ITSELF`, `fulfillmentMethod: 'BUY_ITSELF'`), bypassing the Store warehouse allocation workflow.
+  3. **Store Warehouse Allocation**: Store accesses the order via the new "Bulk Order Allocation" tab in `AsmAllowedStorePage.jsx` (`GET /api/vendors/orders/store-allocation`). Each item is dynamically enriched with real-time `availableWarehouseStock` matching product, color, and size.
+  4. **Strict Inventory Deduction Timing**: Warehouse inventory (`InventoryItem` variants) is deducted **ONLY** when Store confirms allocation (`POST /api/vendors/orders/:id/store-allocate`) — never on order creation, submission, or approval.
+  5. **Send to ASM & ASM Acceptance**: Store confirms allocation, moving order to `SENT_TO_ASM`. The ASM sees the allocated stock amounts in `AsmPage.jsx` and clicks "Accept Allocated Stock" (`POST /api/vendors/orders/:id/accept`) to transition to `ASM_ACCEPTED`.
+  6. **A4 Delivery Sheet Print (2 Copies)**: A dedicated 2-copy delivery document (`printDeliverySheet`) formatted for company letterhead (3-inch top and bottom margins), completely free of financial/pricing details, containing item specifications (Product, Color, Size, Requested, Allocated), and 3 formal signature blocks: `Prepared By`, `Issued By`, and `Received By`.
+  7. **Letterhead Margin Alignment**: Updated Invoice Data print CSS (`PRINT_CSS_DATA_INVOICE`) to standard 3-inch top/bottom margins to match Quotation Data for physical letterhead use.
+- **Backend Implementation (`schema.prisma`, `vendor.controller.js`, `vendor.routes.js`)**:
+  - `schema.prisma`:
+    - `VendorOrder`: Added `fulfillmentMethod`, `sentToStoreAt`, `sentToStoreByName`, `allocatedAt`, `allocatedByName`, `storeName`, and `@@index([fulfillmentMethod])`.
+    - `VendorOrderItem`: Added `allocatedQuantity Int @default(0)`.
+    - Synced with database via `npx prisma db push` and `npx prisma generate`.
+  - `vendor.controller.js`:
+    - `sendToStore`: Transitions from `ADMIN_APPROVED`/`SUBMITTED` -> `SENT_TO_STORE`, sets `fulfillmentMethod: 'SEND_TO_STORE'`, records audit history, sends notification to Store role.
+    - `buyItself`: Transitions to `BUY_ITSELF`, sets `fulfillmentMethod: 'BUY_ITSELF'`, records audit history.
+    - `getStoreAllocationOrders`: Retrieves orders in `SENT_TO_STORE`, `SENT_TO_ASM`, `GIVE_STOCK`, `ASM_ACCEPTED` stages. Matches line items against warehouse `InventoryItem` by `catalogItemId` or name + color + size, computing `availableWarehouseStock` and `remainingQuantity`.
+    - `storeAllocate`: Atomic `$transaction` that validates stock availability, deducts allocated quantities directly from `InventoryItem.variants` array, updates `VendorOrderItem.allocatedQuantity`, transitions order to `SENT_TO_ASM`, and creates `VendorOrderStatus` audit log.
+    - `asmAccept`: Updated to accept orders from both legacy `GIVE_STOCK` and new `SENT_TO_ASM` stages.
+  - `vendor.routes.js`: Added routes for `send-to-store`, `buy-itself`, `store-allocation`, and `store-allocate` with strict role protection (`ADMIN`, `SUPER_ADMIN`, `STORE`, `ASM`).
+- **Frontend Implementation (`AsmAllowedStorePage.jsx`, `VendorsPage.jsx`, `AsmPage.jsx`, `vendorDocumentPrint.js`)**:
+  - `AsmAllowedStorePage.jsx`: Added 'Bulk Order Allocation' tab. Lists pending store allocation orders with real-time stock levels, allocated quantity inputs, warning highlights for low stock, and one-click "Confirm Allocation & Send to ASM" submission. Also displays processed orders with allocated counts.
+  - `VendorsPage.jsx`: Added `SENT_TO_STORE`, `BUY_ITSELF`, and `SENT_TO_ASM` badges and filters. Added "Send to Store" and "Buy Itself" action buttons to both order cards and order detail drawer. Added "Delivery Sheet" print action.
+  - `AsmPage.jsx`: Added stage badges and filters. Shows allocated item quantities (`Allocated: X / Y`). Enabled "Accept Allocated Stock" button on `SENT_TO_ASM` stage. Added "Delivery Sheet" print option.
+  - `vendorDocumentPrint.js`: Implemented `printDeliverySheet()` generating 2 clean copies (`COPY 1 — STORE`, `COPY 2 — ASM`) with 3-inch top/bottom margins, no pricing, item specs, and 3 signature blocks (`Prepared By`, `Issued By`, `Received By`). Adjusted `PRINT_CSS_DATA_INVOICE` to 3in margins for physical letterhead.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-asm-bulk-workflow.cjs`: All 8/8 tests passed (100% pass rate) covering vendor creation, SUBMITTED stage, Send to Store transition, atomic inventory stock deduction on allocation, SENT_TO_ASM transition, ASM acceptance to ASM_ACCEPTED, Buy Itself route execution, and clean data rollback.
+  - Production build (`cd frontend && npm run build`): Exit code 0, 3,204 modules bundled cleanly.
+
+### Implemented Prior Session — Software Settings: Deposit Record Edit / Reverse Exception in Price / Exceptions (deployed & live-verified)
 - **Problem & Requirements**:
   1. **Software Settings Only**: Add the Deposit Record Edit / Reverse Exception exclusively inside **Software Settings → Price / Exceptions**. Must NOT be linked with Admin Profile, Admin Dashboard permissions, or any separate Admin permission system (no Admin Dashboard permission, no Admin Profile permission, no Admin role toggle, no Admin navigation permission).
   2. **Full Historical & Real-Time Business Date Flexibility**: Authorized users can select any outlet (Jail Road, Johar Town, Abbottabad) and any business date (past, present, or future) to inspect the recorded deposit, edit/correct the deposit amount (e.g. from ₨25,000 to ₨28,000), or reverse it to ₨0.

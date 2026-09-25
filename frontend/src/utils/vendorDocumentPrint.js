@@ -70,11 +70,11 @@ th, td {
 }
 `;
 
-// ── CSS for Invoice Data (zero margins) ─────────────────────────────────────
+// ── CSS for Invoice Data (3in top/bottom margins for letterhead) ─────────────
 const PRINT_CSS_DATA_INVOICE = `
 @page {
   size: A4 portrait;
-  margin: 4mm 12mm 4mm 12mm;
+  margin: 3in 12mm 3in 12mm;
 }
 * {
   box-sizing: border-box;
@@ -473,4 +473,135 @@ export async function printThermalReceipt(order) {
   const title = `Receipt — ${order.orderNumber || ''}`;
   const thermalCss = `@page{margin:2mm;width:58mm}body{font-family:monospace;color:#000;width:58mm;font-size:10px;padding:2px;word-break:break-word}`;
   printIframe(html, title, [() => { if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }], thermalCss);
+}
+
+// ── ASM Bulk Order Delivery Sheet (A4, no financials, 2 copies, signature fields) ──
+const DELIVERY_SHEET_CSS = `
+@page {
+  size: A4 portrait;
+  margin: 3in 12mm 3in 12mm;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 5px 8px; }
+.page-break { page-break-before: always; }
+`;
+
+function buildDeliverySheetHTML(order, copyLabel) {
+  const vendorName = order.vendor?.name || 'VENDOR';
+  const asmName = order.asm?.name || '—';
+  const orderNumber = order.orderNumber || '—';
+  const dateStr = order.createdAt
+    ? new Date(order.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  let itemsRows = '';
+  (order.items || []).forEach((it, idx) => {
+    const allocQty = it.allocatedQuantity || it.quantity || 0;
+    const specs = [it.color, it.size, it.variant, it.unit].filter(Boolean).join(' / ');
+    itemsRows += `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: 600; color: #64748b;">${String(idx + 1).padStart(2, '0')}</td>
+        <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">
+          <div style="font-weight: 700; color: #0f172a;">${it.productName || 'Product'}</div>
+          ${specs ? `<div style="font-size: 8.5px; color: #64748b;">${specs}</div>` : ''}
+        </td>
+        <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: 700;">${it.quantity || 0}</td>
+        <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: 700; color: #059669;">${allocQty}</td>
+      </tr>`;
+  });
+
+  const totalRequested = (order.items || []).reduce((s, it) => s + (it.quantity || 0), 0);
+  const totalAllocated = (order.items || []).reduce((s, it) => s + (it.allocatedQuantity || it.quantity || 0), 0);
+
+  return `
+  <div class="a4-container">
+    <!-- COPY LABEL -->
+    <div style="text-align: right; font-size: 8px; color: #94a3b8; font-weight: 700; margin-bottom: 4px;">${copyLabel}</div>
+
+    <!-- TITLE -->
+    <div style="text-align: center; margin-bottom: 8px;">
+      <div style="font-size: 16px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; border-bottom: 2px solid #0f172a; display: inline-block; padding-bottom: 2px;">
+        DELIVERY SHEET
+      </div>
+    </div>
+
+    <!-- HEADER INFO -->
+    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 9.5px; line-height: 1.5;">
+      <div>
+        <div><span style="color: #64748b; font-weight: 600;">Order #:</span> <strong>${orderNumber}</strong></div>
+        <div><span style="color: #64748b; font-weight: 600;">Vendor:</span> <strong style="font-size: 11px; text-transform: uppercase;">${vendorName}</strong></div>
+        ${order.vendor?.phone ? `<div><span style="color: #64748b; font-weight: 600;">Phone:</span> ${order.vendor.phone}</div>` : ''}
+        ${order.vendor?.address ? `<div><span style="color: #64748b; font-weight: 600;">Address:</span> ${order.vendor.address}</div>` : ''}
+      </div>
+      <div style="text-align: right;">
+        <div><span style="color: #64748b; font-weight: 600;">Date:</span> <strong>${dateStr}</strong></div>
+        <div><span style="color: #64748b; font-weight: 600;">ASM:</span> <strong>${asmName}</strong></div>
+        ${order.deliveryCity ? `<div><span style="color: #64748b; font-weight: 600;">City:</span> ${order.deliveryCity}</div>` : ''}
+      </div>
+    </div>
+
+    <!-- PRODUCTS TABLE (NO PRICES) -->
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px;">
+      <thead>
+        <tr style="background: #1e293b; color: #ffffff;">
+          <th style="padding: 5px 6px; text-align: center; width: 36px; font-size: 9px; font-weight: 700; border: 1px solid #1e293b;">Sr.#</th>
+          <th style="padding: 5px 8px; text-align: left; font-size: 9px; font-weight: 700; border: 1px solid #1e293b;">Product Description</th>
+          <th style="padding: 5px 8px; text-align: center; width: 70px; font-size: 9px; font-weight: 700; border: 1px solid #1e293b;">Requested</th>
+          <th style="padding: 5px 8px; text-align: center; width: 70px; font-size: 9px; font-weight: 700; border: 1px solid #1e293b;">Allocated</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+        <tr style="background: #f1f5f9;">
+          <td colspan="2" style="padding: 5px 8px; border: 1px solid #cbd5e1; font-weight: 800; text-align: right;">TOTAL</td>
+          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800;">${totalRequested}</td>
+          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #059669;">${totalAllocated}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ${order.notes ? `<div style="margin-bottom: 10px; font-size: 9px; color: #475569;"><strong>Notes:</strong> ${order.notes}</div>` : ''}
+
+    <!-- SIGNATURE SECTION -->
+    <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 9px;">
+      <div style="text-align: center; width: 30%;">
+        <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
+          <div style="font-weight: 800;">Prepared By</div>
+          <div style="color: #64748b; font-size: 8px;">Name / Signature / Date</div>
+        </div>
+      </div>
+      <div style="text-align: center; width: 30%;">
+        <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
+          <div style="font-weight: 800;">Issued By</div>
+          <div style="color: #64748b; font-size: 8px;">Name / Signature / Date</div>
+        </div>
+      </div>
+      <div style="text-align: center; width: 30%;">
+        <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
+          <div style="font-weight: 800;">Received By</div>
+          <div style="color: #64748b; font-size: 8px;">Name / Signature / Date</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+export function printDeliverySheet(order) {
+  const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE');
+  const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM');
+  const html = copy1 + `<div class="page-break"></div>` + copy2;
+  const title = `Delivery Sheet — ${order.orderNumber || ''}`;
+  printIframe(html, title, [], DELIVERY_SHEET_CSS);
 }

@@ -1908,8 +1908,9 @@ model VendorOrder {
   // Workflow
   status            String    @default("CREATED")
   // CREATED, SUBMITTED, ADMIN_APPROVED, PRODUCTION_READY, GIVE_STOCK,
-  // ASM_ACCEPTED, DELIVER, DELIVERED, COMPLETED, CANCELLED, REJECTED
+  // SENT_TO_STORE, BUY_ITSELF, SENT_TO_ASM, ASM_ACCEPTED, DELIVER, DELIVERED, COMPLETED, CANCELLED, REJECTED
   currentStage      String    @default("CREATED")
+  fulfillmentMethod String?   // SEND_TO_STORE / BUY_ITSELF
   asmId             String?
   asm               User?     @relation("VendorOrderAsm", fields: [asmId], references: [id])
   assignedAt        DateTime?
@@ -1919,6 +1920,13 @@ model VendorOrder {
   deliveryAddress   String?
   deliveryCity      String?
   deliveryDate      DateTime?
+
+  // Store Allocation tracking
+  sentToStoreAt     DateTime?
+  sentToStoreByName String?
+  allocatedAt       DateTime?
+  allocatedByName   String?
+  storeName         String?
 
   // Immutable timeline
   statusHistory     VendorOrderStatus[]
@@ -1952,6 +1960,7 @@ model VendorOrder {
   @@index([vendorId])
   @@index([status])
   @@index([currentStage])
+  @@index([fulfillmentMethod])
   @@index([asmId])
   @@index([orderNumber])
   @@index([createdAt])
@@ -1960,23 +1969,24 @@ model VendorOrder {
 // A product line on a vendor order — snapshot of a warehouse InventoryItem.
 // Prices/quantities are captured at order time; never written back to inventory.
 model VendorOrderItem {
-  id            String    @id @default(uuid())
-  orderId       String
-  order         VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  catalogItemId String?   // InventoryItem.id (reference only)
-  productName   String
-  productType   String?
-  color         String?
-  size          String?
-  barcode       String?
-  articleName   String?   // "Other" manual products
-  articleNumber String?
-  unit          String?
-  variant       String?
-  quantity      Int       @default(1)
-  unitPrice     Float     @default(0)
-  lineTotal     Float     @default(0)
-  notes         String?
+  id                String    @id @default(uuid())
+  orderId           String
+  order             VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  catalogItemId     String?   // InventoryItem.id (reference only)
+  productName       String
+  productType       String?
+  color             String?
+  size              String?
+  barcode           String?
+  articleName       String?   // "Other" manual products
+  articleNumber     String?
+  unit              String?
+  variant           String?
+  quantity          Int       @default(1)
+  allocatedQuantity Int       @default(0)
+  unitPrice         Float     @default(0)
+  lineTotal         Float     @default(0)
+  notes             String?
 
   @@index([orderId])
 }
