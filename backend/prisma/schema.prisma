@@ -1927,11 +1927,14 @@ model VendorOrder {
   allocatedAt       DateTime?
   allocatedByName   String?
   storeName         String?
+  asmReceivedAt     DateTime?
+  asmReceivedByName String?
 
   // Immutable timeline
   statusHistory     VendorOrderStatus[]
   deliveries        VendorDelivery[]
   documents         VendorDocument[]
+  allocations       VendorOrderAllocation[]
 
   // Timestamps of each step
   createdAt         DateTime  @default(now())
@@ -2001,14 +2004,74 @@ model VendorPayment {
   paymentType   String    // ADVANCE / DEPOSIT / ADDITIONAL / BALANCE / FULL
   paymentMethod String    // CASH / BANK / ONLINE / CHEQUE / CARD
   reference     String?
+  chequeNumber  String?
+  bankName      String?
+  chequeDate    DateTime?
+  status        String    @default("CLEARED") // CLEARED, PENDING, BOUNCED, CANCELLED
+  vendorId      String?
   paymentDate   DateTime
   recordedBy    String?   // user name
   recordedById  String?
   notes         String?
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
 
   @@index([orderId])
   @@index([paymentDate])
+  @@index([vendorId])
+  @@index([status])
+}
+
+// Payment correction audit log
+model VendorPaymentAudit {
+  id             String    @id @default(uuid())
+  paymentId      String
+  orderId        String
+  previousAmount Float
+  newAmount      Float
+  difference     Float
+  editedBy       String?
+  editedById     String?
+  reason         String?
+  createdAt      DateTime  @default(now())
+
+  @@index([paymentId])
+  @@index([orderId])
+}
+
+// Store-to-ASM Handover Allocation record
+model VendorOrderAllocation {
+  id                String      @id @default(uuid())
+  allocationNumber  String?
+  orderId           String
+  order             VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId       String?
+  vendorId          String
+  asmId             String?
+  storeName         String      @default("Main Store / Warehouse")
+  catalogItemId     String?
+  productName       String
+  color             String?
+  size              String?
+  requestedQuantity Int         @default(0)
+  allocatedQuantity Int         @default(0)
+  remainingQuantity Int         @default(0)
+  sentBy            String?
+  sentById          String?
+  sentAt            DateTime?
+  handoverStatus    String      @default("SENT_TO_ASM") // ALLOCATED, SENT_TO_ASM, ASM_RECEIVED
+  receivedBy        String?
+  receivedById      String?
+  receivedAt        DateTime?
+  receivedQuantity  Int?
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([asmId])
+  @@index([handoverStatus])
 }
 
 // Immutable status/timeline entry for a vendor order.

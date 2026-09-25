@@ -22,7 +22,10 @@ const {
   deliverOrder,
   completeOrder,
   recordPayment,
+  updatePayment,
   listPayments,
+  getFinancialSummary,
+  getVendorFinancialDetail,
   generateDocuments,
   getOrderDocuments,
   getAnalytics,
@@ -36,9 +39,10 @@ const router = express.Router();
 // Read-only warehouse catalog for order lines (never mutates inventory)
 router.get('/catalog', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getCatalog);
 
-// Operational analytics (ASM is NOT revenue — no Revenue Generated)
+// Operational analytics & financial summary (Admin ASM Command Center)
 router.get('/analytics', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getAnalytics);
 router.get('/asm-stats', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getAsmStats);
+router.get('/financial-summary', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getFinancialSummary);
 router.get('/asm', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), listAsm);
 
 // ── VENDOR CRUD (Admin + ASM — ASM creates vendors from the order modal) ────
@@ -47,11 +51,12 @@ router.post('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), creat
 router.put('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), updateVendor);
 
 // NOTE: static sub-paths (/payments, /orders, /catalog, /analytics, /asm-stats,
-// /asm) MUST be declared before GET /:id, otherwise Express captures them as an
+// /financial-summary, /asm) MUST be declared before GET /:id, otherwise Express captures them as an
 // :id parameter and they 404 as "Vendor not found."
 
-// ── PAYMENTS (shared — ASM records, Admin view) ─────────────────────────────
+// ── PAYMENTS (shared — ASM records, Admin view & edit) ─────────────────────
 router.get('/payments', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), listPayments);
+router.put('/payments/:paymentId', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), updatePayment);
 
 // ── ORDERS & STORE ALLOCATION ──────────────────────────────────────────────
 // NOTE: /orders/store-allocation MUST be declared before /orders/:id
@@ -75,6 +80,7 @@ router.post('/orders/:id/give-stock', authenticate, authorize(['SUPER_ADMIN', 'A
 // ASM actions
 router.post('/orders/:id/submit', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), submitVendorOrder);
 router.post('/orders/:id/accept', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), asmAccept);
+router.post('/orders/:id/receive', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), asmAccept);
 router.post('/orders/:id/deliver', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), deliverOrder);
 
 // Both — completion + payments + documents
@@ -84,6 +90,7 @@ router.post('/orders/:id/generate-documents', authenticate, authorize(['ASM', 'S
 router.get('/orders/:id/documents', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getOrderDocuments);
 
 // ── VENDOR BY ID (declared LAST so static sub-routes above win) ─────────────
+router.get('/:id/financials', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getVendorFinancialDetail);
 router.get('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), getVendor);
 
 module.exports = router;

@@ -25,6 +25,7 @@ const STAGE_LABELS = {
   SENT_TO_ASM: 'Sent to ASM',
   GIVE_STOCK: 'Stock Given',
   ASM_ACCEPTED: 'Accepted by ASM',
+  ASM_RECEIVED: 'ASM Received',
   DELIVER: 'Deliver',
   DELIVERED: 'Delivered',
   COMPLETED: 'Completed',
@@ -44,6 +45,7 @@ const STAGE_COLORS = {
   SENT_TO_ASM: 'bg-cyan-500',
   GIVE_STOCK: 'bg-violet-500',
   ASM_ACCEPTED: 'bg-cyan-500',
+  ASM_RECEIVED: 'bg-cyan-600',
   DELIVER: 'bg-orange-500',
   DELIVERED: 'bg-green-500',
   COMPLETED: 'bg-emerald-600',
@@ -51,7 +53,7 @@ const STAGE_COLORS = {
   REJECTED: 'bg-rose-600',
 };
 
-const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'BUY_ITSELF', 'SENT_TO_ASM', 'GIVE_STOCK', 'ASM_ACCEPTED', 'DELIVERED', 'COMPLETED', 'REJECTED'];
+const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'BUY_ITSELF', 'SENT_TO_ASM', 'GIVE_STOCK', 'ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVERED', 'COMPLETED', 'REJECTED'];
 
 const fmtCurrency = (n) => `Rs. ${(n || 0).toLocaleString()}`;
 
@@ -229,6 +231,7 @@ const VendorsPage = () => {
     else if (kind === 'invoice') printOrderDocument(docOrder, 'invoice');
     else if (kind === 'quotation-data') printDataDocument(docOrder, 'quotation-data');
     else if (kind === 'invoice-data') printDataDocument(docOrder, 'invoice-data');
+    else if (kind === 'delivery-sheet') printDeliverySheet(docOrder);
     else printThermalReceipt(docOrder);
   };
 

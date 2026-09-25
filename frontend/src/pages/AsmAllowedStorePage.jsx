@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
+import { printDeliverySheet } from '../utils/vendorDocumentPrint';
 
 // Status badge sub-component for ASM Handover Requests
 const StatusBadge = ({ status }) => {
@@ -1134,11 +1135,11 @@ const AsmAllowedStorePage = () => {
             </h2>
             {bulkOrdersLoading ? (
               <div className="py-8 text-center text-gray-500 font-bold">Loading...</div>
-            ) : bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED'].includes(o.currentStage)).length === 0 ? (
+            ) : bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED'].includes(o.currentStage)).length === 0 ? (
               <div className="py-8 text-center text-gray-500 font-bold">No processed orders</div>
             ) : (
               <div className="space-y-4">
-                {bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED'].includes(o.currentStage)).map(order => (
+                {bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED'].includes(o.currentStage)).map(order => (
                   <div key={order.id} className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                       <div>
@@ -1152,6 +1153,12 @@ const AsmAllowedStorePage = () => {
                           Vendor: <span className="text-gray-400">{order.vendor?.name}</span> | ASM: <span className="text-gray-400">{order.asm?.name}</span>
                         </p>
                       </div>
+                      <button
+                        onClick={() => printDeliverySheet(order)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600/80 hover:bg-teal-600 text-white text-xs font-bold transition shadow"
+                      >
+                        <Printer size={14} /> Print Delivery Sheet
+                      </button>
                     </div>
                     <div className="overflow-x-auto opacity-75">
                       <table className="w-full text-left text-xs border-collapse">

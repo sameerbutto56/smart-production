@@ -420,7 +420,8 @@ const listVendorOrders = async (req, res) => {
         payments: { orderBy: { createdAt: 'asc' } },
         statusHistory: { orderBy: { createdAt: 'asc' } },
         deliveries: true,
-        asm: { select: { id: true, name: true } },
+        allocations: true,
+        asm: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -430,8 +431,19 @@ const listVendorOrders = async (req, res) => {
       const cur = order.currentStage || order.status;
       const isAwaited = ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(cur);
       const isApproved = ['ADMIN_APPROVED', 'APPROVED'].includes(cur);
+
+      const clearedPayments = (order.payments || []).filter(p => p.status === 'CLEARED' || !p.status);
+      const totalPaid = clearedPayments.reduce((s, p) => s + (p.amount || 0), 0);
+      const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
+      let paymentStatus = 'UNPAID';
+      if (totalPaid >= (order.grandTotal || 0) && (order.grandTotal || 0) > 0) paymentStatus = 'PAID';
+      else if (totalPaid > 0) paymentStatus = 'PARTIALLY_PAID';
+
       return {
         ...order,
+        totalPaid,
+        remainingBalance: remaining,
+        paymentStatus,
         canApprove: isAdmin && isAwaited,
         canSendToStore: isAdmin && isApproved,
         canBuyItself: isAdmin && isApproved,
@@ -457,14 +469,22 @@ const getVendorOrder = async (req, res) => {
         payments: { orderBy: { createdAt: 'asc' } },
         statusHistory: { orderBy: { createdAt: 'asc' } },
         deliveries: true,
+        allocations: true,
         asm: { select: { id: true, name: true, email: true } },
         documents: { orderBy: { generatedAt: 'asc' } },
       },
     });
     if (!order) return res.status(404).json({ message: 'Vendor order not found.' });
-    const totalPaid = order.payments.reduce((s, p) => s + p.amount, 0);
+
+    const clearedPayments = (order.payments || []).filter(p => p.status === 'CLEARED' || !p.status);
+    const totalPaid = clearedPayments.reduce((s, p) => s + (p.amount || 0), 0);
     order._totalPaid = totalPaid;
     order._remainingBalance = Math.max(0, order.grandTotal - totalPaid);
+
+    let paymentStatus = 'UNPAID';
+    if (totalPaid >= (order.grandTotal || 0) && (order.grandTotal || 0) > 0) paymentStatus = 'PAID';
+    else if (totalPaid > 0) paymentStatus = 'PARTIALLY_PAID';
+    order.paymentStatus = paymentStatus;
 
     const isAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN';
     const cur = order.currentStage || order.status;
@@ -838,6 +858,10 @@ const storeAllocate = async (req, res) => {
     // Atomic transaction for inventory deduction and allocation finalization
     const updatedOrder = await prisma.$transaction(async (tx) => {
       let totalAllocatedUnits = 0;
+      const now = new Date();
+
+      // Clean up any existing allocations for this order to ensure single source of truth
+      await tx.vendorOrderAllocation.deleteMany({ where: { orderId: id } });
 
       for (const alloc of allocations) {
         const item = order.items.find(it => it.id === alloc.itemId);
@@ -920,11 +944,33 @@ const storeAllocate = async (req, res) => {
           data: { allocatedQuantity: allocQty }
         });
 
+        // Create authoritative VendorOrderAllocation record
+        await tx.vendorOrderAllocation.create({
+          data: {
+            allocationNumber: `ALC-${order.orderNumber}-${item.id.slice(0, 6)}`,
+            orderId: id,
+            orderItemId: item.id,
+            vendorId: order.vendorId,
+            asmId: order.asmId,
+            storeName: 'Main Store / Warehouse',
+            catalogItemId: item.catalogItemId || null,
+            productName: item.productName,
+            color: item.color || null,
+            size: item.size || null,
+            requestedQuantity: item.quantity,
+            allocatedQuantity: allocQty,
+            remainingQuantity: Math.max(0, item.quantity - allocQty),
+            sentBy: req.user?.name || 'Main Store',
+            sentById: req.user?.id || null,
+            sentAt: now,
+            handoverStatus: 'SENT_TO_ASM',
+          }
+        });
+
         totalAllocatedUnits += allocQty;
       }
 
-      // Finalize order status to SENT_TO_ASM (and GIVE_STOCK for backwards compatibility)
-      const now = new Date();
+      // Finalize order status to SENT_TO_ASM
       const updated = await tx.vendorOrder.update({
         where: { id },
         data: {
@@ -942,7 +988,8 @@ const storeAllocate = async (req, res) => {
           items: true,
           statusHistory: { orderBy: { createdAt: 'asc' } },
           asm: { select: { id: true, name: true, email: true } },
-          payments: true
+          payments: true,
+          allocations: true,
         }
       });
 
@@ -982,21 +1029,70 @@ const storeAllocate = async (req, res) => {
   }
 };
 
-// POST /api/vendors/orders/:id/accept — ASM accepts
+// POST /api/vendors/orders/:id/accept — ASM accepts / receives stock
 const asmAccept = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await transition({
-      orderId: id,
-      from: ['GIVE_STOCK', 'SENT_TO_ASM'],
-      to: 'ASM_ACCEPTED',
-      req,
-      db: prisma,
-      set: { asmAcceptedAt: new Date(), acceptedByName: req.user?.name || null },
-      remarks: 'ASM received and accepted allocated stock',
+    const now = new Date();
+    const order = await prisma.vendorOrder.findUnique({ where: { id } });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const validStages = ['GIVE_STOCK', 'SENT_TO_ASM'];
+    if (!validStages.includes(order.currentStage) && !validStages.includes(order.status)) {
+      return res.status(400).json({ message: `Cannot accept order in stage ${order.currentStage}` });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // Update allocation records to ASM_RECEIVED
+      await tx.vendorOrderAllocation.updateMany({
+        where: { orderId: id },
+        data: {
+          handoverStatus: 'ASM_RECEIVED',
+          receivedBy: req.user?.name || 'ASM',
+          receivedById: req.user?.id || null,
+          receivedAt: now,
+        }
+      });
+
+      // Update order to ASM_RECEIVED (and ASM_ACCEPTED for compatibility)
+      const ord = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          currentStage: 'ASM_RECEIVED',
+          status: 'ASM_RECEIVED',
+          asmAcceptedAt: now,
+          acceptedByName: req.user?.name || null,
+          asmReceivedAt: now,
+          asmReceivedByName: req.user?.name || null,
+          updatedAt: now,
+        },
+        include: {
+          vendor: true,
+          items: true,
+          payments: { orderBy: { createdAt: 'asc' } },
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          allocations: true,
+          asm: { select: { id: true, name: true, email: true } },
+        }
+      });
+
+      // Audit status history
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'ASM_RECEIVED',
+          fromStage: order.currentStage,
+          toStage: 'ASM_RECEIVED',
+          changedBy: req.user?.name || null,
+          changedById: req.user?.id || null,
+          remarks: 'ASM received and accepted allocated stock',
+        }
+      });
+
+      return ord;
     });
-    if (result.error) return res.status(result.status || 400).json({ message: result.error });
-    res.json({ order: result.order, message: 'Stock accepted.' });
+
+    res.json({ order: updated, message: 'Stock received and accepted by ASM.' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to accept order', error: error.message });
   }
@@ -1009,11 +1105,11 @@ const deliverOrder = async (req, res) => {
     const { carrier, notes, address, city } = req.body || {};
     const existing = await prisma.vendorOrder.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: 'Order not found.' });
-    if (existing.currentStage !== 'ASM_ACCEPTED' && existing.currentStage !== 'DELIVER') {
-      return res.status(400).json({ message: `Already ${existing.currentStage}` });
+    if (!['ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVER'].includes(existing.currentStage)) {
+      return res.status(400).json({ message: `Cannot deliver order in stage ${existing.currentStage}` });
     }
     const claim = await prisma.vendorOrder.updateMany({
-      where: { id, currentStage: { in: ['ASM_ACCEPTED', 'DELIVER'] } },
+      where: { id, currentStage: { in: ['ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVER'] } },
       data: { currentStage: 'DELIVERED', status: 'DELIVERED', deliveredAt: new Date(), deliveredByName: req.user?.name || null, updatedAt: new Date() },
     });
     if (claim.count === 0) {
@@ -1036,7 +1132,7 @@ const deliverOrder = async (req, res) => {
         notes,
       },
     });
-    const order = await prisma.vendorOrder.findUnique({ where: { id }, include: { vendor: true, statusHistory: true } });
+    const order = await prisma.vendorOrder.findUnique({ where: { id }, include: { vendor: true, statusHistory: true, allocations: true } });
     res.json({ order, message: 'Order delivered.' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to deliver order', error: error.message });
@@ -1064,14 +1160,25 @@ const completeOrder = async (req, res) => {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// PAYMENTS
+// PAYMENTS & FINANCIAL LEDGER
 // ════════════════════════════════════════════════════════════════════════════
 
 // POST /api/vendors/orders/:id/pay — record a payment (idempotent per request)
 const recordPayment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, paymentType, paymentMethod, reference, paymentDate, notes } = req.body || {};
+    const {
+      amount,
+      paymentType,
+      paymentMethod,
+      reference,
+      chequeNumber,
+      bankName,
+      chequeDate,
+      status,
+      paymentDate,
+      notes,
+    } = req.body || {};
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return res.status(400).json({ message: 'A positive payment amount is required.' });
 
@@ -1081,13 +1188,22 @@ const recordPayment = async (req, res) => {
       return res.status(400).json({ message: 'Cannot add payment to a cancelled/rejected order.' });
     }
 
+    const finalMethod = String(paymentMethod || 'CASH').toUpperCase();
+    const finalType = String(paymentType || 'ADDITIONAL').toUpperCase();
+    const finalStatus = status ? String(status).toUpperCase() : (finalMethod === 'CHEQUE' ? 'PENDING' : 'CLEARED');
+
     const payment = await prisma.vendorPayment.create({
       data: {
         orderId: id,
+        vendorId: order.vendorId,
         amount: amt,
-        paymentType: paymentType || 'ADDITIONAL',
-        paymentMethod: paymentMethod || 'CASH',
+        paymentType: finalType,
+        paymentMethod: finalMethod,
         reference: reference || null,
+        chequeNumber: chequeNumber || null,
+        bankName: bankName || null,
+        chequeDate: chequeDate ? new Date(chequeDate) : null,
+        status: finalStatus,
         paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
         recordedBy: req.user?.name || null,
         recordedById: req.user?.id || null,
@@ -1095,45 +1211,439 @@ const recordPayment = async (req, res) => {
       },
     });
 
-    const totalPaid = (await prisma.vendorPayment.aggregate({ where: { orderId: id }, _sum: { amount: true } }))._sum.amount || 0;
+    // Recompute total valid paid amount (only CLEARED payments count)
+    const validPayments = await prisma.vendorPayment.findMany({
+      where: { orderId: id, status: 'CLEARED' },
+    });
+    const totalPaid = validPayments.reduce((s, p) => s + (p.amount || 0), 0);
+    const advancePaid = validPayments
+      .filter((p) => p.paymentType === 'ADVANCE')
+      .reduce((s, p) => s + (p.amount || 0), 0);
     const remaining = Math.max(0, order.grandTotal - totalPaid);
+
     await prisma.vendorOrder.update({
       where: { id },
-      data: { remainingBalance: remaining, updatedAt: new Date() },
+      data: {
+        advancePaid,
+        remainingBalance: remaining,
+        updatedAt: new Date(),
+      },
     });
 
     await prisma.vendorOrderStatus.create({
-      data: { orderId: id, status: order.currentStage, fromStage: order.currentStage, toStage: order.currentStage, changedBy: req.user?.name || null, changedById: req.user?.id || null, remarks: `Payment recorded: ${amt} (${paymentType})` },
+      data: {
+        orderId: id,
+        status: order.currentStage,
+        fromStage: order.currentStage,
+        toStage: order.currentStage,
+        changedBy: req.user?.name || null,
+        changedById: req.user?.id || null,
+        remarks: `Payment recorded: Rs. ${amt.toLocaleString()} (${finalType} via ${finalMethod}${finalMethod === 'CHEQUE' ? ` - Cheque #${chequeNumber || 'N/A'}, Status: ${finalStatus}` : ''})`,
+      },
     });
 
     const updated = await prisma.vendorOrder.findUnique({
       where: { id },
-      include: { vendor: true, payments: { orderBy: { createdAt: 'asc' } }, statusHistory: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        vendor: true,
+        payments: { orderBy: { createdAt: 'asc' } },
+        statusHistory: { orderBy: { createdAt: 'asc' } },
+        allocations: true,
+      },
     });
-    res.status(201).json({ payment, order: updated, remainingBalance: remaining });
+    res.status(201).json({ payment, order: updated, remainingBalance: remaining, totalPaid });
   } catch (error) {
     res.status(500).json({ message: 'Failed to record payment', error: error.message });
+  }
+};
+
+// PUT /api/vendors/payments/:paymentId — edit/correct payment with audit log
+const updatePayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const {
+      amount,
+      paymentType,
+      paymentMethod,
+      reference,
+      chequeNumber,
+      bankName,
+      chequeDate,
+      status,
+      paymentDate,
+      notes,
+      reason,
+    } = req.body || {};
+
+    const existingPayment = await prisma.vendorPayment.findUnique({
+      where: { id: paymentId },
+      include: { order: true },
+    });
+    if (!existingPayment) return res.status(404).json({ message: 'Payment record not found.' });
+
+    const newAmount = amount !== undefined ? parseFloat(amount) : existingPayment.amount;
+    if (isNaN(newAmount) || newAmount <= 0) {
+      return res.status(400).json({ message: 'A valid positive payment amount is required.' });
+    }
+
+    const prevAmount = existingPayment.amount;
+    const diff = newAmount - prevAmount;
+
+    // Create immutable audit log
+    await prisma.vendorPaymentAudit.create({
+      data: {
+        paymentId,
+        orderId: existingPayment.orderId,
+        previousAmount: prevAmount,
+        newAmount: newAmount,
+        difference: diff,
+        editedBy: req.user?.name || 'Admin',
+        editedById: req.user?.id || null,
+        reason: reason || 'Payment details corrected by admin',
+      },
+    });
+
+    const finalMethod = paymentMethod ? String(paymentMethod).toUpperCase() : existingPayment.paymentMethod;
+    const finalType = paymentType ? String(paymentType).toUpperCase() : existingPayment.paymentType;
+    const finalStatus = status ? String(status).toUpperCase() : existingPayment.status;
+
+    const updatedPayment = await prisma.vendorPayment.update({
+      where: { id: paymentId },
+      data: {
+        amount: newAmount,
+        paymentType: finalType,
+        paymentMethod: finalMethod,
+        reference: reference !== undefined ? reference : existingPayment.reference,
+        chequeNumber: chequeNumber !== undefined ? chequeNumber : existingPayment.chequeNumber,
+        bankName: bankName !== undefined ? bankName : existingPayment.bankName,
+        chequeDate: chequeDate !== undefined ? (chequeDate ? new Date(chequeDate) : null) : existingPayment.chequeDate,
+        status: finalStatus,
+        paymentDate: paymentDate ? new Date(paymentDate) : existingPayment.paymentDate,
+        notes: notes !== undefined ? notes : existingPayment.notes,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Recompute order totals
+    const validPayments = await prisma.vendorPayment.findMany({
+      where: { orderId: existingPayment.orderId, status: 'CLEARED' },
+    });
+    const totalPaid = validPayments.reduce((s, p) => s + (p.amount || 0), 0);
+    const advancePaid = validPayments
+      .filter((p) => p.paymentType === 'ADVANCE')
+      .reduce((s, p) => s + (p.amount || 0), 0);
+    const remaining = Math.max(0, existingPayment.order.grandTotal - totalPaid);
+
+    await prisma.vendorOrder.update({
+      where: { id: existingPayment.orderId },
+      data: {
+        advancePaid,
+        remainingBalance: remaining,
+        updatedAt: new Date(),
+      },
+    });
+
+    res.json({
+      payment: updatedPayment,
+      message: 'Payment updated and audit recorded successfully.',
+      totalPaid,
+      remainingBalance: remaining,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update payment', error: error.message });
   }
 };
 
 // GET /api/vendors/payments — all payments with filters
 const listPayments = async (req, res) => {
   try {
-    const { vendorId, orderId, paymentMethod, paymentType } = req.query;
+    const { vendorId, orderId, paymentMethod, paymentType, status } = req.query;
     const where = {};
-    if (vendorId) where.order = { vendorId };
+    if (vendorId) where.vendorId = vendorId;
     if (orderId) where.orderId = orderId;
     if (paymentMethod) where.paymentMethod = paymentMethod;
     if (paymentType) where.paymentType = paymentType;
+    if (status) where.status = status;
+
     const payments = await prisma.vendorPayment.findMany({
       where,
       orderBy: { paymentDate: 'desc' },
-      include: { order: { select: { orderNumber: true, vendor: { select: { id: true, name: true } } } } },
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            currentStage: true,
+            grandTotal: true,
+            vendor: { select: { id: true, name: true, companyName: true, phone: true } },
+          },
+        },
+      },
       take: 500,
     });
     res.json({ payments });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch payments', error: error.message });
+  }
+};
+
+// GET /api/vendors/financial-summary — comprehensive ASM financial overview (Admin)
+const getFinancialSummary = async (req, res) => {
+  try {
+    const orders = await prisma.vendorOrder.findMany({
+      include: {
+        vendor: true,
+        payments: true,
+        items: true,
+        allocations: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const allPayments = await prisma.vendorPayment.findMany({
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            currentStage: true,
+            status: true,
+            vendor: { select: { id: true, name: true, companyName: true, phone: true } },
+          },
+        },
+      },
+      orderBy: { paymentDate: 'desc' },
+    });
+
+    // Valid orders (exclude rejected/cancelled for active value calculations)
+    const validOrders = orders.filter((o) => !['REJECTED', 'CANCELLED'].includes(o.currentStage));
+
+    // Summary calculation
+    const totalOrders = orders.length;
+    const totalOrderValue = validOrders.reduce((s, o) => s + (o.grandTotal || 0), 0);
+
+    // Cleared payments sum
+    const clearedPayments = allPayments.filter((p) => p.status === 'CLEARED' || !p.status);
+    const totalPaid = clearedPayments.reduce((s, p) => s + (p.amount || 0), 0);
+
+    // Advance received
+    const totalAdvanceReceived = clearedPayments
+      .filter((p) => p.paymentType === 'ADVANCE')
+      .reduce((s, p) => s + (p.amount || 0), 0);
+
+    // Remaining
+    const totalRemaining = Math.max(0, totalOrderValue - totalPaid);
+
+    // Total spent/fulfilled (orders that are in fulfillment or completed)
+    const fulfilledStages = ['ALLOCATED', 'SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVER', 'DELIVERED', 'COMPLETED'];
+    const totalSpentFulfilled = orders
+      .filter((o) => fulfilledStages.includes(o.currentStage))
+      .reduce((s, o) => s + (o.grandTotal || 0), 0);
+
+    const totalOutstanding = validOrders
+      .filter((o) => o.currentStage !== 'COMPLETED')
+      .reduce((s, o) => {
+        const orderPaid = o.payments
+          .filter((p) => p.status === 'CLEARED' || !p.status)
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        return s + Math.max(0, (o.grandTotal || 0) - orderPaid);
+      }, 0);
+
+    // Method Breakdown (reconciles with totalPaid)
+    const methods = {
+      CASH: { amount: 0, count: 0 },
+      ONLINE: { amount: 0, count: 0 },
+      BANK_TRANSFER: { amount: 0, count: 0 },
+      CHEQUE: { amount: 0, count: 0, pendingAmount: 0, pendingCount: 0 },
+      CARD: { amount: 0, count: 0 },
+      OTHER: { amount: 0, count: 0 },
+    };
+
+    allPayments.forEach((p) => {
+      const m = String(p.paymentMethod || 'OTHER').toUpperCase();
+      const amt = p.amount || 0;
+      const isCleared = p.status === 'CLEARED' || !p.status;
+
+      if (m === 'CHEQUE') {
+        if (isCleared) {
+          methods.CHEQUE.amount += amt;
+          methods.CHEQUE.count += 1;
+        } else if (p.status === 'PENDING') {
+          methods.CHEQUE.pendingAmount += amt;
+          methods.CHEQUE.pendingCount += 1;
+        }
+      } else {
+        const target = methods[m] || methods.OTHER;
+        if (isCleared) {
+          target.amount += amt;
+          target.count += 1;
+        }
+      }
+    });
+
+    // Vendor-wise financial breakdown
+    const vendorMap = {};
+    const vendors = await prisma.vendor.findMany({
+      orderBy: { name: 'asc' },
+    });
+
+    vendors.forEach((v) => {
+      vendorMap[v.id] = {
+        vendorId: v.id,
+        vendorName: v.name,
+        companyName: v.companyName,
+        phone: v.phone,
+        ordersCount: 0,
+        totalOrderValue: 0,
+        advancePaid: 0,
+        totalPaid: 0,
+        remaining: 0,
+      };
+    });
+
+    orders.forEach((o) => {
+      if (['REJECTED', 'CANCELLED'].includes(o.currentStage)) return;
+      if (!vendorMap[o.vendorId]) {
+        vendorMap[o.vendorId] = {
+          vendorId: o.vendorId,
+          vendorName: o.vendor?.name || 'Unknown',
+          companyName: o.vendor?.companyName || null,
+          phone: o.vendor?.phone || null,
+          ordersCount: 0,
+          totalOrderValue: 0,
+          advancePaid: 0,
+          totalPaid: 0,
+          remaining: 0,
+        };
+      }
+      const entry = vendorMap[o.vendorId];
+      entry.ordersCount += 1;
+      entry.totalOrderValue += (o.grandTotal || 0);
+
+      const orderCleared = (o.payments || []).filter((p) => p.status === 'CLEARED' || !p.status);
+      const paid = orderCleared.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const adv = orderCleared.filter((p) => p.paymentType === 'ADVANCE').reduce((sum, p) => sum + (p.amount || 0), 0);
+      entry.totalPaid += paid;
+      entry.advancePaid += adv;
+    });
+
+    Object.values(vendorMap).forEach((v) => {
+      v.remaining = Math.max(0, v.totalOrderValue - v.totalPaid);
+    });
+
+    const vendorSummary = Object.values(vendorMap).filter((v) => v.ordersCount > 0);
+
+    res.json({
+      summary: {
+        totalOrders,
+        totalOrderValue,
+        totalAdvanceReceived,
+        totalPaid,
+        totalRemaining,
+        totalSpentFulfilled,
+        totalOutstanding,
+      },
+      methodBreakdown: methods,
+      vendorSummary,
+      recentPayments: allPayments.slice(0, 100),
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch financial summary', error: error.message });
+  }
+};
+
+// GET /api/vendors/:id/financials — vendor financial detail (Admin)
+const getVendorFinancialDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const vendor = await prisma.vendor.findUnique({
+      where: { id },
+      include: {
+        orders: {
+          include: {
+            items: true,
+            payments: { orderBy: { paymentDate: 'desc' } },
+            allocations: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!vendor) return res.status(404).json({ message: 'Vendor not found.' });
+
+    const validOrders = vendor.orders.filter((o) => !['REJECTED', 'CANCELLED'].includes(o.currentStage));
+    const totalOrderValue = validOrders.reduce((s, o) => s + (o.grandTotal || 0), 0);
+
+    let allPayments = [];
+    vendor.orders.forEach((o) => {
+      (o.payments || []).forEach((p) => {
+        allPayments.push({
+          ...p,
+          orderNumber: o.orderNumber,
+          orderStage: o.currentStage,
+        });
+      });
+    });
+
+    allPayments.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+
+    const clearedPayments = allPayments.filter((p) => p.status === 'CLEARED' || !p.status);
+    const totalPaid = clearedPayments.reduce((s, p) => s + (p.amount || 0), 0);
+    const totalAdvance = clearedPayments.filter((p) => p.paymentType === 'ADVANCE').reduce((s, p) => s + (p.amount || 0), 0);
+    const totalRemaining = Math.max(0, totalOrderValue - totalPaid);
+
+    const paymentAudits = await prisma.vendorPaymentAudit.findMany({
+      where: { orderId: { in: vendor.orders.map((o) => o.id) } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      vendor: {
+        id: vendor.id,
+        name: vendor.name,
+        companyName: vendor.companyName,
+        phone: vendor.phone,
+        email: vendor.email,
+        address: vendor.address,
+        city: vendor.city,
+      },
+      totals: {
+        totalOrders: validOrders.length,
+        totalOrderValue,
+        totalAdvance,
+        totalPaid,
+        totalRemaining,
+      },
+      orders: vendor.orders.map((o) => {
+        const orderCleared = (o.payments || []).filter((p) => p.status === 'CLEARED' || !p.status);
+        const paid = orderCleared.reduce((sum, p) => sum + (p.amount || 0), 0);
+        const rem = Math.max(0, (o.grandTotal || 0) - paid);
+        let paymentStatus = 'UNPAID';
+        if (paid >= (o.grandTotal || 0) && (o.grandTotal || 0) > 0) paymentStatus = 'PAID';
+        else if (paid > 0) paymentStatus = 'PARTIALLY_PAID';
+
+        return {
+          id: o.id,
+          orderNumber: o.orderNumber,
+          createdAt: o.createdAt,
+          currentStage: o.currentStage,
+          grandTotal: o.grandTotal,
+          paidAmount: paid,
+          remainingBalance: rem,
+          paymentStatus,
+          fulfillmentStatus: o.currentStage,
+          itemsCount: o.items.length,
+          totalUnits: o.items.reduce((s, it) => s + (it.quantity || 0), 0),
+          allocatedUnits: o.items.reduce((s, it) => s + (it.allocatedQuantity || 0), 0),
+          items: o.items,
+        };
+      }),
+      payments: allPayments,
+      audits: paymentAudits,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch vendor financial details', error: error.message });
   }
 };
 
@@ -1317,7 +1827,10 @@ module.exports = {
   deliverOrder,
   completeOrder,
   recordPayment,
+  updatePayment,
   listPayments,
+  getFinancialSummary,
+  getVendorFinancialDetail,
   generateDocuments,
   getOrderDocuments,
   getAnalytics,

@@ -501,6 +501,7 @@ th, td { padding: 5px 8px; }
 function buildDeliverySheetHTML(order, copyLabel) {
   const vendorName = order.vendor?.name || 'VENDOR';
   const asmName = order.asm?.name || '—';
+  const storeName = order.storeName || 'Main Store / Warehouse';
   const orderNumber = order.orderNumber || '—';
   const dateStr = order.createdAt
     ? new Date(order.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -508,7 +509,7 @@ function buildDeliverySheetHTML(order, copyLabel) {
 
   let itemsRows = '';
   (order.items || []).forEach((it, idx) => {
-    const allocQty = it.allocatedQuantity || it.quantity || 0;
+    const allocQty = (it.allocatedQuantity !== undefined && it.allocatedQuantity !== null) ? it.allocatedQuantity : 0;
     const specs = [it.color, it.size, it.variant, it.unit].filter(Boolean).join(' / ');
     itemsRows += `
       <tr style="border-bottom: 1px solid #e2e8f0;">
@@ -523,7 +524,7 @@ function buildDeliverySheetHTML(order, copyLabel) {
   });
 
   const totalRequested = (order.items || []).reduce((s, it) => s + (it.quantity || 0), 0);
-  const totalAllocated = (order.items || []).reduce((s, it) => s + (it.allocatedQuantity || it.quantity || 0), 0);
+  const totalAllocated = (order.items || []).reduce((s, it) => s + ((it.allocatedQuantity !== undefined && it.allocatedQuantity !== null) ? it.allocatedQuantity : 0), 0);
 
   return `
   <div class="a4-container">
@@ -547,6 +548,7 @@ function buildDeliverySheetHTML(order, copyLabel) {
       </div>
       <div style="text-align: right;">
         <div><span style="color: #64748b; font-weight: 600;">Date:</span> <strong>${dateStr}</strong></div>
+        <div><span style="color: #64748b; font-weight: 600;">Store:</span> <strong>${storeName}</strong></div>
         <div><span style="color: #64748b; font-weight: 600;">ASM:</span> <strong>${asmName}</strong></div>
         ${order.deliveryCity ? `<div><span style="color: #64748b; font-weight: 600;">City:</span> ${order.deliveryCity}</div>` : ''}
       </div>

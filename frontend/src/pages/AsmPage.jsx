@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet } from '../utils/vendorDocumentPrint';
+import AsmFinancialDashboard from '../components/AsmFinancialDashboard';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
@@ -25,7 +26,8 @@ const STAGE_LABELS = {
   BUY_ITSELF: 'Buy Itself',
   SENT_TO_ASM: 'Ready for ASM',
   GIVE_STOCK: 'Stock Given',
-  ASM_ACCEPTED: 'Accepted by ASM',
+  ASM_ACCEPTED: 'Received by ASM',
+  ASM_RECEIVED: 'Received by ASM',
   DELIVER: 'Deliver',
   DELIVERED: 'Delivered',
   COMPLETED: 'Completed',
@@ -44,7 +46,8 @@ const STAGE_COLORS = {
   BUY_ITSELF: 'bg-pink-500',
   SENT_TO_ASM: 'bg-cyan-500',
   GIVE_STOCK: 'bg-violet-500',
-  ASM_ACCEPTED: 'bg-cyan-500',
+  ASM_ACCEPTED: 'bg-emerald-600',
+  ASM_RECEIVED: 'bg-emerald-600',
   DELIVER: 'bg-orange-500',
   DELIVERED: 'bg-green-500',
   COMPLETED: 'bg-emerald-600',
@@ -52,7 +55,7 @@ const STAGE_COLORS = {
   REJECTED: 'bg-rose-600',
 };
 
-const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'BUY_ITSELF', 'SENT_TO_ASM', 'ASM_ACCEPTED', 'DELIVERED', 'COMPLETED', 'REJECTED'];
+const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'BUY_ITSELF', 'SENT_TO_ASM', 'ASM_RECEIVED', 'DELIVERED', 'COMPLETED', 'REJECTED'];
 
 const fmtCurrency = (n) => `Rs. ${(n || 0).toLocaleString()}`;
 
@@ -124,6 +127,8 @@ const AsmPage = () => {
         list = list.filter((o) => ['SUBMITTED', 'AWAITED_ADMIN'].includes(o.status) || ['SUBMITTED', 'AWAITED_ADMIN'].includes(o.currentStage));
       } else if (filter === 'ADMIN_APPROVED') {
         list = list.filter((o) => ['ADMIN_APPROVED', 'APPROVED'].includes(o.status) || ['ADMIN_APPROVED', 'APPROVED'].includes(o.currentStage));
+      } else if (filter === 'ASM_RECEIVED') {
+        list = list.filter((o) => ['ASM_ACCEPTED', 'ASM_RECEIVED'].includes(o.status) || ['ASM_ACCEPTED', 'ASM_RECEIVED'].includes(o.currentStage));
       } else {
         list = list.filter((o) => o.status === filter || o.currentStage === filter);
       }
@@ -312,9 +317,15 @@ const AsmPage = () => {
           {/* Main Tab Switcher */}
           <div className="bg-slate-900 p-1 rounded-lg border border-slate-800 flex gap-1">
             <button onClick={() => setMainTab('vendor-orders')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${mainTab === 'vendor-orders' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${mainTab === 'vendor-orders' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
               Vendor Orders
             </button>
+            {isAdmin && (
+              <button onClick={() => setMainTab('financials')}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ${mainTab === 'financials' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+                💰 Financial Dashboard
+              </button>
+            )}
             <button onClick={() => setMainTab('asm-stock')}
               className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${mainTab === 'asm-stock' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'}`}>
               Incoming Stock / ASM Allowed {asmRequests.filter(r => r.status === 'SUBMITTED').length > 0 && <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{asmRequests.filter(r => r.status === 'SUBMITTED').length}</span>}
@@ -602,6 +613,7 @@ const AsmPage = () => {
                     onOpen={viewDetail}
                     onAction={runAction}
                     onReject={handleReject}
+                    onPrint={handlePrint}
                     isAdmin={isAdmin}
                     flexDir={flexDir}
                   />
@@ -610,6 +622,10 @@ const AsmPage = () => {
             )}
           </div>
         </>
+      )}
+
+      {mainTab === 'financials' && (
+        <AsmFinancialDashboard isAdmin={isAdmin} onViewOrder={viewDetail} />
       )}
 
       {selectedOrder && (
@@ -637,7 +653,7 @@ const AsmPage = () => {
   );
 };
 
-const OrderRow = ({ order, onOpen, onAction, onReject, isAdmin, flexDir }) => {
+const OrderRow = ({ order, onOpen, onAction, onReject, onPrint, isAdmin, flexDir }) => {
   const { t } = useLanguage();
   const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
@@ -645,8 +661,10 @@ const OrderRow = ({ order, onOpen, onAction, onReject, isAdmin, flexDir }) => {
   const color = STAGE_COLORS[stage] || 'bg-slate-500';
   const itemsCount = (order.items || []).length;
   const totalUnits = (order.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+  const allocatedUnits = (order.items || []).reduce((s, i) => s + (i.allocatedQuantity || 0), 0);
   const isAwaited = ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(stage) || order.canApprove;
   const isApproved = ['ADMIN_APPROVED', 'APPROVED'].includes(stage) || order.canSendToStore;
+  const pStatus = order.paymentStatus || (remaining <= 0.01 ? 'PAID' : totalPaid > 0 ? 'PARTIALLY_PAID' : 'UNPAID');
 
   return (
     <div
@@ -654,7 +672,7 @@ const OrderRow = ({ order, onOpen, onAction, onReject, isAdmin, flexDir }) => {
       className={`w-full text-left bg-slate-800/50 hover:bg-slate-800 rounded-lg p-3 border border-slate-700/50 transition cursor-pointer ${flexDir}`}
     >
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-bold text-white">{order.orderNumber}</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${color}`}>
             {STAGE_LABELS[stage] || stage}
@@ -664,9 +682,17 @@ const OrderRow = ({ order, onOpen, onAction, onReject, isAdmin, flexDir }) => {
               {order.fulfillmentMethod === 'SEND_TO_STORE' ? 'Store Allocation' : 'Buy Itself'}
             </span>
           )}
-          {remaining > 0.01 && (
+          {pStatus === 'PAID' ? (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              {t('Paid')}
+            </span>
+          ) : pStatus === 'PARTIALLY_PAID' ? (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              {t('Balance')}
+              {t('Partial')}
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700/60 text-slate-400 border border-slate-600/30">
+              {t('Unpaid')}
             </span>
           )}
         </div>
@@ -719,6 +745,31 @@ const OrderRow = ({ order, onOpen, onAction, onReject, isAdmin, flexDir }) => {
               </button>
             </>
           )}
+          {stage === 'SENT_TO_ASM' && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction(order.id, '/accept', t('Stock received & accepted'), { confirmText: t('Accept and receive this allocated stock?') });
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition shadow"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t('Accept / Receive Stock')}
+            </button>
+          )}
+          {onPrint && ['SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVERED', 'COMPLETED'].includes(stage) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrint(order, 'delivery-sheet');
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700/80 hover:bg-slate-700 text-teal-300 text-xs font-bold transition border border-teal-500/30"
+              title={t('Print Delivery Sheet')}
+            >
+              <Printer className="h-3.5 w-3.5" /> {t('Delivery Sheet')}
+            </button>
+          )}
           <div className="flex items-center text-xs text-slate-400">
             <User className="h-3.5 w-3.5 mr-1" />
             {order.vendor?.name || (order.vendorId ? order.vendorId.slice(0, 8) : '—')}
@@ -727,9 +778,19 @@ const OrderRow = ({ order, onOpen, onAction, onReject, isAdmin, flexDir }) => {
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 text-xs text-slate-400 flex-wrap gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span>{itemsCount} {t('item(s)')} · {totalUnits} {t('units')}</span>
+          {allocatedUnits > 0 && (
+            <span className="text-teal-400 font-semibold">
+              · {t('Allocated')}: {allocatedUnits} {t('units')}
+            </span>
+          )}
           <span className="font-semibold text-white">{fmtCurrency(order.grandTotal)}</span>
+          {remaining > 0.01 ? (
+            <span className="text-amber-400">({t('Bal')}: {fmtCurrency(remaining)})</span>
+          ) : (
+            <span className="text-emerald-400">({t('Fully Paid')})</span>
+          )}
         </div>
         <span className="flex items-center gap-1">
           <Calendar className="h-3 w-3" />
@@ -745,6 +806,11 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
   const [showPayForm, setShowPayForm] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('CASH');
+  const [payType, setPayType] = useState('PARTIAL');
+  const [payRef, setPayRef] = useState('');
+  const [chequeNumber, setChequeNumber] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [chequeStatus, setChequeStatus] = useState('CLEARED');
   const [showDeliverForm, setShowDeliverForm] = useState(false);
   const [carrier, setCarrier] = useState('');
   const [address, setAddress] = useState(order.deliveryAddress || '');
@@ -759,9 +825,20 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
     const amt = parseFloat(payAmount);
     if (!amt || amt <= 0) return toast.error(t('Enter a positive amount'));
     await runAction(order.id, `/pay`, t('Payment recorded'), {
-      payload: { amount: amt, paymentMethod: payMethod },
+      payload: {
+        amount: amt,
+        paymentMethod: payMethod,
+        paymentType: payType,
+        reference: payRef,
+        chequeNumber: payMethod === 'CHEQUE' ? chequeNumber : undefined,
+        bankName: payMethod === 'CHEQUE' ? bankName : undefined,
+        status: payMethod === 'CHEQUE' ? chequeStatus : undefined,
+      },
     });
     setPayAmount('');
+    setPayRef('');
+    setChequeNumber('');
+    setBankName('');
     setShowPayForm(false);
   };
 
@@ -875,11 +952,11 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
 
               <div className="flex flex-wrap gap-2 pt-2">
                 {(stage === 'GIVE_STOCK' || stage === 'SENT_TO_ASM') && (
-                  <ActionBtn icon={CheckCircle2} color="bg-cyan-600 hover:bg-cyan-500" label={stage === 'SENT_TO_ASM' ? t('Accept Allocated Stock') : t('Accept Stock')}
-                    onClick={() => runAction(order.id, `/accept`, t('Stock accepted'), { confirmText: t('Accept this stock?') })} />
+                  <ActionBtn icon={CheckCircle2} color="bg-teal-600 hover:bg-teal-500" label={t('Accept / Receive Stock')}
+                    onClick={() => runAction(order.id, `/accept`, t('Stock received & accepted'), { confirmText: t('Accept and receive this allocated stock?') })} />
                 )}
 
-                {(stage === 'ASM_ACCEPTED' || stage === 'DELIVER') && !showDeliverForm && (
+                {(stage === 'ASM_ACCEPTED' || stage === 'ASM_RECEIVED' || stage === 'DELIVER') && !showDeliverForm && (
                   <ActionBtn icon={Truck} color="bg-green-600 hover:bg-green-500" label={t('Deliver to Vendor')}
                     onClick={() => setShowDeliverForm(true)} />
                 )}
@@ -950,23 +1027,63 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
                 <div className="bg-slate-800 rounded-lg p-4 border border-amber-500/30">
                   <h3 className="text-sm font-semibold text-amber-400 mb-3">{t('Record Payment')}</h3>
                   <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-slate-400">{t('Amount')}</label>
-                      <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder={String(remaining || 0)} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-slate-400">{t('Payment Type')}</label>
+                        <select value={payType} onChange={(e) => setPayType(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                          <option value="ADVANCE">ADVANCE</option>
+                          <option value="PARTIAL">PARTIAL</option>
+                          <option value="FINAL">FINAL</option>
+                          <option value="ADJUSTMENT">ADJUSTMENT</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-400">{t('Payment Method')}</label>
+                        <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                          <option value="CASH">CASH</option>
+                          <option value="ONLINE">ONLINE / BANK TRANSFER</option>
+                          <option value="BANK_TRANSFER">BANK TRANSFER</option>
+                          <option value="CHEQUE">CHEQUE</option>
+                          <option value="CARD">CARD</option>
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400">{t('Method')}</label>
-                      <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
-                        <option value="CASH">CASH</option>
-                        <option value="ONLINE">ONLINE</option>
-                        <option value="BANK_TRANSFER">BANK TRANSFER</option>
-                        <option value="CHEQUE">CHEQUE</option>
-                      </select>
+                      <label className="text-xs text-slate-400">{t('Amount (₨)')}</label>
+                      <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm font-bold text-amber-400" placeholder={String(remaining || 0)} />
+                    </div>
+                    {payMethod === 'CHEQUE' && (
+                      <div className="grid grid-cols-3 gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-slate-700">
+                        <div>
+                          <label className="text-[10px] text-slate-400">Cheque #</label>
+                          <input type="text" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)}
+                            placeholder="CHQ-..." className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400">Bank Name</label>
+                          <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)}
+                            placeholder="Bank name..." className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400">Cheque Status</label>
+                          <select value={chequeStatus} onChange={(e) => setChequeStatus(e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                            <option value="CLEARED">CLEARED (Collected)</option>
+                            <option value="PENDING">PENDING (Unverified)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs text-slate-400">{t('Reference / Slip #')}</label>
+                      <input type="text" value={payRef} onChange={(e) => setPayRef(e.target.value)}
+                        placeholder="Transaction ID / Receipt #" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
                     </div>
                     <div className="flex gap-2">
-                      <ActionBtn icon={CheckCircle2} color="bg-amber-600 hover:bg-amber-500" label={t('Save')} onClick={recordPayment} />
+                      <ActionBtn icon={CheckCircle2} color="bg-amber-600 hover:bg-amber-500" label={t('Save Payment')} onClick={recordPayment} />
                       <button onClick={() => setShowPayForm(false)} className="px-3 py-2 rounded-lg bg-slate-700 text-slate-200 text-sm">{t('Cancel')}</button>
                     </div>
                   </div>
