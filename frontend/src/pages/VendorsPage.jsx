@@ -15,8 +15,10 @@ import { printOrderDocument, printThermalReceipt, printDataDocument, printDelive
 
 const STAGE_LABELS = {
   CREATED: 'Created',
-  SUBMITTED: 'Submitted',
-  ADMIN_APPROVED: 'Admin Approved',
+  SUBMITTED: 'Awaited Admin',
+  AWAITED_ADMIN: 'Awaited Admin',
+  ADMIN_APPROVED: 'Approved',
+  APPROVED: 'Approved',
   PRODUCTION_READY: 'Production Ready',
   SENT_TO_STORE: 'Sent to Store',
   BUY_ITSELF: 'Buy Itself',
@@ -33,7 +35,9 @@ const STAGE_LABELS = {
 const STAGE_COLORS = {
   CREATED: 'bg-slate-500',
   SUBMITTED: 'bg-amber-500',
-  ADMIN_APPROVED: 'bg-blue-500',
+  AWAITED_ADMIN: 'bg-amber-500',
+  ADMIN_APPROVED: 'bg-blue-600',
+  APPROVED: 'bg-blue-600',
   PRODUCTION_READY: 'bg-indigo-500',
   SENT_TO_STORE: 'bg-teal-500',
   BUY_ITSELF: 'bg-pink-500',
@@ -503,18 +507,6 @@ const AdminOrderRow = ({ order, onOpen, onReject, onAction, t }) => {
                 className="flex items-center gap-1 px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" /> {t('Approve')}
-              </button>
-              <button
-                onClick={() => onAction(order.id, '/send-to-store', null, { confirmText: 'Send this order to Store for warehouse allocation?' })}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold"
-              >
-                <Store className="h-3.5 w-3.5" /> {t('Send to Store')}
-              </button>
-              <button
-                onClick={() => onAction(order.id, '/buy-itself', null, { confirmText: 'Mark this order as Buy Itself? It will NOT go through Store allocation.' })}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold"
-              >
-                <ShoppingBag className="h-3.5 w-3.5" /> {t('Buy Itself')}
               </button>
               <button
                 onClick={() => onReject(order.id)}
@@ -1287,8 +1279,6 @@ const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t 
         {stage === 'SUBMITTED' && (
           <>
             <ActionBtn color="bg-blue-600 hover:bg-blue-500" onClick={() => runAction(order.id, '/approve', null, null)} icon={CheckCircle2} label={t('Approve')} />
-            <ActionBtn color="bg-teal-600 hover:bg-teal-500" onClick={() => runAction(order.id, '/send-to-store', null, { confirmText: 'Send to Store for warehouse allocation?' })} icon={Store} label={t('Send to Store')} />
-            <ActionBtn color="bg-pink-600 hover:bg-pink-500" onClick={() => runAction(order.id, '/buy-itself', null, { confirmText: 'Mark as Buy Itself?' })} icon={ShoppingBag} label={t('Buy Itself')} />
             <ActionBtn
               color="bg-rose-600 hover:bg-rose-500"
               onClick={() => {

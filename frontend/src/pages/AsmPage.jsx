@@ -3,19 +3,23 @@ import BackButton from '../components/BackButton';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Search, RefreshCcw, FileText, X, User, Phone, MapPin, Calendar,
   Hash, CreditCard, Package, Truck, Plus, CheckCircle2, Printer, Receipt,
   Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban, RotateCcw, BarChart3, Clock as ClockIcon,
+  Store, ShoppingBag,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet } from '../utils/vendorDocumentPrint';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
-  SUBMITTED: 'Submitted',
-  ADMIN_APPROVED: 'Admin Approved',
+  SUBMITTED: 'Awaited Admin',
+  AWAITED_ADMIN: 'Awaited Admin',
+  ADMIN_APPROVED: 'Approved',
+  APPROVED: 'Approved',
   PRODUCTION_READY: 'Production Ready',
   SENT_TO_STORE: 'Sent to Store',
   BUY_ITSELF: 'Buy Itself',
@@ -32,7 +36,9 @@ const STAGE_LABELS = {
 const STAGE_COLORS = {
   CREATED: 'bg-slate-500',
   SUBMITTED: 'bg-amber-500',
-  ADMIN_APPROVED: 'bg-blue-500',
+  AWAITED_ADMIN: 'bg-amber-500',
+  ADMIN_APPROVED: 'bg-blue-600',
+  APPROVED: 'bg-blue-600',
   PRODUCTION_READY: 'bg-indigo-500',
   SENT_TO_STORE: 'bg-teal-500',
   BUY_ITSELF: 'bg-pink-500',
@@ -46,7 +52,7 @@ const STAGE_COLORS = {
   REJECTED: 'bg-rose-600',
 };
 
-const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_ASM', 'GIVE_STOCK', 'ASM_ACCEPTED', 'DELIVER', 'DELIVERED', 'COMPLETED'];
+const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'BUY_ITSELF', 'SENT_TO_ASM', 'ASM_ACCEPTED', 'DELIVERED', 'COMPLETED', 'REJECTED'];
 
 const fmtCurrency = (n) => `Rs. ${(n || 0).toLocaleString()}`;
 
@@ -76,6 +82,10 @@ const StatCard = ({ icon: Icon, label, value, sub, color }) => (
 
 const AsmPage = () => {
   const { t, isUrdu } = useLanguage();
+  const { user } = useAuth();
+  const userRole = String(user?.role || '').toUpperCase().trim();
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
+
   const [filter, setFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -109,7 +119,15 @@ const AsmPage = () => {
   const filteredOrders = useMemo(() => {
     if (!orders.length) return [];
     let list = orders;
-    if (filter !== 'ALL') list = list.filter((o) => o.status === filter || o.currentStage === filter);
+    if (filter !== 'ALL') {
+      if (filter === 'SUBMITTED') {
+        list = list.filter((o) => ['SUBMITTED', 'AWAITED_ADMIN'].includes(o.status) || ['SUBMITTED', 'AWAITED_ADMIN'].includes(o.currentStage));
+      } else if (filter === 'ADMIN_APPROVED') {
+        list = list.filter((o) => ['ADMIN_APPROVED', 'APPROVED'].includes(o.status) || ['ADMIN_APPROVED', 'APPROVED'].includes(o.currentStage));
+      } else {
+        list = list.filter((o) => o.status === filter || o.currentStage === filter);
+      }
+    }
     const q = searchTerm.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -150,6 +168,12 @@ const AsmPage = () => {
     } finally {
       toast.dismiss(toastId);
     }
+  };
+
+  const handleReject = (orderId) => {
+    const reason = window.prompt(t('Rejection reason:'));
+    if (reason === null) return;
+    runAction(orderId, '/reject', t('Order rejected'), { payload: { reason: reason.trim() || 'Rejected by admin' } });
   };
 
   const handlePrint = async (orderVal, kind) => {
@@ -572,7 +596,15 @@ const AsmPage = () => {
             ) : (
               <div className="space-y-2">
                 {filteredOrders.map((o) => (
-                  <OrderRow key={o.id} order={o} onOpen={viewDetail} flexDir={flexDir} />
+                  <OrderRow
+                    key={o.id}
+                    order={o}
+                    onOpen={viewDetail}
+                    onAction={runAction}
+                    onReject={handleReject}
+                    isAdmin={isAdmin}
+                    flexDir={flexDir}
+                  />
                 ))}
               </div>
             )}
@@ -581,7 +613,16 @@ const AsmPage = () => {
       )}
 
       {selectedOrder && (
-        <OrderDetailDrawer order={selectedOrder} loading={loadingDetail} onClose={closeDetail} runAction={runAction} onPrint={handlePrint} flexDir={flexDir} />
+        <OrderDetailDrawer
+          order={selectedOrder}
+          loading={loadingDetail}
+          onClose={closeDetail}
+          runAction={runAction}
+          onPrint={handlePrint}
+          onReject={handleReject}
+          isAdmin={isAdmin}
+          flexDir={flexDir}
+        />
       )}
 
       {showCreate && (
@@ -596,7 +637,7 @@ const AsmPage = () => {
   );
 };
 
-const OrderRow = ({ order, onOpen, flexDir }) => {
+const OrderRow = ({ order, onOpen, onAction, onReject, isAdmin, flexDir }) => {
   const { t } = useLanguage();
   const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
@@ -604,11 +645,13 @@ const OrderRow = ({ order, onOpen, flexDir }) => {
   const color = STAGE_COLORS[stage] || 'bg-slate-500';
   const itemsCount = (order.items || []).length;
   const totalUnits = (order.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+  const isAwaited = ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(stage) || order.canApprove;
+  const isApproved = ['ADMIN_APPROVED', 'APPROVED'].includes(stage) || order.canSendToStore;
 
   return (
-    <button
+    <div
       onClick={() => onOpen(order)}
-      className={`w-full text-left bg-slate-800/50 hover:bg-slate-800 rounded-lg p-3 border border-slate-700/50 transition ${flexDir}`}
+      className={`w-full text-left bg-slate-800/50 hover:bg-slate-800 rounded-lg p-3 border border-slate-700/50 transition cursor-pointer ${flexDir}`}
     >
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
@@ -616,16 +659,71 @@ const OrderRow = ({ order, onOpen, flexDir }) => {
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${color}`}>
             {STAGE_LABELS[stage] || stage}
           </span>
+          {order.fulfillmentMethod && (
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-700 text-slate-300 uppercase">
+              {order.fulfillmentMethod === 'SEND_TO_STORE' ? 'Store Allocation' : 'Buy Itself'}
+            </span>
+          )}
           {remaining > 0.01 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
               {t('Balance')}
             </span>
           )}
         </div>
-        <div className="flex items-center text-xs text-slate-400">
-          <User className="h-3.5 w-3.5 mr-1" />
-          {order.vendor?.name || (order.vendorId ? order.vendorId.slice(0, 8) : '—')}
-          {order.deliveryCity ? ` (${order.deliveryCity})` : ''}
+        <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && isAwaited && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction(order.id, '/approve', t('Order approved'), { confirmText: t('Approve this ASM Bulk Order?') });
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> {t('Approve')}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReject(order.id);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-bold transition"
+              >
+                <Ban className="h-3.5 w-3.5" /> {t('Reject')}
+              </button>
+            </>
+          )}
+          {isAdmin && isApproved && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction(order.id, '/send-to-store', t('Order sent to Store for allocation'), { confirmText: t('Send to Store for warehouse allocation?') });
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition shadow"
+              >
+                <Store className="h-3.5 w-3.5" /> {t('Send to Store')}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction(order.id, '/buy-itself', t('Order marked for Buy Itself fulfillment'), { confirmText: t('Mark this order as Buy Itself?') });
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold transition shadow"
+              >
+                <ShoppingBag className="h-3.5 w-3.5" /> {t('Buy Itself')}
+              </button>
+            </>
+          )}
+          <div className="flex items-center text-xs text-slate-400">
+            <User className="h-3.5 w-3.5 mr-1" />
+            {order.vendor?.name || (order.vendorId ? order.vendorId.slice(0, 8) : '—')}
+            {order.deliveryCity ? ` (${order.deliveryCity})` : ''}
+          </div>
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 text-xs text-slate-400 flex-wrap gap-2">
@@ -638,11 +736,11 @@ const OrderRow = ({ order, onOpen, flexDir }) => {
           {formatDateOnly(order.createdAt)}
         </span>
       </div>
-    </button>
+    </div>
   );
 };
 
-const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, flexDir }) => {
+const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReject, isAdmin, flexDir }) => {
   const { t } = useLanguage();
   const [showPayForm, setShowPayForm] = useState(false);
   const [payAmount, setPayAmount] = useState('');
@@ -808,14 +906,43 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, flexDi
                   onClick={() => onPrint(order, 'thermal')} />
                 <ActionBtn icon={Truck} color="bg-teal-600 hover:bg-teal-500" label={t('Delivery Sheet')}
                   onClick={() => onPrint(order, 'delivery-sheet')} />
+                {/* Admin Approval & Fulfillment Actions */}
+                {isAdmin && (['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(stage) || order.canApprove) && (
+                  <>
+                    <ActionBtn icon={CheckCircle2} color="bg-blue-600 hover:bg-blue-500" label={t('Approve')}
+                      onClick={() => runAction(order.id, '/approve', t('Order approved'), { confirmText: t('Approve this ASM Bulk Order?') })} />
+                    <ActionBtn icon={Ban} color="bg-rose-600 hover:bg-rose-500" label={t('Reject')}
+                      onClick={() => onReject(order.id)} />
+                  </>
+                )}
 
-                {(stage === 'SUBMITTED' || stage === 'ADMIN_APPROVED' || stage === 'PRODUCTION_READY') && (
-                  <ActionBtn icon={Ban} color="bg-slate-700 hover:bg-slate-600" label={t('Awaiting Admin')}
+                {isAdmin && (['ADMIN_APPROVED', 'APPROVED'].includes(stage) || order.canSendToStore) && (
+                  <>
+                    <ActionBtn icon={Store} color="bg-teal-600 hover:bg-teal-500" label={t('Send to Store')}
+                      onClick={() => runAction(order.id, '/send-to-store', t('Order sent to Store for allocation'), { confirmText: t('Send to Store for warehouse allocation?') })} />
+                    <ActionBtn icon={ShoppingBag} color="bg-pink-600 hover:bg-pink-500" label={t('Buy Itself')}
+                      onClick={() => runAction(order.id, '/buy-itself', t('Order marked for Buy Itself fulfillment'), { confirmText: t('Mark this order as Buy Itself?') })} />
+                  </>
+                )}
+
+                {!isAdmin && ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(stage) && (
+                  <ActionBtn icon={ClockIcon} color="bg-slate-700 hover:bg-slate-600" label={t('Awaiting Admin')}
                     onClick={() => toast(t('This order is awaiting admin review / approval'))} />
                 )}
+
+                {!isAdmin && ['ADMIN_APPROVED', 'APPROVED'].includes(stage) && (
+                  <ActionBtn icon={CheckCircle2} color="bg-blue-700/60 text-blue-200" label={t('Approved by Admin')}
+                    onClick={() => toast(t('This order has been approved by Admin and is awaiting fulfillment assignment'))} />
+                )}
+
                 {stage === 'SENT_TO_STORE' && (
-                  <ActionBtn icon={ClockIcon} color="bg-teal-700 hover:bg-teal-600" label={t('Awaiting Store Allocation')}
+                  <ActionBtn icon={ClockIcon} color="bg-teal-700 hover:bg-teal-600" label={t('Store Pending Allocation')}
                     onClick={() => toast(t('This order is at Store for warehouse stock allocation'))} />
+                )}
+
+                {stage === 'BUY_ITSELF' && (
+                  <ActionBtn icon={ShoppingBag} color="bg-pink-700 hover:bg-pink-600" label={t('Buy Itself Fulfillment')}
+                    onClick={() => toast(t('This order is assigned to Buy Itself fulfillment'))} />
                 )}
               </div>
 

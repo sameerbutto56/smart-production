@@ -1,5 +1,38 @@
 ## Goals
-### Implemented This Session — Enamel Delivery Boy Payment Collection & Admin Dashboard Reconciliation (deployed & live-verified)
+### Implemented This Session — ASM Bulk Order: Admin Approval Button & Enforced Approval-First Workflow (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Preserve ASM Portal & Vendor Workflow**: The ASM Vendor creation, Vendor selection, catalog item selection, line-item entry, and order creation/submission workflow remains 100% intact.
+  2. **Admin Approval Button Visibility**: In Admin Dashboard $\rightarrow$ ASM (`AsmPage.jsx`), orders in `AWAITED ADMIN` (`SUBMITTED` / `AWAITED_ADMIN`) must display the **`APPROVE`** button and **`REJECT`** button for Admin (`ADMIN`, `SUPER_ADMIN`).
+  3. **Strict Workflow Progression**:
+     $$\text{AWAITED ADMIN} \xrightarrow{\text{ADMIN APPROVES}} \text{APPROVED} \xrightarrow{\text{Admin Decision}} \begin{cases} \text{SEND TO STORE} \\ \text{BUY ITSELF} \end{cases}$$
+  4. **Strict Approval Guards**:
+     - System rejects `sendToStore` or `buyItself` if order is still awaiting Admin approval (`HTTP 400`).
+     - Admin approval and Send to Store never touch or deduct warehouse inventory.
+     - Warehouse inventory deduction occurs **ONLY** when Store confirms actual allocation (`POST /api/vendors/orders/:id/store-allocate`).
+  5. **Store Allocation & ASM Acceptance**:
+     - Store accesses orders in Store Profile $\rightarrow$ Bulk Order Allocation tab (`AsmAllowedStorePage.jsx`).
+     - Store confirms allocation (`storeAllocate`), deducting variant quantities and transitioning order to `SENT_TO_ASM`.
+     - ASM views allocated stock counts and accepts (`POST /api/vendors/orders/:id/accept`) to transition to `ASM_ACCEPTED`.
+  6. **A4 Delivery Sheet (2 Copies)**:
+     - Formatted for physical company letterhead (3-inch top/bottom margins), zero pricing, item details with allocated quantities, and 3 signature blocks (`Prepared By`, `Issued By`, `Received By`).
+- **Backend Implementation (`vendor.controller.js`, `vendor.routes.js`)**:
+  - `listVendorOrders` & `getVendorOrder`: Enriched orders with `canApprove`, `canSendToStore`, `canBuyItself`, `canReject` capability flags.
+  - `approveVendorOrder`: Accepts orders in `['SUBMITTED', 'AWAITED_ADMIN', 'CREATED']`, updates to `ADMIN_APPROVED`, sets `adminApprovedAt`, `approvedByName`, and logs `VendorOrderStatus`.
+  - `sendToStore` & `buyItself`: Strictly constrained to require `ADMIN_APPROVED` or `APPROVED`.
+  - `storeAllocate`: Atomic transaction with stock deduction from `InventoryItem.variants`.
+  - Fixed Prisma schema query bug by selecting `email` instead of non-existent `phone` on `asm` (`User` model).
+- **Frontend Implementation (`AsmPage.jsx`, `VendorsPage.jsx`, `AsmAllowedStorePage.jsx`)**:
+  - `AsmPage.jsx`: Integrated `useAuth` to resolve Admin roles. Added action buttons in order list table and detail drawer:
+    - For Admin + `isAwaited`: Blue **`Approve`** button & Rose **`Reject`** button.
+    - For Admin + `isApproved`: Teal **`Send to Store`** button & Pink **`Buy Itself`** button.
+    - For ASM + `isAwaited`: Informative `Awaiting Admin` badge.
+    - For ASM + `isApproved`: Informative `Approved by Admin` badge.
+  - `VendorsPage.jsx`: Synchronized stage labels and actions (`Awaited Admin` $\rightarrow$ `Approve` / `Reject`).
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-asm-approval-workflow.cjs`: 100% assertions passed across all 12 stages (ASM bulk order creation $\rightarrow$ Admin query flags $\rightarrow$ unapproved Send to Store / Buy Itself rejection $\rightarrow$ Admin Approve $\rightarrow$ unlocked Send to Store / Buy Itself $\rightarrow$ Send to Store without inventory deduction $\rightarrow$ Store allocation with atomic stock deduction $\rightarrow$ ASM acceptance $\rightarrow$ Buy Itself path $\rightarrow$ clean test data teardown).
+  - Production build (`npm --prefix frontend run build`): Exit code 0, 3,204 modules bundled cleanly.
+
+### Implemented Prior Session — Enamel Delivery Boy Payment Collection & Admin Dashboard Reconciliation (deployed & live-verified)
 - **Problem & Requirements**:
   1. **Strict End-to-End Delivery Collection & Dashboard Linkage**: Whatever payment method and amount the Delivery Boy actually records while delivering an order must automatically appear in the corresponding payment category on the Admin Dashboard.
   2. **Case A — Fully Paid / Zero COD**:

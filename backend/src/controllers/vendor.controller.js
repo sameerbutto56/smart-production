@@ -378,14 +378,38 @@ const listVendorOrders = async (req, res) => {
   try {
     const { status, asmId, search } = req.query;
     const where = {};
-    if (status) where.status = status;
+    if (status) {
+      if (status === 'SUBMITTED' || status === 'AWAITED_ADMIN') {
+        where.OR = [
+          { status: { in: ['SUBMITTED', 'AWAITED_ADMIN'] } },
+          { currentStage: { in: ['SUBMITTED', 'AWAITED_ADMIN'] } },
+        ];
+      } else if (status === 'ADMIN_APPROVED' || status === 'APPROVED') {
+        where.OR = [
+          { status: { in: ['ADMIN_APPROVED', 'APPROVED'] } },
+          { currentStage: { in: ['ADMIN_APPROVED', 'APPROVED'] } },
+        ];
+      } else {
+        where.status = status;
+      }
+    }
     if (asmId) where.asmId = asmId;
     else if (req.user?.role === 'ASM') where.asmId = req.user.id;
     if (search) {
-      where.OR = [
-        { orderNumber: { contains: String(search).trim(), mode: 'insensitive' } },
-        { vendor: { name: { contains: String(search).trim(), mode: 'insensitive' } } },
+      const s = String(search).trim();
+      const searchConditions = [
+        { orderNumber: { contains: s, mode: 'insensitive' } },
+        { vendor: { name: { contains: s, mode: 'insensitive' } } },
       ];
+      if (where.OR) {
+        where.AND = [
+          { OR: where.OR },
+          { OR: searchConditions },
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
     const orders = await prisma.vendorOrder.findMany({
       where,
@@ -399,7 +423,23 @@ const listVendorOrders = async (req, res) => {
         asm: { select: { id: true, name: true } },
       },
     });
-    res.json({ orders });
+
+    const isAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN';
+
+    const enrichedOrders = orders.map((order) => {
+      const cur = order.currentStage || order.status;
+      const isAwaited = ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(cur);
+      const isApproved = ['ADMIN_APPROVED', 'APPROVED'].includes(cur);
+      return {
+        ...order,
+        canApprove: isAdmin && isAwaited,
+        canSendToStore: isAdmin && isApproved,
+        canBuyItself: isAdmin && isApproved,
+        canReject: isAdmin && isAwaited,
+      };
+    });
+
+    res.json({ orders: enrichedOrders });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch vendor orders', error: error.message });
   }
@@ -425,6 +465,16 @@ const getVendorOrder = async (req, res) => {
     const totalPaid = order.payments.reduce((s, p) => s + p.amount, 0);
     order._totalPaid = totalPaid;
     order._remainingBalance = Math.max(0, order.grandTotal - totalPaid);
+
+    const isAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN';
+    const cur = order.currentStage || order.status;
+    const isAwaited = ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(cur);
+    const isApproved = ['ADMIN_APPROVED', 'APPROVED'].includes(cur);
+    order.canApprove = isAdmin && isAwaited;
+    order.canSendToStore = isAdmin && isApproved;
+    order.canBuyItself = isAdmin && isApproved;
+    order.canReject = isAdmin && isAwaited;
+
     res.json({ order });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch vendor order', error: error.message });
@@ -444,11 +494,11 @@ async function transition({ orderId, from, to, req, db, set, remarks, auditActio
   // the target timestamp is not already set (idempotency guard).
   const existing = await db.vendorOrder.findUnique({ where: { id: orderId } });
   if (!existing) return { error: 'Order not found', status: 404 };
-  if (!fromArr.includes(existing.currentStage)) {
+  if (!fromArr.includes(existing.currentStage) && !fromArr.includes(existing.status)) {
     return { error: `Already ${existing.currentStage}`, status: 400, current: existing };
   }
   const claim = await db.vendorOrder.updateMany({
-    where: { id: orderId, currentStage: { in: fromArr } },
+    where: { id: orderId },
     data: { ...set, currentStage: to, status: to, updatedAt: new Date() },
   });
   if (claim.count === 0) {
@@ -459,9 +509,9 @@ async function transition({ orderId, from, to, req, db, set, remarks, auditActio
     data: {
       orderId,
       status: to,
-      fromStage: existing.currentStage,
+      fromStage: existing.currentStage || existing.status,
       toStage: to,
-      changedBy: req.user?.name || null,
+      changedBy: req.user?.name || 'Admin',
       changedById: req.user?.id || null,
       remarks,
     },
@@ -499,11 +549,11 @@ const approveVendorOrder = async (req, res) => {
     const { id } = req.params;
     const result = await transition({
       orderId: id,
-      from: ['SUBMITTED'],
+      from: ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'],
       to: 'ADMIN_APPROVED',
       req,
       db: prisma,
-      set: { adminApprovedAt: new Date(), approvedByName: req.user?.name || null },
+      set: { adminApprovedAt: new Date(), approvedByName: req.user?.name || 'Admin' },
       remarks: 'Order approved by admin',
     });
     if (result.error) return res.status(result.status || 400).json({ message: result.error });
@@ -534,16 +584,17 @@ const rejectVendorOrder = async (req, res) => {
     const { reason } = req.body || {};
     const existing = await prisma.vendorOrder.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: 'Order not found.' });
-    if (existing.currentStage !== 'SUBMITTED') {
-      return res.status(400).json({ message: `Already ${existing.currentStage}` });
+    const allowed = ['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'];
+    if (!allowed.includes(existing.currentStage) && !allowed.includes(existing.status)) {
+      return res.status(400).json({ message: `Cannot reject order in stage ${existing.currentStage}` });
     }
     const claim = await prisma.vendorOrder.updateMany({
-      where: { id, currentStage: 'SUBMITTED' },
-      data: { currentStage: 'REJECTED', status: 'REJECTED', rejectedAt: new Date(), rejectionReason: reason || 'Rejected', updatedAt: new Date() },
+      where: { id },
+      data: { currentStage: 'REJECTED', status: 'REJECTED', rejectedAt: new Date(), rejectionReason: reason || 'Rejected by admin', updatedAt: new Date() },
     });
     if (claim.count === 0) return res.status(400).json({ message: 'Already rejected.' });
     await prisma.vendorOrderStatus.create({
-      data: { orderId: id, status: 'REJECTED', fromStage: 'SUBMITTED', toStage: 'REJECTED', changedBy: req.user?.name || null, changedById: req.user?.id || null, remarks: reason || 'Rejected by admin' },
+      data: { orderId: id, status: 'REJECTED', fromStage: existing.currentStage || existing.status, toStage: 'REJECTED', changedBy: req.user?.name || 'Admin', changedById: req.user?.id || null, remarks: reason || 'Rejected by admin' },
     });
     const order = await prisma.vendorOrder.findUnique({ where: { id }, include: { vendor: true, statusHistory: true } });
     res.json({ order, message: 'Order rejected.' });
@@ -558,7 +609,7 @@ const markProductionReady = async (req, res) => {
     const { id } = req.params;
     const result = await transition({
       orderId: id,
-      from: ['ADMIN_APPROVED'],
+      from: ['ADMIN_APPROVED', 'APPROVED'],
       to: 'PRODUCTION_READY',
       req,
       db: prisma,
@@ -578,7 +629,7 @@ const giveStock = async (req, res) => {
     const { id } = req.params;
     const result = await transition({
       orderId: id,
-      from: ['ADMIN_APPROVED', 'PRODUCTION_READY'],
+      from: ['ADMIN_APPROVED', 'APPROVED', 'PRODUCTION_READY'],
       to: 'GIVE_STOCK',
       req,
       db: prisma,
@@ -612,7 +663,7 @@ const sendToStore = async (req, res) => {
     const { id } = req.params;
     const result = await transition({
       orderId: id,
-      from: ['ADMIN_APPROVED', 'SUBMITTED'],
+      from: ['ADMIN_APPROVED', 'APPROVED'],
       to: 'SENT_TO_STORE',
       req,
       db: prisma,
@@ -620,8 +671,6 @@ const sendToStore = async (req, res) => {
         fulfillmentMethod: 'SEND_TO_STORE',
         sentToStoreAt: new Date(),
         sentToStoreByName: req.user?.name || null,
-        adminApprovedAt: new Date(),
-        approvedByName: req.user?.name || null,
       },
       remarks: 'Order sent to Store for Warehouse inventory allocation',
     });
@@ -652,14 +701,12 @@ const buyItself = async (req, res) => {
     const { id } = req.params;
     const result = await transition({
       orderId: id,
-      from: ['ADMIN_APPROVED', 'SUBMITTED'],
+      from: ['ADMIN_APPROVED', 'APPROVED'],
       to: 'BUY_ITSELF',
       req,
       db: prisma,
       set: {
         fulfillmentMethod: 'BUY_ITSELF',
-        adminApprovedAt: new Date(),
-        approvedByName: req.user?.name || null,
       },
       remarks: 'Fulfillment method set to Buy Itself by Admin',
     });
@@ -694,7 +741,7 @@ const getStoreAllocationOrders = async (req, res) => {
         items: true,
         payments: { orderBy: { createdAt: 'asc' } },
         statusHistory: { orderBy: { createdAt: 'asc' } },
-        asm: { select: { id: true, name: true, phone: true } },
+        asm: { select: { id: true, name: true, email: true } },
       }
     });
 
@@ -894,7 +941,7 @@ const storeAllocate = async (req, res) => {
           vendor: true,
           items: true,
           statusHistory: { orderBy: { createdAt: 'asc' } },
-          asm: { select: { id: true, name: true, phone: true } },
+          asm: { select: { id: true, name: true, email: true } },
           payments: true
         }
       });
