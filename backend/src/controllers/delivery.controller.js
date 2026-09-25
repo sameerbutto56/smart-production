@@ -783,31 +783,29 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     if (isCOD) {
       const payments = o.deliveryPayments || [];
       if (payments.length > 0) {
+        // Count ALL payments for this order — the date window controls which orders appear,
+        // not which payments within an order to count. Otherwise carry-forward and historical
+        // orders show ₨0 collected even though the rider already collected the money.
         payments.forEach(p => {
-          if (inWindow(p.collectedAt || p.createdAt)) {
-            if (p.paymentMethod === 'CASH') cashCollected += Number(p.cashAmount || 0);
-            else if (p.paymentMethod === 'ONLINE') onlineCollected += Number(p.onlineAmount || 0);
-            else if (p.paymentMethod === 'CASH_ONLINE') {
-              cashCollected += Number(p.cashAmount || 0);
-              onlineCollected += Number(p.onlineAmount || 0);
-            } else if (p.paymentMethod === 'MULTIPLE_ONLINE') {
-              onlineCollected += Number(p.onlineAmount || 0);
-            } else if (p.paymentMethod === 'CARD') {
-              onlineCollected += Number(p.onlineAmount || p.cashAmount || 0);
-            }
+          if (p.paymentMethod === 'CASH') cashCollected += Number(p.cashAmount || 0);
+          else if (p.paymentMethod === 'ONLINE') onlineCollected += Number(p.onlineAmount || 0);
+          else if (p.paymentMethod === 'CASH_ONLINE') {
+            cashCollected += Number(p.cashAmount || 0);
+            onlineCollected += Number(p.onlineAmount || 0);
+          } else if (p.paymentMethod === 'MULTIPLE_ONLINE') {
+            onlineCollected += Number(p.onlineAmount || 0);
+          } else if (p.paymentMethod === 'CARD') {
+            onlineCollected += Number(p.onlineAmount || p.cashAmount || 0);
           }
         });
       } else if (delivered) {
         // Fallback for delivered COD orders where deliveryPayment record was not created
-        const delDate = deliveredAt || o.updatedAt;
-        if (inWindow(delDate)) {
-          if (o.paymentMethod === 'ONLINE') onlineCollected = expectedCodAmount;
-          else if (o.paymentMethod === 'CASH_ONLINE') {
-            cashCollected = Math.round(expectedCodAmount / 2);
-            onlineCollected = expectedCodAmount - cashCollected;
-          } else {
-            cashCollected = expectedCodAmount;
-          }
+        if (o.paymentMethod === 'ONLINE') onlineCollected = expectedCodAmount;
+        else if (o.paymentMethod === 'CASH_ONLINE') {
+          cashCollected = Math.round(expectedCodAmount / 2);
+          onlineCollected = expectedCodAmount - cashCollected;
+        } else {
+          cashCollected = expectedCodAmount;
         }
       }
     }
