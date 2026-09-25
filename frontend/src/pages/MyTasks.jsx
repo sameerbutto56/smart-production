@@ -210,6 +210,31 @@ const MyTasks = () => {
     });
   }, [dispatchDeliveryFilter, dispatchStatusFilter]);
 
+  const [serverSearchResults, setServerSearchResults] = useState([]);
+  const [isServerSearching, setIsServerSearching] = useState(false);
+
+  useEffect(() => {
+    const q = (searchTerm || '').trim();
+    if (!q || q.length < 2) {
+      setServerSearchResults([]);
+      setIsServerSearching(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsServerSearching(true);
+      try {
+        const res = await api.get('/api/orders', { params: { search: q } });
+        const ordersList = Array.isArray(res.data) ? res.data : (res.data?.orders || []);
+        setServerSearchResults(ordersList);
+      } catch (err) {
+        console.error('Server order search error:', err);
+      } finally {
+        setIsServerSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const filterBySearch = (orders) => {
     if (!searchTerm || searchTerm.trim() === "") return orders || [];
     const s = searchTerm.toLowerCase().trim();
@@ -218,6 +243,12 @@ const MyTasks = () => {
       (o.id || "").toLowerCase().includes(s) ||
       (o.orderNumber || "").toLowerCase().includes(s)
     );
+  };
+
+  const getUniqueServerResults = (localList) => {
+    if (!searchTerm || !searchTerm.trim() || !serverSearchResults.length) return [];
+    const localIds = new Set((localList || []).map(o => o.id));
+    return serverSearchResults.filter(o => !localIds.has(o.id));
   };
 
   const fetchRoutingHistory = async () => {
@@ -511,7 +542,7 @@ const MyTasks = () => {
                 <RefreshCcw size={14} /> Come From Production {((comeFromProduction?.unseen?.length || 0) + (comeFromProduction?.seen?.length || 0)) > 0 && <span className="ml-1 bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(comeFromProduction?.unseen?.length || 0) + (comeFromProduction?.seen?.length || 0)}</span>}
               </button>
             )}
-            {(!isOutlet) && (!isProductionOut) && (
+            {(!isOutlet) && (
               <button onClick={() => setTaskFilter('unseen')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
                   taskFilter === 'unseen' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'

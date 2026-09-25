@@ -3702,13 +3702,19 @@ const getUnseenOrders = async (req, res) => {
     // by a seen flag. Accepted orders route forward to PRODUCTION and leave this query by
     // currentStage, so only the accepted order is removed.
     const forceAllAcceptanceIntoUnseen = ['PRODUCTION', 'PRODUCTION_IN'].includes(userRole);
+    // For PRODUCTION_OUT, accepted orders at PRODUCTION or WORKERS are active working tasks.
+    // PRODUCTION_OUT's primary workspace tab is "Assigned/Accepted", so all active orders
+    // in relevantStages for PRODUCTION_OUT must be immediately in `seen`, never stranded in unseen.
+    const forceAllProductionOutIntoSeen = userRole === 'PRODUCTION_OUT';
 
     const unseen = orders.filter(o => {
+      if (forceAllProductionOutIntoSeen) return false;
       const hasSeen = seenOrderIds.has(`${o.id}-${o.currentStage}`);
       if (forceAllAcceptanceIntoUnseen && o.currentStage === 'PRODUCTION_ACCEPTANCE') return true;
       return !hasSeen;
     });
     const seen = orders.filter(o => {
+      if (forceAllProductionOutIntoSeen) return true;
       const hasSeen = seenOrderIds.has(`${o.id}-${o.currentStage}`);
       if (forceAllAcceptanceIntoUnseen && o.currentStage === 'PRODUCTION_ACCEPTANCE') return false;
       return hasSeen;
@@ -3847,14 +3853,14 @@ const acceptTask = async (req, res) => {
       `Task accepted at ${pendingStage.stageName} by ${req.user.name} (Delay: ${Math.round((acceptedAt - new Date(pendingStage.createdAt)) / 60000)} min)`,
       req.user.id);
 
-    // Auto-assign to PRODUCTION_OUT users when PRODUCTION_IN accepts
-    if (req.user.role === 'PRODUCTION_IN') {
+    // Auto-assign to PRODUCTION_OUT users when PRODUCTION_IN or PRODUCTION accepts
+    if (['PRODUCTION_IN', 'PRODUCTION'].includes(req.user.role)) {
       const outUsers = await prisma.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } });
       if (outUsers.length > 0) {
         const seenData = outUsers.map(u => ({
           userId: u.id,
           orderId,
-          stageName: order.currentStage,
+          stageName: 'PRODUCTION',
           seenAt: acceptedAt
         }));
         await prisma.seenTask.createMany({ data: seenData, skipDuplicates: true });
@@ -3899,7 +3905,7 @@ const getTrackingStatus = (order) => {
 const getOrderTimeline = async (req, res) => {
   const { orderId } = req.params;
   try {
-    const [stages, routingHistory, auditLogs, order] = await Promise.all([
+    const [stages, routingHistory, auditLogs, order, cancellationRequests] = await Promise.all([
       prisma.orderStage.findMany({
         where: { orderId },
         orderBy: { createdAt: 'asc' },
@@ -3913,7 +3919,7 @@ const getOrderTimeline = async (req, res) => {
       prisma.auditLog.findMany({
         where: { orderId },
         orderBy: { timestamp: 'asc' },
-        include: { user: { select: { id: true, name: true } } }
+        include: { user: { select: { id: true, name: true, role: true } } }
       }),
       prisma.order.findUnique({
         where: { id: orderId },
@@ -3922,7 +3928,17 @@ const getOrderTimeline = async (req, res) => {
           currentStage: true, goForVerification: true, verifiedAt: true,
           verificationReturnedAt: true, verificationReturnNote: true,
           verifiedByName: true, source: true, createdAt: true, createdById: true,
-          replacementCaseId: true, shopifyOrderDate: true
+          replacementCaseId: true, shopifyOrderDate: true,
+          cancelledAt: true, cancelledById: true, cancelledByName: true,
+          cancellationReason: true, updatedAt: true
+        }
+      }),
+      prisma.orderCancellationRequest.findMany({
+        where: { orderId },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          requestedBy: { select: { id: true, name: true, role: true } },
+          decidedBy: { select: { id: true, name: true, role: true } }
         }
       })
     ]);
@@ -4186,11 +4202,39 @@ const getOrderTimeline = async (req, res) => {
     };
 
     // Stage-lifecycle events already captured below; these audits would just repeat them.
-    const AUDIT_NOISE = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DISPATCH_ACCEPTED', 'DELIVERY_ACCEPTED', 'ORDER_CREATED', 'OUTLET_ORDER_CREATED', 'CUSTOMER_TAKEN', 'ESCALATION_OVERDUE']);
+    const AUDIT_NOISE = new Set([
+      'STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DISPATCH_ACCEPTED',
+      'DELIVERY_ACCEPTED', 'ORDER_CREATED', 'OUTLET_ORDER_CREATED', 'CUSTOMER_TAKEN',
+      'ESCALATION_OVERDUE', 'CANCELLATION_REQUESTED', 'CANCELLATION_APPROVED',
+      'CANCELLATION_REJECTED', 'ORDER_CANCELLED', 'INVENTORY_RESTORED'
+    ]);
+
+    const formatRoleLabel = (role) => {
+      if (!role) return 'Staff';
+      const map = {
+        'SUPER_ADMIN': 'Super Admin',
+        'ADMIN': 'Admin',
+        'CEO': 'CEO',
+        'FAISAL': 'Management (Faisal)',
+        'ORDER_ENTRY': 'Order Entry',
+        'OUTLET': 'Outlet Staff',
+        'STORE': 'Store Keeper',
+        'STORE_EMPLOYEE': 'Store Employee',
+        'PRODUCTION': 'Production',
+        'PRODUCTION_IN': 'Production In',
+        'PRODUCTION_OUT': 'Production Out',
+        'LOGO_DESIGN': 'Logo Design',
+        'DISPATCH': 'Dispatch Officer',
+        'OUT_FOR_DELIVERY': 'Delivery',
+        'DELIVERY_BOY': 'Delivery Rider',
+        'INVENTORY_VIEW': 'Inventory Staff'
+      };
+      return map[role] || role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    };
 
     const flatEntries = [];
 
-    // 1) Stage lifecycle: received (transition) / accepted / completed
+    // 1) Stage lifecycle: received (transition) / accepted / completed / interrupted
     stages.forEach(s => {
       const sLabel = labelOf(s.stageName);
       const recvActor = s._route?.sentByUser?.name || s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null;
@@ -4219,6 +4263,25 @@ const getOrderTimeline = async (req, res) => {
           actor: s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null,
           status: 'COMPLETED', details: null, remarks: null, returnReason: null,
           from: null, to: s.stageName
+        });
+      }
+      if (s.status === 'REJECTED') {
+        const isCancellationRejection = s.rejectionReason?.includes('CANCELLED') || order?.status === 'CANCELLED';
+        flatEntries.push({
+          id: `${s.id}-interrupted`,
+          type: 'stage',
+          stage: s.stageName,
+          stageLabel: sLabel,
+          timestamp: s.updatedAt || s.createdAt,
+          action: 'STAGE_INTERRUPTED',
+          label: isCancellationRejection ? `${sLabel} (Interrupted — Cancelled)` : `${sLabel} Rejected`,
+          actor: s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null,
+          status: 'REJECTED',
+          details: s.rejectionReason || (isCancellationRejection ? 'Stage interrupted due to order cancellation' : 'Stage rejected'),
+          remarks: null,
+          returnReason: s.rejectionReason || null,
+          from: null,
+          to: s.stageName
         });
       }
       if (s.stageName === 'ORDER_ENTRY') {
@@ -4282,8 +4345,105 @@ const getOrderTimeline = async (req, res) => {
       });
     });
 
-    // 4) Every other meaningful audit event — append-only full history (edits,
-    //    cancellations, re-approvals, returns, delivery updates, payments...).
+    // 4) Dedicated cancellation events (Requested, Approved, Rejected) with separate timestamps & actor profiles
+    let hasApprovedCancellation = false;
+    (cancellationRequests || []).forEach((cr, cIdx) => {
+      const reqRole = cr.requestedBy?.role || 'ORDER_ENTRY';
+      const reqName = cr.requestedByName || cr.requestedBy?.name || 'Staff';
+      flatEntries.push({
+        id: `${cr.id}-requested`,
+        type: 'cancellation',
+        stage: null,
+        stageLabel: 'Order Cancellation',
+        timestamp: cr.createdAt,
+        action: 'CANCELLATION_REQUESTED',
+        label: (cancellationRequests.length > 1 ? `Cancellation Requested (Cycle ${cr.cycleNumber || cIdx + 1})` : 'Cancellation Requested'),
+        actor: reqName,
+        actorRole: reqRole,
+        actorRoleLabel: formatRoleLabel(reqRole),
+        status: cr.status === 'PENDING' ? 'PENDING' : 'REQUESTED',
+        reason: cr.reason,
+        details: cr.reason ? `Reason: ${cr.reason}` : 'Cancellation requested',
+        remarks: `Requested by ${reqName} (${formatRoleLabel(reqRole)})`,
+        returnReason: null,
+        from: null,
+        to: null
+      });
+
+      if (cr.status === 'APPROVED') {
+        hasApprovedCancellation = true;
+        const decRole = cr.decidedBy?.role || 'ADMIN';
+        const decName = cr.decidedByName || cr.decidedBy?.name || 'Admin';
+        flatEntries.push({
+          id: `${cr.id}-approved`,
+          type: 'cancellation',
+          stage: null,
+          stageLabel: 'Order Cancellation',
+          timestamp: cr.decidedAt || cr.createdAt,
+          action: 'CANCELLATION_APPROVED',
+          label: 'Cancellation Approved',
+          actor: decName,
+          actorRole: decRole,
+          actorRoleLabel: formatRoleLabel(decRole),
+          status: 'CANCELLED',
+          reason: cr.reason,
+          decisionNote: cr.decisionNote || null,
+          details: cr.decisionNote ? `Admin Note: ${cr.decisionNote} — Reason: ${cr.reason}` : `Reason: ${cr.reason}`,
+          remarks: `Approved by ${decName} (${formatRoleLabel(decRole)}). Order permanently cancelled.`,
+          returnReason: null,
+          from: null,
+          to: null
+        });
+      } else if (cr.status === 'REJECTED') {
+        const decRole = cr.decidedBy?.role || 'ADMIN';
+        const decName = cr.decidedByName || cr.decidedBy?.name || 'Admin';
+        flatEntries.push({
+          id: `${cr.id}-rejected`,
+          type: 'cancellation',
+          stage: null,
+          stageLabel: 'Order Cancellation',
+          timestamp: cr.decidedAt || cr.createdAt,
+          action: 'CANCELLATION_REJECTED',
+          label: 'Cancellation Rejected',
+          actor: decName,
+          actorRole: decRole,
+          actorRoleLabel: formatRoleLabel(decRole),
+          status: 'REJECTED',
+          reason: cr.reason,
+          decisionNote: cr.decisionNote || null,
+          details: cr.decisionNote ? `Rejection Note: ${cr.decisionNote}` : 'Cancellation request was not approved',
+          remarks: `Rejected by ${decName} (${formatRoleLabel(decRole)}). Order remains active.`,
+          returnReason: null,
+          from: null,
+          to: null
+        });
+      }
+    });
+
+    if (order?.status === 'CANCELLED' && !hasApprovedCancellation) {
+      flatEntries.push({
+        id: `${order.id}-cancelled-direct`,
+        type: 'cancellation',
+        stage: null,
+        stageLabel: 'Order Cancellation',
+        timestamp: order.cancelledAt || order.updatedAt || new Date(),
+        action: 'CANCELLATION_APPROVED',
+        label: 'Order Cancelled',
+        actor: order.cancelledByName || 'Admin',
+        actorRole: 'ADMIN',
+        actorRoleLabel: 'Admin',
+        status: 'CANCELLED',
+        reason: order.cancellationReason || 'Directly cancelled',
+        details: order.cancellationReason ? `Reason: ${order.cancellationReason}` : 'Order permanently cancelled',
+        remarks: `Cancelled by ${order.cancelledByName || 'Admin'}`,
+        returnReason: null,
+        from: null,
+        to: null
+      });
+    }
+
+    // 5) Every other meaningful audit event — append-only full history (edits,
+    //    re-approvals, returns, delivery updates, payments...).
     const hasOutForDeliveryCompletion = stages.some(s => s.stageName === 'OUT_FOR_DELIVERY' && s.completedAt);
     auditLogs.forEach(al => {
       if (AUDIT_NOISE.has(al.action)) return;

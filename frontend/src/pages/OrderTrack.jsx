@@ -50,6 +50,10 @@ const ENTRY_COLORS = {
   VERIFIED: { dot: 'bg-cyan-500', border: 'border-cyan-500', bg: 'bg-cyan-500/10', text: 'text-cyan-400', badge: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' },
   EDIT: { dot: 'bg-amber-500', border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
   RESTART: { dot: 'bg-orange-500', border: 'border-orange-500', bg: 'bg-orange-500/10', text: 'text-orange-400', badge: 'bg-orange-500/20 text-orange-400 border-orange-500/40' },
+  CANCELLATION_REQUESTED: { dot: 'bg-amber-500 ring-4 ring-amber-500/20', border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-300', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  CANCELLATION_APPROVED: { dot: 'bg-red-500 ring-4 ring-red-500/30', border: 'border-red-500', bg: 'bg-red-500/15', text: 'text-red-400', badge: 'bg-red-500/25 text-red-300 border-red-500/50' },
+  CANCELLATION_REJECTED: { dot: 'bg-rose-500', border: 'border-rose-500', bg: 'bg-rose-500/10', text: 'text-rose-400', badge: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+  STAGE_INTERRUPTED: { dot: 'bg-orange-500', border: 'border-orange-500', bg: 'bg-orange-500/10', text: 'text-orange-400', badge: 'bg-orange-500/20 text-orange-400 border-orange-500/40' },
   audit: { dot: 'bg-gray-500', border: 'border-gray-500', bg: 'bg-gray-500/10', text: 'text-gray-400', badge: 'bg-gray-500/20 text-gray-400 border-gray-500/40' },
 };
 
@@ -59,18 +63,26 @@ const getEntryColors = (entry) => {
   if (entry.action === 'ROUTED') return ENTRY_COLORS.ROUTED;
   if (entry.action === 'RECEIVED') return ENTRY_COLORS.RECEIVED;
   if (entry.action === 'ORDER_VERIFIED' || entry.action === 'VERIFIED') return ENTRY_COLORS.VERIFIED;
-  if (entry.action === 'RETURNED_FOR_CORRECTION' || entry.action === 'ORDER_CANCELLED' || entry.action === 'DELIVERY_FAILED') return ENTRY_COLORS.FAILED;
+  if (entry.action === 'CANCELLATION_REQUESTED') return ENTRY_COLORS.CANCELLATION_REQUESTED;
+  if (entry.action === 'CANCELLATION_APPROVED' || entry.action === 'ORDER_CANCELLED') return ENTRY_COLORS.CANCELLATION_APPROVED;
+  if (entry.action === 'CANCELLATION_REJECTED') return ENTRY_COLORS.CANCELLATION_REJECTED;
+  if (entry.action === 'STAGE_INTERRUPTED') return ENTRY_COLORS.STAGE_INTERRUPTED;
+  if (entry.action === 'RETURNED_FOR_CORRECTION' || entry.action === 'DELIVERY_FAILED') return ENTRY_COLORS.FAILED;
   if (entry.action === 'RESUBMITTED_AFTER_VERIFICATION' || entry.action?.includes('EDIT')) return ENTRY_COLORS.EDIT;
   if (entry.action === 'WORKFLOW_RESTARTED') return ENTRY_COLORS.RESTART;
   if (entry.status === 'VERIFIED') return ENTRY_COLORS.VERIFIED;
   if (entry.status === 'RETURNED') return ENTRY_COLORS.FAILED;
   if (entry.status === 'RESUBMITTED') return ENTRY_COLORS.EDIT;
-  if (entry.action?.includes('FAIL') || entry.action?.includes('RETURN') || entry.action?.includes('CANCELL')) return ENTRY_COLORS.FAILED;
+  if (entry.action?.includes('FAIL') || entry.action?.includes('RETURN')) return ENTRY_COLORS.FAILED;
   return ENTRY_COLORS.audit;
 };
 
 // Status badge text + styling derived from the entry's action/status
 const getStatusBadge = (entry) => {
+  if (entry.action === 'CANCELLATION_REQUESTED') return { text: 'REQUESTED', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
+  if (entry.action === 'CANCELLATION_APPROVED' || entry.action === 'ORDER_CANCELLED') return { text: 'CANCELLED', cls: 'bg-red-500/20 text-red-300 border-red-500/40' };
+  if (entry.action === 'CANCELLATION_REJECTED') return { text: 'REJECTED', cls: 'bg-rose-500/20 text-rose-300 border-rose-500/40' };
+  if (entry.action === 'STAGE_INTERRUPTED') return { text: 'INTERRUPTED', cls: 'bg-orange-500/20 text-orange-300 border-orange-500/40' };
   if (entry.action === 'COMPLETED') return { text: 'COMPLETED', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' };
   if (entry.action === 'ACCEPTED') return { text: 'IN PROGRESS', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/40' };
   if (entry.action === 'ROUTED') return { text: 'ROUTED', cls: 'bg-purple-500/20 text-purple-400 border-purple-500/40' };
@@ -278,14 +290,22 @@ const OrderTrack = () => {
                     {order.verifiedAt ? `VERIFIED by ${order.verifiedByName || 'Admin'}` : order.verificationReturnedAt ? 'RETURNED FROM VERIFICATION' : 'PENDING VERIFICATION'}
                   </span>
                 )}
-                {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
-                  <button onClick={() => { setCancelModal(true); setCancelReason(''); }}
-                    className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 transition-colors">
-                    <PackageX size={10} /> Request Cancellation
-                  </button>
+                {order.cancellationRequest && order.cancellationRequest.status === 'PENDING' ? (
+                  <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                    <Clock size={10} /> Cancellation Pending Admin Approval
+                  </span>
+                ) : (
+                  order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+                    <button onClick={() => { setCancelModal(true); setCancelReason(''); }}
+                      className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 transition-colors">
+                      <PackageX size={10} /> Request Cancellation
+                    </button>
+                  )
                 )}
                 {order.cancelledAt && (
-                  <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-red-700/40 text-red-300">CANCELLED — {order.cancelledByName || 'Admin'} {order.cancelledAt ? `(${formatDate(order.cancelledAt)})` : ''}</span>
+                  <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-red-700/40 text-red-300 border border-red-500/40">
+                    CANCELLED — {order.cancelledByName || 'Admin'} {order.cancelledAt ? `(${formatDate(order.cancelledAt)})` : ''}
+                  </span>
                 )}
               </div>
             </div>
@@ -447,6 +467,14 @@ const OrderTrack = () => {
                   </React.Fragment>
                 );
               })}
+              {order.status === 'CANCELLED' && (
+                <>
+                  <ArrowRight size={10} className="text-red-700 mx-0.5 shrink-0" />
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-red-500/25 text-red-300 border border-red-500/50 shadow-sm shadow-red-950/40">
+                    <PackageX size={10} /> Cancelled
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -578,6 +606,7 @@ const OrderTrack = () => {
                             {entry.actor && (
                               <p className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-gray-800/80 px-2 py-0.5 rounded-full mt-1.5">
                                 <User size={9} /> {entry.actor}
+                                {entry.actorRoleLabel && <span className="text-gray-400 font-normal"> · {entry.actorRoleLabel}</span>}
                               </p>
                             )}
                           </div>
@@ -591,8 +620,20 @@ const OrderTrack = () => {
                             </span>
                           </div>
                         </div>
-                        {entry.details && <p className="text-[10px] text-gray-400 font-bold mt-1.5 italic">{entry.details}</p>}
-                        {entry.remarks && entry.details !== entry.remarks && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">Remarks: {entry.remarks}</p>}
+                        {entry.reason && entry.type === 'cancellation' && (
+                          <div className="mt-2 bg-amber-950/30 border border-amber-500/30 rounded-lg p-2.5">
+                            <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Cancellation Reason:</p>
+                            <p className="text-xs text-amber-200 font-bold mt-0.5">{entry.reason}</p>
+                          </div>
+                        )}
+                        {entry.decisionNote && (
+                          <div className="mt-2 bg-blue-950/30 border border-blue-500/30 rounded-lg p-2.5">
+                            <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Decision / Admin Note:</p>
+                            <p className="text-xs text-blue-200 font-bold mt-0.5">{entry.decisionNote}</p>
+                          </div>
+                        )}
+                        {entry.details && !entry.reason && <p className="text-[10px] text-gray-400 font-bold mt-1.5 italic">{entry.details}</p>}
+                        {entry.remarks && entry.details !== entry.remarks && !entry.reason && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">Remarks: {entry.remarks}</p>}
                         {entry.returnReason && <p className="text-[10px] text-red-400 font-bold mt-1">Return reason: {entry.returnReason}</p>}
                       </div>
                     </div>
