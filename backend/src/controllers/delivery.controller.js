@@ -14,16 +14,19 @@ const parseDateRange = (dateFrom, dateTo) => {
 };
 
 // Authoritative check: Is this order already paid/financially cleared in advance?
+// An order is paid in advance ONLY if full amount was already received (advance >= total) or total is 0.
+// An order does NOT become "paid in advance" just because a rider collected COD and marked it delivered!
 const isOrderPaidInAdvance = (o) => {
   if (!o) return false;
-  const status = (o.paymentStatus || '').toUpperCase();
-  if (status === 'PAID' || status === 'FULL_PAID') return true;
   const total = parseFloat(o.totalPrice) || 0;
   const advance = parseFloat(o.advanceAmount) || 0;
-  if (total > 0 && advance >= total - 0.01) return true;
-  if (o.advancePaid && advance >= total - 0.01 && total > 0) return true;
+  if (total <= 0.01) return true;
+  if (advance >= total - 0.01) return true;
+  if (o.advancePaid && advance >= total - 0.01) return true;
+  if (o.isPrepaid === true) return true;
   return false;
 };
+
 
 // GET /api/delivery/orders — get all delivery orders for delivery boy
 const getDeliveryOrders = async (req, res) => {
@@ -770,27 +773,56 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     let durationMinutes = null;
     if (deliveredAt && assignedAt) durationMinutes = Math.round((new Date(deliveredAt) - new Date(assignedAt)) / 60000);
 
+    const totalPrice = Number(o.totalPrice || 0);
+    const advance = Number(o.advanceAmount || 0);
     const isPrepaid = isOrderPaidInAdvance(o);
-    const totalPrice = o.totalPrice || 0;
-    const advance = o.advanceAmount || 0;
-    const isCOD = !isPrepaid && totalPrice > 0;
-    const expectedCodAmount = isPrepaid ? 0 : Math.max(0, totalPrice - advance);
+    const isCOD = !isPrepaid && totalPrice > 0.01;
+    const expectedCodAmount = isPrepaid ? 0 : Math.max(0, Math.round((totalPrice - advance) * 100) / 100);
 
     let cashCollected = 0, onlineCollected = 0;
-    if (!isPrepaid) {
-      (o.deliveryPayments || []).forEach(p => {
-        if (inWindow(p.collectedAt)) {
-          if (p.paymentMethod === 'CASH') cashCollected += (p.cashAmount || 0);
-          else if (p.paymentMethod === 'ONLINE') onlineCollected += (p.onlineAmount || 0);
-          else if (p.paymentMethod === 'CASH_ONLINE') { cashCollected += (p.cashAmount || 0); onlineCollected += (p.onlineAmount || 0); }
-          else if (p.paymentMethod === 'MULTIPLE_ONLINE') onlineCollected += (p.onlineAmount || 0);
+    if (isCOD) {
+      const payments = o.deliveryPayments || [];
+      if (payments.length > 0) {
+        payments.forEach(p => {
+          if (inWindow(p.collectedAt || p.createdAt)) {
+            if (p.paymentMethod === 'CASH') cashCollected += Number(p.cashAmount || 0);
+            else if (p.paymentMethod === 'ONLINE') onlineCollected += Number(p.onlineAmount || 0);
+            else if (p.paymentMethod === 'CASH_ONLINE') {
+              cashCollected += Number(p.cashAmount || 0);
+              onlineCollected += Number(p.onlineAmount || 0);
+            } else if (p.paymentMethod === 'MULTIPLE_ONLINE') {
+              onlineCollected += Number(p.onlineAmount || 0);
+            } else if (p.paymentMethod === 'CARD') {
+              onlineCollected += Number(p.onlineAmount || p.cashAmount || 0);
+            }
+          }
+        });
+      } else if (delivered) {
+        // Fallback for delivered COD orders where deliveryPayment record was not created
+        const delDate = deliveredAt || o.updatedAt;
+        if (inWindow(delDate)) {
+          if (o.paymentMethod === 'ONLINE') onlineCollected = expectedCodAmount;
+          else if (o.paymentMethod === 'CASH_ONLINE') {
+            cashCollected = Math.round(expectedCodAmount / 2);
+            onlineCollected = expectedCodAmount - cashCollected;
+          } else {
+            cashCollected = expectedCodAmount;
+          }
         }
-      });
+      }
     }
 
     const totalCollected = isPrepaid ? 0 : (cashCollected + onlineCollected);
-    const outstanding = Math.max(0, expectedCodAmount - totalCollected);
-    const isPaid = isPrepaid || outstanding <= 0.01;
+    let remainingCOD = 0;
+    if (isCOD) {
+      if (['returned', 'cancelled'].includes(primaryStatus)) {
+        remainingCOD = 0;
+      } else {
+        remainingCOD = Math.max(0, Math.round((expectedCodAmount - totalCollected) * 100) / 100);
+      }
+    }
+    const outstanding = remainingCOD;
+    const isPaid = isPrepaid || (isCOD && remainingCOD <= 0.01 && delivered);
 
     const charge = (o.deliveryChargeRecords || [])[0] || null;
     const orderDate = deliveredAt || returnedAt || acceptedAt || assignedAt || o.createdAt;
@@ -853,6 +885,7 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       cashCollected,
       onlineCollected,
       totalCollected,
+      remainingCOD,
       outstanding,
       isPaid
     };
@@ -898,22 +931,18 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
   let failedCount = 0;
 
   for (const e of filtered) {
-    const ev = e.events;
-    if (ev.assignedInWindow) totalAssigned++;
-    if (ev.acceptedInWindow) { acceptedCount++; pickedUpCount++; }
-    if (ev.deliveredInWindow) deliveredCount++;
-    if (ev.returnedInWindow) returnedCount++;
-    if (ev.cancelledInWindow) cancelledCount++;
-    if (ev.noResponseInWindow.length > 0) noResponseCount += ev.noResponseInWindow.length;
+    if (e.primaryStatus === 'delivered') deliveredCount++;
+    else if (e.primaryStatus === 'returned') returnedCount++;
+    else if (e.primaryStatus === 'cancelled') cancelledCount++;
+    else if (e.primaryStatus === 'failed') failedCount++;
+    else if (e.primaryStatus === 'noResponse') noResponseCount++;
+    else if (e.primaryStatus === 'inTransit') inTransitCount++;
+    else pendingCount++;
 
-    if (e.primaryStatus === 'pending') pendingCount++;
-    if (e.primaryStatus === 'inTransit') inTransitCount++;
-    if (e.primaryStatus === 'failed') failedCount++;
-
-    if (e.isCarryForward) {
-      carryForwardCount++;
-    }
+    if (e.accepted) { acceptedCount++; pickedUpCount++; }
+    if (e.isCarryForward) carryForwardCount++;
   }
+  totalAssigned = filtered.length;
 
   const riderNames = riders.length > 0 ? riders : [...new Set(filtered.map(e => e.riderName).filter(Boolean))];
   const depositWhere = { status: 'APPROVED', deliveryBoy: { in: riderNames.length > 0 ? riderNames : ['__none__'] } };
@@ -932,31 +961,34 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
   const codOrders = filtered.filter(e => e.isCOD);
   const prepaidOrders = filtered.filter(e => e.isPrepaid);
 
+  const totalOrderValue = filtered.reduce((s, e) => s + e.totalPrice, 0);
   const codExpectedAmount = codOrders.reduce((s, e) => s + e.expectedCodAmount, 0);
+  const totalPaidAmount = filtered.reduce((s, e) => s + (e.isPrepaid ? e.totalPrice : Math.min(e.totalPrice, e.advanceAmount)), 0);
+
   const grossCashOnCOD = codOrders.reduce((s, e) => s + e.cashCollected, 0);
   const grossOnlineOnCOD = codOrders.reduce((s, e) => s + e.onlineCollected, 0);
   const cashReceived = Math.max(0, grossCashOnCOD - totalDeposited);
   const onlineReceived = grossOnlineOnCOD;
   const totalReceived = grossCashOnCOD + grossOnlineOnCOD;
-  const remainingCOD = Math.max(0, codExpectedAmount - totalReceived);
+  const remainingCOD = codOrders.reduce((s, e) => s + e.remainingCOD, 0);
 
   const stats = {
-    totalAssigned: dateFilter ? (totalAssigned + carryForwardCount) : filtered.length,
-    accepted: dateFilter ? acceptedCount : filtered.filter(e => e.accepted).length,
-    pickedUp: dateFilter ? pickedUpCount : filtered.filter(e => e.accepted).length,
-    delivered: dateFilter ? deliveredCount : filtered.filter(e => e.primaryStatus === 'delivered').length,
+    totalAssigned,
+    accepted: acceptedCount,
+    pickedUp: pickedUpCount,
+    delivered: deliveredCount,
     pending: pendingCount,
     inTransit: inTransitCount,
     carryForward: carryForwardCount,
-    returned: dateFilter ? returnedCount : filtered.filter(e => e.primaryStatus === 'returned').length,
-    noResponse: dateFilter ? noResponseCount : filtered.filter(e => e.primaryStatus === 'noResponse').length,
-    cancelled: dateFilter ? cancelledCount : filtered.filter(e => e.primaryStatus === 'cancelled').length,
+    returned: returnedCount,
+    noResponse: noResponseCount,
+    cancelled: cancelledCount,
     failed: failedCount,
-    totalOrderValue: filtered.reduce((s, e) => s + e.totalPrice, 0),
+    totalOrderValue,
 
     // Order Payment Classification
     paidOrderCount: prepaidOrders.length,
-    totalPaidAmount: prepaidOrders.reduce((s, e) => s + e.totalPrice, 0),
+    totalPaidAmount,
     codOrderCount: codOrders.length,
     codExpectedAmount,
     totalCOD: codExpectedAmount, // alias

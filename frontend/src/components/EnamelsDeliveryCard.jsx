@@ -561,6 +561,12 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     if (selectedFilter === 'carryForward') {
       return orders.filter(o => o.isCarryForward || (isCarryForwardOrder(o) && ['pending', 'inTransit', 'noResponse', 'failed'].includes(o.primaryStatus)));
     }
+    if (selectedFilter === 'paid') {
+      return orders.filter(o => o.isPrepaid);
+    }
+    if (selectedFilter === 'cod') {
+      return orders.filter(o => o.isCOD);
+    }
     return orders.filter(o => o.primaryStatus === selectedFilter);
   }, [orders, selectedFilter]);
 
@@ -609,9 +615,9 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
 
   const paymentCards = [
     { label: 'Total Order Value', value: safeStats.totalOrderValue || 0, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-    { label: '# Paid Orders', value: safeStats.paidOrderCount || 0, isCount: true, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { label: '# Paid Orders', value: safeStats.paidOrderCount || 0, isCount: true, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', filterKey: 'paid' },
     { label: 'Paid in Advance', value: safeStats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    { label: '# COD Orders', value: safeStats.codOrderCount || 0, isCount: true, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    { label: '# COD Orders', value: safeStats.codOrderCount || 0, isCount: true, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: 'cod' },
     { label: 'COD Expected Amount', value: safeStats.codExpectedAmount ?? safeStats.totalCOD ?? 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     { label: 'Cash Collected', value: safeStats.cashBeforeDeposits ?? safeStats.cashReceived ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (safeStats.totalDeposited || 0) > 0 ? `₨${safeStats.totalDeposited.toLocaleString()} deposited` : undefined },
     { label: 'Online Collected', value: safeStats.onlineReceived ?? 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
@@ -766,11 +772,14 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {paymentCards.map(card => (
-            <div key={card.label} className={`${card.bg} rounded-2xl p-3 border ${card.border} text-center`}>
+            <div key={card.label}
+              onClick={() => card.filterKey && handleStatClick(card.filterKey)}
+              className={`${card.bg} rounded-2xl p-3 border ${card.border} text-center ${card.filterKey ? 'cursor-pointer hover:scale-[1.02] transition-all' : ''}`}>
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
               <p className={`text-xl font-black ${card.color}`}>
                 {card.isCount ? (card.value || 0) : `₨${(card.value || 0).toLocaleString()}`}
               </p>
+              {card.filterKey && <p className="text-[8px] font-bold text-gray-500 mt-0.5 uppercase">Click to view</p>}
             </div>
           ))}
           <div className="bg-amber-500/10 rounded-2xl p-3 border border-amber-500/20 text-center cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setShowOutstandingList(!showOutstandingList)}>
@@ -782,6 +791,10 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
           {showOutstandingList && (
             <InlineOrderList orders={outstandingOrders} title={`Orders with outstanding balance (${outstandingOrders.length})`}
               onClose={() => setShowOutstandingList(false)} onSelect={o => setSelectedOrder(o)} />
+          )}
+          {(selectedFilter === 'paid' || selectedFilter === 'cod') && (
+            <InlineOrderList orders={filteredOrders} title={`${STATUS_LABEL[selectedFilter] || selectedFilter} orders (${filteredOrders.length})`}
+              onClose={() => setSelectedFilter(null)} onSelect={o => setSelectedOrder(o)} />
           )}
         </AnimatePresence>
       </div>

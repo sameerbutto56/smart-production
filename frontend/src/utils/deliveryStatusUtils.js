@@ -40,6 +40,8 @@ export const STATUS_BADGE = {
   noResponse: 'bg-gray-500/20 text-gray-400',
   inTransit:  'bg-indigo-500/20 text-indigo-400',
   pending:    'bg-amber-500/20 text-amber-400',
+  paid:       'bg-emerald-500/20 text-emerald-400',
+  cod:        'bg-amber-500/20 text-amber-400',
 };
 
 export const STATUS_LABEL = {
@@ -50,6 +52,8 @@ export const STATUS_LABEL = {
   noResponse: 'No Response',
   inTransit:  'In Transit',
   pending:    'Pending',
+  paid:       'Paid (No COD Due)',
+  cod:        'COD',
 };
 
 /* ─── Admin stat card color map ───────────────────────────────────────────── */
