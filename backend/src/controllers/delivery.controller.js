@@ -234,6 +234,25 @@ const deliverOrder = async (req, res) => {
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
+    // 1. Duplicate collection prevention: check if order is already delivered
+    if (order.currentStage === 'DELIVERED' || order.status === 'COMPLETED') {
+      return res.status(400).json({
+        message: 'This order has already been marked as DELIVERED.',
+        deliveredAt: order.deliveredAt
+      });
+    }
+
+    // 2. Duplicate collection prevention: check if a collection record already exists
+    const existingPayment = await prisma.deliveryPayment.findFirst({
+      where: { orderId }
+    });
+    if (existingPayment) {
+      return res.status(400).json({
+        message: 'A delivery collection record has already been recorded for this order.',
+        payment: existingPayment
+      });
+    }
+
     const now = new Date();
     const isPaid = isOrderPaidInAdvance(order);
     const totalPrice = parseFloat(order.totalPrice) || 0;
@@ -244,11 +263,19 @@ const deliverOrder = async (req, res) => {
     let finalCash = 0;
     let finalOnline = 0;
 
+    // Case A: Fully Paid / Zero COD
     if (isPaid || amountDue <= 0.01) {
       finalMethod = 'PAID';
       finalCash = 0;
       finalOnline = 0;
     } else {
+      // Case B: Outstanding COD exists -> Payment method is strictly mandatory
+      if (!['CASH', 'ONLINE', 'CASH_ONLINE'].includes(finalMethod)) {
+        return res.status(400).json({
+          message: `Payment method is required for COD of ₨${amountDue.toLocaleString()}. Select Cash, Online, or Cash + Online.`
+        });
+      }
+
       if (finalMethod === 'CASH') {
         finalCash = amountDue;
         finalOnline = 0;
@@ -256,19 +283,14 @@ const deliverOrder = async (req, res) => {
         finalCash = 0;
         finalOnline = amountDue;
       } else if (finalMethod === 'CASH_ONLINE') {
-        finalCash = parseFloat(cashAmount) || 0;
-        finalOnline = parseFloat(onlineAmount) || 0;
+        finalCash = Math.round((parseFloat(cashAmount) || 0) * 100) / 100;
+        finalOnline = Math.round((parseFloat(onlineAmount) || 0) * 100) / 100;
         const totalSplit = Math.round((finalCash + finalOnline) * 100) / 100;
         if (Math.abs(totalSplit - amountDue) > 0.01) {
           return res.status(400).json({
-            message: `Split payment (Cash ₨${finalCash.toLocaleString()} + Online ₨${finalOnline.toLocaleString()} = ₨${totalSplit.toLocaleString()}) must equal amount due of ₨${amountDue.toLocaleString()}`
+            message: `Split payment (Cash ₨${finalCash.toLocaleString()} + Online ₨${finalOnline.toLocaleString()} = ₨${totalSplit.toLocaleString()}) must equal outstanding COD of ₨${amountDue.toLocaleString()}`
           });
         }
-      } else {
-        // Default to CASH if unspecified
-        finalMethod = 'CASH';
-        finalCash = amountDue;
-        finalOnline = 0;
       }
     }
 
@@ -300,16 +322,19 @@ const deliverOrder = async (req, res) => {
       data: { orderId, stageName: 'DELIVERED', status: 'COMPLETED', completedAt: now }
     });
 
-    // Record delivery payment
-    await prisma.deliveryPayment.create({
-      data: {
-        orderId,
-        paymentMethod: finalMethod,
-        cashAmount: finalCash,
-        onlineAmount: finalOnline,
-        collectedBy: riderName || req.user?.name || 'Enamels Delivery'
-      }
-    });
+    // Record delivery payment ONLY if actual funds were collected (no fake transaction for zero COD)
+    if (finalCash > 0 || finalOnline > 0) {
+      await prisma.deliveryPayment.create({
+        data: {
+          orderId,
+          paymentMethod: finalMethod,
+          cashAmount: finalCash,
+          onlineAmount: finalOnline,
+          collectedBy: riderName || req.user?.name || 'Enamels Delivery',
+          collectedAt: now
+        }
+      });
+    }
 
     // Update OrderAcceptance record
     await prisma.orderAcceptance.updateMany({
@@ -340,8 +365,14 @@ const deliverOrder = async (req, res) => {
       }
     });
 
+    let validUserId = null;
+    if (req.user?.id) {
+      const u = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true } }).catch(() => null);
+      if (u) validUserId = u.id;
+    }
+
     await prisma.routingHistory.create({
-      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: `Delivered by ${riderName || req.user?.name || 'Enamels Delivery'} via ${finalMethod}` }
+      data: { orderId, sentByUserId: validUserId, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: `Delivered by ${riderName || req.user?.name || 'Enamels Delivery'} via ${finalMethod}` }
     });
 
     await prisma.auditLog.create({
