@@ -169,8 +169,11 @@ const OrderDetailModal = ({ order, onClose }) => {
             <div><span className="text-gray-500">Advance Paid:</span> <span className="font-black text-blue-400">₨{(order.advanceAmount || 0).toLocaleString()}</span></div>
             <div><span className="text-gray-500">Cash Collected:</span> <span className="font-black text-emerald-400">₨{(order.cashCollected || 0).toLocaleString()}</span></div>
             <div><span className="text-gray-500">Online Collected:</span> <span className="font-black text-purple-400">₨{(order.onlineCollected || 0).toLocaleString()}</span></div>
+            {order.collectionMethod === 'CASH_ONLINE' && (
+              <div><span className="text-gray-500">Cash + Online:</span> <span className="font-black text-indigo-400">₨{(order.cashOnlineCollected || 0).toLocaleString()}</span></div>
+            )}
             <div><span className="text-gray-500">Total Collected:</span> <span className="font-black text-cyan-400">₨{(order.totalCollected || 0).toLocaleString()}</span></div>
-            <div><span className="text-gray-500">Remaining COD:</span> <span className="font-black text-orange-400">₨{(order.outstanding || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Remaining COD:</span> <span className="font-black text-orange-400">₨{(order.remainingCOD ?? order.outstanding ?? 0).toLocaleString()}</span></div>
           </div>
         </div>
       </motion.div>
@@ -445,9 +448,7 @@ const PAYMENT_OPTIONS = [
   { value: '', label: 'All Payment Types' },
   { value: 'CASH', label: 'Cash' },
   { value: 'ONLINE', label: 'Online' },
-  { value: 'CARD', label: 'Card' },
   { value: 'CASH_ONLINE', label: 'Cash + Online' },
-  { value: 'MULTIPLE_ONLINE', label: 'Multiple Online' },
 ];
 
 const EnamelsDeliveryCard = ({ activeTab }) => {
@@ -567,12 +568,21 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     if (selectedFilter === 'cod') {
       return orders.filter(o => o.isCOD);
     }
+    if (selectedFilter === 'cashCollected') {
+      return orders.filter(o => (o.cashCollected || 0) > 0);
+    }
+    if (selectedFilter === 'onlineCollected') {
+      return orders.filter(o => (o.onlineCollected || 0) > 0);
+    }
+    if (selectedFilter === 'cashOnline') {
+      return orders.filter(o => o.collectionMethod === 'CASH_ONLINE' || ((o.cashCollected || 0) > 0 && (o.onlineCollected || 0) > 0));
+    }
     return orders.filter(o => o.primaryStatus === selectedFilter);
   }, [orders, selectedFilter]);
 
   const outstandingOrders = useMemo(() => {
     if (!showOutstandingList) return [];
-    return orders.filter(o => o.outstanding > 0.01).sort((a, b) => b.outstanding - a.outstanding);
+    return orders.filter(o => (o.remainingCOD ?? o.outstanding ?? 0) > 0.01).sort((a, b) => (b.remainingCOD ?? b.outstanding ?? 0) - (a.remainingCOD ?? a.outstanding ?? 0));
   }, [orders, showOutstandingList]);
 
   const handlePayRider = (rider) => { setSelectedRider(rider); setShowPayModal(true); };
@@ -619,10 +629,11 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     { label: 'Paid in Advance', value: safeStats.totalPaidAmount || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
     { label: '# COD Orders', value: safeStats.codOrderCount || 0, isCount: true, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', filterKey: 'cod' },
     { label: 'COD Expected Amount', value: safeStats.codExpectedAmount ?? safeStats.totalCOD ?? 0, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-    { label: 'Cash Collected', value: safeStats.cashBeforeDeposits ?? safeStats.cashReceived ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', sub: (safeStats.totalDeposited || 0) > 0 ? `₨${safeStats.totalDeposited.toLocaleString()} deposited` : undefined },
-    { label: 'Online Collected', value: safeStats.onlineReceived ?? 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-    { label: 'Total Collected', value: safeStats.totalReceived ?? 0, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
-    { label: 'Remaining COD', value: safeStats.remainingCOD ?? safeStats.overallOutstanding ?? 0, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+    { label: 'Cash Collected', value: safeStats.cashCollected ?? safeStats.cashBeforeDeposits ?? safeStats.cashReceived ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', filterKey: 'cashCollected', sub: (safeStats.totalDeposited || 0) > 0 ? `₨${safeStats.totalDeposited.toLocaleString()} deposited` : undefined },
+    { label: 'Online Collected', value: safeStats.onlineCollected ?? safeStats.onlineReceived ?? 0, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', filterKey: 'onlineCollected' },
+    { label: 'Cash + Online Collected', value: safeStats.cashOnlineCollected || 0, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', filterKey: 'cashOnline' },
+    { label: 'Total Collected', value: safeStats.totalCollected ?? safeStats.totalReceived ?? 0, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
+    { label: 'Remaining COD', value: safeStats.remainingCOD ?? safeStats.overallOutstanding ?? 0, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', onClick: () => setShowOutstandingList(prev => !prev), filterKey: 'outstanding' },
   ];
 
   const selectClass = "bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-[10px] font-bold theme-text-primary focus:outline-none focus:border-emerald-500 cursor-pointer";
@@ -770,29 +781,32 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
             Outstanding: ₨{(stats.outstandingCollection || 0).toLocaleString()}
           </button>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {paymentCards.map(card => (
             <div key={card.label}
-              onClick={() => card.filterKey && handleStatClick(card.filterKey)}
-              className={`${card.bg} rounded-2xl p-3 border ${card.border} text-center ${card.filterKey ? 'cursor-pointer hover:scale-[1.02] transition-all' : ''}`}>
+              onClick={() => {
+                if (card.onClick) {
+                  card.onClick();
+                } else if (card.filterKey) {
+                  handleStatClick(card.filterKey);
+                }
+              }}
+              className={`${card.bg} rounded-2xl p-3 border ${card.border} text-center ${(card.filterKey || card.onClick) ? 'cursor-pointer hover:scale-[1.02] transition-all' : ''}`}>
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
               <p className={`text-xl font-black ${card.color}`}>
                 {card.isCount ? (card.value || 0) : `₨${(card.value || 0).toLocaleString()}`}
               </p>
-              {card.filterKey && <p className="text-[8px] font-bold text-gray-500 mt-0.5 uppercase">Click to view</p>}
+              {card.sub && <p className="text-[8px] font-bold text-amber-400 mt-0.5">{card.sub}</p>}
+              {(card.filterKey || card.onClick) && <p className="text-[8px] font-bold text-gray-500 mt-0.5 uppercase">Click to view</p>}
             </div>
           ))}
-          <div className="bg-amber-500/10 rounded-2xl p-3 border border-amber-500/20 text-center cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setShowOutstandingList(!showOutstandingList)}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Outstanding Collection</p>
-            <p className="text-xl font-black text-amber-400">₨{(stats.outstandingCollection || 0).toLocaleString()}</p>
-          </div>
         </div>
         <AnimatePresence>
           {showOutstandingList && (
             <InlineOrderList orders={outstandingOrders} title={`Orders with outstanding balance (${outstandingOrders.length})`}
               onClose={() => setShowOutstandingList(false)} onSelect={o => setSelectedOrder(o)} />
           )}
-          {(selectedFilter === 'paid' || selectedFilter === 'cod') && (
+          {['paid', 'cod', 'cashCollected', 'onlineCollected', 'cashOnline'].includes(selectedFilter) && (
             <InlineOrderList orders={filteredOrders} title={`${STATUS_LABEL[selectedFilter] || selectedFilter} orders (${filteredOrders.length})`}
               onClose={() => setSelectedFilter(null)} onSelect={o => setSelectedOrder(o)} />
           )}

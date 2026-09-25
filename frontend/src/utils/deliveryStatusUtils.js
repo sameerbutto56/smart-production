@@ -42,6 +42,9 @@ export const STATUS_BADGE = {
   pending:    'bg-amber-500/20 text-amber-400',
   paid:       'bg-emerald-500/20 text-emerald-400',
   cod:        'bg-amber-500/20 text-amber-400',
+  cashCollected: 'bg-emerald-500/20 text-emerald-400',
+  onlineCollected: 'bg-purple-500/20 text-purple-400',
+  cashOnline: 'bg-indigo-500/20 text-indigo-400',
 };
 
 export const STATUS_LABEL = {
@@ -54,6 +57,9 @@ export const STATUS_LABEL = {
   pending:    'Pending',
   paid:       'Paid (No COD Due)',
   cod:        'COD',
+  cashCollected: 'Cash Collected',
+  onlineCollected: 'Online Collected',
+  cashOnline: 'Cash + Online Collected',
 };
 
 /* ─── Admin stat card color map ───────────────────────────────────────────── */

@@ -588,15 +588,21 @@ const getCODSummary = async (req, res) => {
 
     const eligibleFilteredDeliveries = filteredDeliveries.filter(o => !isOrderPaidInAdvance(o));
 
-    const filteredCODAmount = eligibleFilteredDeliveries.reduce((s, o) => {
+    const getOrderActualCash = (o) => {
       const remainingDue = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
       const delivPay = o.deliveryPayments || [];
       if (delivPay.length > 0) {
-        const cashPart = delivPay.reduce((sum, p) => sum + (p.paymentMethod === 'ONLINE' ? 0 : (p.cashAmount || 0)), 0);
-        return s + (cashPart > 0 ? cashPart : remainingDue);
+        const sorted = [...delivPay].sort((a, b) => new Date(b.collectedAt || b.createdAt) - new Date(a.collectedAt || a.createdAt));
+        const p = sorted.find(x => (Number(x.cashAmount || 0) + Number(x.onlineAmount || 0)) > 0) || sorted[0];
+        const rawMethod = (p.paymentMethod || '').toUpperCase();
+        if (rawMethod === 'ONLINE' || rawMethod === 'CARD' || rawMethod === 'MULTIPLE_ONLINE') return 0;
+        const pCash = Number(p.cashAmount || 0);
+        return pCash > 0 ? pCash : remainingDue;
       }
-      return s + (o.paymentMethod === 'ONLINE' ? 0 : remainingDue);
-    }, 0);
+      return o.paymentMethod === 'ONLINE' ? 0 : remainingDue;
+    };
+
+    const filteredCODAmount = eligibleFilteredDeliveries.reduce((s, o) => s + getOrderActualCash(o), 0);
 
     // All pending COD (delivered but not cleared)
     const clearedOrderIds = (await prisma.cODCollection.findMany({ select: { orderIds: true } }))
@@ -622,15 +628,7 @@ const getCODSummary = async (req, res) => {
 
     const eligiblePendingDeliveries = pendingCODDeliveries.filter(o => !isOrderPaidInAdvance(o));
 
-    const pendingCODAmount = eligiblePendingDeliveries.reduce((s, o) => {
-      const remainingDue = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
-      const delivPay = o.deliveryPayments || [];
-      if (delivPay.length > 0) {
-        const cashPart = delivPay.reduce((sum, p) => sum + (p.paymentMethod === 'ONLINE' ? 0 : (p.cashAmount || 0)), 0);
-        return s + (cashPart > 0 ? cashPart : remainingDue);
-      }
-      return s + (o.paymentMethod === 'ONLINE' ? 0 : remainingDue);
-    }, 0);
+    const pendingCODAmount = eligiblePendingDeliveries.reduce((s, o) => s + getOrderActualCash(o), 0);
 
     const collections = await prisma.cODCollection.findMany({ orderBy: { clearedAt: 'desc' } });
 
@@ -779,44 +777,72 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     const isCOD = !isPrepaid && totalPrice > 0.01;
     const expectedCodAmount = isPrepaid ? 0 : Math.max(0, Math.round((totalPrice - advance) * 100) / 100);
 
-    let cashCollected = 0, onlineCollected = 0;
-    if (isCOD) {
-      const payments = o.deliveryPayments || [];
-      if (payments.length > 0) {
-        // Count ALL payments for this order — the date window controls which orders appear,
-        // not which payments within an order to count. Otherwise carry-forward and historical
-        // orders show ₨0 collected even though the rider already collected the money.
-        payments.forEach(p => {
-          if (p.paymentMethod === 'CASH') cashCollected += Number(p.cashAmount || 0);
-          else if (p.paymentMethod === 'ONLINE') onlineCollected += Number(p.onlineAmount || 0);
-          else if (p.paymentMethod === 'CASH_ONLINE') {
-            cashCollected += Number(p.cashAmount || 0);
-            onlineCollected += Number(p.onlineAmount || 0);
-          } else if (p.paymentMethod === 'MULTIPLE_ONLINE') {
-            onlineCollected += Number(p.onlineAmount || 0);
-          } else if (p.paymentMethod === 'CARD') {
-            onlineCollected += Number(p.onlineAmount || p.cashAmount || 0);
-          }
+    let cashCollected = 0, onlineCollected = 0, cashOnlineCollected = 0;
+    let collectionMethod = null;
+    let authoritativePaymentId = null;
+    let allTimeCollected = 0;
+
+    if (isPrepaid) {
+      collectionMethod = 'PAID';
+    } else if (isCOD) {
+      const rawPayments = o.deliveryPayments || [];
+      if (rawPayments.length > 0) {
+        // Sort descending by collectedAt / createdAt so latest record is prioritized
+        const sorted = [...rawPayments].sort((a, b) => {
+          const ta = new Date(b.collectedAt || b.createdAt).getTime();
+          const tb = new Date(a.collectedAt || a.createdAt).getTime();
+          return ta - tb;
         });
-      } else if (delivered) {
-        // Fallback for delivered COD orders where deliveryPayment record was not created
-        if (o.paymentMethod === 'ONLINE') onlineCollected = expectedCodAmount;
-        else if (o.paymentMethod === 'CASH_ONLINE') {
-          cashCollected = Math.round(expectedCodAmount / 2);
-          onlineCollected = expectedCodAmount - cashCollected;
-        } else {
-          cashCollected = expectedCodAmount;
+
+        // Deduplicate multiple collection records for the same delivery:
+        // Pick the authoritative transaction that has positive collection, or the latest record
+        const p = sorted.find(x => (Number(x.cashAmount || 0) + Number(x.onlineAmount || 0)) > 0) || sorted[0];
+        authoritativePaymentId = p.id;
+
+        const rawMethod = (p.paymentMethod || '').toUpperCase();
+        const pCash = Number(p.cashAmount || 0);
+        const pOnline = Number(p.onlineAmount || 0);
+        allTimeCollected = Math.round((pCash + pOnline) * 100) / 100;
+
+        const paymentInWindow = inWindow(p.collectedAt || p.createdAt);
+
+        if (rawMethod === 'CASH') {
+          collectionMethod = 'CASH';
+          if (paymentInWindow) {
+            cashCollected = pCash;
+            onlineCollected = 0;
+            cashOnlineCollected = 0;
+          }
+        } else if (rawMethod === 'ONLINE' || rawMethod === 'MULTIPLE_ONLINE' || rawMethod === 'CARD') {
+          collectionMethod = 'ONLINE';
+          if (paymentInWindow) {
+            cashCollected = 0;
+            onlineCollected = pOnline;
+            cashOnlineCollected = 0;
+          }
+        } else if (rawMethod === 'CASH_ONLINE') {
+          collectionMethod = 'CASH_ONLINE';
+          if (paymentInWindow) {
+            cashCollected = pCash;
+            onlineCollected = pOnline;
+            cashOnlineCollected = Math.round((pCash + pOnline) * 100) / 100;
+          }
+        } else if (rawMethod === 'PAID') {
+          collectionMethod = 'PAID';
+          cashCollected = 0;
+          onlineCollected = 0;
+          cashOnlineCollected = 0;
         }
       }
     }
 
-    const totalCollected = isPrepaid ? 0 : (cashCollected + onlineCollected);
+    const totalCollected = isPrepaid ? 0 : Math.round((cashCollected + onlineCollected) * 100) / 100;
     let remainingCOD = 0;
     if (isCOD) {
       if (['returned', 'cancelled'].includes(primaryStatus)) {
         remainingCOD = 0;
       } else {
-        remainingCOD = Math.max(0, Math.round((expectedCodAmount - totalCollected) * 100) / 100);
+        remainingCOD = Math.max(0, Math.round((expectedCodAmount - allTimeCollected) * 100) / 100);
       }
     }
     const outstanding = remainingCOD;
@@ -882,7 +908,10 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       noResponseCount: o.noResponseCount || 0,
       cashCollected,
       onlineCollected,
+      cashOnlineCollected,
       totalCollected,
+      collectionMethod,
+      authoritativePaymentId,
       remainingCOD,
       outstanding,
       isPaid
@@ -907,9 +936,15 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
       filtered = filtered.filter(e => e.primaryStatus === deliveryStatus);
     }
   }
-  if (paymentType) filtered = filtered.filter(e =>
-    e.paymentMethod === paymentType || e.payments.some(p => p.paymentMethod === paymentType)
-  );
+  if (paymentType) {
+    const pt = paymentType.toUpperCase();
+    filtered = filtered.filter(e => {
+      if (pt === 'CASH') return e.collectionMethod === 'CASH' || (e.cashCollected > 0 && e.onlineCollected === 0);
+      if (pt === 'ONLINE') return e.collectionMethod === 'ONLINE' || (e.onlineCollected > 0 && e.cashCollected === 0);
+      if (pt === 'CASH_ONLINE') return e.collectionMethod === 'CASH_ONLINE' || (e.cashCollected > 0 && e.onlineCollected > 0);
+      return e.collectionMethod === pt || e.paymentMethod === pt || e.payments.some(p => p.paymentMethod === pt);
+    });
+  }
   if (outlet) filtered = filtered.filter(e => e.outletName && e.outletName.toLowerCase().includes(outlet.toLowerCase()));
 
   const riders = [...new Set(filtered.map(e => e.riderName).filter(Boolean))].sort();
@@ -963,12 +998,11 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
   const codExpectedAmount = codOrders.reduce((s, e) => s + e.expectedCodAmount, 0);
   const totalPaidAmount = filtered.reduce((s, e) => s + (e.isPrepaid ? e.totalPrice : Math.min(e.totalPrice, e.advanceAmount)), 0);
 
-  const grossCashOnCOD = codOrders.reduce((s, e) => s + e.cashCollected, 0);
-  const grossOnlineOnCOD = codOrders.reduce((s, e) => s + e.onlineCollected, 0);
-  const cashReceived = Math.max(0, grossCashOnCOD - totalDeposited);
-  const onlineReceived = grossOnlineOnCOD;
-  const totalReceived = grossCashOnCOD + grossOnlineOnCOD;
-  const remainingCOD = codOrders.reduce((s, e) => s + e.remainingCOD, 0);
+  const cashCollected = filtered.reduce((s, e) => s + (e.cashCollected || 0), 0);
+  const onlineCollected = filtered.reduce((s, e) => s + (e.onlineCollected || 0), 0);
+  const cashOnlineCollected = filtered.reduce((s, e) => s + (e.cashOnlineCollected || 0), 0);
+  const totalCollected = Math.round((cashCollected + onlineCollected) * 100) / 100;
+  const remainingCOD = filtered.reduce((s, e) => s + (e.remainingCOD || 0), 0);
 
   const stats = {
     totalAssigned,
@@ -985,23 +1019,31 @@ const getDeliveryAnalyticsData = async ({ dateFrom, dateTo, riderName, status, d
     totalOrderValue,
 
     // Order Payment Classification
+    totalOrders: filtered.length,
     paidOrderCount: prepaidOrders.length,
     totalPaidAmount,
     codOrderCount: codOrders.length,
     codExpectedAmount,
     totalCOD: codExpectedAmount, // alias
 
-    // COD Collection Breakdown
-    cashReceived,
-    cashBeforeDeposits: grossCashOnCOD,
-    onlineReceived,
-    onlinePrepaid: onlineReceived, // alias
-    totalReceived,
+    // Delivery Collection Breakdown (Strictly Cash, Online, Cash + Online)
+    cashCollected,
+    onlineCollected,
+    cashOnlineCollected,
+    totalCollected,
+
+    // Outstanding
     remainingCOD,
-    outstandingCollection: remainingCOD, // alias
-    totalDeposited,
-    cashCollected: cashReceived, // alias
-    overallOutstanding: remainingCOD // alias
+    outstandingCollection: remainingCOD,
+    overallOutstanding: remainingCOD,
+
+    // Aliases / Compatibility
+    cashReceived: cashCollected,
+    cashBeforeDeposits: cashCollected,
+    onlineReceived: onlineCollected,
+    onlinePrepaid: onlineCollected,
+    totalReceived: totalCollected,
+    totalDeposited
   };
 
   const riderMap = new Map();

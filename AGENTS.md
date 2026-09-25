@@ -1,5 +1,47 @@
 ## Goals
-### Implemented This Session — ASM Bulk Order Workflow: Complete End-to-End Implementation (deployed & live-verified)
+### Implemented This Session — Enamel Delivery Boy Admin Dashboard: Payment Breakdown (Cash, Online, Cash + Online) Resolution (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Actual Collection Records Only**: The Admin Dashboard payment breakdown must derive strictly from actual delivery collection/payment records (`DeliveryPayment`). Never infer or estimate Cash or Online from order totals, order value, payment status, COD expected, delivery assignment, or original POS method.
+  2. **Strictly Three Collection Methods**: Admin Dashboard must support and display only `Cash`, `Online`, and `Cash + Online` (removed `Card` and `Multiple Online`).
+  3. **Strict Payment Method Classification & Split Accounting**:
+     - 100% Cash collection: Recorded as `CASH` method, full amount added to `cashCollected`.
+     - 100% Online collection: Recorded as `ONLINE` method, full amount added to `onlineCollected`.
+     - `Cash + Online` split collection: Classified under `CASH_ONLINE` collection method. Exact cash portion adds to `cashCollected`, exact online portion adds to `onlineCollected`, and order total adds to `cashOnlineCollected`.
+  4. **Strict Total Reconciliation**:
+     $$\text{Total Collected} = \text{Cash Collected} + \text{Online Collected}$$
+  5. **Anti-Double-Count Deduplication**: Deduplicates rapid double-click/retry `DeliveryPayment` records in PostgreSQL by selecting the single authoritative transaction per delivery order.
+  6. **COD vs Advance Separation**: Fully prepaid orders (`isPrepaid` / advance $\ge$ total) have $\text{COD Expected} = 0$, $\text{Cash Collected} = 0$, $\text{Online Collected} = 0$, and $\text{Remaining COD} = 0$. Partial advance orders only demand $\text{totalPrice} - \text{advance}$.
+  7. **Carry-Forward Parity**: Retains original valid collection timestamp so payments collected on previous dates never artificially inflate today's daily collection figures or create phantom outstanding COD.
+  8. **Remaining COD Formula**:
+     $$\text{Remaining COD} = \max(0, \text{Expected COD} - \text{Total Collected Across All Time})$$
+     (Set to 0 if delivered, returned, or cancelled).
+- **Backend Implementation (`delivery.controller.js`)**:
+  - `classify(o)`:
+    - Authoritative transaction selection via `sorted.find(x => (Number(x.cashAmount || 0) + Number(x.onlineAmount || 0)) > 0) || sorted[0]`.
+    - Evaluates `paymentInWindow = inWindow(p.collectedAt || p.createdAt)`. Collections on the selected date window strictly increment `cashCollected`, `onlineCollected`, and `cashOnlineCollected`.
+    - Computes `allTimeCollected` to calculate exact `remainingCOD` without phantom debt.
+    - Sets `totalCollected = isPrepaid ? 0 : Math.round((cashCollected + onlineCollected) * 100) / 100`.
+  - `getCODSummary`: Uses deduplicated `getOrderActualCash(o)` preventing double-counted COD sums.
+  - Aggregations: `cashCollected`, `onlineCollected`, `cashOnlineCollected`, `totalCollected`, and `remainingCOD` computed across all filtered orders.
+- **Frontend Implementation (`EnamelsDeliveryCard.jsx`, `deliveryStatusUtils.js`)**:
+  - `EnamelsDeliveryCard.jsx`:
+    - Restricted `PAYMENT_OPTIONS` strictly to `All Payment Types`, `Cash`, `Online`, `Cash + Online`.
+    - Added `Cash + Online Collected` card in a clean 2x5 grid (`grid-cols-2 md:grid-cols-5 gap-3`).
+    - Added click-to-filter support for `cashCollected`, `onlineCollected`, and `cashOnline`.
+    - Updated `DeliveryDetails` drawer to show `Cash + Online` split breakdowns and accurate `remainingCOD`.
+  - `deliveryStatusUtils.js`: Added `STATUS_BADGE` and `STATUS_LABEL` entries for `cashCollected`, `onlineCollected`, and `cashOnline`.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-delivery-payment-breakdown.cjs`: 100% assertions passed verifying the exact scenario:
+    - Order A: Total ₨6,000 | COD ₨6,000 | Cash ₨6,000
+    - Order B: Total ₨6,000 | COD ₨6,000 | Online ₨6,000
+    - Order C: Total ₨7,000 | COD ₨7,000 | Cash ₨3,000 + Online ₨4,000
+    - Asserted Cash Collected: ₨9,000, Online Collected: ₨10,000, Cash + Online Collected: ₨7,000, Total Collected: ₨19,000, Remaining COD: ₨0.
+    - Asserted duplicate `DeliveryPayment` deduplication (₨4,000 not doubled to ₨8,000).
+    - Asserted prepaid order separation (COD Expected: ₨0, Collected: ₨0).
+    - Asserted mathematical reconciliation ($\text{Total} == \text{Cash} + \text{Online}$).
+  - Production build (`cd frontend && npm run build`): Exit code 0, bundled cleanly.
+
+### Implemented Prior Session — ASM Bulk Order Workflow: Complete End-to-End Implementation (deployed & live-verified)
 - **Problem & Requirements**:
   1. **Preserve ASM Portal Workflow**: The existing ASM Vendor creation, Vendor selection, catalog product selection, line-item entry, and order creation/submission workflow remains 100% intact and untouched.
   2. **Admin Review & Two-Pronged Fulfillment Decision**: After ASM submits (`SUBMITTED`), Admin reviews and approves. Admin has two fulfillment options:
