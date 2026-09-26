@@ -370,24 +370,22 @@ const AsmPage = () => {
               Incoming Stock / ASM Allowed {asmRequests.filter(r => r.status === 'SUBMITTED').length > 0 && <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{asmRequests.filter(r => r.status === 'SUBMITTED').length}</span>}
             </button>
           </div>
-          {(mainTab === 'vendor-orders' || mainTab === 'vendors') && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowDirectVendorModal(true)}
-                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-sm font-semibold transition shadow-sm"
-              >
-                <Plus className="h-4 w-4" />
-                {t('New Vendor')}
-              </button>
-              <button
-                onClick={() => { setPreselectedVendorId(null); openCreate(); }}
-                className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-2 rounded-lg text-sm font-semibold transition shadow-sm"
-              >
-                <Plus className="h-4 w-4" />
-                {t('New Vendor Order')}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDirectVendorModal(true)}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-sm font-semibold transition shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              {t('New Vendor')}
+            </button>
+            <button
+              onClick={() => { setPreselectedVendorId(null); openCreate(); }}
+              className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-2 rounded-lg text-sm font-semibold transition shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              {t('New Vendor Order')}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1598,7 +1596,7 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
   };
 
   const submit = async () => {
-    if (!vendorId) return toast.error(t('Select a vendor'));
+    if (!vendorId || vendorId === '__NEW_VENDOR__') return toast.error(t('Please select a vendor or create a new one'));
     const items = lineItems
       .filter((li) => String(li.productName || '').trim() || li.catalogItemId)
       .map((li) => ({
@@ -1652,29 +1650,47 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-400">{t('Vendor')} *</label>
-              <div className="flex gap-2">
+              <label className="text-xs text-slate-400 font-semibold">{t('Vendor')} *</label>
+              <div className="flex gap-2 mt-1">
                 <select
                   value={vendorId}
-                  onChange={(e) => setVendorId(e.target.value)}
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  onChange={(e) => {
+                    if (e.target.value === '__NEW_VENDOR__') {
+                      setShowVendorForm(true);
+                    } else {
+                      setVendorId(e.target.value);
+                    }
+                  }}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 outline-none"
                 >
-                  {localVendors.length === 0 ? (
-                    <option value="">-- {t('No vendors found. Click + New Vendor')} --</option>
-                  ) : (
-                    localVendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} {v.phone ? `(${v.phone})` : ''} {v.city ? `— ${v.city}` : ''}
-                      </option>
-                    ))
-                  )}
+                  <option value="">-- {t('Select Vendor')} --</option>
+                  <option value="__NEW_VENDOR__" className="text-emerald-400 font-bold bg-slate-900">
+                    + {t('Create New Vendor...')}
+                  </option>
+                  {localVendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} {v.phone ? `(${v.phone})` : ''} {v.city ? `— ${v.city}` : ''}
+                    </option>
+                  ))}
                 </select>
                 <button
                   type="button"
                   onClick={() => setShowVendorForm(true)}
-                  className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition"
+                  className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition shadow-sm"
+                  title={t('Create New Vendor')}
                 >
                   <Plus className="h-4 w-4" /> {t('New Vendor')}
+                </button>
+              </div>
+              <div className="flex items-center justify-between mt-1 text-[11px]">
+                <span className="text-slate-400">{t("Don't see your vendor?")}</span>
+                <button
+                  type="button"
+                  onClick={() => setShowVendorForm(true)}
+                  className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 hover:underline"
+                >
+                  <Plus className="h-3 w-3" />
+                  {t('Click here to add new vendor')}
                 </button>
               </div>
             </div>
