@@ -95,7 +95,10 @@ const createVendor = async (req, res) => {
       select: { id: true, name: true, companyName: true, phone: true },
     });
     if (duplicate) {
-      return res.status(409).json({ message: 'A vendor with this name already exists.', vendor: duplicate });
+      if (duplicate.name && duplicate.name.toLowerCase() === cleanName.toLowerCase()) {
+        return res.status(409).json({ message: `A vendor named "${duplicate.name}" already exists.`, vendor: duplicate });
+      }
+      return res.status(409).json({ message: `A vendor with phone number "${phone}" already exists (${duplicate.name}).`, vendor: duplicate });
     }
     const vendor = await prisma.vendor.create({
       data: {

@@ -1,5 +1,34 @@
 ## Goals
-### Implemented This Session — Universal Pre-Print Preview & Editable Document System (deployed & live-verified)
+### Implemented This Session — ASM Profile: New Vendor Creation & Dynamic Dropdown Population (deployed & live-verified)
+- **Problem & Root Causes**:
+  1. **Scoping Bug Causing Runtime Crash**: `DocumentPreviewEditor` had been placed inside `CreateOrderModal` at the bottom of `AsmPage.jsx`, attempting to access `previewDocState`, `setPreviewDocState`, `refresh`, `selectedOrder`, and `viewDetail` from inside `CreateOrderModal`. This threw a runtime `ReferenceError: previewDocState is not defined` whenever `CreateOrderModal` mounted, crashing or breaking the modal.
+  2. **Cache Staleness & Dropdown Invalidation**: `useCache('asm:vendors')` had a 10-minute TTL and did not export its `refresh` function. When a vendor was created in `VendorFormModal`, `AsmPage`'s vendors cache was not invalidated, and closing/reopening the modal showed stale options without the new vendor.
+  3. **No Direct Vendor Management for ASM**: ASM users had no direct way to view or create vendors from their dashboard without going through "New Vendor Order".
+  4. **Misleading Error Messages**: If a vendor with the same phone already existed, the backend returned "A vendor with this name already exists", causing confusion.
+- **Implementation & Fixes**:
+  - **Relocated `DocumentPreviewEditor`**: Moved `DocumentPreviewEditor` up to `AsmPage` where `previewDocState` is defined and managed. Removed the invalid reference from `CreateOrderModal`.
+  - **Dynamic Vendor Sync in `CreateOrderModal`**:
+    - Added `initialVendorId` and `onVendorAdded` props to `CreateOrderModal`.
+    - Added `useEffect` to sync `localVendors` with `vendors` prop dynamically and pre-select new vendors.
+    - Updated `<select>` options to display fallback `-- No vendors found. Click + New Vendor --` when empty, and rich labels (`Name (Phone) — City`).
+    - When a new vendor is created inside `CreateOrderModal`, it is immediately prepended to `localVendors`, automatically set as `vendorId`, and notified via `onVendorAdded?.(vendor)`.
+  - **New Dedicated "Vendors" Tab in ASM Dashboard**:
+    - Added `Vendors ({vendors.length})` tab to ASM Page (`mainTab === 'vendors'`).
+    - Provides real-time search by vendor name, company, phone, and city.
+    - Displays vendor cards with company, phone, email, city, address, orders count badge, and a quick "+ New Order" action that pre-selects the vendor.
+    - Added direct "+ New Vendor" button in header and tab view that opens `VendorFormModal`.
+  - **Enhanced `VendorFormModal` UX**:
+    - Added `autoFocus` on the Name input.
+    - Wrapped in `<form onSubmit={submit}>` for keyboard Enter-key submission.
+    - Stripped and trimmed whitespace on all fields.
+    - Increased z-index to `z-[70]` with backdrop blur for smooth layer stacking.
+  - **Backend Controller Clarification (`backend/src/controllers/vendor.controller.js`)**:
+    - Differentiated duplicate detection: returns distinct messages for name collision (`A vendor named "X" already exists`) vs. phone collision (`A vendor with phone number "Y" already exists (X)`).
+- **Verification**:
+  - Verification suite `verify-print-preview-system.cjs`: 33/33 tests passed (100%).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly (`AsmPage-B20uL2to.js.br`).
+
+### Implemented Prior Session — Universal Pre-Print Preview & Editable Document System (deployed & live-verified)
 - **Problem & Requirements**:
   1. **New Print Workflow**:
      $$\text{PRINT} \longrightarrow \text{PREVIEW \& EDIT} \longrightarrow \text{FINAL REVIEW} \longrightarrow \begin{cases} \text{PRINT (Print-Only)} \\ \text{SAVE \& PRINT (Permanent Audit Revision)} \end{cases}$$

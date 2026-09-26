@@ -107,6 +107,9 @@ const AsmPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showDirectVendorModal, setShowDirectVendorModal] = useState(false);
+  const [preselectedVendorId, setPreselectedVendorId] = useState(null);
+  const [vendorSearch, setVendorSearch] = useState('');
 
   const flexDir = isUrdu ? 'flex-row-reverse' : '';
 
@@ -125,11 +128,12 @@ const AsmPage = () => {
     ttl: 600000,
   });
 
-  const { data: vendors } = useCache('asm:vendors', {
+  const { data: vendorsData, refresh: refreshVendors } = useCache('asm:vendors', {
     fetcher: () => api.get('/api/vendors').then((r) => r.data?.vendors || []),
-    ttl: 600000,
+    ttl: 60000,
   });
 
+  const vendors = Array.isArray(vendorsData) ? vendorsData : [];
   const orders = Array.isArray(ordersData) ? ordersData : [];
 
   const filteredOrders = useMemo(() => {
@@ -343,12 +347,17 @@ const AsmPage = () => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Main Tab Switcher */}
           <div className="bg-slate-900 p-1 rounded-lg border border-slate-800 flex gap-1">
             <button onClick={() => setMainTab('vendor-orders')}
               className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${mainTab === 'vendor-orders' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
               Vendor Orders
+            </button>
+            <button onClick={() => setMainTab('vendors')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ${mainTab === 'vendors' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+              <Users className="h-3.5 w-3.5" />
+              Vendors ({vendors.length})
             </button>
             {isAdmin && (
               <button onClick={() => setMainTab('financials')}
@@ -361,14 +370,23 @@ const AsmPage = () => {
               Incoming Stock / ASM Allowed {asmRequests.filter(r => r.status === 'SUBMITTED').length > 0 && <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{asmRequests.filter(r => r.status === 'SUBMITTED').length}</span>}
             </button>
           </div>
-          {mainTab === 'vendor-orders' && (
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
-            >
-              <Plus className="h-4 w-4" />
-              {t('New Vendor Order')}
-            </button>
+          {(mainTab === 'vendor-orders' || mainTab === 'vendors') && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDirectVendorModal(true)}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-sm font-semibold transition shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                {t('New Vendor')}
+              </button>
+              <button
+                onClick={() => { setPreselectedVendorId(null); openCreate(); }}
+                className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-2 rounded-lg text-sm font-semibold transition shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                {t('New Vendor Order')}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -654,6 +672,133 @@ const AsmPage = () => {
         </>
       )}
 
+      {mainTab === 'vendors' && (
+        <div className="space-y-4">
+          {/* Top Bar for Vendors */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder={t('Search vendors by name, company, phone, city...')}
+                value={vendorSearch}
+                onChange={(e) => setVendorSearch(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-white text-sm placeholder-slate-400 outline-none focus:border-cyan-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={refreshVendors}
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition"
+                title="Refresh vendors"
+              >
+                <RefreshCcw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowDirectVendorModal(true)}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+              >
+                <Plus className="h-4 w-4" />
+                {t('Add New Vendor')}
+              </button>
+            </div>
+          </div>
+
+          {/* Vendors Grid */}
+          {(() => {
+            const q = vendorSearch.trim().toLowerCase();
+            const filteredVendors = vendors.filter((v) => {
+              if (!q) return true;
+              return (
+                String(v.name || '').toLowerCase().includes(q) ||
+                String(v.companyName || '').toLowerCase().includes(q) ||
+                String(v.phone || '').toLowerCase().includes(q) ||
+                String(v.city || '').toLowerCase().includes(q) ||
+                String(v.contactPerson || '').toLowerCase().includes(q)
+              );
+            });
+
+            if (filteredVendors.length === 0) {
+              return (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-400">
+                  <Building2 className="h-10 w-10 text-slate-600 mx-auto mb-2" />
+                  <p className="font-semibold text-white">{t('No vendors found')}</p>
+                  <p className="text-xs text-slate-500 mt-1 mb-4">{t('Get started by creating your first vendor profile')}</p>
+                  <button
+                    onClick={() => setShowDirectVendorModal(true)}
+                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition"
+                  >
+                    <Plus className="h-4 w-4" /> {t('Create Vendor')}
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredVendors.map((v) => (
+                  <div key={v.id} className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 flex flex-col justify-between transition shadow-sm space-y-3">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-white text-base flex items-center gap-1.5">
+                            <Building2 className="h-4 w-4 text-cyan-400 shrink-0" />
+                            {v.name}
+                          </h3>
+                          {v.companyName && (
+                            <p className="text-xs text-slate-400 mt-0.5">{v.companyName}</p>
+                          )}
+                        </div>
+                        <span className="text-[11px] bg-slate-800 text-slate-300 font-semibold px-2 py-0.5 rounded-full shrink-0">
+                          {v._count?.orders ?? 0} {t('Orders')}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 space-y-1.5 text-xs text-slate-300">
+                        {v.phone && (
+                          <div className="flex items-center gap-2 text-slate-300">
+                            <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            <span>{v.phone}</span>
+                          </div>
+                        )}
+                        {v.city && (
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <MapPin className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                            <span>{v.city}</span>
+                          </div>
+                        )}
+                        {v.contactPerson && (
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <User className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                            <span>{v.contactPerson}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-slate-500">
+                        {v.createdAt ? formatDateOnly(v.createdAt) : ''}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setPreselectedVendorId(v.id);
+                          openCreate();
+                        }}
+                        className="flex items-center gap-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {t('New Order')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {mainTab === 'financials' && (
         <AsmFinancialDashboard isAdmin={isAdmin} onViewOrder={viewDetail} />
       )}
@@ -671,14 +816,47 @@ const AsmPage = () => {
         />
       )}
 
+      {showDirectVendorModal && (
+        <VendorFormModal
+          onClose={() => setShowDirectVendorModal(false)}
+          onCreated={(newVendor) => {
+            setShowDirectVendorModal(false);
+            refreshVendors();
+            if (newVendor?.name) {
+              toast.success(`${t('Vendor')} "${newVendor.name}" ${t('created successfully!')}`);
+            }
+          }}
+        />
+      )}
+
       {showCreate && (
         <CreateOrderModal
           catalog={Array.isArray(catalog) ? catalog : []}
           vendors={Array.isArray(vendors) ? vendors : []}
+          initialVendorId={preselectedVendorId}
           onClose={closeCreate}
-          onCreated={() => { closeCreate(); refresh(); }}
+          onCreated={() => { closeCreate(); refresh(); refreshVendors(); }}
+          onVendorAdded={() => {
+            refreshVendors();
+          }}
         />
       )}
+
+      {/* Universal Pre-Print Preview & Editable Document Modal */}
+      <DocumentPreviewEditor
+        isOpen={previewDocState.isOpen}
+        onClose={() => setPreviewDocState((s) => ({ ...s, isOpen: false }))}
+        order={previewDocState.order}
+        kind={previewDocState.kind}
+        targetDepartment={previewDocState.targetDepartment}
+        processingItems={previewDocState.processingItems}
+        onSaveSuccess={() => {
+          refresh();
+          if (selectedOrder?.id === previewDocState.order?.id) {
+            viewDetail({ id: previewDocState.order.id });
+          }
+        }}
+      />
     </div>
   );
 };
@@ -1200,16 +1378,28 @@ const VendorFormModal = ({ onClose, onCreated }) => {
 
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
-  const submit = async () => {
+  const submit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!form.name.trim()) return toast.error(t('Vendor name is required'));
     setSubmitting(true);
     try {
-      const res = await api.post('/api/vendors', form);
+      const payload = {
+        ...form,
+        name: form.name.trim(),
+        phone: form.phone ? form.phone.trim() : null,
+        companyName: form.companyName ? form.companyName.trim() : null,
+        email: form.email ? form.email.trim() : null,
+        city: form.city ? form.city.trim() : null,
+        address: form.address ? form.address.trim() : null,
+        contactPerson: form.contactPerson ? form.contactPerson.trim() : null,
+        notes: form.notes ? form.notes.trim() : null,
+      };
+      const res = await api.post('/api/vendors', payload);
       toast.success(t('New vendor created'));
       onCreated(res.data?.vendor);
     } catch (err) {
       if (err?.response?.status === 409) {
-        toast.error(err?.response?.data?.message || t('A vendor with this name already exists.'));
+        toast.error(err?.response?.data?.message || t('A vendor with this name or phone already exists.'));
       } else {
         toast.error(err?.response?.data?.message || t('Failed to create vendor'));
       }
@@ -1223,51 +1413,54 @@ const VendorFormModal = ({ onClose, onCreated }) => {
       <label className="text-xs text-slate-400">{t(label)}</label>
       <input
         type={type}
+        autoFocus={opts.autoFocus}
         value={form[key] || ''}
         onChange={(e) => set(key, e.target.value)}
         placeholder={opts.placeholder ? t(opts.placeholder) : ''}
-        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 outline-none"
       />
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5">
+    <div className="fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Building2 className="h-5 w-5 text-cyan-400" />
             {t('Create New Vendor')}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400"><X className="h-5 w-5" /></button>
         </div>
-        <div className="space-y-3">
+        <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {field('Vendor Name *', 'name')}
-            {field('Company Name', 'companyName')}
-            {field('Phone Number', 'phone')}
-            {field('Email', 'email', 'email')}
-            {field('City', 'city')}
-            {field('Contact Person', 'contactPerson')}
+            {field('Vendor Name *', 'name', 'text', { autoFocus: true, placeholder: 'e.g. Acme Uniforms' })}
+            {field('Company Name', 'companyName', 'text', { placeholder: 'e.g. Acme Corp' })}
+            {field('Phone Number', 'phone', 'text', { placeholder: 'e.g. 03001234567' })}
+            {field('Email', 'email', 'email', { placeholder: 'e.g. vendor@example.com' })}
+            {field('City', 'city', 'text', { placeholder: 'e.g. Lahore' })}
+            {field('Contact Person', 'contactPerson', 'text', { placeholder: 'e.g. John Doe' })}
             <div className="md:col-span-2">
               <label className="text-xs text-slate-400">{t('Address')}</label>
               <input value={form.address || ''} onChange={(e) => set('address', e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                placeholder={t('e.g. 123 Industrial Area')}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 outline-none" />
             </div>
             <div className="md:col-span-2">
               <label className="text-xs text-slate-400">{t('Notes')}</label>
               <textarea value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} rows="2"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                placeholder={t('Optional notes about this vendor...')}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 outline-none" />
             </div>
           </div>
           <div className="flex gap-2 pt-2">
-            <button onClick={submit} disabled={submitting}
+            <button type="submit" disabled={submitting}
               className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition disabled:opacity-50">
               {submitting ? t('Saving...') : t('Create & Save Vendor')}
             </button>
-            <button onClick={onClose} className="px-4 py-2.5 rounded-lg bg-slate-700 text-slate-200 text-sm">{t('Cancel')}</button>
+            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-lg bg-slate-700 text-slate-200 text-sm">{t('Cancel')}</button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
@@ -1275,12 +1468,26 @@ const VendorFormModal = ({ onClose, onCreated }) => {
 
 const emptyLine = () => ({ catalogItemId: '', productName: '', category: '', color: '', size: '', articleName: '', articleNumber: '', unit: '', variant: '', quantity: 1, unitPrice: '' });
 
-const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
+const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreated, onVendorAdded }) => {
   const { t } = useLanguage();
   const [localVendors, setLocalVendors] = useState(Array.isArray(vendors) ? vendors : []);
-  const [vendorId, setVendorId] = useState(localVendors[0]?.id || '');
+  const [vendorId, setVendorId] = useState(initialVendorId || localVendors[0]?.id || '');
   const [lineItems, setLineItems] = useState([emptyLine()]);
   const [showVendorForm, setShowVendorForm] = useState(false);
+
+  useEffect(() => {
+    if (Array.isArray(vendors) && vendors.length > 0) {
+      setLocalVendors((prev) => {
+        const map = new Map();
+        vendors.forEach((v) => map.set(v.id, v));
+        prev.forEach((v) => { if (!map.has(v.id)) map.set(v.id, v); });
+        return Array.from(map.values());
+      });
+      if (!vendorId || initialVendorId) {
+        setVendorId(initialVendorId || vendors[0].id);
+      }
+    }
+  }, [vendors, initialVendorId]);
   const [deliveryCharges, setDeliveryCharges] = useState('');
   const [discount, setDiscount] = useState('');
   const [notes, setNotes] = useState('');
@@ -1417,12 +1624,26 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
             <div>
               <label className="text-xs text-slate-400">{t('Vendor')} *</label>
               <div className="flex gap-2">
-                <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
-                  {localVendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                <select
+                  value={vendorId}
+                  onChange={(e) => setVendorId(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                >
+                  {localVendors.length === 0 ? (
+                    <option value="">-- {t('No vendors found. Click + New Vendor')} --</option>
+                  ) : (
+                    localVendors.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} {v.phone ? `(${v.phone})` : ''} {v.city ? `— ${v.city}` : ''}
+                      </option>
+                    ))
+                  )}
                 </select>
-                <button onClick={() => setShowVendorForm(true)}
-                  className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
+                <button
+                  type="button"
+                  onClick={() => setShowVendorForm(true)}
+                  className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition"
+                >
                   <Plus className="h-4 w-4" /> {t('New Vendor')}
                 </button>
               </div>
@@ -1615,31 +1836,16 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
           onCreated={(vendor) => {
             if (vendor?.id) {
               setLocalVendors((prev) => {
-                if (prev.some((v) => v.id === vendor.id)) return prev;
-                return [...prev, vendor];
+                const filtered = prev.filter((v) => v.id !== vendor.id);
+                return [vendor, ...filtered];
               });
               setVendorId(vendor.id);
               setShowVendorForm(false);
+              onVendorAdded?.(vendor);
             }
           }}
         />
       )}
-
-      {/* Universal Pre-Print Preview & Editable Document Modal */}
-      <DocumentPreviewEditor
-        isOpen={previewDocState.isOpen}
-        onClose={() => setPreviewDocState((s) => ({ ...s, isOpen: false }))}
-        order={previewDocState.order}
-        kind={previewDocState.kind}
-        targetDepartment={previewDocState.targetDepartment}
-        processingItems={previewDocState.processingItems}
-        onSaveSuccess={() => {
-          refresh();
-          if (selectedOrder?.id === previewDocState.order?.id) {
-            viewDetail({ id: previewDocState.order.id });
-          }
-        }}
-      />
     </div>
   );
 };
