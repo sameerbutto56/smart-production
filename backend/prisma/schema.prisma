@@ -1934,6 +1934,8 @@ model VendorOrder {
   statusHistory     VendorOrderStatus[]
   deliveries        VendorDelivery[]
   documents         VendorDocument[]
+  documentRevisions VendorDocumentRevision[]
+  savedDocumentCustomData Json?
   allocations       VendorOrderAllocation[]
   routingItems      VendorOrderRoutingItem[]
   inventoryAudits   VendorOrderInventoryAudit[]
@@ -2266,6 +2268,26 @@ model VendorDocument {
   @@index([orderId])
   @@index([docType])
   @@index([generatedAt])
+}
+
+// Immutable document revision history for Save & Print document customizations.
+model VendorDocumentRevision {
+  id              String      @id @default(uuid())
+  orderId         String
+  order           VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  documentType    String      // DELIVERY_SHEET, QUOTATION, INVOICE, JOB_SHEET
+  documentNumber  String?
+  previousVersion Int         @default(0)
+  updatedVersion  Int         @default(1)
+  changesMade     String?
+  customFields    Json?       // { notes, remarks, instructions, termsAndConditions, preparedBy, issuedBy, receivedBy, etc. }
+  editedById      String?
+  editedByName    String?
+  createdAt       DateTime    @default(now())
+
+  @@index([orderId])
+  @@index([documentType])
+  @@index([createdAt])
 }
 
 // ─── ASM ALLOWED INVENTORY HANDOVER & RETURN WORKFLOW MODELS ───

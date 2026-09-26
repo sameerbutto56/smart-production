@@ -14,6 +14,7 @@ import {
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet, printVendorJobSheet } from '../utils/vendorDocumentPrint';
 import AsmFinancialDashboard from '../components/AsmFinancialDashboard';
+import DocumentPreviewEditor from '../components/DocumentPreviewEditor';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
@@ -212,15 +213,30 @@ const AsmPage = () => {
       refresh();
       if (selectedOrder?.id === docOrder.id) viewDetail({ id: docOrder.id });
     }
-    if (kind === 'quotation') printOrderDocument(docOrder, 'quotation');
-    else if (kind === 'invoice') printOrderDocument(docOrder, 'invoice');
-    else if (kind === 'quotation-data') printDataDocument(docOrder, 'quotation-data');
-    else if (kind === 'invoice-data') printDataDocument(docOrder, 'invoice-data');
-    else if (kind === 'delivery-sheet') printDeliverySheet(docOrder);
-    else if (kind === 'job-sheet-logo') printVendorJobSheet(docOrder, 'LOGO', docOrder.items);
-    else if (kind === 'job-sheet-prod') printVendorJobSheet(docOrder, 'PRODUCTION', docOrder.items);
-    else printThermalReceipt(docOrder);
+    if (kind === 'thermal') {
+      printThermalReceipt(docOrder);
+      return;
+    }
+
+    // Universal Pre-Print Preview & Editable Document workflow:
+    // PRINT -> PREVIEW & EDIT -> FINAL REVIEW -> PRINT
+    setPreviewDocState({
+      isOpen: true,
+      order: docOrder,
+      kind,
+      targetDepartment: kind === 'job-sheet-logo' ? 'LOGO' : 'PRODUCTION',
+      processingItems: docOrder.items || [],
+    });
   };
+
+  // Pre-Print Preview & Edit State
+  const [previewDocState, setPreviewDocState] = useState({
+    isOpen: false,
+    order: null,
+    kind: 'delivery-sheet',
+    targetDepartment: 'PRODUCTION',
+    processingItems: [],
+  });
 
   const [mainTab, setMainTab] = useState('vendor-orders'); // 'vendor-orders' | 'asm-stock'
   const [asmRequests, setAsmRequests] = useState([]);
@@ -1608,6 +1624,22 @@ const CreateOrderModal = ({ catalog, vendors, onClose, onCreated }) => {
           }}
         />
       )}
+
+      {/* Universal Pre-Print Preview & Editable Document Modal */}
+      <DocumentPreviewEditor
+        isOpen={previewDocState.isOpen}
+        onClose={() => setPreviewDocState((s) => ({ ...s, isOpen: false }))}
+        order={previewDocState.order}
+        kind={previewDocState.kind}
+        targetDepartment={previewDocState.targetDepartment}
+        processingItems={previewDocState.processingItems}
+        onSaveSuccess={() => {
+          refresh();
+          if (selectedOrder?.id === previewDocState.order?.id) {
+            viewDetail({ id: previewDocState.order.id });
+          }
+        }}
+      />
     </div>
   );
 };

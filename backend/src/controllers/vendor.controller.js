@@ -474,6 +474,7 @@ const getVendorOrder = async (req, res) => {
         inventoryAudits: { orderBy: { createdAt: 'desc' } },
         asm: { select: { id: true, name: true, email: true } },
         documents: { orderBy: { generatedAt: 'asc' } },
+        documentRevisions: { orderBy: { createdAt: 'desc' } },
       },
     });
     if (!order) return res.status(404).json({ message: 'Vendor order not found.' });
@@ -2763,6 +2764,105 @@ const getOrderDocuments = async (req, res) => {
   }
 };
 
+// POST /api/vendors/orders/:id/document-revision
+// Saves document customizations (Save & Print workflow) and records an immutable audit revision
+const saveDocumentRevision = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { documentType, documentNumber, customFields = {}, changesMade } = req.body;
+    if (!documentType) {
+      return res.status(400).json({ message: 'documentType is required (DELIVERY_SHEET, QUOTATION, INVOICE, JOB_SHEET)' });
+    }
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { vendor: true, asm: true },
+    });
+    if (!order) return res.status(404).json({ message: 'Vendor order not found.' });
+
+    // Calculate version
+    const revisionCount = await prisma.vendorDocumentRevision.count({
+      where: { orderId: id, documentType },
+    });
+    const previousVersion = revisionCount;
+    const updatedVersion = revisionCount + 1;
+
+    // Build changes summary if not explicitly provided
+    let summary = changesMade;
+    if (!summary) {
+      const fieldNames = Object.keys(customFields).filter((k) => customFields[k]);
+      summary = fieldNames.length > 0
+        ? `Updated fields: ${fieldNames.join(', ')}`
+        : 'Saved document custom settings';
+    }
+
+    // Update savedDocumentCustomData on order
+    const existingCustomData = (order.savedDocumentCustomData && typeof order.savedDocumentCustomData === 'object')
+      ? { ...order.savedDocumentCustomData }
+      : {};
+    existingCustomData[documentType] = {
+      ...(existingCustomData[documentType] || {}),
+      ...customFields,
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user?.name || req.user?.email || 'User',
+      version: updatedVersion,
+    };
+
+    const updateData = {
+      savedDocumentCustomData: existingCustomData,
+    };
+
+    const revision = await prisma.$transaction(async (tx) => {
+      await tx.vendorOrder.update({
+        where: { id },
+        data: updateData,
+      });
+
+      return await tx.vendorDocumentRevision.create({
+        data: {
+          orderId: id,
+          documentType,
+          documentNumber: documentNumber || order.orderNumber,
+          previousVersion,
+          updatedVersion,
+          changesMade: summary,
+          customFields,
+          editedById: req.user?.id || null,
+          editedByName: req.user?.name || req.user?.email || 'Authorized User',
+        },
+      });
+    });
+
+    res.json({
+      success: true,
+      revision,
+      savedCustomData: existingCustomData,
+      message: `Document revision v${updatedVersion} saved successfully`,
+    });
+  } catch (error) {
+    console.error('saveDocumentRevision error:', error);
+    res.status(500).json({ message: 'Failed to save document revision', error: error.message });
+  }
+};
+
+// GET /api/vendors/orders/:id/document-revisions
+const getDocumentRevisions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { documentType } = req.query;
+    const where = { orderId: id };
+    if (documentType) where.documentType = documentType;
+
+    const revisions = await prisma.vendorDocumentRevision.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ revisions });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch document revisions', error: error.message });
+  }
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // ASM + ADMIN ANALYTICS (operational only — NO "revenue generated for ASM")
 // ════════════════════════════════════════════════════════════════════════════
@@ -2887,6 +2987,8 @@ module.exports = {
   getVendorFinancialDetail,
   generateDocuments,
   getOrderDocuments,
+  saveDocumentRevision,
+  getDocumentRevisions,
   getAnalytics,
   getAsmStats,
   listAsm,

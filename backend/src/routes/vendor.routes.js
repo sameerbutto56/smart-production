@@ -40,6 +40,8 @@ const {
   getVendorFinancialDetail,
   generateDocuments,
   getOrderDocuments,
+  saveDocumentRevision,
+  getDocumentRevisions,
   getAnalytics,
   getAsmStats,
   listAsm,
@@ -118,6 +120,8 @@ router.post('/orders/:id/complete', authenticate, authorize(['ASM', 'SUPER_ADMIN
 router.post('/orders/:id/pay', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), recordPayment);
 router.post('/orders/:id/generate-documents', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), generateDocuments);
 router.get('/orders/:id/documents', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), getOrderDocuments);
+router.post('/orders/:id/document-revision', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'STORE']), saveDocumentRevision);
+router.get('/orders/:id/document-revisions', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'STORE']), getDocumentRevisions);
 
 // ── VENDOR BY ID (declared LAST so static sub-routes above win) ─────────────
 router.get('/:id/financials', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getVendorFinancialDetail);

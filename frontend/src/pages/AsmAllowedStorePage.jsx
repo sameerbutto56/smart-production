@@ -11,6 +11,7 @@ import {
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printDeliverySheet, printVendorJobSheet } from '../utils/vendorDocumentPrint';
+import DocumentPreviewEditor from '../components/DocumentPreviewEditor';
 
 // Status badge sub-component for ASM Handover Requests
 const StatusBadge = ({ status }) => {
@@ -98,8 +99,26 @@ const AsmAllowedStorePage = () => {
   const [productionReturnsLoading, setProductionReturnsLoading] = useState(false);
   const [routingModalOrder, setRoutingModalOrder] = useState(null);
   const [routeConfig, setRouteConfig] = useState({});
-  const [routingNotes, setRoutingNotes] = useState({ logoNotes: '', prodNotes: '' });
   const [actionInProgress, setActionInProgress] = useState(null);
+
+  // Pre-Print Preview & Edit State
+  const [previewDocState, setPreviewDocState] = useState({
+    isOpen: false,
+    order: null,
+    kind: 'delivery-sheet',
+    targetDepartment: 'PRODUCTION',
+    processingItems: [],
+  });
+
+  const handleOpenPrintPreview = (order, kind = 'delivery-sheet', targetDepartment = 'PRODUCTION', processingItems = []) => {
+    setPreviewDocState({
+      isOpen: true,
+      order,
+      kind,
+      targetDepartment,
+      processingItems: processingItems && processingItems.length > 0 ? processingItems : (order.items || []),
+    });
+  };
 
   // Fetch warehouse catalog with product + color + size variants
   const fetchCatalog = useCallback(async () => {
@@ -1457,7 +1476,7 @@ const AsmAllowedStorePage = () => {
                                     <ArrowRight size={14} /> Send to ASM
                                   </button>
                                   <button
-                                    onClick={() => printDeliverySheet(order)}
+                                    onClick={() => handleOpenPrintPreview(order, 'delivery-sheet')}
                                     className="bg-teal-600 hover:bg-teal-500 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition"
                                   >
                                     <Printer size={14} /> Delivery Sheet
@@ -1570,7 +1589,7 @@ const AsmAllowedStorePage = () => {
                               {/* Print Job Sheet for Logo */}
                               {(isLogo || order.routingItems?.some(r => r.processingRoute === 'LOGO')) && (
                                 <button
-                                  onClick={() => printVendorJobSheet(order, 'LOGO', order.items)}
+                                  onClick={() => handleOpenPrintPreview(order, 'job-sheet-logo', 'LOGO', order.items)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white text-xs font-bold transition shadow"
                                 >
                                   <Printer size={13} /> Job Sheet (Logo)
@@ -1580,7 +1599,7 @@ const AsmAllowedStorePage = () => {
                               {/* Print Job Sheet for Production */}
                               {(isProd || order.routingItems?.some(r => r.processingRoute === 'PRODUCTION')) && (
                                 <button
-                                  onClick={() => printVendorJobSheet(order, 'PRODUCTION', order.items)}
+                                  onClick={() => handleOpenPrintPreview(order, 'job-sheet-prod', 'PRODUCTION', order.items)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-bold transition shadow"
                                 >
                                   <Printer size={13} /> Job Sheet (Production)
@@ -1589,7 +1608,7 @@ const AsmAllowedStorePage = () => {
 
                               {/* Print Delivery Sheet for ASM */}
                               <button
-                                onClick={() => printDeliverySheet(order)}
+                                onClick={() => handleOpenPrintPreview(order, 'delivery-sheet')}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600/80 hover:bg-teal-600 text-white text-xs font-bold transition shadow"
                               >
                                 <Printer size={13} /> Delivery Sheet
@@ -1790,6 +1809,20 @@ const AsmAllowedStorePage = () => {
           </div>
         );
       })()}
+
+      {/* Universal Pre-Print Preview & Editable Document Modal */}
+      <DocumentPreviewEditor
+        isOpen={previewDocState.isOpen}
+        onClose={() => setPreviewDocState((s) => ({ ...s, isOpen: false }))}
+        order={previewDocState.order}
+        kind={previewDocState.kind}
+        targetDepartment={previewDocState.targetDepartment}
+        processingItems={previewDocState.processingItems}
+        onSaveSuccess={() => {
+          fetchBulkAllocationOrders();
+          fetchProductionReturns();
+        }}
+      />
     </div>
   );
 };

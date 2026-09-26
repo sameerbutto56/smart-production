@@ -1,5 +1,46 @@
 ## Goals
-### Implemented This Session — ASM Order: Store Availability, Warehouse/Logo/Production Routing & Return-to-ASM Workflow (deployed & live-verified)
+### Implemented This Session — Universal Pre-Print Preview & Editable Document System (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **New Print Workflow**:
+     $$\text{PRINT} \longrightarrow \text{PREVIEW \& EDIT} \longrightarrow \text{FINAL REVIEW} \longrightarrow \begin{cases} \text{PRINT (Print-Only)} \\ \text{SAVE \& PRINT (Permanent Audit Revision)} \end{cases}$$
+  2. **Universal Scope**: Covers all printable documents across the system:
+     - **Delivery Sheet**: Store/ASM 2-copy handover document (Letterhead 3-inch margins, zero pricing, exact allocated quantities).
+     - **Quotation**: Full A4 header/footer and Data-Only (3-inch top margin for company letterhead).
+     - **Invoice**: Full A4 and Data-Only letterhead mode with totals and balance.
+     - **Job Sheet**: Departmental production/logo sheet (Logo / Production) with exact routing quantities and 3 signature blocks.
+  3. **Strict Data Protection (Business Data Locked)**:
+     - Order #, Vendor Name/Phone, ASM Name, Line Items, Colors, Sizes, Quantities, Unit Prices, Total Order Value, Paid Amounts, Balance, and Payment Status are strictly locked and read-only.
+  4. **Customizable Permitted Fields**:
+     - Quotation & Invoice: Terms & Conditions, Special Instructions, Customer Remarks, Notes, Signatory info.
+     - Delivery Sheet: Handover Notes, Delivery Instructions, Special Remarks, Signatories (`Prepared By`, `Issued By`, `Received By`).
+     - Job Sheet: Department Notes, Logo/Production Instructions, Tailoring Remarks, Signatories (`Prepared By`, `Accepted By`, `Completed By`).
+  5. **Split-Screen Interactive Preview**:
+     - Left side: Live-updating A4 document rendering in isolated iframe with zoom controls (60%–140%), page-break simulation, multi-page selector (`All Pages`, `Copy 1`, `Copy 2`), and optional 3-inch letterhead margin guides.
+     - Right side: Locked business data inspector, editable custom fields, and revision change summary input.
+  6. **Dual Action Modes**:
+     - **PRINT ONLY**: Directly prints the customized document without altering database records.
+     - **SAVE & PRINT**: Saves document customization to the database, creates an immutable `VendorDocumentRevision` audit log record (v1, v2, v3...), and triggers system print.
+  7. **Revision Audit History**:
+     - Full revision tracking per document type (`GET /api/vendors/orders/:id/document-revisions`), preserving version numbering, editor user info, timestamps, and JSON snapshots of customized fields.
+- **Backend Implementation (`schema.prisma`, `vendor.controller.js`, `vendor.routes.js`)**:
+  - `schema.prisma`:
+    - Added `model VendorDocumentRevision` with fields: `id`, `orderId`, `documentType`, `documentNumber`, `previousVersion`, `updatedVersion`, `changesMade`, `customFields` (Json), `editedById`, `editedByName`, `createdAt`.
+    - Added relations `documentRevisions` and `savedDocumentCustomData` on `VendorOrder`.
+    - Synced database via `prisma db push` and `prisma generate`.
+  - `vendor.controller.js`:
+    - `saveDocumentRevision`: Validates permissions, calculates incremental versions per document type, records immutable `VendorDocumentRevision`, and persists active customization to `savedDocumentCustomData`.
+    - `getDocumentRevisions`: Returns complete chronological revision history for an order with editor user details.
+    - Updated `getVendorOrder`: Includes `documentRevisions` in order details.
+  - `vendor.routes.js`: Registered `POST /api/vendors/orders/:id/document-revision` and `GET /api/vendors/orders/:id/document-revisions`.
+- **Frontend Implementation (`DocumentPreviewEditor.jsx`, `vendorDocumentPrint.js`, `AsmPage.jsx`, `VendorsPage.jsx`, `AsmAllowedStorePage.jsx`)**:
+  - `DocumentPreviewEditor.jsx`: Standalone split-screen preview and editing modal featuring realistic A4 paper emulation, isolated CSS iframe, zoom toolbar, 3-inch letterhead margin overlays, revision history inspector drawer, and dual Print / Save & Print workflows.
+  - `vendorDocumentPrint.js`: Modularized `getDocumentPrintDetails` and `buildBodyHTML` / `buildDeliverySheetHTML` / `buildVendorJobSheetHTML` to accept custom fields, terms, and custom signatories.
+  - Integrated with `AsmPage.jsx`, `VendorsPage.jsx`, and `AsmAllowedStorePage.jsx` ensuring 100% of printable document triggers open the preview and editor first.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-print-preview-system.cjs`: All 33/33 tests passed (100% pass rate) covering: order creation $\rightarrow$ Delivery Sheet revision v1 $\rightarrow$ v2 progression $\rightarrow$ Quotation revision $\rightarrow$ Invoice revision $\rightarrow$ Job Sheet revision $\rightarrow$ Protected business data immutability verification $\rightarrow$ Revision history queries $\rightarrow$ Teardown.
+  - Production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+
+### Implemented Prior Session — ASM Order: Store Availability, Warehouse/Logo/Production Routing & Return-to-ASM Workflow (deployed & live-verified)
 - **Problem & Requirements**:
   1. **Preserve ASM Portal & Vendor Workflow**: The ASM Vendor creation, Vendor selection, catalog item selection, line-item entry, and order creation/submission workflow remains 100% intact and functional.
   2. **Admin Approval & Store Forwarding**: Admin approves the request (`AWAITED ADMIN` $\rightarrow$ `APPROVED`), then sends to Store (`SENT_TO_STORE`). Warehouse inventory is 100% untouched during order creation, submission, admin approval, and forwarding.

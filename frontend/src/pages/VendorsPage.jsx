@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet } from '../utils/vendorDocumentPrint';
+import DocumentPreviewEditor from '../components/DocumentPreviewEditor';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
@@ -227,13 +228,26 @@ const VendorsPage = () => {
       refreshAll();
       if (selectedOrder?.id === docOrder.id) viewOrder({ id: docOrder.id });
     }
-    if (kind === 'quotation') printOrderDocument(docOrder, 'quotation');
-    else if (kind === 'invoice') printOrderDocument(docOrder, 'invoice');
-    else if (kind === 'quotation-data') printDataDocument(docOrder, 'quotation-data');
-    else if (kind === 'invoice-data') printDataDocument(docOrder, 'invoice-data');
-    else if (kind === 'delivery-sheet') printDeliverySheet(docOrder);
-    else printThermalReceipt(docOrder);
+    if (kind === 'thermal') {
+      printThermalReceipt(docOrder);
+      return;
+    }
+
+    // Universal Pre-Print Preview & Editable Document workflow:
+    // PRINT -> PREVIEW & EDIT -> FINAL REVIEW -> PRINT
+    setPreviewDocState({
+      isOpen: true,
+      order: docOrder,
+      kind,
+    });
   };
+
+  // Pre-Print Preview & Edit State
+  const [previewDocState, setPreviewDocState] = useState({
+    isOpen: false,
+    order: null,
+    kind: 'delivery-sheet',
+  });
 
   const openVendor = (v) => {
     setSelectedVendor(v);
@@ -387,6 +401,7 @@ const VendorsPage = () => {
           onCreateOrder={(v) => { setShowCreateOrder(true); }}
           catalog={catalogData}
           t={t}
+          onPrintOrder={handlePrint}
         />
       )}
       {selectedVendor && !profileVendor && !profileLoading && (
@@ -477,6 +492,20 @@ const VendorsPage = () => {
           t={t}
         />
       )}
+
+      {/* Universal Pre-Print Preview & Editable Document Modal */}
+      <DocumentPreviewEditor
+        isOpen={previewDocState.isOpen}
+        onClose={() => setPreviewDocState((s) => ({ ...s, isOpen: false }))}
+        order={previewDocState.order}
+        kind={previewDocState.kind}
+        onSaveSuccess={() => {
+          refreshAll();
+          if (selectedOrder?.id === previewDocState.order?.id) {
+            viewOrder({ id: previewDocState.order.id });
+          }
+        }}
+      />
     </div>
   );
 };
@@ -573,7 +602,7 @@ const AdminOrderRow = ({ order, onOpen, onReject, onAction, t }) => {
   );
 };
 
-const VendorDetailModal = ({ vendor, onClose, onCreateOrder, catalog, t }) => {
+const VendorDetailModal = ({ vendor, onClose, onCreateOrder, catalog, t, onPrintOrder }) => {
   const { vendor: v, summary } = vendor || { vendor: null, summary: null };
   const orders = v?.orders || [];
 
@@ -620,11 +649,15 @@ const VendorDetailModal = ({ vendor, onClose, onCreateOrder, catalog, t }) => {
   };
 
   const printOrder = (order, kind) => {
-    if (kind === 'quotation') printOrderDocument(order, 'quotation');
-    else if (kind === 'invoice') printOrderDocument(order, 'invoice');
-    else if (kind === 'quotation-data') printDataDocument(order, 'quotation-data');
-    else if (kind === 'invoice-data') printDataDocument(order, 'invoice-data');
-    else printThermalReceipt(order);
+    if (onPrintOrder) {
+      onPrintOrder(order, kind);
+    } else {
+      if (kind === 'quotation') printOrderDocument(order, 'quotation');
+      else if (kind === 'invoice') printOrderDocument(order, 'invoice');
+      else if (kind === 'quotation-data') printDataDocument(order, 'quotation-data');
+      else if (kind === 'invoice-data') printDataDocument(order, 'invoice-data');
+      else printThermalReceipt(order);
+    }
   };
 
   return (
@@ -784,7 +817,7 @@ const VendorDetailModal = ({ vendor, onClose, onCreateOrder, catalog, t }) => {
                   <button onClick={() => printOrder(order, 'quotation-data')} className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs">{t('Quo. Data')}</button>
                   <button onClick={() => printOrder(order, 'invoice-data')} className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs">{t('Inv. Data')}</button>
                   <button onClick={() => printOrder(order, 'thermal')} className="px-2 py-1 rounded bg-slate-600 hover:bg-slate-500 text-white text-xs">{t('Thermal')}</button>
-                  <button onClick={() => printDeliverySheet(order)} className="px-2 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white text-xs">{t('Delivery Sheet')}</button>
+                  <button onClick={() => printOrder(order, 'delivery-sheet')} className="px-2 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white text-xs">{t('Delivery Sheet')}</button>
                 </div>
               ))}
             </div>
@@ -1236,7 +1269,7 @@ const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t 
           <ActionBtn color="bg-emerald-600 hover:bg-emerald-500" onClick={() => handlePrint(order, 'quotation-data')} icon={BarChart3} label={t('Quotation Data')} />
           <ActionBtn color="bg-emerald-600 hover:bg-emerald-500" onClick={() => handlePrint(order, 'invoice-data')} icon={BarChart3} label={t('Invoice Data')} />
           <ActionBtn color="bg-slate-600 hover:bg-slate-500" onClick={() => handlePrint(order, 'thermal')} icon={Receipt} label={t('Thermal')} />
-          <ActionBtn color="bg-teal-600 hover:bg-teal-500" onClick={() => printDeliverySheet(order)} icon={Truck} label={t('Delivery Sheet')} />
+          <ActionBtn color="bg-teal-600 hover:bg-teal-500" onClick={() => handlePrint(order, 'delivery-sheet')} icon={Truck} label={t('Delivery Sheet')} />
         </div>
       </div>
 

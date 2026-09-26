@@ -236,7 +236,7 @@ function buildFooterHTML() {
 }
 
 // ── Body content builder (shared between full & data-only modes) ────────────
-function buildBodyHTML(order, kind) {
+function buildBodyHTML(order, kind, customFields = {}) {
   const isInvoice = kind === 'invoice' || kind === 'invoice-data';
   const totalPaid = (order.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const remaining = Math.max(0, (Number(order.grandTotal) || 0) - totalPaid);
@@ -396,60 +396,80 @@ function buildBodyHTML(order, kind) {
       </span>
     </div>
 
+    <!-- Terms & Conditions if any -->
+    ${customFields.termsAndConditions ? `
+    <div style="margin: 6px 0 8px 0; padding: 6px 8px; font-size: 8px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 3px;">
+      <div style="font-weight: 800; text-transform: uppercase; font-size: 7.5px; margin-bottom: 2px;">Terms &amp; Conditions:</div>
+      <div style="white-space: pre-wrap; line-height: 1.35;">${customFields.termsAndConditions}</div>
+    </div>` : ''}
+
+    <!-- Special Instructions if any -->
+    ${customFields.specialInstructions ? `
+    <div style="margin: 4px 0 8px 0; padding: 4px 8px; font-size: 8px; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 3px;">
+      <strong>Special Instructions:</strong> ${customFields.specialInstructions}
+    </div>` : ''}
+
+    <!-- Remarks / Delivery Instructions if any -->
+    ${(customFields.remarks || customFields.customerRemarks || customFields.deliveryInstructions) ? `
+    <div style="margin: 4px 0 8px 0; padding: 4px 8px; font-size: 8px; color: #334155; background: #f8fafc; border-left: 3px solid #64748b;">
+      <strong>${isInvoice ? 'Delivery Instructions / Remarks:' : 'Customer Remarks:'}</strong>
+      <span style="margin-left: 4px;">${customFields.remarks || customFields.customerRemarks || customFields.deliveryInstructions}</span>
+    </div>` : ''}
+
     <!-- Notes if any -->
-    ${order.notes ? `
-    <div style="margin: 4px 0 8px 0; padding: 3px 8px; font-size: 8px; color: #475569; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 3px;">
-      <strong>Notes:</strong> ${order.notes}
+    ${(customFields.notes || customFields.quotationNotes || customFields.invoiceNotes || order.notes) ? `
+    <div style="margin: 4px 0 8px 0; padding: 4px 8px; font-size: 8px; color: #475569; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 3px;">
+      <strong>Notes:</strong> ${customFields.notes || customFields.quotationNotes || customFields.invoiceNotes || order.notes}
     </div>` : ''}
 
     <!-- DUAL SIGNATURES -->
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 26px; margin-bottom: 10px; padding: 0 20px;">
       <div style="text-align: center;">
         <div style="width: 150px; border-top: 1.5px solid #0f172a; margin-bottom: 3px;"></div>
-        <div style="font-size: 8.5px; font-weight: 800; color: #0f172a;">Issued &amp; Authorized By</div>
+        <div style="font-size: 8.5px; font-weight: 800; color: #0f172a;">${customFields.preparedBy || customFields.issuedBy || 'Issued & Authorized By'}</div>
       </div>
       <div style="text-align: center;">
         <div style="width: 150px; border-top: 1.5px solid #0f172a; margin-bottom: 3px;"></div>
-        <div style="font-size: 8.5px; font-weight: 800; color: #0f172a;">Accepted &amp; Confirmed By</div>
+        <div style="font-size: 8.5px; font-weight: 800; color: #0f172a;">${customFields.acceptedBy || customFields.receivedBy || 'Accepted & Confirmed By'}</div>
       </div>
     </div>
   `;
 }
 
 // ── Full A4 document: Header + Body + Footer ────────────────────────────────
-export function generateDocumentHTML(order, kind, logoUrl) {
+export function generateDocumentHTML(order, kind, logoUrl, customFields = {}) {
   return `
   <div class="a4-container">
     ${buildHeaderHTML(logoUrl)}
-    ${buildBodyHTML(order, kind)}
+    ${buildBodyHTML(order, kind, customFields)}
     ${buildFooterHTML()}
   </div>
   `;
 }
 
 // ── Data-only A4 document: Body only (no header, no footer, no logo) ────────
-export function generateDataOnlyHTML(order, kind) {
+export function generateDataOnlyHTML(order, kind, customFields = {}) {
   return `
   <div class="a4-container">
-    ${buildBodyHTML(order, kind)}
+    ${buildBodyHTML(order, kind, customFields)}
   </div>
   `;
 }
 
 // ── A4 professional Quotation / Invoice document printer (full) ─────────────
-export async function printOrderDocument(order, kind) {
+export async function printOrderDocument(order, kind, customFields = {}) {
   const isInvoice = kind === 'invoice';
   const logoUrl = await fetchLogoUrl();
   const title = `${isInvoice ? 'INVOICE' : 'QUOTATION'} — ${order.orderNumber || ''}`;
-  const html = generateDocumentHTML(order, kind, logoUrl);
+  const html = generateDocumentHTML(order, kind, logoUrl, customFields);
   printIframe(html, title, [() => { if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }]);
 }
 
 // ── Data-only printer (no header/footer/logo) ───────────────────────────────
-export function printDataDocument(order, kind) {
+export function printDataDocument(order, kind, customFields = {}) {
   const isInvoice = kind === 'invoice-data';
   const title = `${isInvoice ? 'INVOICE DATA' : 'QUOTATION DATA'} — ${order.orderNumber || ''}`;
-  const html = generateDataOnlyHTML(order, kind);
+  const html = generateDataOnlyHTML(order, kind, customFields);
   const css = isInvoice ? PRINT_CSS_DATA_INVOICE : PRINT_CSS_DATA_QUOTATION;
   printIframe(html, title, [], css);
 }
@@ -498,7 +518,7 @@ th, td { padding: 5px 8px; }
 .page-break { page-break-before: always; }
 `;
 
-function buildDeliverySheetHTML(order, copyLabel) {
+function buildDeliverySheetHTML(order, copyLabel, customFields = {}) {
   const vendorName = order.vendor?.name || 'VENDOR';
   const asmName = order.asm?.name || '—';
   const storeName = order.storeName || 'Main Store / Warehouse';
@@ -574,25 +594,37 @@ function buildDeliverySheetHTML(order, copyLabel) {
       </tbody>
     </table>
 
-    ${order.notes ? `<div style="margin-bottom: 10px; font-size: 9px; color: #475569;"><strong>Notes:</strong> ${order.notes}</div>` : ''}
+    <!-- CUSTOM NOTES & INSTRUCTIONS -->
+    ${(customFields.notes || customFields.handoverNotes || order.notes) ? `
+    <div style="margin-bottom: 6px; padding: 6px 8px; font-size: 9px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px;">
+      <strong>Handover / Order Notes:</strong> ${customFields.notes || customFields.handoverNotes || order.notes}
+    </div>` : ''}
+    ${customFields.specialInstructions ? `
+    <div style="margin-bottom: 6px; padding: 6px 8px; font-size: 9px; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px;">
+      <strong>Special Instructions:</strong> ${customFields.specialInstructions}
+    </div>` : ''}
+    ${customFields.remarks ? `
+    <div style="margin-bottom: 6px; padding: 6px 8px; font-size: 9px; color: #475569; background: #f1f5f9; border-radius: 4px;">
+      <strong>Remarks:</strong> ${customFields.remarks}
+    </div>` : ''}
 
     <!-- SIGNATURE SECTION -->
     <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 9px;">
       <div style="text-align: center; width: 30%;">
         <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
-          <div style="font-weight: 800;">Prepared By</div>
+          <div style="font-weight: 800;">${customFields.preparedBy || 'Prepared By'}</div>
           <div style="color: #64748b; font-size: 8px;">Name / Signature / Date</div>
         </div>
       </div>
       <div style="text-align: center; width: 30%;">
         <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
-          <div style="font-weight: 800;">Issued By</div>
+          <div style="font-weight: 800;">${customFields.issuedBy || 'Issued By'}</div>
           <div style="color: #64748b; font-size: 8px;">Name / Signature / Date</div>
         </div>
       </div>
       <div style="text-align: center; width: 30%;">
         <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
-          <div style="font-weight: 800;">Received By</div>
+          <div style="font-weight: 800;">${customFields.receivedBy || 'Received By'}</div>
           <div style="color: #64748b; font-size: 8px;">Name / Signature / Date</div>
         </div>
       </div>
@@ -600,9 +632,9 @@ function buildDeliverySheetHTML(order, copyLabel) {
   </div>`;
 }
 
-export function printDeliverySheet(order) {
-  const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE');
-  const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM');
+export function printDeliverySheet(order, customFields = {}) {
+  const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE', customFields);
+  const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM', customFields);
   const html = copy1 + `<div class="page-break"></div>` + copy2;
   const title = `Delivery Sheet — ${order.orderNumber || ''}`;
   printIframe(html, title, [], DELIVERY_SHEET_CSS);
@@ -630,7 +662,7 @@ table { width: 100%; border-collapse: collapse; }
 th, td { padding: 6px 8px; }
 `;
 
-export function buildVendorJobSheetHTML(order, targetDepartment = 'PRODUCTION', processingItems = []) {
+export function buildVendorJobSheetHTML(order, targetDepartment = 'PRODUCTION', processingItems = [], customFields = {}) {
   const vendorName = order.vendor?.name || 'VENDOR';
   const asmName = order.asm?.name || '—';
   const storeName = order.storeName || 'Main Store / Warehouse';
@@ -724,7 +756,23 @@ export function buildVendorJobSheetHTML(order, targetDepartment = 'PRODUCTION', 
 
     <!-- INSTRUCTIONS BOX -->
     <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-bottom: 25px; background: #fff;">
-      <div style="font-weight: 800; text-transform: uppercase; font-size: 9px; color: #334155; margin-bottom: 4px;">Department Instructions</div>
+      <div style="font-weight: 800; text-transform: uppercase; font-size: 9px; color: #334155; margin-bottom: 4px;">${deptLabel} Department Instructions &amp; Specifications</div>
+      ${(customFields.productionNotes || customFields.logoInstructions || customFields.logoNotes) ? `
+      <div style="font-size: 9.5px; font-weight: 700; color: #0f172a; margin-bottom: 6px; padding: 6px 8px; background: #eff6ff; border-left: 3px solid #0284c7;">
+        ${customFields.productionNotes || customFields.logoInstructions || customFields.logoNotes}
+      </div>` : ''}
+      ${customFields.specialInstructions ? `
+      <div style="font-size: 9px; color: #1e3a8a; margin-bottom: 6px;">
+        <strong>Special Instructions:</strong> ${customFields.specialInstructions}
+      </div>` : ''}
+      ${customFields.tailoringRemarks ? `
+      <div style="font-size: 9px; color: #475569; margin-bottom: 6px;">
+        <strong>Tailoring / Production Remarks:</strong> ${customFields.tailoringRemarks}
+      </div>` : ''}
+      ${(customFields.notes || customFields.additionalNotes || order.notes) ? `
+      <div style="font-size: 9px; color: #475569; margin-bottom: 6px;">
+        <strong>Operational Notes:</strong> ${customFields.notes || customFields.additionalNotes || order.notes}
+      </div>` : ''}
       <div style="font-size: 9px; color: #64748b; line-height: 1.5;">
         1. Verify product specifications, sizing, and quantity before commencing work.<br/>
         2. Follow designated logo and customization guidelines accurately.<br/>
@@ -736,19 +784,19 @@ export function buildVendorJobSheetHTML(order, targetDepartment = 'PRODUCTION', 
     <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 9px;">
       <div style="text-align: center; width: 30%;">
         <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
-          <div style="font-weight: 800;">Prepared By (Store)</div>
+          <div style="font-weight: 800;">${customFields.preparedBy || 'Prepared By (Store)'}</div>
           <div style="color: #64748b; font-size: 8px;">Signature & Date</div>
         </div>
       </div>
       <div style="text-align: center; width: 30%;">
         <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
-          <div style="font-weight: 800;">Accepted By (${deptLabel})</div>
+          <div style="font-weight: 800;">${customFields.acceptedBy || `Accepted By (${deptLabel})`}</div>
           <div style="color: #64748b; font-size: 8px;">Signature & Date</div>
         </div>
       </div>
       <div style="text-align: center; width: 30%;">
         <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
-          <div style="font-weight: 800;">Completed By</div>
+          <div style="font-weight: 800;">${customFields.completedBy || 'Completed By'}</div>
           <div style="color: #64748b; font-size: 8px;">Signature & Date</div>
         </div>
       </div>
@@ -756,8 +804,183 @@ export function buildVendorJobSheetHTML(order, targetDepartment = 'PRODUCTION', 
   </div>`;
 }
 
-export function printVendorJobSheet(order, targetDepartment = 'PRODUCTION', processingItems = []) {
-  const html = buildVendorJobSheetHTML(order, targetDepartment, processingItems);
+export function printVendorJobSheet(order, targetDepartment = 'PRODUCTION', processingItems = [], customFields = {}) {
+  const html = buildVendorJobSheetHTML(order, targetDepartment, processingItems, customFields);
   const title = `Job Sheet — ${order.orderNumber || ''} — ${targetDepartment}`;
   printIframe(html, title, [], JOB_SHEET_CSS);
+}
+
+// ── Universal Document Configuration ─────────────────────────────────────────
+export const DOCUMENT_CONFIG = {
+  DELIVERY_SHEET: {
+    label: 'Delivery Sheet',
+    docType: 'DELIVERY_SHEET',
+    hasLetterheadMargins: true,
+    supportsMultiPage: true,
+    defaultTitle: 'Delivery Sheet',
+    fields: [
+      { key: 'handoverNotes', label: 'Handover Notes', type: 'textarea', placeholder: 'e.g. 14 units handed over to ASM. Remaining quantity will be provided after production.' },
+      { key: 'specialInstructions', label: 'Special Instructions', type: 'textarea', placeholder: 'e.g. Handle with care, delivery during business hours.' },
+      { key: 'remarks', label: 'Operational Remarks', type: 'text', placeholder: 'e.g. Verified by Store Manager' },
+      { key: 'preparedBy', label: 'Prepared By (Signatory)', type: 'text', placeholder: 'Store Officer Name' },
+      { key: 'issuedBy', label: 'Issued By (Signatory)', type: 'text', placeholder: 'Warehouse Incharge Name' },
+      { key: 'receivedBy', label: 'Received By (Signatory)', type: 'text', placeholder: 'ASM / Agent Name' },
+    ],
+  },
+  QUOTATION: {
+    label: 'Quotation',
+    docType: 'QUOTATION',
+    hasLetterheadMargins: false,
+    supportsDataModeToggle: true,
+    defaultTitle: 'Quotation',
+    fields: [
+      { key: 'quotationNotes', label: 'Quotation Notes', type: 'textarea', placeholder: 'e.g. Valid for 15 days from issue date.' },
+      { key: 'termsAndConditions', label: 'Terms & Conditions', type: 'textarea', placeholder: 'e.g. 50% advance required before production.' },
+      { key: 'specialInstructions', label: 'Special Instructions', type: 'textarea', placeholder: 'e.g. Fabric sample approved by client.' },
+      { key: 'customerRemarks', label: 'Customer Remarks', type: 'text', placeholder: 'e.g. Bulk discount applied as agreed.' },
+      { key: 'preparedBy', label: 'Issued & Authorized By', type: 'text', placeholder: 'Sales Manager / Authorized Name' },
+      { key: 'acceptedBy', label: 'Accepted & Confirmed By', type: 'text', placeholder: 'Client / Representative Name' },
+    ],
+  },
+  INVOICE: {
+    label: 'Invoice',
+    docType: 'INVOICE',
+    hasLetterheadMargins: false,
+    supportsDataModeToggle: true,
+    defaultTitle: 'Invoice',
+    fields: [
+      { key: 'invoiceNotes', label: 'Invoice Notes', type: 'textarea', placeholder: 'e.g. Payment due within 7 days.' },
+      { key: 'remarks', label: 'Payment / Delivery Remarks', type: 'textarea', placeholder: 'e.g. Payment received through bank transfer.' },
+      { key: 'deliveryInstructions', label: 'Delivery Instructions', type: 'text', placeholder: 'e.g. Deliver to main clinic reception.' },
+      { key: 'specialInstructions', label: 'Special Instructions', type: 'text', placeholder: 'e.g. Retain invoice copy for warranty.' },
+      { key: 'preparedBy', label: 'Issued & Authorized By', type: 'text', placeholder: 'Accounts Officer / Incharge' },
+      { key: 'acceptedBy', label: 'Accepted & Confirmed By', type: 'text', placeholder: 'Client / Receiving Officer' },
+    ],
+  },
+  JOB_SHEET: {
+    label: 'Job Sheet',
+    docType: 'JOB_SHEET',
+    hasLetterheadMargins: false,
+    defaultTitle: 'Job Sheet',
+    fields: [
+      { key: 'productionNotes', label: 'Production / Department Notes', type: 'textarea', placeholder: 'e.g. Batch #4, stitch reinforcement required.' },
+      { key: 'logoInstructions', label: 'Logo Instructions', type: 'textarea', placeholder: 'e.g. Logo placement: left chest. Confirm size before production.' },
+      { key: 'specialInstructions', label: 'Special Instructions', type: 'textarea', placeholder: 'e.g. Priority dispatch to Store upon completion.' },
+      { key: 'tailoringRemarks', label: 'Tailoring / Production Remarks', type: 'text', placeholder: 'e.g. Custom hem length on Medium scrubs.' },
+      { key: 'notes', label: 'Additional Operational Notes', type: 'text', placeholder: 'e.g. Quality inspection required before packing.' },
+      { key: 'preparedBy', label: 'Prepared By (Store)', type: 'text', placeholder: 'Store Incharge Name' },
+      { key: 'acceptedBy', label: 'Accepted By (Department)', type: 'text', placeholder: 'Department Supervisor Name' },
+      { key: 'completedBy', label: 'Completed By', type: 'text', placeholder: 'Quality Lead / Technician Name' },
+    ],
+  },
+};
+
+// Helper: Normalize document kind to standard docType key
+export function resolveDocumentType(kind = '') {
+  const k = String(kind).toLowerCase().trim();
+  if (k.includes('delivery')) return 'DELIVERY_SHEET';
+  if (k.includes('job-sheet') || k.includes('job_sheet')) return 'JOB_SHEET';
+  if (k.includes('quote') || k.includes('quotation')) return 'QUOTATION';
+  if (k.includes('invoice')) return 'INVOICE';
+  return 'DELIVERY_SHEET';
+}
+
+// ── Multi-page and complete document compiler for preview & print ────────────
+export function getDocumentPrintDetails({
+  order,
+  kind = 'delivery-sheet',
+  customFields = {},
+  targetDepartment = 'PRODUCTION',
+  processingItems = [],
+  logoUrl = '',
+  useDataOnlyMode = false,
+}) {
+  const normKind = String(kind).toLowerCase().trim();
+  const orderNumber = order?.orderNumber || '—';
+
+  // 1. DELIVERY SHEET
+  if (normKind === 'delivery-sheet' || normKind === 'delivery_sheet') {
+    const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE', customFields);
+    const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM', customFields);
+    return {
+      docType: 'DELIVERY_SHEET',
+      title: `Delivery Sheet — ${orderNumber}`,
+      css: DELIVERY_SHEET_CSS,
+      hasLetterheadMargins: true,
+      pages: [
+        { label: 'Copy 1 — Store', html: copy1 },
+        { label: 'Copy 2 — ASM', html: copy2 },
+      ],
+      fullHtml: copy1 + `<div class="page-break"></div>` + copy2,
+    };
+  }
+
+  // 2. JOB SHEET
+  if (normKind === 'job-sheet-logo' || normKind === 'job-sheet-prod' || normKind.startsWith('job-sheet') || normKind === 'job_sheet') {
+    const dept = normKind.includes('logo') ? 'LOGO' : (targetDepartment || 'PRODUCTION');
+    const html = buildVendorJobSheetHTML(order, dept, processingItems, customFields);
+    return {
+      docType: 'JOB_SHEET',
+      title: `Job Sheet — ${orderNumber} (${dept})`,
+      css: JOB_SHEET_CSS,
+      hasLetterheadMargins: false,
+      pages: [
+        { label: `Job Sheet (${dept})`, html },
+      ],
+      fullHtml: html,
+    };
+  }
+
+  // 3. QUOTATION
+  if (normKind === 'quotation' || normKind === 'quotation-data') {
+    const isDataOnly = useDataOnlyMode || normKind === 'quotation-data';
+    const html = isDataOnly
+      ? generateDataOnlyHTML(order, 'quotation-data', customFields)
+      : generateDocumentHTML(order, 'quotation', logoUrl, customFields);
+    const css = isDataOnly ? PRINT_CSS_DATA_QUOTATION : PRINT_CSS;
+    return {
+      docType: 'QUOTATION',
+      title: `Quotation — ${orderNumber}`,
+      css,
+      hasLetterheadMargins: isDataOnly,
+      pages: [
+        { label: isDataOnly ? 'Quotation (Data-Only Letterhead)' : 'Quotation (Full A4)', html },
+      ],
+      fullHtml: html,
+    };
+  }
+
+  // 4. INVOICE
+  if (normKind === 'invoice' || normKind === 'invoice-data') {
+    const isDataOnly = useDataOnlyMode || normKind === 'invoice-data';
+    const html = isDataOnly
+      ? generateDataOnlyHTML(order, 'invoice-data', customFields)
+      : generateDocumentHTML(order, 'invoice', logoUrl, customFields);
+    const css = isDataOnly ? PRINT_CSS_DATA_INVOICE : PRINT_CSS;
+    return {
+      docType: 'INVOICE',
+      title: `Invoice — ${orderNumber}`,
+      css,
+      hasLetterheadMargins: isDataOnly,
+      pages: [
+        { label: isDataOnly ? 'Invoice (Data-Only Letterhead)' : 'Invoice (Full A4)', html },
+      ],
+      fullHtml: html,
+    };
+  }
+
+  // Fallback: Delivery sheet
+  const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE', customFields);
+  const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM', customFields);
+  return {
+    docType: 'DELIVERY_SHEET',
+    title: `Document — ${orderNumber}`,
+    css: DELIVERY_SHEET_CSS,
+    hasLetterheadMargins: true,
+    pages: [
+      { label: 'Copy 1 — Store', html: copy1 },
+      { label: 'Copy 2 — ASM', html: copy2 },
+    ],
+    fullHtml: copy1 + `<div class="page-break"></div>` + copy2,
+  };
 }
