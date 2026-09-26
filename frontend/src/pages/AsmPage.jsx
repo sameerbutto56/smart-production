@@ -1466,7 +1466,20 @@ const VendorFormModal = ({ onClose, onCreated }) => {
   );
 };
 
-const emptyLine = () => ({ catalogItemId: '', productName: '', category: '', color: '', size: '', articleName: '', articleNumber: '', unit: '', variant: '', quantity: 1, unitPrice: '' });
+const emptyLine = () => ({
+  catalogItemId: '',
+  productName: '',
+  category: '',
+  color: '',
+  size: '',
+  articleName: '',
+  articleNumber: '',
+  unit: '',
+  variant: '',
+  quantity: 1,
+  unitPrice: '',
+  isManual: false,
+});
 
 const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreated, onVendorAdded }) => {
   const { t } = useLanguage();
@@ -1495,7 +1508,7 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
   const [deliveryCity, setDeliveryCity] = useState('');
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [catalogSearch, setCatalogSearch] = useState('');
+  const [lineSearch, setLineSearch] = useState({});
   const [resultsOpen, setResultsOpen] = useState(null);
 
   const updateLine = (idx, field, value) => {
@@ -1506,19 +1519,19 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
   const removeLine = (idx) => setLineItems((prev) => prev.filter((_, i) => i !== idx));
 
   // Resolve variants for a given line from its selected catalog item
-  const lineItem = (idx) => catalog.find((c) => c.id === lineItems[idx]?.catalogItemId) || null;
+  const lineItem = (idx) => (catalog || []).find((c) => c.id === lineItems[idx]?.catalogItemId) || null;
   const lineVariants = (idx) => vendorVariants(lineItem(idx));
   const lineColors = (idx) => uniqValues(lineVariants(idx), 'color');
   const lineSizes = (idx) => uniqValues(lineVariants(idx), 'size');
 
-  // A line is an "Other" manual product when it is not linked to a catalog item
-  const lineIsOther = (idx) => !lineItems[idx]?.catalogItemId;
+  // A line is an "Other" manual product when flagged or when it has no catalog item
+  const lineIsOther = (idx) => Boolean(lineItems[idx]?.isManual) || !lineItems[idx]?.catalogItemId;
 
   // Filter the catalog by name / article / color / size / variant (case-insensitive)
   const filteredCatalog = (idx) => {
-    const q = (catalogSearch || '').trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter((c) => {
+    const q = ((lineSearch[idx] !== undefined ? lineSearch[idx] : lineItems[idx]?.productName) || '').trim().toLowerCase();
+    if (!q) return (catalog || []).slice(0, 20);
+    return (catalog || []).filter((c) => {
       const haystack = [
         c.name, c.category, c.id,
         ...(Array.isArray(c.variants) ? c.variants : [])
@@ -1528,52 +1541,69 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
         .join(' ')
         .toLowerCase();
       return haystack.includes(q);
-    });
+    }).slice(0, 25);
   };
 
   // Set a line to manual "Other" mode (clears catalog link, keeps typed product name)
-  const markAsOther = (idx) => {
-    setResultsOpen(null);
+  const markAsOther = (idx, customName = '') => {
+    const name = (customName || lineSearch[idx] || lineItems[idx]?.productName || '').trim();
     setLineItems((prev) => prev.map((li, i) =>
-      i === idx ? { ...li, catalogItemId: '', category: null } : li
+      i === idx ? {
+        ...li,
+        catalogItemId: '',
+        productName: name,
+        category: null,
+        isManual: true,
+      } : li
     ));
+    setLineSearch((prev) => {
+      const next = { ...prev };
+      delete next[idx];
+      return next;
+    });
+    setResultsOpen(null);
   };
 
   // When an item is picked, load its real variants into per-line color/size dropdowns
-  const selectCatalogItem = (idx, cid) => {
-    const item = catalog.find((c) => c.id === cid);
+  const selectCatalogItem = (idx, item) => {
     if (!item) return;
-    const firstVariant = vendorVariants(item)[0] || {};
-    const defaultColor = lineColors(idx)[0] || firstVariant.color || '';
-    const defaultSize = lineSizes(idx)[0] || firstVariant.size || '';
-    setResultsOpen((prev) => (prev === idx ? null : prev));
+    const variants = vendorVariants(item);
+    const colors = uniqValues(variants, 'color');
+    const sizes = uniqValues(variants, 'size');
+    const firstVariant = variants[0] || {};
+    const defaultColor = colors[0] || firstVariant.color || '';
+    const defaultSize = sizes[0] || firstVariant.size || '';
+    const unitPrice = firstVariant.price != null ? firstVariant.price : (item.price != null ? item.price : '');
+
     setLineItems((prev) => prev.map((li, i) =>
       i === idx
         ? {
             ...li,
-            catalogItemId: cid,
-            productName: item.name || item.category || '',
+            catalogItemId: item.id,
+            productName: item.name || item.category || 'Product',
             category: item.category || null,
             color: defaultColor,
             size: defaultSize,
-            unitPrice: firstVariant.price != null ? firstVariant.price : (item.price || ''),
+            unitPrice: unitPrice,
+            isManual: false,
           }
         : li
     ));
-  };
-
-  const pickCatalogResult = (idx, cid) => {
-    selectCatalogItem(idx, cid);
-    setCatalogSearch('');
+    setLineSearch((prev) => {
+      const next = { ...prev };
+      delete next[idx];
+      return next;
+    });
+    setResultsOpen(null);
   };
 
   const submit = async () => {
     if (!vendorId) return toast.error(t('Select a vendor'));
     const items = lineItems
-      .filter((li) => li.productName || li.catalogItemId)
+      .filter((li) => String(li.productName || '').trim() || li.catalogItemId)
       .map((li) => ({
         catalogItemId: li.catalogItemId || null,
-        productName: li.productName,
+        productName: String(li.productName || '').trim(),
         productType: li.category || null,
         color: li.color || null,
         size: li.size || null,
@@ -1585,7 +1615,7 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
         unitPrice: parseFloat(li.unitPrice) || 0,
         notes: null,
       }));
-    if (!items.length) return toast.error(t('At least one product line is required'));
+    if (!items.length) return toast.error(t('At least one product line is required. Please select or enter a product.'));
     const advance = parseFloat(advanceAmount);
     setSubmitting(true);
     try {
@@ -1672,49 +1702,95 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <div className="md:col-span-2">
                         <label className="text-xs text-slate-400">{t('Product')} *</label>
-                        <div className="relative">
-                          <div className="flex gap-1.5">
-                            <input
-                              value={lineIsOther(idx) ? li.productName : catalogSearch}
-                              onChange={(e) => { setCatalogSearch(e.target.value); updateLine(idx, 'productName', e.target.value); updateLine(idx, 'catalogItemId', ''); setResultsOpen(idx); }}
-                              onFocus={() => setResultsOpen(idx)}
-                              onBlur={() => setTimeout(() => setResultsOpen(null), 150)}
-                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                              placeholder={t('Type to search catalog or choose Other...')}
-                            />
-                            {lineIsOther(idx) && (
-                              <button type="button" onClick={() => setResultsOpen(null)}
-                                className="shrink-0 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold">
-                                {t('Manual')}
-                              </button>
-                            )}
+                        {li.catalogItemId ? (
+                          <div className="w-full bg-slate-800 border border-emerald-500/50 rounded-lg px-3 py-2 flex items-center justify-between">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase">
+                                Catalog
+                              </span>
+                              <span className="text-white text-sm font-semibold">{li.productName}</span>
+                              {li.category && <span className="text-slate-400 text-xs">({li.category})</span>}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateLine(idx, 'catalogItemId', '');
+                                updateLine(idx, 'productName', '');
+                                setResultsOpen(idx);
+                              }}
+                              className="text-xs text-slate-300 hover:text-white px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded transition"
+                            >
+                              {t('Change')}
+                            </button>
                           </div>
-                          {resultsOpen === idx && (
-                            <div className="absolute z-20 mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-52 overflow-y-auto">
-                              <button
-                                type="button"
-                                onClick={() => markAsOther(idx)}
-                                className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-slate-700 border-b border-slate-700"
-                              >
-                                + {t('Other (manual product)')}
-                              </button>
-                              {filteredCatalog(idx).map((c) => (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  onMouseDown={(e) => { e.preventDefault(); pickCatalogResult(idx, c.id); }}
-                                  className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700"
-                                >
-                                  <span className="font-medium">{c.name || c.category || c.id}</span>
-                                  <span className="block text-xs text-slate-500">{c.category} {c.id}</span>
-                                </button>
-                              ))}
-                              {filteredCatalog(idx).length === 0 && (
-                                <div className="px-3 py-2 text-xs text-slate-500">{t('No catalog match')}</div>
+                        ) : (
+                          <div className="relative">
+                            <div className="flex gap-1.5">
+                              <input
+                                value={lineSearch[idx] !== undefined ? lineSearch[idx] : (li.productName || '')}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setLineSearch((prev) => ({ ...prev, [idx]: val }));
+                                  updateLine(idx, 'productName', val);
+                                  setResultsOpen(idx);
+                                }}
+                                onFocus={() => setResultsOpen(idx)}
+                                onBlur={() => setTimeout(() => setResultsOpen(null), 250)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 outline-none"
+                                placeholder={t('Click to select from catalog or type custom product...')}
+                              />
+                              {li.isManual && (
+                                <span className="shrink-0 bg-amber-500/20 text-amber-300 text-xs font-semibold px-2.5 py-2 rounded-lg flex items-center">
+                                  {t('Custom')}
+                                </span>
                               )}
                             </div>
-                          )}
-                        </div>
+
+                            {resultsOpen === idx && (
+                              <div className="absolute z-30 mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto divide-y divide-slate-800">
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    markAsOther(idx, lineSearch[idx] || li.productName);
+                                  }}
+                                  className="w-full text-left px-3 py-2.5 text-xs font-semibold text-amber-300 hover:bg-slate-800 flex items-center justify-between"
+                                >
+                                  <span>+ {t('Add as manual / custom product')}</span>
+                                  {(lineSearch[idx] || li.productName) && (
+                                    <span className="text-[11px] text-slate-400 italic">
+                                      "{lineSearch[idx] || li.productName}"
+                                    </span>
+                                  )}
+                                </button>
+                                {filteredCatalog(idx).map((c) => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      selectCatalogItem(idx, c);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 hover:text-white flex items-center justify-between transition"
+                                  >
+                                    <div>
+                                      <span className="font-semibold">{c.name || c.category || c.id}</span>
+                                      {c.category && <span className="ml-2 text-xs text-slate-400">({c.category})</span>}
+                                    </div>
+                                    {c.price != null && (
+                                      <span className="text-xs text-cyan-400 font-bold shrink-0">Rs. {c.price.toLocaleString()}</span>
+                                    )}
+                                  </button>
+                                ))}
+                                {filteredCatalog(idx).length === 0 && (
+                                  <div className="px-3 py-3 text-xs text-slate-500 text-center">
+                                    {t('No catalog item matching')} "{lineSearch[idx] || li.productName}"
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {lineIsOther(idx) && (
                         <>

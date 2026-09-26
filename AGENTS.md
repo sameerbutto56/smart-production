@@ -1,5 +1,23 @@
 ## Goals
-### Implemented This Session — ASM Profile: New Vendor Creation & Dynamic Dropdown Population (deployed & live-verified)
+### Implemented This Session — ASM Profile: Product Selection & Order Line Addition Fix (deployed & live-verified)
+- **Problem & Root Cause**:
+  - In `CreateOrderModal` (`frontend/src/pages/AsmPage.jsx`), when a user picked a product from the catalog search list, the input was configured as `value={lineIsOther(idx) ? li.productName : catalogSearch}`.
+  - Picking a catalog item set `catalogItemId`, which caused `lineIsOther(idx)` to evaluate to `false`.
+  - At the same time, `pickCatalogResult` executed `setCatalogSearch('')`, which wiped the input value to `""` (blank).
+  - Consequently, clicking any product in the list made the input appear completely blank as if it was never added.
+  - Furthermore, `catalogSearch` was a single shared string across all line items, meaning typing in Line 2 would overwrite or desync Line 1's input.
+  - In addition, `selectCatalogItem` was attempting to read variant colors and sizes from `lineColors(idx)` before the line item had been updated, causing variants to fail to load or use stale line state.
+- **Implementation & Fixes**:
+  - **Selected Product Chip**: When a product is selected from the catalog (`li.catalogItemId`), the field immediately displays a distinct, high-contrast validated card (`[CATALOG] ProductName (Category)`) with a `Change` button to easily swap or re-select. It is now impossible for the input to appear blank or lost.
+  - **Per-Line Independent Search (`lineSearch[idx]`)**: Replaced the global `catalogSearch` state with a line-specific map (`lineSearch[idx]`). Searching in one line no longer affects other lines.
+  - **Atomic Variant Extraction**: `selectCatalogItem` now extracts unique colors, unique sizes, and unit price directly from the selected catalog item's `variants` array and sets them immediately on the line item.
+  - **Intuitive Dropdown Results**: Dropdown displays matching items with Category and Price (`Rs. X`), plus a dedicated `+ Add as manual / custom product: "Name"` option for custom products not in the catalog.
+  - **Line Items Validation**: Updated `submit()` to cleanly validate `String(li.productName).trim() || li.catalogItemId` and deliver clear, actionable validation toasts.
+- **Verification**:
+  - Verification suite `verify-print-preview-system.cjs`: 33/33 tests passed (100%).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly (`AsmPage-C2gLAeAH.js.br`).
+
+### Implemented Prior Session — ASM Profile: New Vendor Creation & Dynamic Dropdown Population (deployed & live-verified)
 - **Problem & Root Causes**:
   1. **Scoping Bug Causing Runtime Crash**: `DocumentPreviewEditor` had been placed inside `CreateOrderModal` at the bottom of `AsmPage.jsx`, attempting to access `previewDocState`, `setPreviewDocState`, `refresh`, `selectedOrder`, and `viewDetail` from inside `CreateOrderModal`. This threw a runtime `ReferenceError: previewDocState is not defined` whenever `CreateOrderModal` mounted, crashing or breaking the modal.
   2. **Cache Staleness & Dropdown Invalidation**: `useCache('asm:vendors')` had a 10-minute TTL and did not export its `refresh` function. When a vendor was created in `VendorFormModal`, `AsmPage`'s vendors cache was not invalidated, and closing/reopening the modal showed stale options without the new vendor.
