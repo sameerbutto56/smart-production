@@ -15,6 +15,18 @@ const {
   buyItself,
   getStoreAllocationOrders,
   storeAllocate,
+  storeCheckAvailability,
+  allProductsAvailable,
+  storeRoute,
+  getLogoQueue,
+  logoAccept,
+  logoComplete,
+  getProductionQueue,
+  productionAccept,
+  productionOut,
+  getProductionReturns,
+  receiveProductionReturn,
+  returnToAsm,
   rejectVendorOrder,
   markProductionReady,
   giveStock,
@@ -58,16 +70,34 @@ router.put('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), updateVend
 router.get('/payments', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'ASM']), listPayments);
 router.put('/payments/:paymentId', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), updatePayment);
 
-// ── ORDERS & STORE ALLOCATION ──────────────────────────────────────────────
-// NOTE: /orders/store-allocation MUST be declared before /orders/:id
+// ── ORDERS & STATIC QUEUES (declared BEFORE /orders/:id) ───────────────────
 router.get('/orders/store-allocation', authenticate, authorize(['STORE', 'ASM', 'SUPER_ADMIN', 'ADMIN']), getStoreAllocationOrders);
+router.get('/orders/logo-queue', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'ASM', 'LOGO']), getLogoQueue);
+router.get('/orders/production-queue', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'ASM', 'PRODUCTION']), getProductionQueue);
+router.get('/orders/production-returns', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), getProductionReturns);
+
 router.get('/orders', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'STORE']), listVendorOrders);
 router.post('/orders', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), createVendorOrder);
 router.get('/orders/:id', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'STORE']), getVendorOrder);
 
 // ── ORDER WORKFLOW ──────────────────────────────────────────────────────────
-// Store actions
+// Store availability, routing & allocation actions
 router.post('/orders/:id/store-allocate', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), storeAllocate);
+router.post('/orders/:id/store-check-availability', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), storeCheckAvailability);
+router.post('/orders/:id/all-products-available', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), allProductsAvailable);
+router.post('/orders/:id/store-route', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), storeRoute);
+
+// Logo department actions
+router.post('/orders/:id/logo-accept', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'LOGO']), logoAccept);
+router.post('/orders/:id/logo-complete', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'LOGO']), logoComplete);
+
+// Production department actions
+router.post('/orders/:id/production-accept', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'PRODUCTION']), productionAccept);
+router.post('/orders/:id/production-out', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'PRODUCTION']), productionOut);
+
+// Store receiving returned production stock & routing to ASM
+router.post('/orders/:id/receive-production-return', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), receiveProductionReturn);
+router.post('/orders/:id/return-to-asm', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN']), returnToAsm);
 
 // Admin actions
 router.post('/orders/:id/approve', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), approveVendorOrder);

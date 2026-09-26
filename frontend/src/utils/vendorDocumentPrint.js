@@ -607,3 +607,157 @@ export function printDeliverySheet(order) {
   const title = `Delivery Sheet — ${order.orderNumber || ''}`;
   printIframe(html, title, [], DELIVERY_SHEET_CSS);
 }
+
+// ── ASM Bulk Order Job Sheet (for Logo & Production routing) ─────────────
+const JOB_SHEET_CSS = `
+@page {
+  size: A4 portrait;
+  margin: 12mm 15mm 12mm 15mm;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 6px 8px; }
+`;
+
+export function buildVendorJobSheetHTML(order, targetDepartment = 'PRODUCTION', processingItems = []) {
+  const vendorName = order.vendor?.name || 'VENDOR';
+  const asmName = order.asm?.name || '—';
+  const storeName = order.storeName || 'Main Store / Warehouse';
+  const orderNumber = order.orderNumber || '—';
+  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const deptLabel = targetDepartment.toUpperCase();
+
+  const items = Array.isArray(processingItems) && processingItems.length > 0
+    ? processingItems
+    : (order.items || []).map(i => ({
+        ...i,
+        processingQuantity: i.quantity - (i.allocatedQuantity || 0) || i.quantity,
+      }));
+
+  let itemsRows = '';
+  let totalProcessingQty = 0;
+
+  items.forEach((it, idx) => {
+    const qty = it.processingQuantity !== undefined ? it.processingQuantity : (it.quantity || 1);
+    totalProcessingQty += qty;
+    const specs = [it.color, it.size, it.variant].filter(Boolean).join(' / ');
+    const customInfo = it.logoNotes || it.customization || it.notes || 'Standard manufacturing';
+
+    itemsRows += `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 6px 8px; text-align: center; border: 1px solid #cbd5e1; font-weight: 600; color: #64748b;">${String(idx + 1).padStart(2, '0')}</td>
+        <td style="padding: 6px 8px; border: 1px solid #cbd5e1;">
+          <div style="font-weight: 700; color: #0f172a; font-size: 10.5px;">${it.productName || 'Product'}</div>
+          ${specs ? `<div style="font-size: 9px; color: #475569;">Color/Size: <strong>${specs}</strong></div>` : ''}
+        </td>
+        <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; font-size: 12px; color: #0284c7;">
+          ${qty}
+        </td>
+        <td style="padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 9.5px; color: #334155;">
+          ${customInfo}
+        </td>
+      </tr>`;
+  });
+
+  return `
+  <div style="width: 100%;">
+    <!-- HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 12px;">
+      <div>
+        <div style="font-size: 18px; font-weight: 900; letter-spacing: 1px; color: #0f172a;">
+          ASM BULK ORDER — JOB SHEET
+        </div>
+        <div style="display: inline-block; background: #0f172a; color: #ffffff; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; margin-top: 4px;">
+          ROUTE: ${deptLabel}
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 12px; font-weight: 800; color: #0284c7;">${orderNumber}</div>
+        <div style="font-size: 9px; color: #64748b;">Date: <strong>${dateStr}</strong></div>
+      </div>
+    </div>
+
+    <!-- METADATA GRID -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 14px; font-size: 9.5px;">
+      <div>
+        <div style="margin-bottom: 3px;"><span style="color: #64748b;">Vendor:</span> <strong style="color: #0f172a;">${vendorName}</strong></div>
+        ${order.vendor?.phone ? `<div style="margin-bottom: 3px;"><span style="color: #64748b;">Phone:</span> ${order.vendor.phone}</div>` : ''}
+        ${order.deliveryCity ? `<div style="margin-bottom: 3px;"><span style="color: #64748b;">City:</span> ${order.deliveryCity}</div>` : ''}
+      </div>
+      <div>
+        <div style="margin-bottom: 3px;"><span style="color: #64748b;">Store Origin:</span> <strong>${storeName}</strong></div>
+        <div style="margin-bottom: 3px;"><span style="color: #64748b;">Assigned ASM:</span> <strong style="color: #0f172a;">${asmName}</strong></div>
+        ${order.notes ? `<div style="margin-bottom: 3px;"><span style="color: #64748b;">Order Notes:</span> ${order.notes}</div>` : ''}
+      </div>
+    </div>
+
+    <!-- ITEMS TABLE -->
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 14px;">
+      <thead>
+        <tr style="background: #1e293b; color: #ffffff;">
+          <th style="padding: 6px 8px; text-align: center; width: 40px; font-size: 9.5px; font-weight: 700; border: 1px solid #1e293b;">Sr.#</th>
+          <th style="padding: 6px 8px; text-align: left; font-size: 9.5px; font-weight: 700; border: 1px solid #1e293b;">Product & Specifications</th>
+          <th style="padding: 6px 8px; text-align: center; width: 80px; font-size: 9.5px; font-weight: 700; border: 1px solid #1e293b;">Processing Qty</th>
+          <th style="padding: 6px 8px; text-align: left; font-size: 9.5px; font-weight: 700; border: 1px solid #1e293b;">Customization / Logo / Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+        <tr style="background: #f1f5f9;">
+          <td colspan="2" style="padding: 6px 8px; border: 1px solid #cbd5e1; font-weight: 800; text-align: right; font-size: 10px;">TOTAL PROCESSING UNITS</td>
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: 900; font-size: 12px; color: #0284c7;">${totalProcessingQty}</td>
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1;"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- INSTRUCTIONS BOX -->
+    <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-bottom: 25px; background: #fff;">
+      <div style="font-weight: 800; text-transform: uppercase; font-size: 9px; color: #334155; margin-bottom: 4px;">Department Instructions</div>
+      <div style="font-size: 9px; color: #64748b; line-height: 1.5;">
+        1. Verify product specifications, sizing, and quantity before commencing work.<br/>
+        2. Follow designated logo and customization guidelines accurately.<br/>
+        3. Upon completion, advance to the next assigned pipeline stage and return finished goods to Store.
+      </div>
+    </div>
+
+    <!-- SIGNATURE BLOCKS -->
+    <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 9px;">
+      <div style="text-align: center; width: 30%;">
+        <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
+          <div style="font-weight: 800;">Prepared By (Store)</div>
+          <div style="color: #64748b; font-size: 8px;">Signature & Date</div>
+        </div>
+      </div>
+      <div style="text-align: center; width: 30%;">
+        <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
+          <div style="font-weight: 800;">Accepted By (${deptLabel})</div>
+          <div style="color: #64748b; font-size: 8px;">Signature & Date</div>
+        </div>
+      </div>
+      <div style="text-align: center; width: 30%;">
+        <div style="border-top: 1px solid #0f172a; padding-top: 4px; margin-top: 40px;">
+          <div style="font-weight: 800;">Completed By</div>
+          <div style="color: #64748b; font-size: 8px;">Signature & Date</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+export function printVendorJobSheet(order, targetDepartment = 'PRODUCTION', processingItems = []) {
+  const html = buildVendorJobSheetHTML(order, targetDepartment, processingItems);
+  const title = `Job Sheet — ${order.orderNumber || ''} — ${targetDepartment}`;
+  printIframe(html, title, [], JOB_SHEET_CSS);
+}

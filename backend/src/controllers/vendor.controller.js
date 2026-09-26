@@ -470,6 +470,8 @@ const getVendorOrder = async (req, res) => {
         statusHistory: { orderBy: { createdAt: 'asc' } },
         deliveries: true,
         allocations: true,
+        routingItems: true,
+        inventoryAudits: { orderBy: { createdAt: 'desc' } },
         asm: { select: { id: true, name: true, email: true } },
         documents: { orderBy: { generatedAt: 'asc' } },
       },
@@ -745,7 +747,23 @@ const getStoreAllocationOrders = async (req, res) => {
     if (status) {
       where.currentStage = status;
     } else {
-      where.currentStage = { in: ['SENT_TO_STORE', 'SENT_TO_ASM', 'GIVE_STOCK', 'ASM_ACCEPTED'] };
+      where.currentStage = {
+        in: [
+          'SENT_TO_STORE',
+          'SENT_TO_ASM',
+          'GIVE_STOCK',
+          'ASM_ACCEPTED',
+          'STORE_TO_LOGO',
+          'LOGO',
+          'LOGO_ACCEPTED',
+          'PRODUCTION_ACCEPTANCE',
+          'PRODUCTION',
+          'PRODUCTION_OUT',
+          'RETURN_FROM_PRODUCTION',
+          'STORE_RECEIVED',
+          'ASM_RECEIVED'
+        ]
+      };
     }
     if (search) {
       where.OR = [
@@ -762,6 +780,9 @@ const getStoreAllocationOrders = async (req, res) => {
         payments: { orderBy: { createdAt: 'asc' } },
         statusHistory: { orderBy: { createdAt: 'asc' } },
         asm: { select: { id: true, name: true, email: true } },
+        routingItems: true,
+        inventoryAudits: { orderBy: { createdAt: 'desc' } },
+        allocations: true,
       }
     });
 
@@ -823,8 +844,11 @@ const getStoreAllocationOrders = async (req, res) => {
         };
       }));
 
+      const canAllProductsAvailable = enrichedItems.length > 0 && enrichedItems.every(it => (it.availableWarehouseStock || 0) >= (it.quantity || 0));
+
       return {
         ...ord,
+        canAllProductsAvailable,
         items: enrichedItems
       };
     }));
@@ -834,6 +858,100 @@ const getStoreAllocationOrders = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch store allocation orders', error: error.message });
   }
 };
+
+// ── HELPER: Deduct Inventory Variant & Record Audit ─────────────────────────
+async function deductWarehouseInventory({ tx, item, deductQty, order, req, actionId }) {
+  if (deductQty <= 0) return { deducted: 0, prevStock: 0, newStock: 0 };
+  let inv = null;
+  if (item.catalogItemId) {
+    inv = await tx.inventoryItem.findUnique({ where: { id: item.catalogItemId } });
+  }
+  if (!inv && item.productName) {
+    inv = await tx.inventoryItem.findFirst({
+      where: { name: { equals: item.productName.trim(), mode: 'insensitive' } }
+    });
+  }
+  if (!inv) {
+    throw new Error(`Inventory item not found for product "${item.productName}"`);
+  }
+
+  let variants = typeof inv.variants === 'string'
+    ? JSON.parse(inv.variants)
+    : (Array.isArray(inv.variants) ? inv.variants : []);
+
+  let prevStock = 0;
+  let newStock = 0;
+
+  if (variants && variants.length > 0) {
+    const vIdx = variants.findIndex(vr =>
+      String(vr.color || '').trim().toLowerCase() === String(item.color || '').trim().toLowerCase() &&
+      String(vr.size || '').trim().toLowerCase() === String(item.size || '').trim().toLowerCase()
+    );
+
+    if (vIdx !== -1) {
+      prevStock = parseInt(variants[vIdx].stock, 10) || 0;
+      if (prevStock < deductQty) {
+        throw new Error(`Insufficient warehouse stock for ${inv.name} (${item.color || ''} / ${item.size || ''}). Available: ${prevStock}, Requested: ${deductQty}`);
+      }
+      newStock = prevStock - deductQty;
+      variants[vIdx] = { ...variants[vIdx], stock: newStock };
+      const newTotal = Math.max(0, variants.reduce((s, v) => s + (parseInt(v.stock, 10) || 0), 0));
+      await tx.inventoryItem.update({
+        where: { id: inv.id },
+        data: { stock: newTotal, variants }
+      });
+    } else {
+      prevStock = parseInt(inv.stock, 10) || 0;
+      if (prevStock < deductQty) {
+        throw new Error(`Insufficient warehouse stock for ${inv.name}. Available: ${prevStock}, Requested: ${deductQty}`);
+      }
+      newStock = prevStock - deductQty;
+      await tx.inventoryItem.update({
+        where: { id: inv.id },
+        data: { stock: { decrement: deductQty } }
+      });
+    }
+  } else {
+    prevStock = parseInt(inv.stock, 10) || 0;
+    if (prevStock < deductQty) {
+      throw new Error(`Insufficient warehouse stock for ${inv.name}. Available: ${prevStock}, Requested: ${deductQty}`);
+    }
+    newStock = prevStock - deductQty;
+    await tx.inventoryItem.update({
+      where: { id: inv.id },
+      data: { stock: { decrement: deductQty } }
+    });
+  }
+
+  // Create authoritative VendorOrderInventoryAudit record (Requirement 12)
+  await tx.vendorOrderInventoryAudit.create({
+    data: {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      orderItemId: item.id,
+      vendorId: order.vendorId || null,
+      vendorName: order.vendor?.name || null,
+      asmId: order.asmId || null,
+      asmName: order.asm?.name || null,
+      inventoryItemId: inv.id,
+      productName: item.productName,
+      color: item.color || null,
+      size: item.size || null,
+      requiredQuantity: item.quantity,
+      availableQuantity: deductQty,
+      allocatedQuantity: deductQty,
+      remainingQuantity: Math.max(0, item.quantity - deductQty),
+      previousInventory: prevStock,
+      newInventory: newStock,
+      storeUser: req.user?.name || 'Main Store',
+      storeUserId: req.user?.id || null,
+      source: 'ASM Store Allocation',
+      actionId: actionId || 'STORE_ALLOCATION',
+    }
+  });
+
+  return { deducted: deductQty, prevStock, newStock };
+}
 
 // POST /api/vendors/orders/:id/store-allocate — Store allocates warehouse inventory and sends/marks to ASM
 const storeAllocate = async (req, res) => {
@@ -877,65 +995,14 @@ const storeAllocate = async (req, res) => {
 
         // Deduct inventory only if allocQty > 0
         if (allocQty > 0) {
-          // Find matching InventoryItem
-          let inv = null;
-          if (item.catalogItemId) {
-            inv = await tx.inventoryItem.findUnique({ where: { id: item.catalogItemId } });
-          }
-          if (!inv && item.productName) {
-            inv = await tx.inventoryItem.findFirst({
-              where: { name: { equals: item.productName.trim(), mode: 'insensitive' } }
-            });
-          }
-
-          if (inv) {
-            let variants = typeof inv.variants === 'string'
-              ? JSON.parse(inv.variants)
-              : (Array.isArray(inv.variants) ? inv.variants : []);
-
-            if (variants && variants.length > 0) {
-              const vIdx = variants.findIndex(vr =>
-                String(vr.color || '').trim().toLowerCase() === String(item.color || '').trim().toLowerCase() &&
-                String(vr.size || '').trim().toLowerCase() === String(item.size || '').trim().toLowerCase()
-              );
-
-              if (vIdx !== -1) {
-                const currentVStock = parseInt(variants[vIdx].stock, 10) || 0;
-                if (currentVStock < allocQty) {
-                  throw new Error(`Insufficient warehouse stock for ${inv.name} (${item.color || ''} / ${item.size || ''}). Available: ${currentVStock}, Allocated: ${allocQty}`);
-                }
-                variants[vIdx] = {
-                  ...variants[vIdx],
-                  stock: currentVStock - allocQty
-                };
-                const newTotal = Math.max(0, variants.reduce((s, v) => s + (parseInt(v.stock, 10) || 0), 0));
-                await tx.inventoryItem.update({
-                  where: { id: inv.id },
-                  data: {
-                    stock: newTotal,
-                    variants: variants
-                  }
-                });
-              } else {
-                // Fallback to parent stock
-                if (inv.stock < allocQty) {
-                  throw new Error(`Insufficient warehouse stock for ${inv.name}. Available: ${inv.stock}, Allocated: ${allocQty}`);
-                }
-                await tx.inventoryItem.update({
-                  where: { id: inv.id },
-                  data: { stock: { decrement: allocQty } }
-                });
-              }
-            } else {
-              if (inv.stock < allocQty) {
-                throw new Error(`Insufficient warehouse stock for ${inv.name}. Available: ${inv.stock}, Allocated: ${allocQty}`);
-              }
-              await tx.inventoryItem.update({
-                where: { id: inv.id },
-                data: { stock: { decrement: allocQty } }
-              });
-            }
-          }
+          await deductWarehouseInventory({
+            tx,
+            item,
+            deductQty: allocQty,
+            order,
+            req,
+            actionId: 'STORE_ALLOCATION',
+          });
         }
 
         // Update allocatedQuantity on VendorOrderItem
@@ -943,6 +1010,47 @@ const storeAllocate = async (req, res) => {
           where: { id: item.id },
           data: { allocatedQuantity: allocQty }
         });
+
+        // Upsert Routing Item
+        const existingRouting = await tx.vendorOrderRoutingItem.findFirst({
+          where: { orderId: id, orderItemId: item.id }
+        });
+        const checkStatus = allocQty === item.quantity ? 'FULLY_AVAILABLE' : (allocQty > 0 ? 'PARTIALLY_AVAILABLE' : 'NOT_AVAILABLE');
+        if (existingRouting) {
+          await tx.vendorOrderRoutingItem.update({
+            where: { id: existingRouting.id },
+            data: {
+              storeAvailableQuantity: allocQty,
+              remainingQuantity: Math.max(0, item.quantity - allocQty),
+              storeCheckStatus: checkStatus,
+              storeCheckedAt: now,
+              storeCheckedByName: req.user?.name || 'Main Store',
+              availableRoute: 'ASM',
+              availableAllocatedQty: allocQty,
+              availableSentToAsmAt: now,
+            }
+          });
+        } else {
+          await tx.vendorOrderRoutingItem.create({
+            data: {
+              orderId: id,
+              orderItemId: item.id,
+              catalogItemId: item.catalogItemId || null,
+              productName: item.productName,
+              color: item.color || null,
+              size: item.size || null,
+              requiredQuantity: item.quantity,
+              storeAvailableQuantity: allocQty,
+              remainingQuantity: Math.max(0, item.quantity - allocQty),
+              storeCheckStatus: checkStatus,
+              storeCheckedAt: now,
+              storeCheckedByName: req.user?.name || 'Main Store',
+              availableRoute: 'ASM',
+              availableAllocatedQty: allocQty,
+              availableSentToAsmAt: now,
+            }
+          });
+        }
 
         // Create authoritative VendorOrderAllocation record
         await tx.vendorOrderAllocation.create({
@@ -990,6 +1098,8 @@ const storeAllocate = async (req, res) => {
           asm: { select: { id: true, name: true, email: true } },
           payments: true,
           allocations: true,
+          routingItems: true,
+          inventoryAudits: { orderBy: { createdAt: 'desc' } },
         }
       });
 
@@ -1029,16 +1139,927 @@ const storeAllocate = async (req, res) => {
   }
 };
 
+// POST /api/vendors/orders/:id/store-check-availability — Item-by-item availability confirmation & deduction
+const storeCheckAvailability = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items: checkedItems } = req.body || {}; // [{ itemId, availableQuantity }]
+
+    if (!Array.isArray(checkedItems) || checkedItems.length === 0) {
+      return res.status(400).json({ message: 'Items array is required for availability check.' });
+    }
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { items: true, vendor: true, asm: true, routingItems: true }
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      let totalDeducted = 0;
+
+      for (const chk of checkedItems) {
+        const item = order.items.find(it => it.id === chk.itemId);
+        if (!item) continue;
+
+        const availQty = parseInt(chk.availableQuantity, 10) || 0;
+        if (availQty < 0 || availQty > item.quantity) {
+          throw new Error(`Invalid available quantity (${availQty}) for ${item.productName}`);
+        }
+
+        const existingRouting = order.routingItems?.find(r => r.orderItemId === item.id);
+        const alreadyAllocated = existingRouting ? existingRouting.storeAvailableQuantity : (item.allocatedQuantity || 0);
+
+        // Deduct the net new available quantity if greater than already allocated
+        const netDeduct = Math.max(0, availQty - alreadyAllocated);
+        if (netDeduct > 0) {
+          await deductWarehouseInventory({
+            tx,
+            item,
+            deductQty: netDeduct,
+            order,
+            req,
+            actionId: 'STORE_CHECK_AVAILABILITY',
+          });
+          totalDeducted += netDeduct;
+        }
+
+        // Update allocatedQuantity on line item
+        await tx.vendorOrderItem.update({
+          where: { id: item.id },
+          data: { allocatedQuantity: availQty }
+        });
+
+        // Upsert routing item
+        const remQty = Math.max(0, item.quantity - availQty);
+        const checkStatus = availQty === item.quantity ? 'FULLY_AVAILABLE' : (availQty > 0 ? 'PARTIALLY_AVAILABLE' : 'NOT_AVAILABLE');
+
+        if (existingRouting) {
+          await tx.vendorOrderRoutingItem.update({
+            where: { id: existingRouting.id },
+            data: {
+              storeAvailableQuantity: availQty,
+              remainingQuantity: remQty,
+              storeCheckStatus: checkStatus,
+              storeCheckedAt: now,
+              storeCheckedByName: req.user?.name || 'Main Store',
+            }
+          });
+        } else {
+          await tx.vendorOrderRoutingItem.create({
+            data: {
+              orderId: id,
+              orderItemId: item.id,
+              catalogItemId: item.catalogItemId || null,
+              productName: item.productName,
+              color: item.color || null,
+              size: item.size || null,
+              requiredQuantity: item.quantity,
+              storeAvailableQuantity: availQty,
+              remainingQuantity: remQty,
+              storeCheckStatus: checkStatus,
+              storeCheckedAt: now,
+              storeCheckedByName: req.user?.name || 'Main Store',
+            }
+          });
+        }
+      }
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: order.currentStage,
+          fromStage: order.currentStage,
+          toStage: order.currentStage,
+          changedBy: req.user?.name || 'Main Store',
+          changedById: req.user?.id || null,
+          remarks: `Store confirmed availability check. Deducted ${totalDeducted} units from warehouse inventory.`,
+        }
+      });
+
+      return await tx.vendorOrder.findUnique({
+        where: { id },
+        include: {
+          vendor: true,
+          items: true,
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          asm: { select: { id: true, name: true, email: true } },
+          routingItems: true,
+          inventoryAudits: { orderBy: { createdAt: 'desc' } },
+          allocations: true,
+        }
+      });
+    }, { timeout: 30000 });
+
+    res.json({ order: updated, message: 'Store availability confirmed and inventory deducted.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Failed to check store availability', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/all-products-available — Single click action when all items are available
+const allProductsAvailable = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { items: true, vendor: true, asm: true, routingItems: true }
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    // Validate that all items can be fulfilled from warehouse
+    for (const item of order.items) {
+      let inv = null;
+      if (item.catalogItemId) {
+        inv = await prisma.inventoryItem.findUnique({ where: { id: item.catalogItemId } });
+      }
+      if (!inv && item.productName) {
+        inv = await prisma.inventoryItem.findFirst({
+          where: { name: { equals: item.productName.trim(), mode: 'insensitive' } }
+        });
+      }
+      if (!inv) {
+        return res.status(400).json({ message: `Inventory item not found for product "${item.productName}".` });
+      }
+
+      let stock = 0;
+      let variants = typeof inv.variants === 'string'
+        ? JSON.parse(inv.variants)
+        : (Array.isArray(inv.variants) ? inv.variants : []);
+
+      if (variants && variants.length > 0) {
+        const v = variants.find(vr =>
+          String(vr.color || '').trim().toLowerCase() === String(item.color || '').trim().toLowerCase() &&
+          String(vr.size || '').trim().toLowerCase() === String(item.size || '').trim().toLowerCase()
+        );
+        stock = v ? (parseInt(v.stock, 10) || 0) : (parseInt(inv.stock, 10) || 0);
+      } else {
+        stock = parseInt(inv.stock, 10) || 0;
+      }
+
+      const existingRouting = order.routingItems?.find(r => r.orderItemId === item.id);
+      const alreadyAllocated = existingRouting ? existingRouting.storeAvailableQuantity : (item.allocatedQuantity || 0);
+      const needed = Math.max(0, item.quantity - alreadyAllocated);
+
+      if (stock < needed) {
+        return res.status(400).json({
+          message: `Cannot mark all available: insufficient warehouse stock for "${item.productName}" (${item.color || ''} / ${item.size || ''}). Required: ${item.quantity}, Available: ${stock}.`
+        });
+      }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      let totalUnits = 0;
+
+      for (const item of order.items) {
+        const existingRouting = order.routingItems?.find(r => r.orderItemId === item.id);
+        const alreadyAllocated = existingRouting ? existingRouting.storeAvailableQuantity : (item.allocatedQuantity || 0);
+        const needed = Math.max(0, item.quantity - alreadyAllocated);
+
+        if (needed > 0) {
+          await deductWarehouseInventory({
+            tx,
+            item,
+            deductQty: needed,
+            order,
+            req,
+            actionId: 'ALL_PRODUCTS_AVAILABLE',
+          });
+        }
+
+        // Update allocatedQuantity on line item to 100%
+        await tx.vendorOrderItem.update({
+          where: { id: item.id },
+          data: { allocatedQuantity: item.quantity }
+        });
+
+        // Upsert routing item to ALL_AVAILABLE
+        if (existingRouting) {
+          await tx.vendorOrderRoutingItem.update({
+            where: { id: existingRouting.id },
+            data: {
+              storeAvailableQuantity: item.quantity,
+              remainingQuantity: 0,
+              storeCheckStatus: 'ALL_AVAILABLE',
+              storeCheckedAt: now,
+              storeCheckedByName: req.user?.name || 'Main Store',
+            }
+          });
+        } else {
+          await tx.vendorOrderRoutingItem.create({
+            data: {
+              orderId: id,
+              orderItemId: item.id,
+              catalogItemId: item.catalogItemId || null,
+              productName: item.productName,
+              color: item.color || null,
+              size: item.size || null,
+              requiredQuantity: item.quantity,
+              storeAvailableQuantity: item.quantity,
+              remainingQuantity: 0,
+              storeCheckStatus: 'ALL_AVAILABLE',
+              storeCheckedAt: now,
+              storeCheckedByName: req.user?.name || 'Main Store',
+            }
+          });
+        }
+
+        totalUnits += item.quantity;
+      }
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: order.currentStage,
+          fromStage: order.currentStage,
+          toStage: order.currentStage,
+          changedBy: req.user?.name || 'Main Store',
+          changedById: req.user?.id || null,
+          remarks: `Store confirmed ALL PRODUCTS AVAILABLE. Verified and allocated ${totalUnits} units across all items.`,
+        }
+      });
+
+      return await tx.vendorOrder.findUnique({
+        where: { id },
+        include: {
+          vendor: true,
+          items: true,
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          asm: { select: { id: true, name: true, email: true } },
+          routingItems: true,
+          inventoryAudits: { orderBy: { createdAt: 'desc' } },
+          allocations: true,
+        }
+      });
+    }, { timeout: 30000 });
+
+    res.json({ order: updated, message: 'All products marked available and warehouse inventory deducted.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Failed to execute all products available', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/store-route — Store routes available items to ASM, or processing items to LOGO / PRODUCTION
+const storeRoute = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { routes } = req.body || {};
+    // routes: [{ itemId, availableRoute: 'ASM', processingRoute: 'LOGO'|'PRODUCTION', processingQuantity, logoNotes, productionNotes }]
+
+    if (!Array.isArray(routes) || routes.length === 0) {
+      return res.status(400).json({ message: 'Routes array is required.' });
+    }
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { items: true, vendor: true, asm: true, routingItems: true }
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      let hasLogo = false;
+      let hasProd = false;
+      let hasAsm = false;
+
+      for (const r of routes) {
+        const item = order.items.find(it => it.id === r.itemId);
+        if (!item) continue;
+
+        let routing = await tx.vendorOrderRoutingItem.findFirst({
+          where: { orderId: id, orderItemId: item.id }
+        });
+
+        if (!routing) {
+          routing = await tx.vendorOrderRoutingItem.create({
+            data: {
+              orderId: id,
+              orderItemId: item.id,
+              catalogItemId: item.catalogItemId || null,
+              productName: item.productName,
+              color: item.color || null,
+              size: item.size || null,
+              requiredQuantity: item.quantity,
+              storeAvailableQuantity: item.allocatedQuantity || 0,
+              remainingQuantity: Math.max(0, item.quantity - (item.allocatedQuantity || 0)),
+              storeCheckStatus: 'CHECKED',
+            }
+          });
+        }
+
+        const updateData = {};
+
+        // Available Route handling (to ASM)
+        if (r.availableRoute === 'ASM' && routing.storeAvailableQuantity > 0) {
+          hasAsm = true;
+          updateData.availableRoute = 'ASM';
+          updateData.availableAllocatedQty = routing.storeAvailableQuantity;
+          updateData.availableSentToAsmAt = now;
+
+          // Upsert authoritative VendorOrderAllocation record
+          const existingAlloc = await tx.vendorOrderAllocation.findFirst({
+            where: { orderId: id, orderItemId: item.id }
+          });
+          if (existingAlloc) {
+            await tx.vendorOrderAllocation.update({
+              where: { id: existingAlloc.id },
+              data: {
+                allocatedQuantity: routing.storeAvailableQuantity,
+                remainingQuantity: Math.max(0, item.quantity - routing.storeAvailableQuantity),
+                handoverStatus: 'SENT_TO_ASM',
+                sentAt: now,
+                sentBy: req.user?.name || 'Main Store',
+              }
+            });
+          } else {
+            await tx.vendorOrderAllocation.create({
+              data: {
+                allocationNumber: `ALC-${order.orderNumber}-${item.id.slice(0, 6)}`,
+                orderId: id,
+                orderItemId: item.id,
+                vendorId: order.vendorId,
+                asmId: order.asmId,
+                storeName: 'Main Store / Warehouse',
+                catalogItemId: item.catalogItemId || null,
+                productName: item.productName,
+                color: item.color || null,
+                size: item.size || null,
+                requestedQuantity: item.quantity,
+                allocatedQuantity: routing.storeAvailableQuantity,
+                remainingQuantity: Math.max(0, item.quantity - routing.storeAvailableQuantity),
+                sentBy: req.user?.name || 'Main Store',
+                sentById: req.user?.id || null,
+                sentAt: now,
+                handoverStatus: 'SENT_TO_ASM',
+              }
+            });
+          }
+        }
+
+        // Processing Route handling (LOGO or PRODUCTION)
+        if (r.processingRoute === 'LOGO') {
+          hasLogo = true;
+          const procQty = parseInt(r.processingQuantity, 10) || routing.remainingQuantity || item.quantity;
+          const jsNum = `JS-LOGO-${order.orderNumber}-${item.id.slice(0, 6).toUpperCase()}`;
+          updateData.processingRoute = 'LOGO';
+          updateData.processingQuantity = procQty;
+          updateData.currentProcessingStage = 'STORE_TO_LOGO';
+          updateData.logoNotes = r.logoNotes || null;
+          updateData.jobSheetNumber = jsNum;
+          updateData.sentToLogoAt = now;
+        } else if (r.processingRoute === 'PRODUCTION') {
+          hasProd = true;
+          const procQty = parseInt(r.processingQuantity, 10) || routing.remainingQuantity || item.quantity;
+          const jsNum = `JS-PROD-${order.orderNumber}-${item.id.slice(0, 6).toUpperCase()}`;
+          updateData.processingRoute = 'PRODUCTION';
+          updateData.processingQuantity = procQty;
+          updateData.currentProcessingStage = 'PRODUCTION_ACCEPTANCE';
+          updateData.productionNotes = r.productionNotes || null;
+          updateData.jobSheetNumber = jsNum;
+          updateData.sentToProductionAt = now;
+        }
+
+        await tx.vendorOrderRoutingItem.update({
+          where: { id: routing.id },
+          data: updateData,
+        });
+      }
+
+      // Determine order-level stage progression
+      let newStage = order.currentStage;
+      if (hasLogo) {
+        newStage = 'LOGO';
+      } else if (hasProd) {
+        newStage = 'PRODUCTION';
+      } else if (hasAsm) {
+        newStage = 'SENT_TO_ASM';
+      }
+
+      const ord = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          currentStage: newStage,
+          status: newStage,
+          storeName: 'Main Store / Warehouse',
+          giveStockAt: hasAsm ? now : order.giveStockAt,
+          stockGivenByName: hasAsm ? (req.user?.name || 'Main Store') : order.stockGivenByName,
+          updatedAt: now,
+        },
+        include: {
+          vendor: true,
+          items: true,
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          asm: { select: { id: true, name: true, email: true } },
+          routingItems: true,
+          inventoryAudits: { orderBy: { createdAt: 'desc' } },
+          allocations: true,
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: newStage,
+          fromStage: order.currentStage,
+          toStage: newStage,
+          changedBy: req.user?.name || 'Main Store',
+          changedById: req.user?.id || null,
+          remarks: `Store routed items: ${hasLogo ? 'LOGO ' : ''}${hasProd ? 'PRODUCTION ' : ''}${hasAsm ? 'ASM ' : ''}`.trim(),
+        }
+      });
+
+      return ord;
+    }, { timeout: 30000 });
+
+    res.json({ order: updated, message: 'Items routed successfully.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Failed to route items', error: error.message });
+  }
+};
+
+// ── LOGO DEPARTMENT QUEUE & ACTIONS ─────────────────────────────────────────
+
+// GET /api/vendors/orders/logo-queue
+const getLogoQueue = async (req, res) => {
+  try {
+    const items = await prisma.vendorOrderRoutingItem.findMany({
+      where: {
+        processingRoute: 'LOGO',
+        currentProcessingStage: { in: ['STORE_TO_LOGO', 'LOGO', 'LOGO_ACCEPTED'] },
+      },
+      include: {
+        order: {
+          include: {
+            vendor: true,
+            asm: { select: { id: true, name: true, email: true } },
+            items: true,
+          }
+        },
+        orderItem: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ items });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch logo queue', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/logo-accept — Logo team accepts work
+const logoAccept = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date();
+
+    const order = await prisma.vendorOrder.findUnique({ where: { id } });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.vendorOrderRoutingItem.updateMany({
+        where: {
+          orderId: id,
+          processingRoute: 'LOGO',
+          currentProcessingStage: { in: ['STORE_TO_LOGO', 'LOGO'] },
+        },
+        data: {
+          currentProcessingStage: 'LOGO_ACCEPTED',
+          logoAcceptedAt: now,
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'LOGO_ACCEPTED',
+          fromStage: order.currentStage,
+          toStage: 'LOGO_ACCEPTED',
+          changedBy: req.user?.name || 'Logo Dept',
+          changedById: req.user?.id || null,
+          remarks: 'Logo department accepted order for printing/embroidery',
+        }
+      });
+    });
+
+    res.json({ message: 'Logo department accepted work.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to accept logo work', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/logo-complete — Logo team finishes work, forwards to Production
+const logoComplete = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date();
+
+    const order = await prisma.vendorOrder.findUnique({ where: { id } });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.vendorOrderRoutingItem.updateMany({
+        where: {
+          orderId: id,
+          processingRoute: 'LOGO',
+          currentProcessingStage: { in: ['STORE_TO_LOGO', 'LOGO', 'LOGO_ACCEPTED'] },
+        },
+        data: {
+          currentProcessingStage: 'PRODUCTION_ACCEPTANCE',
+          logoCompletedAt: now,
+          sentToProductionAt: now,
+        }
+      });
+
+      const ord = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          currentStage: 'PRODUCTION',
+          status: 'PRODUCTION',
+          updatedAt: now,
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'PRODUCTION_ACCEPTANCE',
+          fromStage: order.currentStage,
+          toStage: 'PRODUCTION',
+          changedBy: req.user?.name || 'Logo Dept',
+          changedById: req.user?.id || null,
+          remarks: 'Logo completed. Forwarded to Production Acceptance.',
+        }
+      });
+
+      return ord;
+    });
+
+    res.json({ order: updated, message: 'Logo complete. Order forwarded to Production.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to complete logo work', error: error.message });
+  }
+};
+
+// ── PRODUCTION DEPARTMENT QUEUE & ACTIONS ───────────────────────────────────
+
+// GET /api/vendors/orders/production-queue
+const getProductionQueue = async (req, res) => {
+  try {
+    const items = await prisma.vendorOrderRoutingItem.findMany({
+      where: {
+        currentProcessingStage: { in: ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
+      },
+      include: {
+        order: {
+          include: {
+            vendor: true,
+            asm: { select: { id: true, name: true, email: true } },
+            items: true,
+          }
+        },
+        orderItem: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ items });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch production queue', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/production-accept — Production accepts work
+const productionAccept = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date();
+
+    const order = await prisma.vendorOrder.findUnique({ where: { id } });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.vendorOrderRoutingItem.updateMany({
+        where: {
+          orderId: id,
+          currentProcessingStage: 'PRODUCTION_ACCEPTANCE',
+        },
+        data: {
+          currentProcessingStage: 'PRODUCTION',
+          productionAcceptedAt: now,
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'PRODUCTION',
+          fromStage: order.currentStage,
+          toStage: 'PRODUCTION',
+          changedBy: req.user?.name || 'Production',
+          changedById: req.user?.id || null,
+          remarks: 'Production accepted order manufacturing',
+        }
+      });
+    });
+
+    res.json({ message: 'Production department accepted order.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to accept production work', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/production-out — Production finishes work and returns to Store
+const productionOut = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date();
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { routingItems: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      for (const r of order.routingItems) {
+        if (['PRODUCTION', 'PRODUCTION_ACCEPTANCE'].includes(r.currentProcessingStage)) {
+          await tx.vendorOrderRoutingItem.update({
+            where: { id: r.id },
+            data: {
+              currentProcessingStage: 'RETURN_FROM_PRODUCTION',
+              productionOutAt: now,
+              returnedFromProductionAt: now,
+              productionOutQuantity: r.processingQuantity,
+            }
+          });
+        }
+      }
+
+      const ord = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          currentStage: 'RETURN_FROM_PRODUCTION',
+          status: 'RETURN_FROM_PRODUCTION',
+          updatedAt: now,
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'RETURN_FROM_PRODUCTION',
+          fromStage: order.currentStage,
+          toStage: 'RETURN_FROM_PRODUCTION',
+          changedBy: req.user?.name || 'Production',
+          changedById: req.user?.id || null,
+          remarks: 'Production completed. Returned to Store for receipt and ASM handover.',
+        }
+      });
+
+      return ord;
+    });
+
+    res.json({ order: updated, message: 'Production complete. Returned to Store.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to complete production out', error: error.message });
+  }
+};
+
+// ── STORE RETURN FROM PRODUCTION & SECONDARY ASM ROUTING ────────────────────
+
+// GET /api/vendors/orders/production-returns — Store inspects items returned from production
+const getProductionReturns = async (req, res) => {
+  try {
+    const items = await prisma.vendorOrderRoutingItem.findMany({
+      where: {
+        currentProcessingStage: { in: ['RETURN_FROM_PRODUCTION', 'STORE_RECEIVED'] },
+      },
+      include: {
+        order: {
+          include: {
+            vendor: true,
+            asm: { select: { id: true, name: true, email: true } },
+            items: true,
+          }
+        },
+        orderItem: true,
+      },
+      orderBy: { returnedFromProductionAt: 'desc' },
+    });
+    res.json({ items });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch production returns', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/receive-production-return — Store verifies and receives returned items
+// ZERO SECONDARY INVENTORY DEDUCTION!
+const receiveProductionReturn = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items: receivedList } = req.body || {}; // [{ routingItemId, receivedQuantity }]
+    const now = new Date();
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { routingItems: true, items: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      let totalReceived = 0;
+
+      for (const r of order.routingItems) {
+        if (r.currentProcessingStage === 'RETURN_FROM_PRODUCTION') {
+          const matchInput = Array.isArray(receivedList) ? receivedList.find(x => x.routingItemId === r.id) : null;
+          const recQty = matchInput ? (parseInt(matchInput.receivedQuantity, 10) || r.productionOutQuantity || r.processingQuantity) : (r.productionOutQuantity || r.processingQuantity);
+
+          await tx.vendorOrderRoutingItem.update({
+            where: { id: r.id },
+            data: {
+              currentProcessingStage: 'STORE_RECEIVED',
+              storeReceivedReturnAt: now,
+              storeReceivedReturnQty: recQty,
+              storeReceivedByName: req.user?.name || 'Main Store',
+            }
+          });
+          totalReceived += recQty;
+        }
+      }
+
+      const ord = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          currentStage: 'STORE_RECEIVED',
+          status: 'STORE_RECEIVED',
+          updatedAt: now,
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'STORE_RECEIVED',
+          fromStage: order.currentStage,
+          toStage: 'STORE_RECEIVED',
+          changedBy: req.user?.name || 'Main Store',
+          changedById: req.user?.id || null,
+          remarks: `Store verified and received ${totalReceived} units returned from Production. Zero inventory deducted.`,
+        }
+      });
+
+      return ord;
+    });
+
+    res.json({ order: updated, message: 'Returned stock received in store without secondary inventory deduction.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Failed to receive returned stock', error: error.message });
+  }
+};
+
+// POST /api/vendors/orders/:id/return-to-asm — Store sends returned production items to ASM
+const returnToAsm = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date();
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { routingItems: true, items: true, vendor: true, asm: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      let totalSent = 0;
+
+      for (const r of order.routingItems) {
+        if (['STORE_RECEIVED', 'RETURN_FROM_PRODUCTION'].includes(r.currentProcessingStage)) {
+          const handoverQty = r.storeReceivedReturnQty || r.productionOutQuantity || r.processingQuantity;
+
+          await tx.vendorOrderRoutingItem.update({
+            where: { id: r.id },
+            data: {
+              currentProcessingStage: 'SENT_TO_ASM',
+              returnSentToAsmAt: now,
+            }
+          });
+
+          // Create/update allocation record for ASM handover
+          const existingAlloc = await tx.vendorOrderAllocation.findFirst({
+            where: { orderId: id, orderItemId: r.orderItemId }
+          });
+
+          if (existingAlloc) {
+            await tx.vendorOrderAllocation.update({
+              where: { id: existingAlloc.id },
+              data: {
+                allocatedQuantity: (existingAlloc.allocatedQuantity || 0) + handoverQty,
+                handoverStatus: 'SENT_TO_ASM',
+                sentAt: now,
+                sentBy: req.user?.name || 'Main Store',
+              }
+            });
+          } else {
+            await tx.vendorOrderAllocation.create({
+              data: {
+                allocationNumber: `ALC-RET-${order.orderNumber}-${r.orderItemId.slice(0, 6)}`,
+                orderId: id,
+                orderItemId: r.orderItemId,
+                vendorId: order.vendorId,
+                asmId: order.asmId,
+                storeName: 'Main Store / Warehouse',
+                catalogItemId: r.catalogItemId || null,
+                productName: r.productName,
+                color: r.color || null,
+                size: r.size || null,
+                requestedQuantity: r.requiredQuantity,
+                allocatedQuantity: handoverQty,
+                remainingQuantity: 0,
+                sentBy: req.user?.name || 'Main Store',
+                sentById: req.user?.id || null,
+                sentAt: now,
+                handoverStatus: 'SENT_TO_ASM',
+              }
+            });
+          }
+
+          totalSent += handoverQty;
+        }
+      }
+
+      const ord = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          currentStage: 'SENT_TO_ASM',
+          status: 'SENT_TO_ASM',
+          giveStockAt: now,
+          stockGivenByName: req.user?.name || 'Main Store',
+          updatedAt: now,
+        },
+        include: {
+          vendor: true,
+          items: true,
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          asm: { select: { id: true, name: true, email: true } },
+          allocations: true,
+          routingItems: true,
+        }
+      });
+
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'SENT_TO_ASM',
+          fromStage: order.currentStage,
+          toStage: 'SENT_TO_ASM',
+          changedBy: req.user?.name || 'Main Store',
+          changedById: req.user?.id || null,
+          remarks: `Store marked ${totalSent} units of returned production items to ASM. Delivery Sheet ready.`,
+        }
+      });
+
+      return ord;
+    });
+
+    try {
+      await notify.create(req, {
+        type: 'vendor_order',
+        moduleName: 'ASM',
+        path: '/asm',
+        role: ['ASM', 'SUPER_ADMIN', 'ADMIN'],
+        title: 'Returned Stock Sent to ASM',
+        message: `Returned production stock for Bulk Order ${order.orderNumber} (${order.vendor?.name}) marked to ASM. Ready for Acceptance.`,
+        orderNumber: order.orderNumber,
+        customerName: order.vendor?.name,
+        action: 'NOTIFY',
+        employeeName: req.user?.name || null,
+      });
+    } catch (e) {}
+
+    res.json({ order: updated, message: 'Returned stock sent to ASM successfully. Delivery Sheet ready.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Failed to send returned stock to ASM', error: error.message });
+  }
+};
+
 // POST /api/vendors/orders/:id/accept — ASM accepts / receives stock
+// ZERO SECONDARY INVENTORY DEDUCTION!
 const asmAccept = async (req, res) => {
   try {
     const { id } = req.params;
     const now = new Date();
-    const order = await prisma.vendorOrder.findUnique({ where: { id } });
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { routingItems: true, allocations: true }
+    });
     if (!order) return res.status(404).json({ message: 'Order not found.' });
 
-    const validStages = ['GIVE_STOCK', 'SENT_TO_ASM'];
-    if (!validStages.includes(order.currentStage) && !validStages.includes(order.status)) {
+    const validStages = ['GIVE_STOCK', 'SENT_TO_ASM', 'STORE_RECEIVED', 'RETURN_FROM_PRODUCTION'];
+    if (!validStages.includes(order.currentStage) && !validStages.includes(order.status) && (order.allocations?.length === 0)) {
       return res.status(400).json({ message: `Cannot accept order in stage ${order.currentStage}` });
     }
 
@@ -1054,7 +2075,26 @@ const asmAccept = async (req, res) => {
         }
       });
 
-      // Update order to ASM_RECEIVED (and ASM_ACCEPTED for compatibility)
+      // Update routing items
+      for (const r of order.routingItems || []) {
+        const updateR = {};
+        if (r.availableRoute === 'ASM') {
+          updateR.availableAsmReceivedAt = now;
+        }
+        if (r.returnSentToAsmAt || r.currentProcessingStage === 'SENT_TO_ASM') {
+          updateR.returnAsmReceivedAt = now;
+          updateR.returnAsmReceivedQty = r.storeReceivedReturnQty || r.processingQuantity;
+          updateR.currentProcessingStage = 'ASM_RECEIVED';
+        }
+        if (Object.keys(updateR).length > 0) {
+          await tx.vendorOrderRoutingItem.update({
+            where: { id: r.id },
+            data: updateR,
+          });
+        }
+      }
+
+      // Update order to ASM_RECEIVED (and ASM_ACCEPTED for backward compatibility)
       const ord = await tx.vendorOrder.update({
         where: { id },
         data: {
@@ -1072,6 +2112,8 @@ const asmAccept = async (req, res) => {
           payments: { orderBy: { createdAt: 'asc' } },
           statusHistory: { orderBy: { createdAt: 'asc' } },
           allocations: true,
+          routingItems: true,
+          inventoryAudits: { orderBy: { createdAt: 'desc' } },
           asm: { select: { id: true, name: true, email: true } },
         }
       });
@@ -1085,16 +2127,16 @@ const asmAccept = async (req, res) => {
           toStage: 'ASM_RECEIVED',
           changedBy: req.user?.name || null,
           changedById: req.user?.id || null,
-          remarks: 'ASM received and accepted allocated stock',
+          remarks: 'ASM received and accepted stock. Zero secondary inventory deduction.',
         }
       });
 
       return ord;
     });
 
-    res.json({ order: updated, message: 'Stock received and accepted by ASM.' });
+    res.json({ order: updated, message: 'Stock received and accepted by ASM successfully.' });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to accept order', error: error.message });
+    res.status(500).json({ message: error.message || 'Failed to accept order', error: error.message });
   }
 };
 
@@ -1823,6 +2865,18 @@ module.exports = {
   buyItself,
   getStoreAllocationOrders,
   storeAllocate,
+  storeCheckAvailability,
+  allProductsAvailable,
+  storeRoute,
+  getLogoQueue,
+  logoAccept,
+  logoComplete,
+  getProductionQueue,
+  productionAccept,
+  productionOut,
+  getProductionReturns,
+  receiveProductionReturn,
+  returnToAsm,
   asmAccept,
   deliverOrder,
   completeOrder,

@@ -1,5 +1,62 @@
 ## Goals
-### Implemented This Session — ASM Complete Workflow: Store Handover, Delivery Sheet & Admin Payment Dashboard (deployed & live-verified)
+### Implemented This Session — ASM Order: Store Availability, Warehouse/Logo/Production Routing & Return-to-ASM Workflow (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Preserve ASM Portal & Vendor Workflow**: The ASM Vendor creation, Vendor selection, catalog item selection, line-item entry, and order creation/submission workflow remains 100% intact and functional.
+  2. **Admin Approval & Store Forwarding**: Admin approves the request (`AWAITED ADMIN` $\rightarrow$ `APPROVED`), then sends to Store (`SENT_TO_STORE`). Warehouse inventory is 100% untouched during order creation, submission, admin approval, and forwarding.
+  3. **Store Live Availability Verification & Single-Click "ALL PRODUCTS AVAILABLE"**:
+     - Store reviews requested items enriched with live warehouse stock (`Product + Color + Size`).
+     - **Partial Availability**: Store user can enter available quantities item by item. When confirmed (`POST /api/vendors/orders/:id/store-check-availability`), only the confirmed available quantity is deducted from the warehouse inventory variants, while the remaining quantity is marked for routing.
+     - **`⚡ ALL PRODUCTS AVAILABLE`**: If all items are in stock, Store executes a single-click action (`POST /api/vendors/orders/:id/all-products-available`). Atomically verifies stock, deducts 100% required quantities from warehouse variants, logs immutable audits, and sets `storeCheckStatus: 'ALL_AVAILABLE'`.
+  4. **Item/Quantity-Aware Store Routing Options**:
+     - Store routes items using modal (`POST /api/vendors/orders/:id/store-route`):
+       - **SEND TO ASM**: Available units move to `SENT_TO_ASM` and generate `VendorOrderAllocation` records. Delivery Sheet becomes printable.
+       - **SEND TO LOGO**: Processing units route to `LOGO` (`STORE_TO_LOGO` stage). Atomically creates Job Sheet (`JS-LOGO-...`).
+       - **SEND TO PRODUCTION**: Processing units route to `PRODUCTION` (`PRODUCTION_ACCEPTANCE` stage). Atomically creates Job Sheet (`JS-PROD-...`).
+  5. **Logo & Production Pipeline**:
+     - **Logo Department**: Views queue (`GET /api/vendors/orders/logo-queue`), clicks **Accept Logo** (`POST /api/vendors/orders/:id/logo-accept`), completes logo processing (`POST /api/vendors/orders/:id/logo-complete`) $\rightarrow$ automatically advances to `PRODUCTION_ACCEPTANCE` if production is required, or returns to Store.
+     - **Production Department**: Views queue (`GET /api/vendors/orders/production-queue`), clicks **Accept Production** (`POST /api/vendors/orders/:id/production-accept`), logs production completion with output quantity (`POST /api/vendors/orders/:id/production-out`) $\rightarrow$ transitions to `RETURN_FROM_PRODUCTION`.
+  6. **Return From Production & Store Receiving**:
+     - Store accesses **Return From Production** sub-tab in Store Profile (`GET /api/vendors/orders/production-returns`).
+     - Action: **`RECEIVE FROM PRODUCTION`** (`POST /api/vendors/orders/:id/receive-production-return`): Store verifies received quantity and confirms receipt. **ZERO secondary inventory deduction** (goods are produced items returning from manufacturing).
+     - Second Routing: Store marks returned items **`SEND TO ASM`** (`POST /api/vendors/orders/:id/return-to-asm`) with handover timestamp and printable Delivery Sheet.
+  7. **ASM Receiving**:
+     - ASM reviews final handover and clicks **`ACCEPT / RECEIVE STOCK`** (`POST /api/vendors/orders/:id/accept`), transitioning to `ASM_RECEIVED`. **ZERO secondary inventory deduction**!
+  8. **Zero Secondary Inventory Deduction & Comprehensive Inventory Audit**:
+     - Warehouse stock is deducted **strictly once** when Store confirms stock availability (`storeCheckAvailability`, `allProductsAvailable`, `storeAllocate`).
+     - Zero secondary deduction on Production Return receiving (`receiveProductionReturn`) or ASM receiving (`asmAccept`).
+     - Every inventory deduction records a complete `VendorOrderInventoryAudit` record (Requirement 12) with 16 fields (`orderNumber`, `orderItemId`, `vendorName`, `asmName`, `inventoryItemId`, `productName`, `color`, `size`, `requiredQuantity`, `availableQuantity`, `allocatedQuantity`, `remainingQuantity`, `previousInventory`, `newInventory`, `storeUser`, `actionId`).
+  9. **A4 Printable Documents**:
+     - **Job Sheet**: Standard 3-inch margins, Department (Logo or Production), Order #, Vendor, ASM, Item table (Product, Color, Size, Processing Qty, Notes), and 3 signature blocks (`Prepared By (Store)`, `Accepted By (Dept)`, `Completed By`).
+     - **Delivery Sheet**: Standard 3-inch margins, zero pricing, exact allocated quantities (`item.allocatedQuantity || 0`), 2 copies (`COPY 1 — STORE`, `COPY 2 — ASM`), 3 signature blocks.
+- **Backend Implementation (`schema.prisma`, `vendor.controller.js`, `vendor.routes.js`)**:
+  - `schema.prisma`:
+    - Added `model VendorOrderInventoryAudit` with full 16 audit fields, indexes, and relations.
+    - Added `model VendorOrderRoutingItem` tracking store check status, available/processing routes, job sheets, production out, and return receipts.
+    - Added relations on `VendorOrder`, `VendorOrderItem`, and synced via `npx prisma db push && npx prisma generate`.
+  - `vendor.controller.js`:
+    - `deductWarehouseInventory`: Reusable atomic helper deducting variant stock & inserting `VendorOrderInventoryAudit`.
+    - `storeCheckAvailability`: Partial availability check with atomic stock deduction and routing item initialization.
+    - `allProductsAvailable`: Single-click 100% availability check and variant stock deduction.
+    - `storeRoute`: Multi-destination item routing (ASM, LOGO, PRODUCTION) with job sheet generation (`JS-LOGO-...`, `JS-PROD-...`).
+    - `getLogoQueue`, `logoAccept`, `logoComplete`: Logo department workflow handlers.
+    - `getProductionQueue`, `productionAccept`, `productionOut`: Production department workflow handlers.
+    - `getProductionReturns`, `receiveProductionReturn`: Store return receiving with **zero secondary inventory deduction**.
+    - `returnToAsm`: Final Store handover of returned production goods to ASM.
+    - `asmAccept`: Updated to transition both allocations and routing items to `ASM_RECEIVED` with zero secondary deduction.
+  - `vendor.routes.js`: Registered all endpoints with static sub-routes declared BEFORE parameterized `/orders/:id` routes.
+- **Frontend Implementation (`AsmAllowedStorePage.jsx`, `AsmPage.jsx`, `vendorDocumentPrint.js`)**:
+  - `AsmAllowedStorePage.jsx`: Rebuilt Bulk Allocation tab with 3 sub-tabs:
+    1. `Store Availability Verification`: Live warehouse stock badges, single-click `⚡ ALL PRODUCTS AVAILABLE` button, item partial availability inputs, `Confirm Store Availability`, and `Route Order` action.
+    2. `Return From Production`: Table of orders returned from manufacturing, `RECEIVE FROM PRODUCTION` action, `SEND TO ASM` handover action, and `Print Delivery Sheet`.
+    3. `Active Processing Pipeline`: Overview of items in Logo, Production, or Store Received status with `Job Sheet (Logo)`, `Job Sheet (Production)`, and `Delivery Sheet` printing.
+    - Added interactive `Routing Modal` for assigning quantities to ASM, Logo, or Production with custom notes.
+  - `AsmPage.jsx`: Added status badges, stage labels, and filter tabs for `LOGO`, `PRODUCTION`, `PRODUCTION_ACCEPTANCE`, `RETURN_FROM_PRODUCTION`, `STORE_RECEIVED`. Added Job Sheet print triggers in drawer.
+  - `vendorDocumentPrint.js`: Implemented `buildVendorJobSheetHTML` and `printVendorJobSheet` with 3-inch margins, instructions, and 3 formal signature blocks.
+- **Verification & Deployment**:
+  - Automated test suite `backend/scripts/verify-asm-routing-workflow.cjs`: All 57/57 assertions passed (100% pass rate) covering: ASM bulk order creation $\rightarrow$ Admin approve $\rightarrow$ Send to Store $\rightarrow$ Zero inventory deduction pre-check $\rightarrow$ Partial availability deduction (2 deducted, 3 remaining) $\rightarrow$ Authoritative `VendorOrderInventoryAudit` record with 16 fields $\rightarrow$ Store route to LOGO $\rightarrow$ Logo queue & accept/complete $\rightarrow$ Production queue & accept/out $\rightarrow$ Store receives production return with **zero secondary deduction** $\rightarrow$ Store routes return to ASM $\rightarrow$ ASM receives stock with **zero secondary deduction** $\rightarrow$ Order delivered $\rightarrow$ Fresh order single-click `ALL PRODUCTS AVAILABLE` with 100% stock deduction (3 units) $\rightarrow$ Teardown.
+  - Production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+
+### Implemented Prior Session — ASM Complete Workflow: Store Handover, Delivery Sheet & Admin Payment Dashboard (deployed & live-verified)
 - **Problem & Requirements**:
   1. **Preserve ASM Portal & Vendor Workflow**: The ASM Vendor creation, Vendor selection, catalog item selection, line-item entry, and order creation/submission workflow remains 100% intact and functional.
   2. **Part A — Store Handover, Delivery Sheet & ASM Receiving**:

@@ -5,11 +5,12 @@ import { useAuth } from '../context/AuthContext';
 import {
   Package, ShoppingCart, Search, Plus, Trash2, CheckCircle2, RotateCcw,
   Printer, ArrowRight, X, AlertCircle, RefreshCw, FileText, Check, User,
-  Building2, ChevronRight, ChevronDown, Layers, LayoutGrid, List, Minus
+  Building2, ChevronRight, ChevronDown, Layers, LayoutGrid, List, Minus,
+  Sparkles, Factory, Palette, Truck, ShieldCheck, CheckCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
-import { printDeliverySheet } from '../utils/vendorDocumentPrint';
+import { printDeliverySheet, printVendorJobSheet } from '../utils/vendorDocumentPrint';
 
 // Status badge sub-component for ASM Handover Requests
 const StatusBadge = ({ status }) => {
@@ -88,10 +89,17 @@ const AsmAllowedStorePage = () => {
   // Print modal state
   const [printRequest, setPrintRequest] = useState(null);
 
-  // Bulk Allocation state
+  // Bulk Allocation & Routing state
   const [bulkOrders, setBulkOrders] = useState([]);
   const [bulkOrdersLoading, setBulkOrdersLoading] = useState(false);
   const [bulkAllocations, setBulkAllocations] = useState({});
+  const [bulkSubTab, setBulkSubTab] = useState('pending'); // 'pending' | 'pipeline' | 'returns'
+  const [productionReturns, setProductionReturns] = useState([]);
+  const [productionReturnsLoading, setProductionReturnsLoading] = useState(false);
+  const [routingModalOrder, setRoutingModalOrder] = useState(null);
+  const [routeConfig, setRouteConfig] = useState({});
+  const [routingNotes, setRoutingNotes] = useState({ logoNotes: '', prodNotes: '' });
+  const [actionInProgress, setActionInProgress] = useState(null);
 
   // Fetch warehouse catalog with product + color + size variants
   const fetchCatalog = useCallback(async () => {
@@ -153,12 +161,14 @@ const AsmAllowedStorePage = () => {
       
       const initialAllocs = {};
       orders.forEach(order => {
-        if (order.currentStage === 'SENT_TO_STORE') {
-          initialAllocs[order.id] = {};
-          order.items.forEach(item => {
-            initialAllocs[order.id][item.id] = Math.max(0, Math.min(item.quantity, item.availableWarehouseStock || 0));
-          });
-        }
+        initialAllocs[order.id] = {};
+        order.items?.forEach(item => {
+          const routing = order.routingItems?.find(r => r.orderItemId === item.id);
+          const currentStoreAvail = routing?.storeAvailableQuantity ?? item.allocatedQuantity;
+          initialAllocs[order.id][item.id] = (currentStoreAvail !== undefined && currentStoreAvail > 0)
+            ? currentStoreAvail
+            : Math.max(0, Math.min(item.quantity, item.availableWarehouseStock || 0));
+        });
       });
       setBulkAllocations(initialAllocs);
     } catch (err) {
@@ -167,12 +177,27 @@ const AsmAllowedStorePage = () => {
     setBulkOrdersLoading(false);
   }, []);
 
+  // Fetch Production Returns
+  const fetchProductionReturns = useCallback(async () => {
+    setProductionReturnsLoading(true);
+    try {
+      const res = await api.get('/api/vendors/orders/production-returns');
+      setProductionReturns(res.data?.items || []);
+    } catch (err) {
+      // Non-blocking
+    }
+    setProductionReturnsLoading(false);
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'new-handover') fetchCatalog();
     else if (activeTab === 'requests' || activeTab === 'history') fetchRequests();
     else if (activeTab === 'returns') fetchReturns();
-    else if (activeTab === 'bulk-allocation') fetchBulkOrders();
-  }, [activeTab, fetchCatalog, fetchRequests, fetchReturns, fetchBulkOrders]);
+    else if (activeTab === 'bulk-allocation') {
+      fetchBulkOrders();
+      fetchProductionReturns();
+    }
+  }, [activeTab, fetchCatalog, fetchRequests, fetchReturns, fetchBulkOrders, fetchProductionReturns]);
 
   // Categories list derived from loaded variants
   const categories = useMemo(() => {
@@ -306,13 +331,13 @@ const AsmAllowedStorePage = () => {
     setAcceptingReturnId(null);
   };
 
-  // Handle Bulk Allocation Submit
+  // Handle Bulk Allocation Submit (legacy & quick one-click)
   const handleBulkAllocate = async (orderId) => {
     const orderAllocs = bulkAllocations[orderId];
     if (!orderAllocs) return;
-    
+    setActionInProgress(orderId);
     const allocations = Object.entries(orderAllocs).map(([itemId, allocatedQuantity]) => ({
-      itemId: parseInt(itemId) || itemId,
+      itemId,
       allocatedQuantity: parseInt(allocatedQuantity) || 0
     }));
 
@@ -320,9 +345,116 @@ const AsmAllowedStorePage = () => {
       await api.post(`/api/vendors/orders/${orderId}/store-allocate`, { allocations });
       toast.success('Order allocated and sent to ASM!');
       fetchBulkOrders();
+      fetchProductionReturns();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to allocate order');
     }
+    setActionInProgress(null);
+  };
+
+  // 1-Click Action: All Products Available
+  const handleAllProductsAvailable = async (orderId) => {
+    setActionInProgress(orderId);
+    try {
+      const res = await api.post(`/api/vendors/orders/${orderId}/all-products-available`);
+      toast.success(res.data?.message || 'All products verified available and warehouse inventory deducted!');
+      fetchBulkOrders();
+      fetchProductionReturns();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to mark all products available');
+    }
+    setActionInProgress(null);
+  };
+
+  // Item-by-item availability check and partial warehouse deduction
+  const handleCheckAvailability = async (orderId) => {
+    const orderAllocs = bulkAllocations[orderId];
+    if (!orderAllocs) return;
+    setActionInProgress(orderId);
+    const items = Object.entries(orderAllocs).map(([itemId, availableQuantity]) => ({
+      itemId,
+      availableQuantity: parseInt(availableQuantity) || 0
+    }));
+
+    try {
+      const res = await api.post(`/api/vendors/orders/${orderId}/store-check-availability`, { items });
+      toast.success(res.data?.message || 'Store availability confirmed and inventory deducted!');
+      fetchBulkOrders();
+      fetchProductionReturns();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to check store availability');
+    }
+    setActionInProgress(null);
+  };
+
+  // Open Routing Modal
+  const handleOpenRoutingModal = (order) => {
+    setRoutingModalOrder(order);
+    const initialConfig = {};
+    order.items?.forEach(item => {
+      const routing = order.routingItems?.find(r => r.orderItemId === item.id);
+      const avail = routing ? routing.storeAvailableQuantity : (bulkAllocations[order.id]?.[item.id] || 0);
+      const rem = Math.max(0, item.quantity - avail);
+      initialConfig[item.id] = {
+        availableRoute: avail > 0 ? 'ASM' : 'NONE',
+        processingRoute: rem > 0 ? 'PRODUCTION' : 'NONE',
+        processingQuantity: rem,
+      };
+    });
+    setRouteConfig(initialConfig);
+    setRoutingNotes({ logoNotes: '', prodNotes: '' });
+  };
+
+  // Confirm and Execute Store Routing
+  const handleConfirmRouting = async (orderId) => {
+    setActionInProgress(orderId);
+    const routes = Object.entries(routeConfig).map(([itemId, cfg]) => ({
+      itemId,
+      availableRoute: cfg.availableRoute,
+      processingRoute: cfg.processingRoute,
+      processingQuantity: parseInt(cfg.processingQuantity) || 0,
+      logoNotes: routingNotes.logoNotes,
+      productionNotes: routingNotes.prodNotes,
+    }));
+
+    try {
+      const res = await api.post(`/api/vendors/orders/${orderId}/store-route`, { routes });
+      toast.success(res.data?.message || 'Order items routed successfully!');
+      setRoutingModalOrder(null);
+      fetchBulkOrders();
+      fetchProductionReturns();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to route order');
+    }
+    setActionInProgress(null);
+  };
+
+  // Store receives returned goods from Production — ZERO secondary inventory deduction!
+  const handleReceiveProductionReturn = async (orderId) => {
+    setActionInProgress(orderId);
+    try {
+      const res = await api.post(`/api/vendors/orders/${orderId}/receive-production-return`);
+      toast.success(res.data?.message || 'Returned stock received in store (0 secondary inventory deduction)!');
+      fetchBulkOrders();
+      fetchProductionReturns();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to receive returned stock');
+    }
+    setActionInProgress(null);
+  };
+
+  // Store secondary routing: Send returned goods to ASM
+  const handleReturnToAsm = async (orderId) => {
+    setActionInProgress(orderId);
+    try {
+      const res = await api.post(`/api/vendors/orders/${orderId}/return-to-asm`);
+      toast.success(res.data?.message || 'Returned stock sent to ASM! Delivery Sheet ready.');
+      fetchBulkOrders();
+      fetchProductionReturns();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send returned stock to ASM');
+    }
+    setActionInProgress(null);
   };
 
   // Printable Handover Sheet generator
@@ -1033,160 +1165,631 @@ const AsmAllowedStorePage = () => {
       )}
 
       {/* ═══════════════════ Tab 4: Bulk Allocation ═══════════════════ */}
-      {activeTab === 'bulk-allocation' && (
-        <div className="space-y-6">
-          <div className="glass p-6 rounded-3xl border border-gray-800">
-            <h2 className="text-sm font-black text-white uppercase tracking-wider mb-1">
-              Pending Bulk Allocations
-            </h2>
-            <p className="text-xs text-gray-400 mb-4">
-              Review requests from vendors and allocate available warehouse stock.
-            </p>
-            
-            {bulkOrdersLoading ? (
-              <div className="py-12 text-center text-gray-500 font-bold">Loading bulk orders...</div>
-            ) : bulkOrders.filter(o => o.currentStage === 'SENT_TO_STORE').length === 0 ? (
-              <div className="py-12 text-center text-gray-500 font-bold">No pending bulk allocation orders</div>
-            ) : (
-              <div className="space-y-6">
-                {bulkOrders.filter(o => o.currentStage === 'SENT_TO_STORE').map(order => (
-                  <div key={order.id} className="bg-gray-900/90 rounded-2xl p-5 border border-gray-800 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-black text-amber-400">{order.orderNumber}</span>
-                          <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-amber-500/20 text-amber-400">
-                            Pending Store Allocation
-                          </span>
+      {activeTab === 'bulk-allocation' && (() => {
+        const pendingOrders = bulkOrders.filter(o => o.currentStage === 'SENT_TO_STORE');
+        const returnOrders = bulkOrders.filter(o => ['RETURN_FROM_PRODUCTION', 'STORE_RECEIVED'].includes(o.currentStage));
+        const pipelineOrders = bulkOrders.filter(o => ['LOGO', 'STORE_TO_LOGO', 'LOGO_ACCEPTED', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED'].includes(o.currentStage));
+
+        return (
+          <div className="space-y-6">
+            {/* Sub-tab Switcher */}
+            <div className="flex flex-wrap gap-2 glass p-2 rounded-2xl border border-gray-800">
+              <button
+                onClick={() => setBulkSubTab('pending')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                  bulkSubTab === 'pending'
+                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                }`}
+              >
+                <Package size={14} /> Store Availability Verification
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${bulkSubTab === 'pending' ? 'bg-black/30 text-black' : 'bg-gray-800 text-gray-300'}`}>
+                  {pendingOrders.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setBulkSubTab('returns')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                  bulkSubTab === 'returns'
+                    ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                }`}
+              >
+                <RotateCcw size={14} /> Return From Production
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${bulkSubTab === 'returns' ? 'bg-black/30 text-black' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                  {returnOrders.length + productionReturns.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setBulkSubTab('pipeline')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                  bulkSubTab === 'pipeline'
+                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                }`}
+              >
+                <Layers size={14} /> Active Processing Pipeline
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${bulkSubTab === 'pipeline' ? 'bg-white/20 text-white' : 'bg-gray-800 text-gray-300'}`}>
+                  {pipelineOrders.length}
+                </span>
+              </button>
+            </div>
+
+            {/* ── SUB-TAB 1: Store Availability Verification ─────────────────── */}
+            {bulkSubTab === 'pending' && (
+              <div className="glass p-6 rounded-3xl border border-gray-800 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider mb-1 flex items-center gap-2">
+                      <Package size={16} className="text-amber-400" /> Pending Bulk Orders Awaiting Store Verification
+                    </h2>
+                    <p className="text-xs text-gray-400">
+                      Verify warehouse availability (Product + Color + Size). Allocate available quantities or trigger single-click All Products Available.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { fetchBulkOrders(); fetchProductionReturns(); }}
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw size={13} className={bulkOrdersLoading ? 'animate-spin' : ''} /> Refresh Orders
+                  </button>
+                </div>
+
+                {bulkOrdersLoading ? (
+                  <div className="py-12 text-center text-gray-500 font-bold">Loading bulk orders...</div>
+                ) : pendingOrders.length === 0 ? (
+                  <div className="py-12 text-center text-gray-500 font-bold flex flex-col items-center gap-2">
+                    <CheckCircle2 size={32} className="text-emerald-500" />
+                    <span>No pending bulk allocation orders. All orders have been verified or routed!</span>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {pendingOrders.map(order => {
+                      const isOrderBusy = actionInProgress === order.id;
+                      const hasAllStock = order.canAllProductsAvailable;
+
+                      return (
+                        <div key={order.id} className="bg-gray-900/90 rounded-2xl p-5 border border-gray-800 space-y-4 shadow-xl">
+                          {/* Order Header */}
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="text-base font-black text-amber-400 tracking-wider">{order.orderNumber}</span>
+                                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                  SENT TO STORE
+                                </span>
+                                {hasAllStock && (
+                                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                    <Sparkles size={11} /> 100% In Stock
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Vendor: <span className="text-white font-bold">{order.vendor?.name}</span>
+                                {order.vendor?.companyName ? ` (${order.vendor.companyName})` : ''} | ASM: <span className="text-gray-300 font-bold">{order.asm?.name}</span> | Date: {formatDateTime(order.createdAt)}
+                              </p>
+                            </div>
+
+                            {/* 1-Click Action: All Products Available */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {hasAllStock && (
+                                <button
+                                  onClick={() => handleAllProductsAvailable(order.id)}
+                                  disabled={isOrderBusy}
+                                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition transform hover:-translate-y-0.5"
+                                  title="Atomically deduct all items and mark available in store"
+                                >
+                                  <Sparkles size={14} className="text-amber-300" />
+                                  {isOrderBusy ? 'Processing...' : 'All Products Available (1-Click)'}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenRoutingModal(order)}
+                                disabled={isOrderBusy}
+                                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-blue-900/30 transition"
+                              >
+                                <ArrowRight size={14} /> Route Order
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Items Table */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-gray-800 text-gray-500 font-bold uppercase">
+                                  <th className="py-2">Product Name</th>
+                                  <th className="py-2">Color</th>
+                                  <th className="py-2">Size</th>
+                                  <th className="py-2 text-right">Requested</th>
+                                  <th className="py-2 text-right">Warehouse Stock</th>
+                                  <th className="py-2 text-center w-36">Store Available</th>
+                                  <th className="py-2 text-right">Remaining</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {order.items.map(item => {
+                                  const allocQty = bulkAllocations[order.id]?.[item.id] ?? (item.allocatedQuantity || 0);
+                                  const availStock = item.availableWarehouseStock || 0;
+                                  const stockLow = availStock < item.quantity;
+                                  const remaining = Math.max(0, item.quantity - allocQty);
+
+                                  return (
+                                    <tr key={item.id} className={`border-b border-gray-800/50 text-gray-300 ${stockLow ? 'bg-amber-500/5' : ''}`}>
+                                      <td className="py-2 font-bold text-white">{item.productName}</td>
+                                      <td className="py-2 font-bold text-gray-200">{item.color || '—'}</td>
+                                      <td className="py-2 font-black text-amber-300">{item.size || '—'}</td>
+                                      <td className="py-2 text-right font-bold text-blue-400">{item.quantity}</td>
+                                      <td className="py-2 text-right font-bold text-emerald-400">
+                                        {availStock}
+                                        {stockLow && <span className="ml-1 text-[10px] text-amber-400 font-normal">(low)</span>}
+                                      </td>
+                                      <td className="py-2">
+                                        <div className="flex items-center justify-center">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max={item.quantity}
+                                            value={allocQty}
+                                            onChange={e => {
+                                              const val = parseInt(e.target.value) || 0;
+                                              const bounded = Math.max(0, Math.min(item.quantity, val));
+                                              setBulkAllocations(prev => ({
+                                                ...prev,
+                                                [order.id]: {
+                                                  ...prev[order.id],
+                                                  [item.id]: bounded
+                                                }
+                                              }));
+                                            }}
+                                            className="w-16 bg-gray-950 border border-gray-700 rounded text-center text-xs font-black text-white py-1 outline-none focus:border-amber-500"
+                                          />
+                                        </div>
+                                      </td>
+                                      <td className={`py-2 text-right font-bold ${remaining > 0 ? 'text-amber-400' : 'text-gray-500'}`}>
+                                        {remaining}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Action Footer */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-800/60">
+                            <span className="text-[11px] text-gray-400">
+                              * Inventory is deducted atomically when availability is confirmed.
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleCheckAvailability(order.id)}
+                                disabled={isOrderBusy}
+                                className="bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition"
+                              >
+                                <CheckCheck size={14} className="text-emerald-400" />
+                                {isOrderBusy ? 'Saving...' : 'Confirm Store Availability'}
+                              </button>
+                              <button
+                                onClick={() => handleBulkAllocate(order.id)}
+                                disabled={isOrderBusy}
+                                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+                              >
+                                Send to ASM <ArrowRight size={14} />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">
-                          Vendor: <span className="text-white font-bold">{order.vendor?.name}</span> | ASM: <span className="text-gray-300">{order.asm?.name}</span> | Date: {formatDateTime(order.createdAt)}
-                        </p>
-                      </div>
-                      <button 
-                        onClick={() => handleBulkAllocate(order.id)}
-                        className="bg-amber-500 hover:bg-amber-400 text-black font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/20"
-                      >
-                        Confirm Allocation & Send to ASM <ArrowRight size={16} />
-                      </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── SUB-TAB 2: Return From Production ─────────────────────────── */}
+            {bulkSubTab === 'returns' && (
+              <div className="glass p-6 rounded-3xl border border-gray-800 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider mb-1 flex items-center gap-2">
+                      <RotateCcw size={16} className="text-emerald-400" /> Return From Production & Store Receiving
+                    </h2>
+                    <p className="text-xs text-gray-400">
+                      Completed items returned from Production. Store verifies count and receives into Store with ZERO secondary inventory deduction.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { fetchBulkOrders(); fetchProductionReturns(); }}
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw size={13} className={productionReturnsLoading ? 'animate-spin' : ''} /> Refresh Returns
+                  </button>
+                </div>
+
+                {returnOrders.length === 0 && productionReturns.length === 0 ? (
+                  <div className="py-12 text-center text-gray-500 font-bold flex flex-col items-center gap-2">
+                    <CheckCircle2 size={32} className="text-gray-600" />
+                    <span>No pending goods returned from Production</span>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {returnOrders.map(order => {
+                      const isOrderBusy = actionInProgress === order.id;
+                      const isReceivedInStore = order.currentStage === 'STORE_RECEIVED';
+
+                      return (
+                        <div key={order.id} className="bg-gray-900/90 rounded-2xl p-5 border border-gray-800 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+                            <div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-black text-emerald-400">{order.orderNumber}</span>
+                                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
+                                  isReceivedInStore
+                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                }`}>
+                                  {isReceivedInStore ? '✓ STORE RECEIVED (Awaiting Handover)' : 'RETURN FROM PRODUCTION'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Vendor: <span className="text-white font-bold">{order.vendor?.name}</span> | ASM: <span className="text-gray-300 font-bold">{order.asm?.name}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              {!isReceivedInStore ? (
+                                <button
+                                  onClick={() => handleReceiveProductionReturn(order.id)}
+                                  disabled={isOrderBusy}
+                                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-emerald-900/30 transition"
+                                >
+                                  <ShieldCheck size={14} />
+                                  {isOrderBusy ? 'Receiving...' : 'Receive From Production'}
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleReturnToAsm(order.id)}
+                                    disabled={isOrderBusy}
+                                    className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition"
+                                  >
+                                    <ArrowRight size={14} /> Send to ASM
+                                  </button>
+                                  <button
+                                    onClick={() => printDeliverySheet(order)}
+                                    className="bg-teal-600 hover:bg-teal-500 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition"
+                                  >
+                                    <Printer size={14} /> Delivery Sheet
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Items Table */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-gray-800 text-gray-500 font-bold uppercase">
+                                  <th className="py-2">Product Name</th>
+                                  <th className="py-2">Color</th>
+                                  <th className="py-2">Size</th>
+                                  <th className="py-2 text-right">Required</th>
+                                  <th className="py-2 text-right">Returned Qty</th>
+                                  <th className="py-2 text-right">Stage Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {order.items.map(item => {
+                                  const rItem = order.routingItems?.find(r => r.orderItemId === item.id);
+                                  const returnedQty = rItem?.storeReceivedReturnQty || rItem?.productionOutQuantity || rItem?.processingQuantity || item.quantity;
+
+                                  return (
+                                    <tr key={item.id} className="border-b border-gray-800/50 text-gray-300">
+                                      <td className="py-2 font-bold text-white">{item.productName}</td>
+                                      <td className="py-2 font-bold text-gray-200">{item.color || '—'}</td>
+                                      <td className="py-2 font-black text-amber-300">{item.size || '—'}</td>
+                                      <td className="py-2 text-right font-bold text-blue-400">{item.quantity}</td>
+                                      <td className="py-2 text-right font-black text-emerald-400">{returnedQty}</td>
+                                      <td className="py-2 text-right">
+                                        <span className="text-[10px] font-bold text-gray-400">
+                                          {rItem?.currentProcessingStage || order.currentStage}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="bg-gray-950/60 p-3 rounded-xl text-[11px] text-gray-400 flex items-center gap-2 border border-gray-800/50">
+                            <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
+                            <span>Zero secondary inventory deduction: goods produced and returned directly from production floor.</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── SUB-TAB 3: Active Processing Pipeline ───────────────────────── */}
+            {bulkSubTab === 'pipeline' && (
+              <div className="glass p-6 rounded-3xl border border-gray-800 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider mb-1 flex items-center gap-2">
+                      <Layers size={16} className="text-blue-400" /> Active Order Processing Pipeline
+                    </h2>
+                    <p className="text-xs text-gray-400">
+                      Tracking orders in Logo customization, Production manufacturing, Store handover, and ASM delivery.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { fetchBulkOrders(); fetchProductionReturns(); }}
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw size={13} className={bulkOrdersLoading ? 'animate-spin' : ''} /> Refresh Pipeline
+                  </button>
+                </div>
+
+                {pipelineOrders.length === 0 ? (
+                  <div className="py-12 text-center text-gray-500 font-bold">No active orders in processing pipeline</div>
+                ) : (
+                  <div className="space-y-4">
+                    {pipelineOrders.map(order => {
+                      const isLogo = ['LOGO', 'STORE_TO_LOGO', 'LOGO_ACCEPTED'].includes(order.currentStage);
+                      const isProd = ['PRODUCTION', 'PRODUCTION_ACCEPTANCE'].includes(order.currentStage);
+                      const isHandover = ['SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED'].includes(order.currentStage);
+
+                      return (
+                        <div key={order.id} className="bg-gray-900/60 rounded-2xl p-5 border border-gray-800 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+                            <div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-black text-white">{order.orderNumber}</span>
+                                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
+                                  isLogo
+                                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                    : isProd
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                    : 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                                }`}>
+                                  {order.currentStage.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Vendor: <span className="text-gray-200 font-bold">{order.vendor?.name}</span> | ASM: <span className="text-gray-300">{order.asm?.name}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Print Job Sheet for Logo */}
+                              {(isLogo || order.routingItems?.some(r => r.processingRoute === 'LOGO')) && (
+                                <button
+                                  onClick={() => printVendorJobSheet(order, 'LOGO', order.items)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white text-xs font-bold transition shadow"
+                                >
+                                  <Printer size={13} /> Job Sheet (Logo)
+                                </button>
+                              )}
+
+                              {/* Print Job Sheet for Production */}
+                              {(isProd || order.routingItems?.some(r => r.processingRoute === 'PRODUCTION')) && (
+                                <button
+                                  onClick={() => printVendorJobSheet(order, 'PRODUCTION', order.items)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-bold transition shadow"
+                                >
+                                  <Printer size={13} /> Job Sheet (Production)
+                                </button>
+                              )}
+
+                              {/* Print Delivery Sheet for ASM */}
+                              <button
+                                onClick={() => printDeliverySheet(order)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600/80 hover:bg-teal-600 text-white text-xs font-bold transition shadow"
+                              >
+                                <Printer size={13} /> Delivery Sheet
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Items summary */}
+                          <div className="overflow-x-auto opacity-85">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-gray-800 text-gray-500 font-bold uppercase">
+                                  <th className="py-1">Product</th>
+                                  <th className="py-1">Color / Size</th>
+                                  <th className="py-1 text-right">Requested</th>
+                                  <th className="py-1 text-right">Allocated</th>
+                                  <th className="py-1 text-right">Job Sheet #</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {order.items.map(item => {
+                                  const rItem = order.routingItems?.find(r => r.orderItemId === item.id);
+                                  return (
+                                    <tr key={item.id} className="border-b border-gray-800/30 text-gray-300">
+                                      <td className="py-1 font-bold text-white">{item.productName}</td>
+                                      <td className="py-1 text-gray-400">{item.color || '—'} / {item.size || '—'}</td>
+                                      <td className="py-1 text-right text-blue-400">{item.quantity}</td>
+                                      <td className="py-1 text-right font-black text-emerald-400">{item.allocatedQuantity || 0}</td>
+                                      <td className="py-1 text-right font-mono text-[11px] text-amber-300">{rItem?.jobSheetNumber || '—'}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── MODAL: Store Item-Level Routing ───────────────────────────── */}
+            {routingModalOrder && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-gray-900 border border-gray-800 rounded-3xl max-w-3xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                    <div>
+                      <h3 className="text-base font-black text-white flex items-center gap-2">
+                        <ArrowRight size={18} className="text-blue-400" /> Route Order #{routingModalOrder.orderNumber}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Vendor: <span className="text-white font-bold">{routingModalOrder.vendor?.name}</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setRoutingModalOrder(null)}
+                      className="p-1 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-xs text-gray-300">
+                      Configure item destination. Available units can go directly to <strong>ASM</strong>, while remaining units can be routed to <strong>Logo</strong> or <strong>Production</strong>.
+                    </p>
+
+                    <div className="space-y-3">
+                      {routingModalOrder.items.map(item => {
+                        const cfg = routeConfig[item.id] || {};
+                        const allocQty = bulkAllocations[routingModalOrder.id]?.[item.id] ?? (item.allocatedQuantity || 0);
+                        const remQty = Math.max(0, item.quantity - allocQty);
+
+                        return (
+                          <div key={item.id} className="p-3 bg-gray-950/80 border border-gray-800 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <div>
+                                <span className="font-bold text-white">{item.productName}</span>
+                                <span className="text-gray-400 ml-2">({item.color || '—'} / {item.size || '—'})</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-gray-400">Total: </span>
+                                <span className="font-bold text-blue-400">{item.quantity}</span> |
+                                <span className="text-emerald-400 ml-1">Store Avail: {allocQty}</span> |
+                                <span className="text-amber-400 ml-1">Rem: {remQty}</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-gray-800/50">
+                              {/* Available Units Route */}
+                              <div className="text-xs">
+                                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                                  Available Units ({allocQty})
+                                </label>
+                                <select
+                                  value={cfg.availableRoute || 'ASM'}
+                                  onChange={e => setRouteConfig(prev => ({
+                                    ...prev,
+                                    [item.id]: { ...prev[item.id], availableRoute: e.target.value }
+                                  }))}
+                                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                                >
+                                  <option value="ASM">Send to ASM (Allocated: {allocQty})</option>
+                                  <option value="NONE">Keep in Store</option>
+                                </select>
+                              </div>
+
+                              {/* Remaining Units Processing Route */}
+                              <div className="text-xs">
+                                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                                  Remaining / Custom Units ({remQty})
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={cfg.processingRoute || 'NONE'}
+                                    onChange={e => setRouteConfig(prev => ({
+                                      ...prev,
+                                      [item.id]: { ...prev[item.id], processingRoute: e.target.value }
+                                    }))}
+                                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                                  >
+                                    <option value="NONE">None (Fully Available)</option>
+                                    <option value="LOGO">Send to Logo</option>
+                                    <option value="PRODUCTION">Send to Production</option>
+                                  </select>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={item.quantity}
+                                    value={cfg.processingQuantity ?? remQty}
+                                    onChange={e => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setRouteConfig(prev => ({
+                                        ...prev,
+                                        [item.id]: { ...prev[item.id], processingQuantity: val }
+                                      }));
+                                    }}
+                                    className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-center text-white"
+                                    placeholder="Qty"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b border-gray-800 text-gray-500 font-bold uppercase">
-                            <th className="py-2">Product</th>
-                            <th className="py-2">Color</th>
-                            <th className="py-2">Size</th>
-                            <th className="py-2 text-right">Requested Qty</th>
-                            <th className="py-2 text-right">Warehouse Available</th>
-                            <th className="py-2 text-center w-36">Allocate Qty</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {order.items.map(item => {
-                            const allocQty = bulkAllocations[order.id]?.[item.id] || 0;
-                            const stockLow = (item.availableWarehouseStock || 0) < item.quantity;
-                            
-                            return (
-                              <tr key={item.id} className={`border-b border-gray-800/50 text-gray-300 ${stockLow ? 'bg-amber-500/10' : ''}`}>
-                                <td className="py-2 font-bold text-white">{item.productName}</td>
-                                <td className="py-2 font-bold text-gray-200">{item.color || '—'}</td>
-                                <td className="py-2 font-black text-amber-300">{item.size || '—'}</td>
-                                <td className="py-2 text-right font-bold text-blue-400">{item.quantity}</td>
-                                <td className="py-2 text-right font-bold text-emerald-400">{item.availableWarehouseStock || 0}</td>
-                                <td className="py-2">
-                                  <div className="flex items-center justify-center">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max={item.availableWarehouseStock || 0}
-                                      value={allocQty}
-                                      onChange={e => {
-                                        const val = parseInt(e.target.value) || 0;
-                                        setBulkAllocations(prev => ({
-                                          ...prev,
-                                          [order.id]: {
-                                            ...prev[order.id],
-                                            [item.id]: Math.max(0, Math.min(item.availableWarehouseStock || 0, val))
-                                          }
-                                        }));
-                                      }}
-                                      className="w-16 bg-gray-950 border border-gray-700 rounded text-center text-xs font-black text-white py-1 outline-none focus:border-amber-500"
-                                    />
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                    {/* Operational Notes */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 block mb-1">
+                          Logo Notes (Printing / Embroidery Specs)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={routingNotes.logoNotes}
+                          onChange={e => setRoutingNotes(prev => ({ ...prev, logoNotes: e.target.value }))}
+                          placeholder="Chest logo, gold embroidery, placement details..."
+                          className="w-full bg-gray-950 border border-gray-700 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500 resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 block mb-1">
+                          Production Notes (Tailoring / Stitching Specs)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={routingNotes.prodNotes}
+                          onChange={e => setRoutingNotes(prev => ({ ...prev, prodNotes: e.target.value }))}
+                          placeholder="Length specifications, pocket placement, urgency..."
+                          className="w-full bg-gray-950 border border-gray-700 rounded-xl p-2.5 text-xs text-white outline-none focus:border-amber-500 resize-none"
+                        />
+                      </div>
                     </div>
                   </div>
-                ))}
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-800">
+                    <button
+                      onClick={() => setRoutingModalOrder(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleConfirmRouting(routingModalOrder.id)}
+                      disabled={actionInProgress === routingModalOrder.id}
+                      className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-blue-900/30 transition"
+                    >
+                      {actionInProgress === routingModalOrder.id ? 'Routing...' : 'Confirm Routing & Generate Job Sheets'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-
-          {/* Already Allocated Section */}
-          <div className="glass p-6 rounded-3xl border border-gray-800">
-            <h2 className="text-sm font-black text-white uppercase tracking-wider mb-4">
-              Processed / Allocated Orders
-            </h2>
-            {bulkOrdersLoading ? (
-              <div className="py-8 text-center text-gray-500 font-bold">Loading...</div>
-            ) : bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED'].includes(o.currentStage)).length === 0 ? (
-              <div className="py-8 text-center text-gray-500 font-bold">No processed orders</div>
-            ) : (
-              <div className="space-y-4">
-                {bulkOrders.filter(o => ['SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED'].includes(o.currentStage)).map(order => (
-                  <div key={order.id} className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-black text-gray-300">{order.orderNumber}</span>
-                          <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-blue-500/20 text-blue-400">
-                            {order.currentStage.replace(/_/g, ' ')}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Vendor: <span className="text-gray-400">{order.vendor?.name}</span> | ASM: <span className="text-gray-400">{order.asm?.name}</span>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => printDeliverySheet(order)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600/80 hover:bg-teal-600 text-white text-xs font-bold transition shadow"
-                      >
-                        <Printer size={14} /> Print Delivery Sheet
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto opacity-75">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b border-gray-800 text-gray-600 font-bold uppercase">
-                            <th className="py-1">Product</th>
-                            <th className="py-1 text-right">Requested</th>
-                            <th className="py-1 text-right">Allocated</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {order.items.map(item => (
-                            <tr key={item.id} className="border-b border-gray-800/30 text-gray-400">
-                              <td className="py-1">{item.productName} ({item.color}/{item.size})</td>
-                              <td className="py-1 text-right">{item.quantity}</td>
-                              <td className="py-1 text-right font-bold text-emerald-400">{item.allocatedQuantity || 0}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

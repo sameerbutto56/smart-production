@@ -1935,6 +1935,8 @@ model VendorOrder {
   deliveries        VendorDelivery[]
   documents         VendorDocument[]
   allocations       VendorOrderAllocation[]
+  routingItems      VendorOrderRoutingItem[]
+  inventoryAudits   VendorOrderInventoryAudit[]
 
   // Timestamps of each step
   createdAt         DateTime  @default(now())
@@ -1990,6 +1992,7 @@ model VendorOrderItem {
   unitPrice         Float     @default(0)
   lineTotal         Float     @default(0)
   notes             String?
+  routingItems      VendorOrderRoutingItem[]
 
   @@index([orderId])
 }
@@ -2072,6 +2075,100 @@ model VendorOrderAllocation {
   @@index([vendorId])
   @@index([asmId])
   @@index([handoverStatus])
+}
+
+// ASM Store Inventory Allocation Audit (Requirement 12)
+model VendorOrderInventoryAudit {
+  id                String      @id @default(uuid())
+  orderId           String
+  order             VendorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderNumber       String
+  orderItemId       String?
+  vendorId          String?
+  vendorName        String?
+  asmId             String?
+  asmName           String?
+  inventoryItemId   String?
+  productName       String
+  color             String?
+  size              String?
+  requiredQuantity  Int         @default(0)
+  availableQuantity Int         @default(0)
+  allocatedQuantity Int         @default(0)
+  remainingQuantity Int         @default(0)
+  previousInventory Int         @default(0)
+  newInventory      Int         @default(0)
+  storeUser         String?
+  storeUserId       String?
+  source            String      @default("ASM Store Allocation")
+  actionId          String?
+  createdAt         DateTime    @default(now())
+
+  @@index([orderId])
+  @@index([inventoryItemId])
+  @@index([actionId])
+  @@index([createdAt])
+}
+
+// ASM Item-level Routing & Return-to-ASM tracking (Requirements 5-10, 14-22)
+model VendorOrderRoutingItem {
+  id                        String          @id @default(uuid())
+  orderId                   String
+  order                     VendorOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId               String
+  orderItem                 VendorOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  catalogItemId             String?
+  productName               String
+  color                     String?
+  size                      String?
+  requiredQuantity          Int             @default(0)
+  storeAvailableQuantity    Int             @default(0)
+  remainingQuantity         Int             @default(0)
+  storeCheckStatus          String          @default("PENDING") // PENDING, CHECKED, ALL_AVAILABLE
+  storeCheckedAt            DateTime?
+  storeCheckedByName        String?
+
+  // Available route (to ASM)
+  availableRoute            String?         // 'ASM' | 'NONE'
+  availableAllocatedQty     Int             @default(0)
+  availableSentToAsmAt      DateTime?
+  availableAsmReceivedAt    DateTime?
+
+  // Processing route (to LOGO or PRODUCTION)
+  processingQuantity        Int             @default(0)
+  processingRoute           String?         // 'LOGO' | 'PRODUCTION'
+  currentProcessingStage    String          @default("NONE")
+  // 'NONE', 'STORE_TO_LOGO', 'LOGO_ACCEPTED', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'PRODUCTION_OUT', 'RETURN_FROM_PRODUCTION', 'STORE_RECEIVED', 'SENT_TO_ASM', 'ASM_RECEIVED'
+  logoNotes                 String?
+  productionNotes           String?
+  jobSheetNumber            String?
+
+  // Timestamps for phases
+  sentToLogoAt              DateTime?
+  logoAcceptedAt            DateTime?
+  logoCompletedAt           DateTime?
+  sentToProductionAt        DateTime?
+  productionAcceptedAt      DateTime?
+  productionOutAt           DateTime?
+  productionOutQuantity     Int             @default(0)
+
+  // Return From Production
+  returnedFromProductionAt  DateTime?
+  storeReceivedReturnAt     DateTime?
+  storeReceivedReturnQty    Int             @default(0)
+  storeReceivedByName       String?
+
+  // Handover of returned goods to ASM
+  returnSentToAsmAt         DateTime?
+  returnAsmReceivedAt       DateTime?
+  returnAsmReceivedQty      Int             @default(0)
+
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([orderItemId])
+  @@index([currentProcessingStage])
 }
 
 // Immutable status/timeline entry for a vendor order.

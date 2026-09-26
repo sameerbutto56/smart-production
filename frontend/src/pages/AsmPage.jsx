@@ -12,7 +12,7 @@ import {
   Store, ShoppingBag,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
-import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet } from '../utils/vendorDocumentPrint';
+import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet, printVendorJobSheet } from '../utils/vendorDocumentPrint';
 import AsmFinancialDashboard from '../components/AsmFinancialDashboard';
 
 const STAGE_LABELS = {
@@ -24,6 +24,12 @@ const STAGE_LABELS = {
   PRODUCTION_READY: 'Production Ready',
   SENT_TO_STORE: 'Sent to Store',
   BUY_ITSELF: 'Buy Itself',
+  LOGO: 'In Logo Dept',
+  STORE_TO_LOGO: 'In Logo Dept',
+  PRODUCTION: 'In Production',
+  PRODUCTION_ACCEPTANCE: 'Production Acceptance',
+  RETURN_FROM_PRODUCTION: 'Returned from Production',
+  STORE_RECEIVED: 'Received in Store',
   SENT_TO_ASM: 'Ready for ASM',
   GIVE_STOCK: 'Stock Given',
   ASM_ACCEPTED: 'Received by ASM',
@@ -44,6 +50,12 @@ const STAGE_COLORS = {
   PRODUCTION_READY: 'bg-indigo-500',
   SENT_TO_STORE: 'bg-teal-500',
   BUY_ITSELF: 'bg-pink-500',
+  LOGO: 'bg-purple-600',
+  STORE_TO_LOGO: 'bg-purple-600',
+  PRODUCTION: 'bg-amber-600',
+  PRODUCTION_ACCEPTANCE: 'bg-indigo-600',
+  RETURN_FROM_PRODUCTION: 'bg-teal-600',
+  STORE_RECEIVED: 'bg-blue-600',
   SENT_TO_ASM: 'bg-cyan-500',
   GIVE_STOCK: 'bg-violet-500',
   ASM_ACCEPTED: 'bg-emerald-600',
@@ -55,7 +67,7 @@ const STAGE_COLORS = {
   REJECTED: 'bg-rose-600',
 };
 
-const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'BUY_ITSELF', 'SENT_TO_ASM', 'ASM_RECEIVED', 'DELIVERED', 'COMPLETED', 'REJECTED'];
+const FILTERS = ['ALL', 'SUBMITTED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'BUY_ITSELF', 'LOGO', 'PRODUCTION', 'SENT_TO_ASM', 'ASM_RECEIVED', 'DELIVERED', 'COMPLETED', 'REJECTED'];
 
 const fmtCurrency = (n) => `Rs. ${(n || 0).toLocaleString()}`;
 
@@ -205,6 +217,8 @@ const AsmPage = () => {
     else if (kind === 'quotation-data') printDataDocument(docOrder, 'quotation-data');
     else if (kind === 'invoice-data') printDataDocument(docOrder, 'invoice-data');
     else if (kind === 'delivery-sheet') printDeliverySheet(docOrder);
+    else if (kind === 'job-sheet-logo') printVendorJobSheet(docOrder, 'LOGO', docOrder.items);
+    else if (kind === 'job-sheet-prod') printVendorJobSheet(docOrder, 'PRODUCTION', docOrder.items);
     else printThermalReceipt(docOrder);
   };
 
@@ -983,6 +997,14 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
                   onClick={() => onPrint(order, 'thermal')} />
                 <ActionBtn icon={Truck} color="bg-teal-600 hover:bg-teal-500" label={t('Delivery Sheet')}
                   onClick={() => onPrint(order, 'delivery-sheet')} />
+                {order.routingItems?.some(r => r.processingRoute === 'LOGO') && (
+                  <ActionBtn icon={Printer} color="bg-purple-600 hover:bg-purple-500" label={t('Job Sheet (Logo)')}
+                    onClick={() => onPrint(order, 'job-sheet-logo')} />
+                )}
+                {order.routingItems?.some(r => r.processingRoute === 'PRODUCTION') && (
+                  <ActionBtn icon={Printer} color="bg-amber-600 hover:bg-amber-500" label={t('Job Sheet (Production)')}
+                    onClick={() => onPrint(order, 'job-sheet-prod')} />
+                )}
                 {/* Admin Approval & Fulfillment Actions */}
                 {isAdmin && (['SUBMITTED', 'AWAITED_ADMIN', 'CREATED'].includes(stage) || order.canApprove) && (
                   <>
