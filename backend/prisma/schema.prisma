@@ -1901,6 +1901,8 @@ model VendorOrder {
   additionalPaid    Float     @default(0)
   deliveryCharges   Float     @default(0)
   discount          Float     @default(0)
+  discountPercent   Float?    @default(0)
+  discountType      String?   @default("PERCENT")
   grandTotal        Float     @default(0)
   remainingBalance  Float     @default(0)
   payments          VendorPayment[]

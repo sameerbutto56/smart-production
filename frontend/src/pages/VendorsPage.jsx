@@ -941,6 +941,7 @@ const CreateOrderModal = ({ catalog, vendor, onClose, onCreated, t }) => {
   const [lineItems, setLineItems] = useState([{ catalogItemId: '', productName: '', productType: '', color: '', size: '', quantity: 1, unitPrice: '', notes: '' }]);
   const [deliveryCharges, setDeliveryCharges] = useState('');
   const [discount, setDiscount] = useState('');
+  const [discountType, setDiscountType] = useState('PERCENT'); // 'PERCENT' | 'FIXED'
   const [notes, setNotes] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
@@ -1005,7 +1006,11 @@ const CreateOrderModal = ({ catalog, vendor, onClose, onCreated, t }) => {
           notes: p.notes || null,
         })),
         deliveryCharges: parseFloat(deliveryCharges) || 0,
-        discount: parseFloat(discount) || 0,
+        discount: discountType === 'PERCENT'
+          ? Math.round((validItems.reduce((acc, i) => acc + ((parseInt(i.quantity, 10) || 0) * (parseFloat(i.unitPrice) || 0)), 0) * (parseFloat(discount) || 0)) / 100 * 100) / 100
+          : (parseFloat(discount) || 0),
+        discountPercent: discountType === 'PERCENT' ? (parseFloat(discount) || 0) : 0,
+        discountType,
         notes: notes || null,
         deliveryAddress: deliveryAddress || null,
         deliveryCity: deliveryCity || null,
@@ -1056,8 +1061,41 @@ const CreateOrderModal = ({ catalog, vendor, onClose, onCreated, t }) => {
               <input type="number" step="0.01" value={deliveryCharges} onChange={e => setDeliveryCharges(e.target.value)} className={inputCls} placeholder="0" />
             </div>
             <div>
-              <label className="text-xs text-slate-400">{t('Discount')}</label>
-              <input type="number" step="0.01" value={discount} onChange={e => setDiscount(e.target.value)} className={inputCls} placeholder="0" />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-slate-400 flex items-center gap-1">
+                  {t('Discount')}
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                    {discountType === 'PERCENT' ? '% Percent' : 'Rs. Fixed'}
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setDiscountType(prev => prev === 'PERCENT' ? 'FIXED' : 'PERCENT')}
+                  className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-medium"
+                >
+                  {discountType === 'PERCENT' ? 'Switch to Rs.' : 'Switch to %'}
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max={discountType === 'PERCENT' ? '100' : undefined}
+                  step="any"
+                  value={discount}
+                  onChange={e => setDiscount(e.target.value)}
+                  className={inputCls}
+                  placeholder={discountType === 'PERCENT' ? 'e.g. 15 for 15%' : '0'}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                  {discountType === 'PERCENT' ? '%' : 'Rs'}
+                </span>
+              </div>
+              {parseFloat(discount) > 0 && discountType === 'PERCENT' && (
+                <p className="text-[11px] text-emerald-400 mt-1 font-semibold">
+                  {parseFloat(discount)}% off
+                </p>
+              )}
             </div>
             <div>
               <label className="text-xs text-slate-400">{t('Delivery Type')}</label>
@@ -1303,7 +1341,7 @@ const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t 
         <Financial label={t('Advance')} value={fmtCurrency(order.advancePaid)} />
         <Financial label={t('Additional')} value={fmtCurrency(order.additionalPaid)} />
         <Financial label={t('Delivery')} value={fmtCurrency(order.deliveryCharges)} />
-        <Financial label={t('Discount')} value={fmtCurrency(order.discount)} />
+        <Financial label={t('Discount')} value={order.discountPercent ? `${fmtCurrency(order.discount)} (${order.discountPercent}%)` : fmtCurrency(order.discount)} />
         <Financial label={t('Grand Total')} value={fmtCurrency(order.grandTotal)} highlight />
         <Financial label={t('Paid')} value={fmtCurrency(totalPaid)} />
         <Financial label={t('Remaining Balance')} value={fmtCurrency(remaining)} warn={remaining > 0.01} />

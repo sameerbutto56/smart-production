@@ -226,6 +226,8 @@ const createVendorOrder = async (req, res) => {
       payments,       // [{ amount, paymentType, paymentMethod, reference, paymentDate, notes }]
       deliveryCharges = 0,
       discount = 0,
+      discountPercent = null,
+      discountType = 'PERCENT',
       notes,
       deliveryAddress,
       deliveryCity,
@@ -263,9 +265,25 @@ const createVendorOrder = async (req, res) => {
     }
 
     const dc = parseFloat(deliveryCharges) || 0;
-    const disc = parseFloat(discount) || 0;
     const subtotal = lineItems.reduce((s, i) => s + i.lineTotal, 0);
-    const grandTotal = Math.max(0, subtotal + dc - disc);
+
+    let finalDiscount = 0;
+    let finalDiscountPercent = 0;
+    const parsedDiscount = parseFloat(discount) || 0;
+    const parsedPercent = discountPercent !== null && discountPercent !== undefined ? parseFloat(discountPercent) : null;
+
+    if (parsedPercent !== null && !isNaN(parsedPercent) && parsedPercent >= 0) {
+      finalDiscountPercent = parsedPercent;
+      finalDiscount = Math.round((subtotal * finalDiscountPercent) / 100 * 100) / 100;
+    } else if (discountType === 'PERCENT' && parsedDiscount > 0) {
+      finalDiscountPercent = parsedDiscount;
+      finalDiscount = Math.round((subtotal * finalDiscountPercent) / 100 * 100) / 100;
+    } else {
+      finalDiscount = parsedDiscount;
+      finalDiscountPercent = subtotal > 0 && finalDiscount > 0 ? Math.round((finalDiscount / subtotal) * 10000) / 100 : 0;
+    }
+
+    const grandTotal = Math.max(0, subtotal + dc - finalDiscount);
 
     const paymentInputs = (Array.isArray(payments) ? payments : [])
       .filter((p) => p && parseFloat(p.amount) > 0)
@@ -297,7 +315,9 @@ const createVendorOrder = async (req, res) => {
             invoiceNumber,
             items: { create: lineItems },
             deliveryCharges: dc,
-            discount: disc,
+            discount: finalDiscount,
+            discountPercent: finalDiscountPercent,
+            discountType: discountType || 'PERCENT',
             totalOrderValue: subtotal,
             grandTotal,
             remainingBalance: Math.max(0, grandTotal - totalPaid),
@@ -2950,6 +2970,57 @@ const listAsm = async (req, res) => {
   }
 };
 
+const updateVendorOrderDiscount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { discount, discountPercent, discountType = 'PERCENT' } = req.body || {};
+    const order = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: { payments: true },
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const subtotal = order.totalOrderValue || 0;
+    const dc = order.deliveryCharges || 0;
+    let finalDiscount = 0;
+    let finalDiscountPercent = 0;
+
+    const parsedDiscount = parseFloat(discount) || 0;
+    const parsedPercent = discountPercent !== null && discountPercent !== undefined ? parseFloat(discountPercent) : null;
+
+    if (parsedPercent !== null && !isNaN(parsedPercent) && parsedPercent >= 0) {
+      finalDiscountPercent = parsedPercent;
+      finalDiscount = Math.round((subtotal * finalDiscountPercent) / 100 * 100) / 100;
+    } else if (discountType === 'PERCENT' && parsedDiscount > 0) {
+      finalDiscountPercent = parsedDiscount;
+      finalDiscount = Math.round((subtotal * finalDiscountPercent) / 100 * 100) / 100;
+    } else {
+      finalDiscount = parsedDiscount;
+      finalDiscountPercent = subtotal > 0 && finalDiscount > 0 ? Math.round((finalDiscount / subtotal) * 10000) / 100 : 0;
+    }
+
+    const grandTotal = Math.max(0, subtotal + dc - finalDiscount);
+    const totalPaid = (order.payments || []).reduce((s, p) => s + (p.amount || 0), 0);
+    const remainingBalance = Math.max(0, grandTotal - totalPaid);
+
+    const updated = await prisma.vendorOrder.update({
+      where: { id },
+      data: {
+        discount: finalDiscount,
+        discountPercent: finalDiscountPercent,
+        discountType: discountType || 'PERCENT',
+        grandTotal,
+        remainingBalance,
+      },
+    });
+
+    return res.json({ message: 'Order discount updated successfully.', order: updated });
+  } catch (error) {
+    console.error('Error updating order discount:', error);
+    return res.status(500).json({ message: 'Failed to update order discount', error: error.message });
+  }
+};
+
 module.exports = {
   getCatalog,
   listVendors,
@@ -2959,6 +3030,7 @@ module.exports = {
   createVendorOrder,
   listVendorOrders,
   getVendorOrder,
+  updateVendorOrderDiscount,
   submitVendorOrder,
   approveVendorOrder,
   rejectVendorOrder,

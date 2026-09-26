@@ -1118,7 +1118,10 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
                     <div className="flex justify-between text-slate-400"><span>{t('Delivery')}</span><span>{fmtCurrency(order.deliveryCharges)}</span></div>
                   )}
                   {(order.discount || 0) > 0 && (
-                    <div className="flex justify-between text-slate-400"><span>{t('Discount')}</span><span>-{fmtCurrency(order.discount)}</span></div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>{t('Discount')} {order.discountPercent ? `(${order.discountPercent}%)` : ''}</span>
+                      <span className="text-emerald-400">-{fmtCurrency(order.discount)}</span>
+                    </div>
                   )}
                   <div className="flex justify-between text-white font-bold"><span>{t('Grand Total')}</span><span>{fmtCurrency(order.grandTotal)}</span></div>
                   <div className="flex justify-between text-slate-400"><span>{t('Paid')}</span><span>{fmtCurrency(totalPaid)}</span></div>
@@ -1501,6 +1504,7 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
   }, [vendors, initialVendorId]);
   const [deliveryCharges, setDeliveryCharges] = useState('');
   const [discount, setDiscount] = useState('');
+  const [discountType, setDiscountType] = useState('PERCENT'); // 'PERCENT' | 'FIXED'
   const [notes, setNotes] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
@@ -1614,6 +1618,11 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
         notes: null,
       }));
     if (!items.length) return toast.error(t('At least one product line is required. Please select or enter a product.'));
+    const subtotal = items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0);
+    const discVal = parseFloat(discount) || 0;
+    const calculatedDiscount = discountType === 'PERCENT'
+      ? Math.round((subtotal * discVal) / 100 * 100) / 100
+      : discVal;
     const advance = parseFloat(advanceAmount);
     setSubmitting(true);
     try {
@@ -1621,7 +1630,9 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
         vendorId,
         items,
         deliveryCharges: parseFloat(deliveryCharges) || 0,
-        discount: parseFloat(discount) || 0,
+        discount: calculatedDiscount,
+        discountPercent: discountType === 'PERCENT' ? discVal : 0,
+        discountType,
         notes: notes || null,
         deliveryAddress: deliveryAddress || null,
         deliveryCity: deliveryCity || null,
@@ -1884,23 +1895,124 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs text-slate-400">{t('Delivery Charges')}</label>
-              <input type="number" min="0" value={deliveryCharges} onChange={(e) => setDeliveryCharges(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400">{t('Discount')}</label>
-              <input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400">{t('Advance Payment')}</label>
-              <input type="number" min="0" value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-            </div>
-          </div>
+          {(() => {
+            const subtotal = lineItems.reduce((acc, li) => {
+              const q = parseInt(li.quantity, 10) || 0;
+              const p = parseFloat(li.unitPrice) || 0;
+              return acc + (q * p);
+            }, 0);
+            const discVal = parseFloat(discount) || 0;
+            const calcDiscountAmount = discountType === 'PERCENT'
+              ? Math.round((subtotal * discVal) / 100 * 100) / 100
+              : discVal;
+            const dc = parseFloat(deliveryCharges) || 0;
+            const calcGrandTotal = Math.max(0, subtotal + dc - calcDiscountAmount);
+            const adv = parseFloat(advanceAmount) || 0;
+            const calcRemaining = Math.max(0, calcGrandTotal - adv);
+            const totalUnits = lineItems.reduce((acc, li) => acc + (parseInt(li.quantity, 10) || 0), 0);
+
+            return (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">{t('Delivery Charges')}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={deliveryCharges}
+                      onChange={(e) => setDeliveryCharges(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                        {t('Discount')}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                          {discountType === 'PERCENT' ? '% Percent' : 'Rs. Fixed'}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType((prev) => (prev === 'PERCENT' ? 'FIXED' : 'PERCENT'))}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-medium"
+                      >
+                        {discountType === 'PERCENT' ? 'Switch to Rs.' : 'Switch to %'}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max={discountType === 'PERCENT' ? '100' : undefined}
+                        step="any"
+                        value={discount}
+                        onChange={(e) => setDiscount(e.target.value)}
+                        placeholder={discountType === 'PERCENT' ? 'e.g. 15 for 15%' : '0'}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm pr-9 focus:ring-1 focus:ring-cyan-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                        {discountType === 'PERCENT' ? '%' : 'Rs'}
+                      </span>
+                    </div>
+                    {discVal > 0 && discountType === 'PERCENT' && (
+                      <p className="text-[11px] text-emerald-400 mt-1 font-semibold flex items-center gap-1">
+                        <span>✓</span> {discVal}% discount = -{fmtCurrency(calcDiscountAmount)}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">{t('Advance Payment')}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={advanceAmount}
+                      onChange={(e) => setAdvanceAmount(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Live Order Financial Summary Box */}
+                <div className="bg-slate-800/90 border border-slate-700 rounded-lg p-3 space-y-1.5 text-xs shadow-inner">
+                  <div className="flex justify-between text-slate-400">
+                    <span>{t('Subtotal')} ({totalUnits} {t('units')})</span>
+                    <span className="font-semibold text-slate-200">{fmtCurrency(subtotal)}</span>
+                  </div>
+                  {calcDiscountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-400 font-semibold">
+                      <span>{t('Discount')} {discountType === 'PERCENT' ? `(${discVal}%)` : ''}</span>
+                      <span>-{fmtCurrency(calcDiscountAmount)}</span>
+                    </div>
+                  )}
+                  {dc > 0 && (
+                    <div className="flex justify-between text-slate-400">
+                      <span>{t('Delivery Charges')}</span>
+                      <span>+{fmtCurrency(dc)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-slate-700/80 pt-1.5 flex justify-between text-white font-bold text-sm">
+                    <span>{t('Grand Total')}</span>
+                    <span className="text-cyan-400 text-base">{fmtCurrency(calcGrandTotal)}</span>
+                  </div>
+                  {adv > 0 && (
+                    <div className="flex justify-between text-slate-400">
+                      <span>{t('Advance Paid')}</span>
+                      <span>-{fmtCurrency(adv)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-slate-300 font-medium pt-0.5">
+                    <span>{t('Remaining Balance')}</span>
+                    <span className={calcRemaining > 0 ? 'text-amber-400 font-bold' : 'text-slate-400'}>
+                      {fmtCurrency(calcRemaining)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           <div>
             <label className="text-xs text-slate-400">{t('Delivery Address')}</label>

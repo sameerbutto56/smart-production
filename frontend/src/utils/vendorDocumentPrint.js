@@ -368,7 +368,7 @@ function buildBodyHTML(order, kind, customFields = {}) {
         </tr>` : ''}
         ${parseFloat(order.discount || 0) > 0 ? `
         <tr>
-          <td style="padding: 3px 8px; font-weight: 700; color: #16a34a; border-bottom: 1px solid #dbeafe;">Discount / (PKR):</td>
+          <td style="padding: 3px 8px; font-weight: 700; color: #16a34a; border-bottom: 1px solid #dbeafe;">Discount${order.discountPercent ? ` (${order.discountPercent}%)` : ''} / (PKR):</td>
           <td style="padding: 3px 8px; text-align: right; font-weight: 700; color: #16a34a; border-bottom: 1px solid #dbeafe;">-Rs. ${parseFloat(order.discount).toLocaleString()}</td>
         </tr>` : ''}
         <tr style="background: #dbeafe;">
