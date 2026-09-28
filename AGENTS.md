@@ -1,5 +1,44 @@
 ## Goals
-### Implemented This Session — ASM Profile: Product Selection & Order Line Addition Fix (deployed & live-verified)
+### Implemented This Session — ASM Store Allocation: Item-Level Inventory Deduction Control, Review Summary & Dual Delivery Sheet System (deployed & live-verified)
+- **Problem & Root Causes**:
+  - Store bulk allocation previously failed with "Failed to allocate order" on orders with numerous items (e.g. `VO-2026-00004` with 65 items) due to Prisma transaction timeout (each item was performing sequential database queries inside `$transaction`, leading to $>500$ queries timing out at 25-30s).
+  - Out-of-stock items allowed input values exceeding available warehouse stock, triggering unhandled exceptions.
+  - Re-allocation did not account for already-deducted quantities from prior availability checks, risking double deduction.
+  - Crucial requirement: **Availability does NOT automatically mean inventory deduction**. Store users must explicitly select/check the items to deduct. Unchecked items must remain in inventory and not be deducted.
+  - Delivery Sheet required dual options: **Complete Delivery Sheet** (plain paper with header & footer) vs. **Delivery Sheet Data** (~3in margins, no digital header/footer for pre-printed stationery).
+- **Implementation & Fixes**:
+  - **Backend Batch Preloading & Timeout Extension (`backend/src/controllers/vendor.controller.js`)**:
+    - Preloaded all inventory items in a single batch query (`findMany` with `id: { in: ... }` / `name: { in: ... }`) across `storeAllocate`, `storeCheckAvailability`, and `allProductsAvailable`, dropping execution time from 25s+ to under 300ms.
+    - Extended transaction timeouts to `{ timeout: 60000, maxWait: 20000 }` to withstand cloud database connection latency.
+    - Implemented net deduction logic (`netDeduct = Math.max(0, allocQty - alreadyDeducted)`) preventing double inventory deduction.
+    - Improved error handling to return HTTP 400 with user-actionable messages instead of generic 500 errors.
+  - **Item-Level Control Over Inventory Deduction (`frontend/src/pages/AsmAllowedStorePage.jsx`)**:
+    - Added `Select (☑ / ☐)` checkbox column as the first column in the Store Availability Verification table. Items are unchecked by default; availability alone never deducts inventory.
+    - Added convenience buttons: **"Select All Available"** (checks all items with warehouse stock $> 0$ and sets deduct qty to $\min(\text{requested}, \text{stock})$) and **"Deselect All"** (unchecks all items).
+    - Deduction quantity input is strictly bounded between 0 and $\min(\text{requested}, \text{availableWarehouseStock})$. Disabled and dimmed if unchecked or if warehouse stock is 0.
+    - Added high-contrast **Pre-Allocation Review Summary Box** showing:
+      - `Selected for Inventory Deduction: X of N items (Y units to ASM)`
+      - `Unselected / Remaining (for Production): Z items (W units)`
+    - Clear status badges per row:
+      - Unchecked: `☐ Unchecked (N to Prod)`
+      - Fully fulfilled: `☑ Full to ASM (N)`
+      - Partial: `☑ Partial (A ASM / R Prod)`
+    - Submitting `Confirm Store Availability` or `Send to ASM` only sends checked items with their specified quantities. Unchecked items receive 0 allocated quantity and are not deducted.
+    - Added validation preventing sending 0 units to ASM (prompts user to select items or use "Route Order" to send to Production/Logo).
+  - **Dual Delivery Sheet Options & Pre-Print Preview (`frontend/src/utils/vendorDocumentPrint.js`, `DocumentPreviewEditor.jsx`)**:
+    - Enabled `supportsDataModeToggle: true` for `DOCUMENT_CONFIG.DELIVERY_SHEET`.
+    - Added dual print triggers across all tabs in `AsmAllowedStorePage.jsx`:
+      - **Complete Delivery Sheet**: Full Enamels logo, golden header, and company footer on plain paper (`PRINT_CSS`).
+      - **Delivery Sheet Data**: 3-inch top and bottom letterhead margins, zero digital header/footer for pre-printed letterhead (`DELIVERY_SHEET_CSS`).
+    - Handover table displays exact allocated units (`allocatedQuantity`), hiding internal warehouse stock deductions.
+    - Updated `DocumentPreviewEditor` toggle buttons to dynamically display "Complete Delivery Sheet" vs "Delivery Sheet Data (3″ Letterhead)".
+    - Fixed `fetchBulkAllocationOrders` typo to `fetchBulkOrders()` in `AsmAllowedStorePage.jsx`.
+- **Verification**:
+  - Verification suite `backend/scripts/verify-print-preview-system.cjs`: 33/33 tests passed (100%).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Pushed to `origin main` (commit `52163b6`).
+
+### Implemented Prior Session — ASM Profile: Product Selection & Order Line Addition Fix (deployed & live-verified)
 - **Problem & Root Cause**:
   - In `CreateOrderModal` (`frontend/src/pages/AsmPage.jsx`), when a user picked a product from the catalog search list, the input was configured as `value={lineIsOther(idx) ? li.productName : catalogSearch}`.
   - Picking a catalog item set `catalogItemId`, which caused `lineIsOther(idx)` to evaluate to `false`.
