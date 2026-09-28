@@ -253,7 +253,8 @@ export const exportSectionToExcel = (sectionId, data, outlet = 'Outlet', rangeLa
         'Payment Method': method,
         'Gross Received': fmt(p.gross),
         'Returns': fmt(p.returns),
-        'Net Collected': fmt(p.net),
+        'General Entries': method === 'CASH' ? fmt(p.generalEntries || 0) : 0,
+        'Net Collected (Available)': fmt(method === 'CASH' ? (p.available ?? p.net) : p.net),
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, ws, 'Payments');

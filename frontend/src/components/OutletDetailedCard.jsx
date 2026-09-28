@@ -371,29 +371,49 @@ const OutletDetailedCard = ({
   const [returnDetailId, setReturnDetailId] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const refreshRef = useRef(null);
+  const activeReqId = useRef(0);
 
   const fetchData = useCallback(async () => {
+    const reqId = ++activeReqId.current;
+    setLoading(true);
     try {
       const res = await api.get(`/api/outlet-detailed/${outlet}`, { params: queryParams });
-      setData(res.data);
+      if (reqId === activeReqId.current) {
+        setData(res.data);
+      }
     } catch (e) {
-      console.error('Outlet detailed fetch failed:', e);
+      if (reqId === activeReqId.current) {
+        console.error('Outlet detailed fetch failed:', e);
+      }
     } finally {
-      setLoading(false);
+      if (reqId === activeReqId.current) {
+        setLoading(false);
+      }
     }
   }, [outlet, queryParams]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
   useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Polling ONLY for Today! When viewing historical dates (range !== 'today'), polling is strictly disabled
+  // to prevent flickering or overwriting historical snapshot with re-calculations.
+  const isToday = range === 'today';
+  useEffect(() => {
+    if (!isToday) {
+      if (refreshRef.current) clearInterval(refreshRef.current);
+      return;
+    }
     refreshRef.current = setInterval(fetchData, 30000);
     return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
-  }, [fetchData]);
+  }, [fetchData, isToday]);
 
   const handleRefresh = () => {
     if (refreshRef.current) clearInterval(refreshRef.current);
     fetchData();
-    refreshRef.current = setInterval(fetchData, 30000);
+    if (isToday) {
+      refreshRef.current = setInterval(fetchData, 30000);
+    }
   };
 
   const summary = data?.overview || {};
@@ -770,6 +790,8 @@ const OutletDetailedCard = ({
                 { key: 'ONLINE', label: 'Online', dotClass: 'bg-blue-500', netClass: 'text-blue-400' },
               ].map(m => {
                 const ps = paymentSummary[m.key] || { gross: 0, returns: 0, net: 0 };
+                const geAmount = m.key === 'CASH' ? (ps.generalEntries ?? summary.cashJournalExpenses ?? summary.totalJournalExpenses ?? 0) : 0;
+                const netOrAvailable = m.key === 'CASH' ? (ps.available ?? Math.max(0, ps.net)) : ps.net;
                 return (
                   <div key={m.key} className="glass rounded-2xl p-5 border-2 border-gray-700/50">
                     <div className="flex items-center gap-2 mb-3">
@@ -778,16 +800,22 @@ const OutletDetailedCard = ({
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-[10px] font-bold text-gray-500">Gross</span>
+                        <span className="text-[10px] font-bold text-gray-500">{m.key === 'CASH' ? 'Generated Cash' : 'Gross'}</span>
                         <span className="text-white font-black text-sm">{fmt(ps.gross)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[10px] font-bold text-gray-500">Returns</span>
                         <span className="text-red-400 font-black text-sm">-{fmt(ps.returns)}</span>
                       </div>
+                      {m.key === 'CASH' && geAmount > 0 && (
+                        <div className="flex justify-between text-pink-400">
+                          <span className="text-[10px] font-bold">General Entry</span>
+                          <span className="font-black text-sm">-{fmt(geAmount)}</span>
+                        </div>
+                      )}
                       <div className="border-t border-gray-700/50 pt-2 flex justify-between">
-                        <span className="text-[10px] font-bold text-gray-500">Net</span>
-                        <span className={`${m.netClass} font-black text-lg`}>{fmt(ps.net)}</span>
+                        <span className="text-[10px] font-bold text-gray-500">{m.key === 'CASH' ? 'Available Cash' : 'Net'}</span>
+                        <span className={`${m.netClass} font-black text-lg`}>{fmt(netOrAvailable)}</span>
                       </div>
                     </div>
                   </div>

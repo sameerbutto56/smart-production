@@ -964,17 +964,30 @@ const OrderRow = ({ order, onOpen, onAction, onReject, onPrint, isAdmin, flexDir
             </button>
           )}
           {onPrint && ['SENT_TO_ASM', 'ASM_ACCEPTED', 'ASM_RECEIVED', 'DELIVERED', 'COMPLETED'].includes(stage) && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPrint(order, 'delivery-sheet');
-              }}
-              className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700/80 hover:bg-slate-700 text-teal-300 text-xs font-bold transition border border-teal-500/30"
-              title={t('Print Delivery Sheet')}
-            >
-              <Printer className="h-3.5 w-3.5" /> {t('Delivery Sheet')}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPrint(order, 'delivery-sheet');
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700/80 hover:bg-slate-700 text-teal-300 text-xs font-bold transition border border-teal-500/30"
+                title={t('Print Delivery Sheet')}
+              >
+                <Printer className="h-3.5 w-3.5" /> {t('Delivery Sheet')}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPrint(order, 'gate-pass');
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700/80 hover:bg-slate-700 text-amber-300 text-xs font-bold transition border border-amber-500/30"
+                title={t('Print Gate Pass')}
+              >
+                <Printer className="h-3.5 w-3.5" /> {t('Gate Pass')}
+              </button>
+            </>
           )}
           <div className="flex items-center text-xs text-slate-400">
             <User className="h-3.5 w-3.5 mr-1" />
@@ -1192,6 +1205,8 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
                   onClick={() => onPrint(order, 'thermal')} />
                 <ActionBtn icon={Truck} color="bg-teal-600 hover:bg-teal-500" label={t('Delivery Sheet')}
                   onClick={() => onPrint(order, 'delivery-sheet')} />
+                <ActionBtn icon={Printer} color="bg-amber-600 hover:bg-amber-500" label={t('Gate Pass')}
+                  onClick={() => onPrint(order, 'gate-pass')} />
                 {order.routingItems?.some(r => r.processingRoute === 'LOGO') && (
                   <ActionBtn icon={Printer} color="bg-purple-600 hover:bg-purple-500" label={t('Job Sheet (Logo)')}
                     onClick={() => onPrint(order, 'job-sheet-logo')} />

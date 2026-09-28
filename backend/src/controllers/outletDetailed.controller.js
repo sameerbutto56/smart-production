@@ -74,7 +74,14 @@ const getOutletDetailed = async (req, res) => {
     // for backward compatibility with the Admin card consumers).
     const paymentBreakdown = {};
     unified.paymentBreakdown.forEach(p => {
-      paymentBreakdown[p.method] = { gross: p.gross, returns: p.returns, net: p.net };
+      paymentBreakdown[p.method] = {
+        gross: p.gross,
+        returns: p.returns,
+        net: p.net,
+        generated: p.generated ?? p.gross,
+        generalEntries: p.generalEntries ?? 0,
+        available: p.available ?? p.net,
+      };
     });
 
     let highestSale = null;
@@ -201,6 +208,12 @@ const getOutletDetailed = async (req, res) => {
         completedOrders,
         cancelledOrders,
         totalJournalExpenses,
+        cashJournalExpenses: unified.cashJournalExpenses ?? totalJournalExpenses,
+        generatedCash: unified.generatedCash ?? paymentBreakdown['CASH']?.gross ?? 0,
+        cashReturns: unified.cashReturns ?? paymentBreakdown['CASH']?.returns ?? 0,
+        availableCash: unified.availableCash ?? paymentBreakdown['CASH']?.available ?? 0,
+        availableOnline: unified.availableOnline ?? paymentBreakdown['ONLINE']?.net ?? 0,
+        availableCard: unified.availableCard ?? paymentBreakdown['CARD']?.net ?? 0,
         totalOrderCount: safeOrders.length,
         orderStatusCounts,
         totalFaisalTakeValue,

@@ -1308,6 +1308,7 @@ const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t 
           <ActionBtn color="bg-emerald-600 hover:bg-emerald-500" onClick={() => handlePrint(order, 'invoice-data')} icon={BarChart3} label={t('Invoice Data')} />
           <ActionBtn color="bg-slate-600 hover:bg-slate-500" onClick={() => handlePrint(order, 'thermal')} icon={Receipt} label={t('Thermal')} />
           <ActionBtn color="bg-teal-600 hover:bg-teal-500" onClick={() => handlePrint(order, 'delivery-sheet')} icon={Truck} label={t('Delivery Sheet')} />
+          <ActionBtn color="bg-amber-600 hover:bg-amber-500" onClick={() => handlePrint(order, 'gate-pass')} icon={Printer} label={t('Gate Pass')} />
         </div>
       </div>
 

@@ -172,8 +172,16 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
     const ret = returnsByMethod[method] || 0;
     let net = gross - ret;
     // General entries (expenses) are deducted from Cash. Bank deposits are tracked separately in the Bank Deposit module.
-    if (method === 'CASH') net -= cashJournalExpenses;
-    return { method, gross, returns: ret, net };
+    if (method === 'CASH') net = Math.max(0, net - cashJournalExpenses);
+    return {
+      method,
+      gross,
+      returns: ret,
+      net,
+      generated: gross,
+      generalEntries: method === 'CASH' ? cashJournalExpenses : 0,
+      available: method === 'CASH' ? Math.max(0, (paymentTotals['CASH'] || 0) - (returnsByMethod['CASH'] || 0) - cashJournalExpenses) : (gross - ret),
+    };
   });
 
   const paymentSummary = {
@@ -238,10 +246,13 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
     totalBalanceCleared: balancePaymentTotal,
     totalJournalExpenses,
     cashJournalExpenses,
+    generalEntriesCash: cashJournalExpenses,
     totalBankDeposits,
-    availableCash: Math.round(((paymentTotals['CASH'] || 0) - (returnsByMethod['CASH'] || 0) - cashJournalExpenses) * 100) / 100,
-    availableOnline: Math.round(((paymentTotals['ONLINE'] || 0) - (returnsByMethod['ONLINE'] || 0)) * 100) / 100,
-    availableCard: Math.round(((paymentTotals['CARD'] || 0) - (returnsByMethod['CARD'] || 0)) * 100) / 100,
+    generatedCash: paymentTotals['CASH'] || 0,
+    cashReturns: returnsByMethod['CASH'] || 0,
+    availableCash: Math.max(0, Math.round(((paymentTotals['CASH'] || 0) - (returnsByMethod['CASH'] || 0) - cashJournalExpenses) * 100) / 100),
+    availableOnline: Math.max(0, Math.round(((paymentTotals['ONLINE'] || 0) - (returnsByMethod['ONLINE'] || 0)) * 100) / 100),
+    availableCard: Math.max(0, Math.round(((paymentTotals['CARD'] || 0) - (returnsByMethod['CARD'] || 0)) * 100) / 100),
     paymentTotals,
     paymentSummary,
     returnSummary,

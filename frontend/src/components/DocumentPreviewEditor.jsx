@@ -143,7 +143,7 @@ export default function DocumentPreviewEditor({
   // Compile print details & pages using our shared helper
   const effectiveKind = useDataOnlyMode
     ? (baseDocType === 'QUOTATION' ? 'quotation-data' : (baseDocType === 'DELIVERY_SHEET' ? 'delivery-sheet-data' : 'invoice-data'))
-    : (baseDocType === 'DELIVERY_SHEET' ? 'delivery-sheet' : kind);
+    : (baseDocType === 'DELIVERY_SHEET' ? 'delivery-sheet' : (baseDocType === 'GATE_PASS' ? 'gate-pass' : kind));
 
   const docDetails = useMemo(() => {
     return getDocumentPrintDetails({

@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../prisma');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
+const { resolvePktDateRange } = require('../utils/workingHours');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
@@ -73,12 +74,24 @@ const createJournalEntry = async (req, res) => {
   }
 };
 
-// Get journal entries for an outlet
+// Get journal entries for an outlet (supporting optional date range)
 const getJournalEntries = async (req, res) => {
   try {
     const outlet = getOutletName(req);
+    const { range, dateFrom, dateTo } = req.query;
+    const where = { outletName: outlet };
+
+    if (range || dateFrom || dateTo) {
+      const { start, end } = resolvePktDateRange({ range, dateFrom, dateTo });
+      if (start || end) {
+        where.createdAt = {};
+        if (start) where.createdAt.gte = start;
+        if (end) where.createdAt.lt = end;
+      }
+    }
+
     const entries = await prisma.journalEntry.findMany({
-      where: { outletName: outlet },
+      where,
       orderBy: { createdAt: 'desc' }
     });
     res.json(entries);
@@ -87,33 +100,45 @@ const getJournalEntries = async (req, res) => {
   }
 };
 
-// Get cash summary for an outlet — today's cash only (or custom range)
+// Get cash summary for an outlet — supports today, custom date, or historical ranges
 const getCashSummary = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    // Accept optional dateFrom/dateTo query params
-    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : today;
-    const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date();
+    const { range, dateFrom, dateTo } = req.query;
+    const { start: dateStart, end: dateEnd } = resolvePktDateRange({
+      range: range || (dateFrom ? 'custom' : 'today'),
+      dateFrom,
+      dateTo,
+    });
 
     const summary = await computeUnifiedSalesSummary(prisma, {
       outlet,
-      start: dateFrom,
-      end: dateTo
+      start: dateStart,
+      end: dateEnd,
+      isHalfOpen: true,
     });
 
     const cashBreakdown = (summary.paymentBreakdown || []).find(p => p.method === 'CASH') || { gross: 0, returns: 0, net: 0 };
 
     const totalCashCollected = cashBreakdown.gross;
     const totalCashRefunded = cashBreakdown.returns;
-    const totalExpenses = summary.totalJournalExpenses || 0;
+    const totalExpenses = summary.cashJournalExpenses || summary.totalJournalExpenses || 0;
     const totalBankDeposits = summary.totalBankDeposits || 0;
     const netCash = totalCashCollected - totalCashRefunded;
-    // Available Cash = Net Cash − General Entries/Expenses (Bank deposits are tracked separately in the Bank Deposit module)
+    // Standard reconciliation formula: Available Cash = Generated Cash - Returns - General Entries
     const availableCash = Math.max(0, netCash - totalExpenses);
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.json({ totalCashCollected, totalCashRefunded, totalExpenses, totalBankDeposits, netCash, availableCash });
+    res.json({
+      totalCashCollected,
+      totalCashRefunded,
+      totalExpenses,
+      totalBankDeposits,
+      netCash,
+      availableCash,
+      generatedCash: totalCashCollected,
+      cashReturns: totalCashRefunded,
+      generalEntries: totalExpenses,
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to get cash summary', error: error.message });
   }

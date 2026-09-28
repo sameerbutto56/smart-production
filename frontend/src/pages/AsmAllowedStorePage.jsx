@@ -1591,6 +1591,13 @@ const AsmAllowedStorePage = () => {
                               >
                                 <Printer size={13} /> Delivery Sheet Data
                               </button>
+                              <button
+                                onClick={() => handleOpenPrintPreview(order, 'gate-pass')}
+                                className="bg-amber-900/60 hover:bg-amber-800/80 text-amber-200 border border-amber-500/30 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition"
+                                title="Preview & Print Warehouse Gate Pass (Category-wise Aggregated)"
+                              >
+                                <Printer size={13} /> Gate Pass
+                              </button>
                             </div>
                             <div className="flex items-center gap-2">
                               <button
@@ -1700,6 +1707,13 @@ const AsmAllowedStorePage = () => {
                                     title="Delivery Sheet Data only for pre-printed letterhead"
                                   >
                                     <Printer size={13} /> Delivery Sheet Data
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenPrintPreview(order, 'gate-pass')}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white font-black px-3.5 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition"
+                                    title="Preview & Print Warehouse Gate Pass (Category-wise Aggregated)"
+                                  >
+                                    <Printer size={13} /> Gate Pass
                                   </button>
                                 </>
                               )}
@@ -1826,7 +1840,7 @@ const AsmAllowedStorePage = () => {
                                 </button>
                               )}
 
-                              {/* Print Delivery Sheet for ASM */}
+                              {/* Print Delivery Sheet & Gate Pass for ASM */}
                               <button
                                 onClick={() => handleOpenPrintPreview(order, 'delivery-sheet')}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600/80 hover:bg-teal-600 text-white text-xs font-bold transition shadow"
@@ -1840,6 +1854,13 @@ const AsmAllowedStorePage = () => {
                                 title="Delivery Sheet Data (3-inch letterhead margins)"
                               >
                                 <Printer size={13} /> Delivery Sheet Data
+                              </button>
+                              <button
+                                onClick={() => handleOpenPrintPreview(order, 'gate-pass')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-bold transition shadow"
+                                title="Preview & Print Warehouse Gate Pass (Category-wise Aggregated)"
+                              >
+                                <Printer size={13} /> Gate Pass
                               </button>
                             </div>
                           </div>

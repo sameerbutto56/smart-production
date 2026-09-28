@@ -815,6 +815,192 @@ export function printVendorJobSheet(order, targetDepartment = 'PRODUCTION', proc
   printIframe(html, title, [], JOB_SHEET_CSS);
 }
 
+// ── ASM Bulk Order Gate Pass (Physical exit document with category-wise aggregation) ──
+export function getCategoryName(item) {
+  if (item?.category && typeof item.category === 'string' && item.category.trim()) {
+    return item.category.trim();
+  }
+  if (item?.productType && typeof item.productType === 'string' && item.productType.trim()) {
+    return item.productType.trim();
+  }
+  const name = String(item?.productName || '').trim();
+  const lower = name.toLowerCase();
+  if (lower.includes('cap')) return 'Caps';
+  if (lower.includes('lab coat') || lower.includes('labcoat') || lower.includes('coat')) return 'Lab Coats';
+  if (lower.includes('scrub')) return 'Scrubs';
+  if (lower.includes('t-shirt') || lower.includes('tee') || lower.includes('polo')) return 'T-Shirts';
+  if (lower.includes('trouser') || lower.includes('pant')) return 'Trousers';
+  if (lower.includes('jacket') || lower.includes('blazer')) return 'Jackets';
+  if (lower.includes('gown')) return 'Gowns';
+  if (lower.includes('hoodie')) return 'Hoodies';
+  if (lower.includes('mask')) return 'Masks';
+  if (lower.includes('apron')) return 'Aprons';
+  if (name) return name;
+  return 'General Apparel';
+}
+
+export function buildGatePassHTML(order, customFields = {}, logoUrl = '') {
+  const vendorName = order?.vendor?.name || 'VENDOR';
+  const asmName = order?.asm?.name || '—';
+  const storeName = order?.storeName || 'Main Store / Warehouse';
+  const orderNumber = order?.orderNumber || '—';
+  const gatePassNumber = order?.gatePassNumber || `GP-${orderNumber}`;
+  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Category-wise aggregation of ACTUAL handover / allocated quantities
+  const categoryMap = {};
+  let totalAllocatedUnits = 0;
+
+  (order?.items || []).forEach(item => {
+    const cat = getCategoryName(item);
+    const qty = Number(item.allocatedQuantity) || 0;
+    if (!categoryMap[cat]) {
+      categoryMap[cat] = 0;
+    }
+    categoryMap[cat] += qty;
+    totalAllocatedUnits += qty;
+  });
+
+  const categoryEntries = Object.entries(categoryMap);
+  let rowsHtml = '';
+  if (categoryEntries.length === 0 || totalAllocatedUnits === 0) {
+    rowsHtml = `
+      <tr>
+        <td colspan="3" style="padding: 14px; text-align: center; color: #64748b; font-style: italic; border: 1px solid #cbd5e1;">
+          ${categoryEntries.length > 0
+            ? '0 units currently allocated for handover. Pending warehouse allocation.'
+            : 'No items found in this order.'}
+        </td>
+      </tr>`;
+  } else {
+    categoryEntries.forEach(([catName, qty], idx) => {
+      rowsHtml += `
+        <tr style="border-bottom: 1px solid #e2e8f0; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="padding: 8px 10px; text-align: center; border: 1px solid #cbd5e1; font-weight: 700; color: #475569; width: 45px;">
+            ${String(idx + 1).padStart(2, '0')}
+          </td>
+          <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">
+            <div style="font-weight: 800; color: #0f172a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+              ${catName}
+            </div>
+            <div style="font-size: 8.5px; color: #64748b;">Category-level goods clearance</div>
+          </td>
+          <td style="padding: 8px 12px; text-align: center; border: 1px solid #cbd5e1; font-weight: 900; font-size: 13px; color: #0f172a; width: 120px;">
+            ${qty} <span style="font-size: 9px; font-weight: 600; color: #64748b;">Units</span>
+          </td>
+        </tr>`;
+    });
+  }
+
+  return `
+  <div class="a4-container">
+    ${logoUrl ? buildHeaderHTML(logoUrl) : ''}
+
+    <!-- GATE PASS BADGE & TITLE -->
+    <div style="text-align: center; margin: 6px 0 12px 0;">
+      <div style="display: inline-block; background: #0f172a; color: #ffffff; padding: 4px 18px; border-radius: 4px; font-size: 14px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;">
+        WAREHOUSE GATE PASS
+      </div>
+      <div style="font-size: 8.5px; color: #64748b; font-weight: 700; margin-top: 3px; letter-spacing: 1px; text-transform: uppercase;">
+        Physical Movement &amp; Exit Authorization Document
+      </div>
+    </div>
+
+    <!-- METADATA BOX -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 9.5px; line-height: 1.6;">
+      <div>
+        <div><span style="color: #64748b; font-weight: 700;">Gate Pass #:</span> <strong style="color: #b45309; font-size: 11px;">${gatePassNumber}</strong></div>
+        <div><span style="color: #64748b; font-weight: 700;">Order #:</span> <strong style="color: #0f172a;">${orderNumber}</strong></div>
+        <div><span style="color: #64748b; font-weight: 700;">Vendor / Client:</span> <strong style="text-transform: uppercase;">${vendorName}</strong></div>
+        ${order?.vendor?.phone ? `<div><span style="color: #64748b; font-weight: 700;">Vendor Phone:</span> ${order.vendor.phone}</div>` : ''}
+      </div>
+      <div style="text-align: right;">
+        <div><span style="color: #64748b; font-weight: 700;">Issue Date:</span> <strong>${dateStr}</strong></div>
+        <div><span style="color: #64748b; font-weight: 700;">Issuing Warehouse:</span> <strong>${storeName}</strong></div>
+        <div><span style="color: #64748b; font-weight: 700;">Authorized ASM:</span> <strong style="color: #0f172a;">${asmName}</strong></div>
+        ${order?.deliveryCity ? `<div><span style="color: #64748b; font-weight: 700;">Destination:</span> ${order.deliveryCity}</div>` : ''}
+      </div>
+    </div>
+
+    <!-- CATEGORY-WISE QUANTITY SUMMARY TABLE -->
+    <div style="margin-bottom: 4px; font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
+      Category-Wise Handover Summary (Actual Allocated Stock)
+    </div>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
+      <thead>
+        <tr style="background: #0f172a; color: #ffffff;">
+          <th style="padding: 6px 8px; text-align: center; width: 45px; font-size: 9px; font-weight: 800; border: 1px solid #0f172a;">Sr.#</th>
+          <th style="padding: 6px 12px; text-align: left; font-size: 9px; font-weight: 800; border: 1px solid #0f172a;">Category Description</th>
+          <th style="padding: 6px 12px; text-align: center; width: 120px; font-size: 9px; font-weight: 800; border: 1px solid #0f172a;">Handover Quantity</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        <tr style="background: #f1f5f9; border-top: 2px solid #0f172a;">
+          <td colspan="2" style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: 900; text-align: right; font-size: 10px;">
+            TOTAL AUTHORIZED EXIT UNITS:
+          </td>
+          <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; font-weight: 900; font-size: 14px; color: #059669;">
+            ${totalAllocatedUnits} <span style="font-size: 9.5px; font-weight: 700; color: #64748b;">Units</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- NOTES & REMARKS -->
+    ${(customFields.notes || customFields.gatePassNotes || order?.notes) ? `
+    <div style="margin-bottom: 8px; padding: 8px 10px; font-size: 9px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px;">
+      <strong>Gate Pass Notes:</strong> ${customFields.notes || customFields.gatePassNotes || order.notes}
+    </div>` : ''}
+
+    ${customFields.specialInstructions ? `
+    <div style="margin-bottom: 8px; padding: 8px 10px; font-size: 9px; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px;">
+      <strong>Exit / Gate Instructions:</strong> ${customFields.specialInstructions}
+    </div>` : ''}
+
+    ${customFields.remarks ? `
+    <div style="margin-bottom: 8px; padding: 8px 10px; font-size: 9px; color: #475569; background: #f1f5f9; border-radius: 4px;">
+      <strong>Operational Remarks:</strong> ${customFields.remarks}
+    </div>` : ''}
+
+    <div style="margin-top: 14px; padding: 6px 10px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 4px; font-size: 8px; color: #92400e; text-align: center;">
+      <strong>Gate Notice:</strong> Security / Gate Incharge must verify vehicle &amp; total packaged units against this Gate Pass before allowing factory exit.
+    </div>
+
+    <!-- EXACTLY 2 SIGNATURE BLOCKS (ASM & WAREHOUSE ONLY) -->
+    <div style="display: flex; justify-content: space-around; margin-top: 45px; font-size: 9.5px;">
+      <div style="text-align: center; width: 40%;">
+        <div style="border-top: 1.5px solid #0f172a; padding-top: 6px;">
+          <div style="font-weight: 900; color: #0f172a; text-transform: uppercase;">
+            ${customFields.preparedBy || customFields.warehouseSignatory || 'Warehouse Incharge'}
+          </div>
+          <div style="color: #64748b; font-size: 8.5px; font-weight: 700; margin-top: 2px;">
+            Warehouse Signature &amp; Date
+          </div>
+        </div>
+      </div>
+      <div style="text-align: center; width: 40%;">
+        <div style="border-top: 1.5px solid #0f172a; padding-top: 6px;">
+          <div style="font-weight: 900; color: #0f172a; text-transform: uppercase;">
+            ${customFields.receivedBy || customFields.asmSignatory || asmName || 'ASM Incharge'}
+          </div>
+          <div style="color: #64748b; font-size: 8.5px; font-weight: 700; margin-top: 2px;">
+            ASM Signature &amp; Date
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${buildFooterHTML()}
+  </div>`;
+}
+
+export function printVendorGatePass(order, customFields = {}, logoUrl = '') {
+  const html = buildGatePassHTML(order, customFields, logoUrl);
+  const title = `Gate Pass — ${order?.orderNumber || ''}`;
+  printIframe(html, title, [], PRINT_CSS);
+}
+
 // ── Universal Document Configuration ─────────────────────────────────────────
 export const DOCUMENT_CONFIG = {
   DELIVERY_SHEET: {
@@ -831,6 +1017,19 @@ export const DOCUMENT_CONFIG = {
       { key: 'preparedBy', label: 'Prepared By (Signatory)', type: 'text', placeholder: 'Store Officer Name' },
       { key: 'issuedBy', label: 'Issued By (Signatory)', type: 'text', placeholder: 'Warehouse Incharge Name' },
       { key: 'receivedBy', label: 'Received By (Signatory)', type: 'text', placeholder: 'ASM / Agent Name' },
+    ],
+  },
+  GATE_PASS: {
+    label: 'Gate Pass',
+    docType: 'GATE_PASS',
+    hasLetterheadMargins: false,
+    defaultTitle: 'Gate Pass',
+    fields: [
+      { key: 'notes', label: 'Gate Pass Notes', type: 'textarea', placeholder: 'e.g. Authorized goods exit for ASM handover.' },
+      { key: 'specialInstructions', label: 'Exit / Gate Instructions', type: 'textarea', placeholder: 'e.g. Inspect vehicle before gate clearance.' },
+      { key: 'remarks', label: 'Operational Remarks', type: 'text', placeholder: 'e.g. Verified by Store Manager' },
+      { key: 'preparedBy', label: 'Warehouse Incharge (Signatory)', type: 'text', placeholder: 'Warehouse Incharge Name' },
+      { key: 'receivedBy', label: 'ASM Receiver (Signatory)', type: 'text', placeholder: 'ASM Name' },
     ],
   },
   QUOTATION: {
@@ -884,6 +1083,7 @@ export const DOCUMENT_CONFIG = {
 // Helper: Normalize document kind to standard docType key
 export function resolveDocumentType(kind = '') {
   const k = String(kind).toLowerCase().trim();
+  if (k.includes('gate') || k.includes('pass')) return 'GATE_PASS';
   if (k.includes('delivery')) return 'DELIVERY_SHEET';
   if (k.includes('job-sheet') || k.includes('job_sheet')) return 'JOB_SHEET';
   if (k.includes('quote') || k.includes('quotation')) return 'QUOTATION';
@@ -972,6 +1172,21 @@ export function getDocumentPrintDetails({
       hasLetterheadMargins: isDataOnly,
       pages: [
         { label: isDataOnly ? 'Invoice (Data-Only Letterhead)' : 'Invoice (Full A4)', html },
+      ],
+      fullHtml: html,
+    };
+  }
+
+  // 5. GATE PASS (Warehouse Physical Exit Document — Category-Wise Aggregation)
+  if (normKind === 'gate-pass' || normKind === 'gate_pass' || normKind.includes('gate')) {
+    const html = buildGatePassHTML(order, customFields, logoUrl);
+    return {
+      docType: 'GATE_PASS',
+      title: `Gate Pass — ${orderNumber}`,
+      css: PRINT_CSS,
+      hasLetterheadMargins: false,
+      pages: [
+        { label: 'Gate Pass (Category-Wise Handover)', html },
       ],
       fullHtml: html,
     };

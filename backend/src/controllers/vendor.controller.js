@@ -863,6 +863,7 @@ const getStoreAllocationOrders = async (req, res) => {
 
         return {
           ...item,
+          category: matchedInventoryItem?.category || item.productType || null,
           availableWarehouseStock: warehouseStock,
           remainingQuantity,
         };

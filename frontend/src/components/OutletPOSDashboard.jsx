@@ -32,19 +32,22 @@ const OutletPOSDashboard = ({ outlet }) => {
     api.get(`/api/pos/employees?outlet=${outlet}`).then(r => setEmployees(r.data)).catch(() => {});
   }, [outlet]);
 
-  const dashboardKey = `pos:dashboard:${cacheVersion.current}:${outlet}:${range}:${dateFrom}:${dateTo}`;
+  const isToday = range === 'today';
+  const dashboardKey = `pos:dashboard:${cacheVersion.current}:${outlet}:${range}:${dateFrom || ''}:${dateTo || ''}`;
   const salesKey = `pos:sales:${cacheVersion.current}:${outlet}`;
 
   const { data: dashboard = null, loading, error, refresh } = useCache(dashboardKey, {
     fetcher: () => api.get('/api/pos/sales/dashboard', {
       params: { outlet, ...queryParams, cashier: cashier || undefined }
     }).then(r => r.data),
-    ttl: 30000,
+    ttl: isToday ? 30000 : 24 * 60 * 60 * 1000,
+    staleWhileRevalidate: isToday,
   });
 
   const { data: sales = [] } = useCache(`${salesKey}:${range}:${dateFrom || ''}:${dateTo || ''}`, {
     fetcher: () => api.get('/api/pos/sales', { params: { outlet, ...queryParams } }).then(r => r.data),
-    ttl: 5 * 60 * 1000,
+    ttl: isToday ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000,
+    staleWhileRevalidate: isToday,
   });
 
   const [journalEntries, setJournalEntries] = useState([]);
@@ -56,8 +59,8 @@ const OutletPOSDashboard = ({ outlet }) => {
     setJournalLoading(true);
     try {
       const [entriesRes, cashRes] = await Promise.all([
-        api.get(`/api/journal?outlet=${outlet}`),
-        api.get(`/api/journal/cash-summary?outlet=${outlet}`)
+        api.get('/api/journal', { params: { outlet, ...queryParams } }),
+        api.get('/api/journal/cash-summary', { params: { outlet, ...queryParams } })
       ]);
       setJournalEntries(entriesRes.data);
       setCashSummary(cashRes.data);
@@ -66,7 +69,7 @@ const OutletPOSDashboard = ({ outlet }) => {
     } finally {
       setJournalLoading(false);
     }
-  }, [outlet]);
+  }, [outlet, queryParams]);
 
   const isAbbottabad = String(outlet || '').toLowerCase().includes('abbottabad');
   const [abbottabadDemands, setAbbottabadDemands] = useState([]);
@@ -88,14 +91,14 @@ const OutletPOSDashboard = ({ outlet }) => {
   const fetchClearedBalances = useCallback(async () => {
     setClearedLoading(true);
     try {
-      const res = await api.get(`/api/pos/balance-collections?outlet=${outlet}`);
+      const res = await api.get('/api/pos/balance-collections', { params: { outlet, ...queryParams } });
       setClearedBalances(res.data);
     } catch (e) {
       console.error('Cleared balance fetch error:', e);
     } finally {
       setClearedLoading(false);
     }
-  }, [outlet]);
+  }, [outlet, queryParams]);
 
   useEffect(() => { fetchJournal(); fetchClearedBalances(); }, [fetchJournal, fetchClearedBalances]);
 
@@ -103,8 +106,10 @@ const OutletPOSDashboard = ({ outlet }) => {
   const debouncedFetchJournal = useCallback(debounce(() => fetchJournal(), 500), [fetchJournal]);
   const debouncedFetchCleared = useCallback(debounce(() => fetchClearedBalances(), 500), [fetchClearedBalances]);
 
-  // Re-fetch when tab becomes visible or window regains focus (covers navigation back)
+  // Re-fetch when tab becomes visible or window regains focus — ONLY when viewing Today!
+  // When viewing historical dates (range !== 'today'), background focus/visibility must NOT overwrite the stable snapshot.
   useEffect(() => {
+    if (!isToday) return;
     const handler = () => { debouncedFetchJournal(); debouncedFetchCleared(); };
     window.addEventListener('journal-entry-saved', handler);
     window.addEventListener('balance-payment-saved', handler);
@@ -117,10 +122,11 @@ const OutletPOSDashboard = ({ outlet }) => {
       window.removeEventListener('focus', handler);
       document.removeEventListener('visibilitychange', visHandler);
     };
-  }, [debouncedFetchJournal, debouncedFetchCleared]);
+  }, [debouncedFetchJournal, debouncedFetchCleared, isToday]);
 
-  // Cross-tab sync via BroadcastChannel
+  // Cross-tab sync via BroadcastChannel — ONLY for Today
   useEffect(() => {
+    if (!isToday) return;
     try {
       const bc = new BroadcastChannel('smart-production');
       bc.onmessage = (e) => {
@@ -131,7 +137,7 @@ const OutletPOSDashboard = ({ outlet }) => {
       journalRef.current = bc;
     } catch (_) {}
     return () => { try { journalRef.current?.close(); } catch (_) {} };
-  }, [debouncedFetchJournal]);
+  }, [debouncedFetchJournal, refresh, isToday]);
 
   const balanceData = dashboard ? (() => {
     const orders = dashboard.balanceOrders || [];
