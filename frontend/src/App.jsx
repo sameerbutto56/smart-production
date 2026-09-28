@@ -72,6 +72,8 @@ const AsmPage = lazy(() => import('./pages/AsmPage'));
 const VendorsPage = lazy(() => import('./pages/VendorsPage'));
 const AsmAllowedStorePage = lazy(() => import('./pages/AsmAllowedStorePage'));
 const ProductDataPage = lazy(() => import('./pages/ProductDataPage'));
+const OutletOrderLookup = lazy(() => import('./pages/OutletOrderLookup'));
+const OutletInvoiceQuotation = lazy(() => import('./pages/OutletInvoiceQuotation'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -89,6 +91,18 @@ const OutletBlockedRoute = ({ children }) => {
 };
 
 const JoharTownGatePassRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
+  const role = String(user?.role || '').toUpperCase().trim();
+  if (role === 'OUTLET') {
+    const n = String(user?.name || '').toLowerCase();
+    const isJohar = n.includes('johar') || user?.name?.includes('1');
+    if (!isJohar) return <Navigate to="/outlet-dashboard" replace />;
+  }
+  return children;
+};
+
+const JoharTownOnlyRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   const role = String(user?.role || '').toUpperCase().trim();
@@ -209,6 +223,8 @@ function App() {
                   <Route path="clients" element={<ClientRegistration />} />
                   <Route path="pos" element={<OutletPOS />} />
                   <Route path="pos-inventory" element={<OutletPOSInventory />} />
+                  <Route path="outlet-orders" element={<OutletOrderLookup />} />
+                  <Route path="outlet-invoice-quotation" element={<JoharTownOnlyRoute><OutletInvoiceQuotation /></JoharTownOnlyRoute>} />
                   <Route path="transfers" element={<OutletTransfers />} />
                   <Route path="order-track" element={<OrderTrack />} />
                   <Route path="journal" element={<OutletJournalPage />} />

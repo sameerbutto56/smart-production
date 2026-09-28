@@ -1,5 +1,51 @@
 ## Goals
-### Implemented This Session — POS Register 26 & 27 Sep Split, Data Reconciliation & Concurrency Deduplication (deployed & live-verified)
+### Implemented This Session — Johar Town & Jail Road Outlet Order Lookup, A4 Invoice/Quotation Generator & Navbar Enhancement (deployed & live-verified)
+- **Requirements & Objectives**:
+  - **New Navbar Options**:
+    - **Johar Town Outlet**: `Orders` and `Invoice / Quotation`.
+    - **Jail Road Outlet**: `Orders` only.
+    - Final Outlet Navbar Order:
+      - Johar Town: `Dashboard | POS | Orders | Invoice / Quotation | History | Existing Options`
+      - Jail Road: `Dashboard | POS | Orders | History | Existing Options`
+    - All existing options (POS, History, Transfers, Inventory, Dashboards) remain fully intact.
+  - **Order Lookup Module (`Orders`)**:
+    - Available on both Johar Town and Jail Road.
+    - Search and look up existing and historical orders by Order Number (e.g. `50335`, `JT-132222`), Invoice #, Customer Name, or Phone.
+    - Full read-only detail drawer/modal with complete Order Meta, Customer Details, Product Line Items (colors, sizes, fabrics, quantities, unit prices, line totals, engravings, logos, matching caps, alterations, special measurement notes), and Financial Breakdown (Subtotal, Delivery Charges, Discount, Grand Total, Paid/Advance, Remaining Balance, Payment Status, Payment Method, POS receipt #, and subsequent balance payment history).
+    - Strict read-only: zero editing, deleting, or price modification allowed.
+    - Connection to Invoice / Quotation generator for Johar Town.
+  - **Invoice / Quotation Module (`Invoice / Quotation`)**:
+    - Available on Johar Town only (`JoharTownOnlyRoute`).
+    - Dedicated A4 document generator with split-screen real-time preview (7 columns live preview, 5 columns controls).
+    - Document Type selector: `☑ INVOICE` vs `☐ QUOTATION` (single select).
+    - Standard professional A4 layout (210mm × 297mm) with Enamels branding, golden line, subheaders, customer details, line items table, financial totals, amount in words, permitted custom fields (remarks, instructions, terms), and dual signature blocks.
+    - Exact Meezan Bank account details:
+      - Title: ENAMELS
+      - Bank: Meezan Bank-College Road Lahore
+      - Account Number: 02220105077642
+      - IBAN: PK78MEZN0002220105077642
+      - Instruction: "Please deposit here. Do send a screenshot when you're done."
+    - Distinct templates: Invoice (Balance Due, Payment Status) vs Quotation (15-day validity notice and terms).
+    - Clean iframe browser printing.
+- **Implementation**:
+  - **Backend Controller & Routes (`backend/src/controllers/outletOrder.controller.js`, `backend/src/routes/outletOrder.routes.js`)**:
+    - Enhanced `lookupOrderWithFinancials` to return all order fields (`discountAmount`, `deliveryCharges`, `customizationPrice`, `baseProductAmount`, `paymentMethod`, `deliveryMethod`, `trackingNumber`, `outletName`, `urgent`, `quantity`, `financialSummary`, `placedBy`, `stages` with `stageName`).
+    - Added `searchOutletOrders` endpoint (`GET /api/outlet-orders/lookup-list`) supporting search (`orderNumber`, `invoiceNumber`, `customerName`, `customerPhone`, `city`), stage filtering, status filtering, and pagination.
+    - Registered routes and exported methods.
+  - **Print Utilities (`frontend/src/utils/outletInvoiceQuotationPrint.js`)**:
+    - `A4_PRINT_CSS`: Standard print stylesheet ensuring exact print dimensions, colors, margins, and page breaks.
+    - `buildOutletDocumentHTML`: Generates complete, styled HTML with header, client info, itemized products table, Meezan Bank box, totals breakdown, amount in words, terms, and signatures.
+    - `printOutletDocument`: Clean iframe-based print trigger.
+  - **Pages & Routing (`OutletOrderLookup.jsx`, `OutletInvoiceQuotation.jsx`, `App.jsx`, `Layout.jsx`)**:
+    - `OutletOrderLookup.jsx`: Orders table, search, filters, pagination, and complete read-only inspection modal with Johar Town Invoice/Quotation shortcut.
+    - `OutletInvoiceQuotation.jsx`: Split-screen editor with A4 paper simulation, zoom toolbar (50%–130%), order auto-loader, permitted remarks/terms editing, and direct print trigger.
+    - `App.jsx`: Added lazy routes `/outlet-orders` and `/outlet-invoice-quotation` guarded with `JoharTownOnlyRoute`.
+    - `Layout.jsx`: Reordered `navItems` to place `Outlet Dashboard`, `POS`, `Orders`, `Invoice / Quotation`, `History` in the exact sequence requested, with strict role filtering (`isJoharTown` gets both, `isJailRoad` gets Orders only, History accessible to both).
+- **Verification**:
+  - Backend automated verification script `backend/scripts/verify-outlet-order-lookup.cjs`: All tests passed (100% pass rate) for order lookup, financials, and paginated order search.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly into `OutletOrderLookup-BKgdaV78.js.br` and `OutletInvoiceQuotation-7IqjbiAT.js.br`.
+
+### Implemented Prior Session — POS Register 26 & 27 Sep Split, Data Reconciliation & Concurrency Deduplication (deployed & live-verified)
 - **Problem & Root Cause**:
   - In Jail Road and Johar Town, users noticed two registers listed for 26 Sep and no register for 27 Sep.
   - Root Cause:

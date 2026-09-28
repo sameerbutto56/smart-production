@@ -104,6 +104,10 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'] },
     { name: 'Product Data', path: '/product-data', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
+    { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] },
+    { name: 'Orders', path: '/outlet-orders', icon: ClipboardList, roles: ['OUTLET'] },
+    { name: 'Invoice / Quotation', path: '/outlet-invoice-quotation', icon: FileText, roles: ['OUTLET'] },
+    { name: 'History', path: '/history', icon: History, roles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN', 'CEO'] },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
@@ -144,7 +148,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Outlet Engraving', path: '/engraving-queue', icon: Scissors, roles: ['LOGO_DESIGN'] },
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['DELIVERY_BOY'] },
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['OUTLET'] },
-    { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] },
     { name: 'Alteration', path: '/alteration-request', icon: Scissors, roles: ['OUTLET'] },
     { name: 'Engraving', path: '/engraving-request', icon: Scissors, roles: ['OUTLET'] },
     { name: 'Verification', path: '/verification', icon: Shield, roles: ['INVENTORY_VIEW'] },
@@ -175,6 +178,19 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
       // Edit Request is completely removed from Outlet profiles
       if (item.name === 'Edit Request') return false;
 
+      // Invoice / Quotation — strictly JOHAR TOWN only
+      if (item.name === 'Invoice / Quotation') {
+        return isJoharTown;
+      }
+      // Orders — strictly JOHAR TOWN and JAIL ROAD
+      if (item.name === 'Orders' && item.path === '/outlet-orders') {
+        return isJoharTown || isJailRoad;
+      }
+      // History — JOHAR TOWN and JAIL ROAD
+      if (item.name === 'History') {
+        return isJoharTown || isJailRoad;
+      }
+
       // In Dispatch is a dedicated JOHAR TOWN outlet module only
       if (item.name === 'In Dispatch') {
         return isJoharTown;
@@ -187,7 +203,12 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
       if (item.name === 'Office Supply') {
         return isJoharTown || isJailRoad;
       }
-      return ['Outlet Dashboard', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Notifications'].includes(item.name);
+      return [
+        'Outlet Dashboard', 'POS', 'Orders', 'Invoice / Quotation', 'History',
+        'Transfers', 'Outlet Requests', 'Client Registration', 'POS Inventory',
+        'Outlet Order Entry', 'Alteration', 'Engraving', 'General Entries',
+        'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track', 'Notifications'
+      ].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy

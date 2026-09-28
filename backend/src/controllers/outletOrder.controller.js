@@ -812,43 +812,41 @@ const lookupOrderWithFinancials = async (req, res) => {
 
     const q = orderNumber.trim();
 
+    const orderSelect = {
+      id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
+      address: true, city: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true,
+      productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
+      engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
+      engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
+      deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true, balanceAmount: true,
+      discountAmount: true, deliveryCharges: true, customizationPrice: true, baseProductAmount: true,
+      paymentMethod: true, deliveryMethod: true, trackingNumber: true, outletName: true, urgent: true,
+      quantity: true, financialSummary: true, placedBy: true,
+      stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, startedAt: true, completedAt: true, createdAt: true } }
+    };
+
     // 1. Find order by exact orderNumber, then invoiceNumber, then contains fallback
     let order = await prisma.order.findUnique({
       where: { orderNumber: q },
-      select: {
-        id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
-        address: true, city: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true,
-        productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
-        engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
-        engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
-        deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true, balanceAmount: true
-      }
+      select: orderSelect
     });
     if (!order) {
       order = await prisma.order.findUnique({
         where: { invoiceNumber: q },
-        select: {
-          id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
-          address: true, city: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true,
-          productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
-          engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
-          engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
-          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true, balanceAmount: true
-        }
+        select: orderSelect
       });
     }
     if (!order) {
       const matches = await prisma.order.findMany({
-        where: { orderNumber: { contains: q } },
+        where: {
+          OR: [
+            { orderNumber: { contains: q } },
+            { invoiceNumber: { contains: q } },
+            { customerPhone: { contains: q } }
+          ]
+        },
         orderBy: { createdAt: 'desc' }, take: 1,
-        select: {
-          id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
-          address: true, city: true, totalPrice: true, advanceAmount: true, currentStage: true, status: true,
-          productDetails: true, sizeData: true, engravingRequired: true, engravingText: true,
-          engravingInstructions: true, engravingType: true, logoRequired: true, logoName: true, logoDesign: true,
-          engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true,
-          deliveryType: true, priority: true, type: true, createdAt: true, paymentStatus: true, balanceAmount: true
-        }
+        select: orderSelect
       });
       order = matches[0] || null;
     }
@@ -877,9 +875,14 @@ const lookupOrderWithFinancials = async (req, res) => {
       const totalReturns = posSale.returns.reduce((s, r) => s + (r.refundAmount || 0), 0);
       const remaining = Math.max(0, (posSale.grandTotal || 0) - totalPaid);
       const isPaid = remaining <= 0.01;
+      const subtotal = (posSale.grandTotal || 0) + (order?.discountAmount || 0) - (order?.deliveryCharges || 0);
       financial = {
         posSaleId: posSale.id,
         receiptNumber: posSale.receiptNumber,
+        subtotal: subtotal > 0 ? subtotal : posSale.grandTotal,
+        discountAmount: order?.discountAmount || 0,
+        deliveryCharges: order?.deliveryCharges || 0,
+        customizationPrice: order?.customizationPrice || 0,
         grandTotal: posSale.grandTotal,
         advanceAmount: posSale.advanceAmount,
         totalPaid,
@@ -899,18 +902,25 @@ const lookupOrderWithFinancials = async (req, res) => {
       // No POS sale found — derive from order fields (honor stored PAID/BALANCE status + balanceAmount)
       const adv = order.advanceAmount || 0;
       const tot = order.totalPrice || 0;
+      const disc = order.discountAmount || 0;
+      const del = order.deliveryCharges || 0;
+      const sub = Math.max(0, tot + disc - del);
       const storedStatus = String(order.paymentStatus || '').toUpperCase();
       const isPaid = storedStatus === 'PAID' || (adv >= tot && tot > 0);
       financial = {
         posSaleId: null,
         receiptNumber: null,
+        subtotal: sub > 0 ? sub : tot,
+        discountAmount: disc,
+        deliveryCharges: del,
+        customizationPrice: order.customizationPrice || 0,
         grandTotal: tot,
         advanceAmount: adv,
         totalPaid: adv,
         totalReturns: 0,
         remaining: Math.max(0, tot - adv),
-        paymentMethod: null,
-        cashierName: null,
+        paymentMethod: order.paymentMethod || null,
+        cashierName: order.placedBy || null,
         posSaleDate: null,
         paymentStatus: storedStatus === 'PAID' || storedStatus === 'BALANCE' ? storedStatus : (isPaid ? 'PAID' : (adv > 0 ? 'ADVANCE' : 'PENDING')),
         balanceAmount: (order.balanceAmount != null) ? order.balanceAmount : Math.max(0, tot - adv),
@@ -934,6 +944,64 @@ const lookupOrderWithFinancials = async (req, res) => {
   } catch (error) {
     console.error('[lookupOrderWithFinancials] error:', error.message);
     res.status(500).json({ message: 'Error looking up order' });
+  }
+};
+
+const searchOutletOrders = async (req, res) => {
+  try {
+    const { q, stage, status, outlet, page = 1, limit = 25 } = req.query;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const take = Math.min(100, Math.max(1, parseInt(limit) || 25));
+    const skip = (pageNum - 1) * take;
+
+    const where = {};
+    const reqOutlet = getOutletName(req);
+    if (outlet && outlet !== 'ALL') {
+      where.outletName = outlet;
+    } else if (reqOutlet && req.user?.role === 'OUTLET' && !q) {
+      where.outletName = reqOutlet;
+    }
+
+    if (stage && stage !== 'ALL') where.currentStage = stage;
+    if (status && status !== 'ALL') where.status = status;
+
+    if (q && q.trim()) {
+      const searchStr = q.trim();
+      where.OR = [
+        { orderNumber: { contains: searchStr } },
+        { invoiceNumber: { contains: searchStr } },
+        { customerName: { contains: searchStr } },
+        { customerPhone: { contains: searchStr } },
+        { city: { contains: searchStr } }
+      ];
+    }
+
+    const [total, orders] = await Promise.all([
+      prisma.order.count({ where }),
+      prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        select: {
+          id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true,
+          city: true, totalPrice: true, advanceAmount: true, balanceAmount: true, paymentStatus: true,
+          paymentMethod: true, currentStage: true, status: true, deliveryMethod: true, deliveryType: true,
+          outletName: true, createdAt: true, quantity: true, urgent: true, priority: true,
+          discountAmount: true, deliveryCharges: true, customizationPrice: true
+        }
+      })
+    ]);
+
+    res.json({
+      orders,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / take)
+    });
+  } catch (error) {
+    console.error('[searchOutletOrders] error:', error.message);
+    res.status(500).json({ message: 'Error searching orders', error: error.message });
   }
 };
 
@@ -1490,4 +1558,4 @@ const verifyOutletEmployee = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, lookupOrderWithFinancials, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee };
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, lookupOrderWithFinancials, searchOutletOrders, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee };
