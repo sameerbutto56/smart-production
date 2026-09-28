@@ -2650,6 +2650,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                                 📝 {isUrdu ? romanToUrdu(itemCust.designNotes) : itemCust.designNotes}
                                               </span>
                                             )}
+                                            {p.measurementSpecialNote && (
+                                              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md italic">
+                                                📝 {isUrdu ? romanToUrdu(p.measurementSpecialNote) : p.measurementSpecialNote}
+                                              </span>
+                                            )}
                                           </>
                                         )}
                                         {hasLogos && itemCust.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((logo, li) => (

@@ -1375,103 +1375,113 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── MEASUREMENT SECTION ───
-  if (showMeas) {
-    const rawS = typeof sizes === 'object' && sizes ? sizes : {};
-    const selectedSize = order.size || rawS._standardSize || '';
-    const measSpecialNote = rawS.specialNote || '';
-    const measEntries = Object.entries(rawS).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra');
-    const hasMeasValues = measEntries.length > 0;
-    // Collect per-product measurement notes
-    const getItemSizeNote = (item) => {
-      if (!item.sizeData) return '';
-      const sd = typeof item.sizeData === 'string' ? (() => { try { return JSON.parse(item.sizeData); } catch(e) { return {}; } })() : item.sizeData;
-      return sd?.specialNote || '';
-    };
-    let productNotes = isMultiItem
-      ? allItems.map((item, idx) => {
-          const p = getItemProduct(item);
-          const note = p.measurementSpecialNote || getItemSizeNote(item) || '';
-          return { name: p.productType || p.name || `Product ${idx + 1}`, note };
-        }).filter(x => x.note)
-      : [];
-    // Fallback: for multi-item orders without per-product notes, use order-level or sizeData note
-    const fallbackNote = order.measurementSpecialNote || measSpecialNote;
-    if (productNotes.length === 0 && fallbackNote) {
-      if (isMultiItem) {
-        productNotes = allItems.map((item, idx) => {
-          const p = getItemProduct(item);
-          return { name: p.productType || p.name || `Product ${idx + 1}`, note: fallbackNote };
-        });
-      } else {
-        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: fallbackNote }];
-      }
+  // ─── EXTRACT PER-ARTICLE SPECIAL NOTES ───
+  const getArticleSpecialNote = (item, p) => {
+    if (!p && !item) return '';
+    const n = p?.measurementSpecialNote ?? p?.specialNote ?? item?.specialNote ?? item?.notes ?? p?.notes ?? '';
+    let str = (typeof n === 'string' ? n : String(n || '')).trim();
+    if (!str && item?.sizeData) {
+      try {
+        const sd = typeof item.sizeData === 'string' ? JSON.parse(item.sizeData) : item.sizeData;
+        str = (sd?.specialNote || '').trim();
+      } catch (e) {}
     }
-    const hasAnyNote = productNotes.length > 0;
-    if (selectedSize || hasAnyNote || measSpecialNote || hasMeasValues) {
+    return str;
+  };
+
+  const rawS = typeof sizes === 'object' && sizes ? sizes : {};
+  const selectedSize = order.size || rawS._standardSize || '';
+  const measSpecialNote = (rawS.specialNote || '').trim();
+  const measEntries = Object.entries(rawS).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra');
+  const hasMeasValues = measEntries.length > 0;
+  const fallbackOrderNote = (order.measurementSpecialNote || order.specialNote || order.notes || measSpecialNote || '').trim();
+
+  let productNotes = [];
+  if (isMultiItem) {
+    allItems.forEach((item, idx) => {
+      const p = getItemProduct(item);
+      const note = getArticleSpecialNote(item, p);
+      if (note) {
+        productNotes.push({
+          articleNumber: idx + 1,
+          name: p.productType || p.name || `Article ${idx + 1}`,
+          color: p.color || '',
+          note
+        });
+      }
+    });
+  } else {
+    const p = firstProduct;
+    const note = getArticleSpecialNote(null, p) || fallbackOrderNote;
+    if (note) {
+      productNotes.push({
+        articleNumber: 1,
+        name: p.productType || p.name || 'Article 1',
+        color: p.color || '',
+        note
+      });
+    }
+  }
+  const hasGeneralOrderNoteOnly = isMultiItem && productNotes.length === 0 && Boolean(fallbackOrderNote);
+  const hasAnyNote = productNotes.length > 0 || hasGeneralOrderNoteOnly;
+
+  // ─── MEASUREMENT & SPECIAL NOTES SECTION ───
+  if (showMeas) {
+    if (selectedSize || hasAnyNote || hasMeasValues) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
       if (selectedSize) {
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(measSpecialNote || hasAnyNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${hasAnyNote ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
       }
-      if (measSpecialNote && !hasAnyNote) {
-        const noteDisplay = isUrdu ? measSpecialNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecialNote;
-        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues) ? '6px' : '0'}">`);
-        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
-      }
-      if (hasAnyNote) {
+      if (productNotes.length > 0) {
         productNotes.forEach((pn) => {
           const noteDisplay = isUrdu ? romanToUrdu(pn.note) : pn.note;
           const productNameDisplay = isUrdu ? pu(pn.name) : pn.name;
-          win.document.write(`<div style="background:#dbeafe;border-${borderAccent}:4px solid #3b82f6;padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues || measSpecialNote) ? '6px' : '0'}">`);
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#1e40af;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote} — ${productNameDisplay}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
+          win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:8px 12px;border-radius:6px;margin-top:${selectedSize || hasMeasValues ? '6px' : '0'};page-break-inside:avoid">`);
+          win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid #d9770640">`);
+          win.document.write(`<span style="background:#d97706;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;flex-shrink:0">${pn.articleNumber}</span>`);
+          win.document.write(`<span style="font-size:20px;font-weight:900;text-transform:uppercase;color:#92400e"${isUrdu ? ' class="urdu"' : ''}>${pn.articleNumber}. ${sec.specialNote} — ${productNameDisplay}</span>`);
+          if (pn.color) win.document.write(`<span style="font-size:18px;color:#666">(${vu(pn.color)})</span>`);
+          win.document.write(`</div>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap;margin:0"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p>`);
+          win.document.write(`</div>`);
         });
+      } else if (hasGeneralOrderNoteOnly) {
+        const generalDisplay = isUrdu ? romanToUrdu(fallbackOrderNote) : fallbackOrderNote;
+        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:8px 12px;border-radius:6px;margin-top:${selectedSize || hasMeasValues ? '6px' : '0'};page-break-inside:avoid">`);
+        win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#92400e;margin-bottom:4px;border-bottom:1px solid #d9770640;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap;margin:0"${isUrdu ? ' class="urdu"' : ''}>${generalDisplay}</p>`);
+        win.document.write(`</div>`);
       }
       win.document.write(`</div>`);
     }
   }
 
-  // ─── MEASUREMENT NOTES (standalone when engraving is disabled) ───
-  if (!showMeas) {
-    const rawS2 = typeof sizes === 'object' && sizes ? sizes : {};
-    const fallbackNote2 = order.measurementSpecialNote || rawS2.specialNote || '';
-    const getItemSizeNote2 = (item) => {
-      if (!item.sizeData) return '';
-      const sd = typeof item.sizeData === 'string' ? (() => { try { return JSON.parse(item.sizeData); } catch(e) { return {}; } })() : item.sizeData;
-      return sd?.specialNote || '';
-    };
-    let productNotes = isMultiItem
-      ? allItems.map((item, idx) => {
-          const p = getItemProduct(item);
-          const note = p.measurementSpecialNote || getItemSizeNote2(item) || '';
-          return { name: p.productType || p.name || `Product ${idx + 1}`, note };
-        }).filter(x => x.note)
-      : [];
-    // Fallback: for multi-item orders without per-product notes, use order-level or sizeData note
-    if (productNotes.length === 0 && fallbackNote2) {
-      if (isMultiItem) {
-        productNotes = allItems.map((item, idx) => {
-          const p = getItemProduct(item);
-          return { name: p.productType || p.name || `Product ${idx + 1}`, note: fallbackNote2 };
-        });
-      } else {
-        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: fallbackNote2 }];
-      }
-    }
+  // ─── MEASUREMENT NOTES (standalone when measurements is toggled off) ───
+  if (!showMeas && hasAnyNote) {
+    win.document.write(`<div class="section-title" style="font-size:26px">${sec.specialNote || sec.measurements}</div>`);
+    win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
     if (productNotes.length > 0) {
-      win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
-      win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
       productNotes.forEach((pn) => {
         const noteDisplay = isUrdu ? romanToUrdu(pn.note) : pn.note;
         const productNameDisplay = isUrdu ? pu(pn.name) : pn.name;
-        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-bottom:4px">`);
-        win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:2px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote} — ${productNameDisplay}</p>`);
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
+        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:8px 12px;border-radius:6px;margin-bottom:4px;page-break-inside:avoid">`);
+        win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid #d9770640">`);
+        win.document.write(`<span style="background:#d97706;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;flex-shrink:0">${pn.articleNumber}</span>`);
+        win.document.write(`<span style="font-size:20px;font-weight:900;text-transform:uppercase;color:#92400e"${isUrdu ? ' class="urdu"' : ''}>${pn.articleNumber}. ${sec.specialNote} — ${productNameDisplay}</span>`);
+        if (pn.color) win.document.write(`<span style="font-size:18px;color:#666">(${vu(pn.color)})</span>`);
+        win.document.write(`</div>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap;margin:0"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p>`);
+        win.document.write(`</div>`);
       });
+    } else if (hasGeneralOrderNoteOnly) {
+      const generalDisplay = isUrdu ? romanToUrdu(fallbackOrderNote) : fallbackOrderNote;
+      win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:8px 12px;border-radius:6px;margin-bottom:4px;page-break-inside:avoid">`);
+      win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#92400e;margin-bottom:4px;border-bottom:1px solid #d9770640;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+      win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap;margin:0"${isUrdu ? ' class="urdu"' : ''}>${generalDisplay}</p>`);
       win.document.write(`</div>`);
     }
+    win.document.write(`</div>`);
   }
 
   // ─── ENGRAVING / BRANDING ───
@@ -1540,7 +1550,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
-            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name || 'Item ' + (idx + 1))}</span>`);
+            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${isUrdu ? 'آرٹیکل ' + (idx + 1) + ' — ' : 'Article ' + (idx + 1) + ' — '}${pu(p.productType || p.name || 'Item ' + (idx + 1))}</span>`);
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 

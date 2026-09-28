@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock } from 'lucide-react';
 import { formatDateOnly } from '../utils/dateTime';
+import { printJobSheet } from '../utils/printReport';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Customer', 'Products', 'Measurements', 'Review'];
@@ -487,6 +488,46 @@ const OutletOrderEntry = () => {
       toast.error(err.response?.data?.message || 'Failed to place order');
     }
     setSubmitting(false);
+  };
+
+  const handlePrintPreviewJobSheet = () => {
+    const enrichedProducts = products.map(p => ({
+      ...p,
+      productType: p.name,
+      fabricType: p.fabric || '',
+      gender: p.gender || 'Male',
+      matchingCap: p.matchingCap || false,
+      matchingCapQty: p.matchingCapQty || 0,
+      capCharges: p.matchingCap ? (parseInt(p.matchingCapQty) || 0) * CAP_UNIT_PRICE : 0,
+      sleeveLength: p.sleeveLength || '',
+      shirtLength: p.shirtLength || '',
+      femaleOptions: p.femaleOptions || null,
+      alteration: p.alteration || null,
+      measurementSpecialNote: (p.measurementSpecialNote || '').trim()
+    }));
+
+    const previewOrder = {
+      orderNumber: orderNumber || 'DRAFT',
+      customerName: customer.name || 'Walk-in Customer',
+      customerPhone: customer.phone || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      outletName,
+      source: 'OUTLET',
+      priority,
+      deliveryType,
+      type: 'STANDARD',
+      paymentStatus: paymentStatus || 'UNPAID',
+      balanceAmount: balanceAmount ? parseFloat(balanceAmount) : 0,
+      totalPrice: totalAmount,
+      advanceAmount: advanceAmount ? parseFloat(advanceAmount) : 0,
+      notes: specialNotes || null,
+      productDetails: JSON.stringify(enrichedProducts),
+      engravingRequired: products.some(p => !!p.engravingRequired),
+      createdAt: new Date().toISOString()
+    };
+
+    printJobSheet(previewOrder, user?.role || 'OUTLET', 'en');
   };
 
   const resetAll = () => {
@@ -1248,16 +1289,35 @@ const OutletOrderEntry = () => {
               <p className="text-[10px] font-bold text-gray-500">Payment handled at POS — no advance required here.</p>
             </div>
 
-            <div className="bg-gray-800 rounded-xl p-4 text-sm">
-              {products.filter(p => p.measurementSpecialNote).length > 0 && (
-                <div className="mb-1">
-                  <p className="text-gray-400 font-bold mb-1">Measurement Notes:</p>
-                  {products.filter(p => p.measurementSpecialNote).map((p, i) => (
-                    <p key={p._tempId} className="text-amber-400 font-bold ml-2">• {p.name}: <span className="text-white">{p.measurementSpecialNote}</span></p>
-                  ))}
+            <div className="bg-gray-800 rounded-xl p-4 text-sm space-y-2">
+              {products.some(p => (p.measurementSpecialNote || '').trim()) && (
+                <div>
+                  <p className="text-gray-400 font-bold mb-1.5 text-xs uppercase tracking-wider">Special Notes:</p>
+                  <div className="space-y-1.5">
+                    {products.map((p, idx) => {
+                      const note = (p.measurementSpecialNote || '').trim();
+                      if (!note) return null;
+                      return (
+                        <div key={p._tempId} className="flex items-start gap-2 bg-gray-900/60 p-2 rounded-lg border border-gray-700/50">
+                          <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-black px-2 py-0.5 rounded-full shrink-0">
+                            {idx + 1}
+                          </span>
+                          <div className="flex-1 text-xs">
+                            <span className="font-bold text-gray-300">{p.name}{p.color ? ` (${p.color})` : ''}: </span>
+                            <span className="text-white font-medium">{note}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-              {specialNotes && <p className="text-gray-400">Special Notes: <span className="text-white font-black">{specialNotes}</span></p>}
+              {specialNotes && (
+                <div className="pt-1 border-t border-gray-700/50 text-xs">
+                  <span className="text-gray-400 font-bold">Order Notes: </span>
+                  <span className="text-white font-medium">{specialNotes}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">
@@ -1349,49 +1409,79 @@ const OutletOrderEntry = () => {
             {products.some(p => p.engravingRequired) && (
               <div className="border-2 border-purple-300 rounded-lg p-3 space-y-2">
                 <p className="text-xs font-black uppercase text-purple-700">Engraving / Branding</p>
-                {products.filter(p => p.engravingRequired).map(p => {
+                {products.map((p, idx) => {
+                  if (!p.engravingRequired) return null;
                   const lines = (p.engravingLines || []).filter(l => l && l.trim());
                   const logos = (p.logoEntries || []).filter(l => l.name?.trim() || l.design?.trim());
                   return (
-                    <div key={p._tempId} className="border-t border-purple-200 pt-1 first:border-t-0 first:pt-0">
-                      <p className="text-xs font-black uppercase">{p.name}</p>
-                      <p className="text-xs">Method: <span className="font-black">{(p.engravingType || 'direct') === 'direct' ? 'Direct' : 'Patch'}</span></p>
-                      {lines.map((line, i) => (
-                        <p key={i} className="text-xs">Line {i + 1}: <span className="font-black">{line}</span></p>
-                      ))}
-                      {p.engravingThreadColor && <p className="text-xs">Thread Color: <span className="font-black">{p.engravingThreadColor === 'Custom' ? p.customThreadColor : p.engravingThreadColor}</span></p>}
-                      <p className="text-xs">Placement: <span className="font-black">{PLACEMENT_OPTIONS.find(o => o.value === (p.engravingPlacement || 'LeftChest'))?.label || p.engravingPlacement}</span></p>
-                      {logos.map((l, i) => (
-                        <p key={i} className="text-xs">Logo: <span className="font-black">{l.name}{l.design ? ` — ${l.design}` : ''}</span></p>
-                      ))}
-                      {p.engravingInstructions && <p className="text-xs mt-1">Instructions: <span className="font-black">{p.engravingInstructions}</span></p>}
+                    <div key={p._tempId} className="border-t border-purple-200 pt-2 first:border-t-0 first:pt-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-purple-700 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs font-black uppercase text-purple-950">
+                          Article {idx + 1} — {p.name}{p.color ? ` (${p.color})` : ''}
+                        </span>
+                      </div>
+                      <div className="pl-7 space-y-0.5 text-xs text-gray-700">
+                        <p>Method: <span className="font-bold text-black">{(p.engravingType || 'direct') === 'direct' ? 'Direct' : 'Patch'}</span></p>
+                        {lines.map((line, li) => (
+                          <p key={li}>Line {li + 1}: <span className="font-bold text-black">{line}</span></p>
+                        ))}
+                        {p.engravingThreadColor && <p>Thread Color: <span className="font-bold text-black">{p.engravingThreadColor === 'Custom' ? p.customThreadColor : p.engravingThreadColor}</span></p>}
+                        <p>Placement: <span className="font-bold text-black">{PLACEMENT_OPTIONS.find(o => o.value === (p.engravingPlacement || 'LeftChest'))?.label || p.engravingPlacement}</span></p>
+                        {logos.map((l, li) => (
+                          <p key={li}>Logo: <span className="font-bold text-black">{l.name}{l.design ? ` — ${l.design}` : ''}</span></p>
+                        ))}
+                        {p.engravingInstructions && <p className="mt-1 text-gray-800 font-medium">Instructions: <span className="font-bold">{p.engravingInstructions}</span></p>}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
-            {products.some(p => p.measurementSpecialNote) && (
-              <div className="border-2 border-amber-300 rounded-lg p-3 space-y-1">
-                <p className="text-xs font-black uppercase text-amber-700">Measurement Notes</p>
-                {products.filter(p => p.measurementSpecialNote).map((p, i) => (
-                  <p key={p._tempId} className="text-xs">{p.name}: <span className="font-bold">{p.measurementSpecialNote}</span></p>
-                ))}
+            {products.some(p => (p.measurementSpecialNote || '').trim()) && (
+              <div className="border-2 border-amber-300 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-black uppercase text-amber-700">Special Notes</p>
+                {products.map((p, idx) => {
+                  const note = (p.measurementSpecialNote || '').trim();
+                  if (!note) return null;
+                  return (
+                    <div key={p._tempId} className="border-t border-amber-200 pt-2 first:border-t-0 first:pt-0">
+                      <div className="flex items-start gap-2">
+                        <span className="bg-amber-600 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-xs font-black text-amber-950 uppercase">
+                            {idx + 1}. Special Note — {p.name}{p.color ? ` (${p.color})` : ''}
+                          </p>
+                          <p className="text-xs font-bold text-black whitespace-pre-wrap mt-0.5">{note}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             {specialNotes && (
               <div className="bg-gray-100 rounded-lg p-3">
-                <p className="text-xs font-black uppercase mb-1">Special Notes</p>
-                <p className="text-xs font-bold">{specialNotes}</p>
+                <p className="text-xs font-black uppercase mb-1 text-gray-700">Order Notes</p>
+                <p className="text-xs font-bold text-black whitespace-pre-wrap">{specialNotes}</p>
               </div>
             )}
             <div className="flex justify-between text-sm font-black border-t-2 border-black pt-2">
               <span>Total</span>
               <span>₨{totalAmount.toLocaleString()}</span>
             </div>
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-2 pt-2">
               <button onClick={() => setShowJobSheetPreview(false)}
                 className="flex-1 bg-gray-200 hover:bg-gray-300 text-black font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
-                <X size={16} /> Reject
+                <X size={16} /> Close Preview
+              </button>
+              <button onClick={handlePrintPreviewJobSheet}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                <Printer size={16} /> Print Job Sheet
               </button>
               <button onClick={async () => { setShowJobSheetPreview(false); await handleSubmit(); }}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">

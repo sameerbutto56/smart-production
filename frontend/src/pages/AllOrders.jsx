@@ -1604,8 +1604,8 @@ const AllOrders = () => {
                                       </div>
                                     )}
 
-                                    {hasSpecialNote && (
-                                      <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {isUrdu ? romanToUrdu(s.specialNote) : s.specialNote}</div>
+                                    {(hasSpecialNote || p.measurementSpecialNote) && (
+                                      <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {isUrdu ? romanToUrdu(p.measurementSpecialNote || s?.specialNote) : (p.measurementSpecialNote || s?.specialNote)}</div>
                                     )}
                                   </td>
                                   <td className="py-4 theme-text-secondary">

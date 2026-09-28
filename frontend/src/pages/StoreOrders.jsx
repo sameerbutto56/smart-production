@@ -387,15 +387,38 @@ const StoreOrders = () => {
                 </section>
               )}
 
-              {/* Special Note */}
-              {order.specialNote && (
+              {/* Special Notes */}
+              {productDetails.some(p => (p.measurementSpecialNote || p.specialNote || '').trim()) ? (
+                <section>
+                  <h4 className="text-[10px] md:text-xs font-black text-yellow-500 uppercase tracking-[0.3em] mb-4">Special Notes</h4>
+                  <div className="space-y-2">
+                    {productDetails.map((p, idx) => {
+                      const note = (p.measurementSpecialNote || p.specialNote || '').trim();
+                      if (!note) return null;
+                      return (
+                        <div key={idx} className="bg-yellow-500/5 p-3 rounded-2xl border border-yellow-500/10 flex items-start gap-2">
+                          <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 text-xs font-black px-2 py-0.5 rounded-full shrink-0">
+                            {idx + 1}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-xs font-black text-yellow-400 uppercase">
+                              {idx + 1}. {p.productType || p.name || `Article ${idx + 1}`}{p.color ? ` (${p.color})` : ''}
+                            </p>
+                            <p className="text-sm text-yellow-300 italic mt-0.5 whitespace-pre-wrap">{note}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : order.specialNote ? (
                 <section>
                   <h4 className="text-[10px] md:text-xs font-black text-yellow-500 uppercase tracking-[0.3em] mb-4">Special Note</h4>
                   <div className="bg-yellow-500/5 p-4 rounded-2xl border border-yellow-500/10">
                     <p className="text-sm text-yellow-300 italic">{order.specialNote}</p>
                   </div>
                 </section>
-              )}
+              ) : null}
             </div>
 
             {/* Footer with Print */}
