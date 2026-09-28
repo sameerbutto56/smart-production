@@ -1,5 +1,32 @@
 ## Goals
-### Implemented This Session — ASM Request Edit, Version Diff, Re-Approval & Store Allocation Workflow (deployed & live-verified)
+### Implemented This Session — POS Register 26 & 27 Sep Split, Data Reconciliation & Concurrency Deduplication (deployed & live-verified)
+- **Problem & Root Cause**:
+  - In Jail Road and Johar Town, users noticed two registers listed for 26 Sep and no register for 27 Sep.
+  - Root Cause:
+    1. On the morning of 26 Sep (10:03 PKT for Jail Road, 10:46 PKT for Johar Town), rapid multiple clicks on "Open Register" executed concurrently without a transaction lock. Both requests saw `existing === null` and created two `PosBookSession` records with `status: 'OPEN'` within $\sim 600\text{ms}$ of each other.
+    2. At day end on 26 Sep, the cashier clicked "Close Register", which closed the first session. The duplicate second session remained `OPEN` throughout the night of the 26th and all day on the 27th.
+    3. On the morning of 27 Sep, the POS found the already-open session from 26 Sep, so no new register was opened.
+    4. At day end on 27 Sep, the cashier closed the register, closing the second session.
+    5. Because the second session had `openedAt: 2026-09-26`, the UI grouped and displayed it as "26 Sep", showing two registers on 26 Sep and none on 27 Sep, and its summary merged sales across both 26 and 27 Sep.
+    6. Furthermore, on 28 Sep (today), three duplicate open sessions were similarly created at Jail Road within 800ms.
+- **Fix & Prevention**:
+  - **Database Data Reconciliation (`backend/scripts/fix-register-26-27.cjs`)**:
+    - **Jail Road**: Partitioned 27 Sep register (`074a9b8f`) by updating `openedAt` to `2026-09-27T05:00:00.000Z` and recomputing summary strictly for 27 Sep sales (8 sales, Rs. 87,672, Cash: Rs. 36,750). The 26 Sep register (`08d42a61`) stands clean with 10 sales, Rs. 60,863, Cash: Rs. 35,750.
+    - **Johar Town**: Partitioned 27 Sep register (`4c14e6c6`) by updating `openedAt` to `2026-09-27T05:00:00.000Z` and recomputing summary strictly for 27 Sep sales (7 sales, Rs. 49,066, Cash: Rs. 5,800). The 26 Sep register (`d3fb93e4`) stands clean with 13 sales, Rs. 118,225, Cash: Rs. 23,650.
+    - **Jail Road 28 Sep (Today)**: Removed the 2 ghost OPEN sessions (`cfd82cbe`, `c24d64d9`), leaving exactly 1 active OPEN register (`137e3a5b`).
+  - **Backend Concurrency Deduplication (`backend/src/controllers/pos.book.controller.js`)**:
+    - Wrapped `openBook` inside an atomic Prisma `$transaction` (`{ timeout: 15000, maxWait: 5000 }`).
+    - Made `openBook` idempotent: if an OPEN session already exists, it immediately returns the existing session with HTTP 200 instead of allowing duplicates or failing.
+    - Automatically cleans up duplicate ghost sessions if any ever exist.
+    - In `closeBook`, automatically closes/deletes any dangling ghost OPEN sessions for the outlet so no old session can linger into the following day.
+  - **Frontend Double-Submit Prevention (`POSContext.jsx`, `POSModals.jsx`)**:
+    - Added `if (openBookLoading) return;` guard in `handleOpenBook`.
+    - Added `authSubmitting` state in `POSModals.jsx`, disabling the "Open Register" / "View Close Summary" button immediately on click and displaying `Processing...`.
+- **Verification**:
+  - Database queries confirm exactly 1 register for 26 Sep, 1 register for 27 Sep, and 1 active register for 28 Sep across all outlets.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+
+### Implemented Prior Session — ASM Request Edit, Version Diff, Re-Approval & Store Allocation Workflow (deployed & live-verified)
 - **Problem & Requirements**:
   - ASM users needed the ability to edit existing bulk requests/orders across editable stages (`SUBMITTED`, `AWAITED_ADMIN`, `APPROVED`, `ADMIN_APPROVED`, `SENT_TO_STORE`, `REJECTED`, `GIVE_STOCK`, `CREATED`).
   - Critical rule: **Editing never auto-approves**. Any revision must increment the order version (`v1` → `v2`, `v3`...), compute an exact item diff (`added`, `removed`, `modified`), reset the stage to `AWAITED_ADMIN`, and require explicit Admin re-approval.

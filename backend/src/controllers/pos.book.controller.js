@@ -19,19 +19,43 @@ const openBook = async (req, res) => {
     const outlet = getOutletName(req);
     const openedBy = req.body.employeeName || req.user?.name || 'Unknown';
 
-    // Check if there's already an open book
-    const existing = await prisma.posBookSession.findFirst({
-      where: { outletName: outlet, status: 'OPEN' },
-    });
-    if (existing) {
-      return res.status(400).json({ message: 'A book session is already open for this outlet' });
-    }
+    // Atomic transaction with concurrency deduplication
+    const session = await prisma.$transaction(async (tx) => {
+      // Find all OPEN sessions for this outlet
+      const allOpen = await tx.posBookSession.findMany({
+        where: { outletName: outlet, status: 'OPEN' },
+        orderBy: { openedAt: 'desc' },
+      });
 
-    const session = await prisma.posBookSession.create({
-      data: { outletName: outlet, openedBy, status: 'OPEN' },
-    });
-    await notify.create(req, { type: 'register_open', moduleName: 'POS', path: '/pos', role: 'OUTLET', title: 'Register Opened', message: `${outlet} register opened by ${openedBy}`, action: 'Register Opened', employeeName: req.user?.name }).catch(() => {});
-    res.status(201).json(session);
+      if (allOpen.length > 0) {
+        // If there are duplicate open sessions from rapid clicks, delete the duplicates
+        if (allOpen.length > 1) {
+          const duplicateIds = allOpen.slice(1).map(s => s.id);
+          await tx.posBookSession.deleteMany({
+            where: { id: { in: duplicateIds } },
+          });
+        }
+        // Return existing open session idempotently
+        return allOpen[0];
+      }
+
+      return await tx.posBookSession.create({
+        data: { outletName: outlet, openedBy, status: 'OPEN' },
+      });
+    }, { timeout: 15000, maxWait: 5000 });
+
+    await notify.create(req, {
+      type: 'register_open',
+      moduleName: 'POS',
+      path: '/pos',
+      role: 'OUTLET',
+      title: 'Register Opened',
+      message: `${outlet} register opened by ${openedBy}`,
+      action: 'Register Opened',
+      employeeName: req.user?.name,
+    }).catch(() => {});
+
+    res.status(200).json(session);
   } catch (error) {
     res.status(500).json({ message: 'Failed to open register', error: error.message });
   }
@@ -426,6 +450,15 @@ const closeBook = async (req, res) => {
         summary: JSON.stringify(computedSummary),
       },
     });
+    // Ensure no dangling duplicate OPEN sessions remain for this outlet
+    await prisma.posBookSession.deleteMany({
+      where: {
+        outletName: session.outletName,
+        status: 'OPEN',
+        id: { not: id },
+      },
+    }).catch(() => {});
+
     await notify.create(req, { type: 'register_close', moduleName: 'POS', path: '/pos', role: 'OUTLET', title: 'Register Closed', message: `${session.outletName} register closed by ${closedBy}`, action: 'Register Closed', employeeName: req.user?.name }).catch(() => {});
     res.json(updated);
   } catch (error) {

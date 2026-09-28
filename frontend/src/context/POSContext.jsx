@@ -781,6 +781,7 @@ export function POSProvider({ children }) {
   };
 
   const handleOpenBook = async (openedBy) => {
+    if (openBookLoading) return;
     setOpenBookLoading(true);
     try {
       const res = await api.post('/api/pos/book/open', { outlet: selectedOutlet, employeeName: openedBy });

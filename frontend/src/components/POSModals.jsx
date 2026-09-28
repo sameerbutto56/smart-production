@@ -50,20 +50,28 @@ const POSModals = () => {
     setLastBalancePayment(null);
   };
 
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+
   const handleAuth = async () => {
+    if (authSubmitting) return;
     if (!authEmployee) { setAuthError('Select an employee'); return; }
     if (!authPassword) { setAuthError('Enter password'); return; }
-    const r = await loginEmployee(authEmployee, authPassword);
-    if (!r.ok) { setAuthError(r.message); return; }
-    setAuthError('');
-    setShowAuthModal(false);
-    if (authMode === 'open') {
-      handleOpenBook(authEmployee);
-    } else if (authMode === 'close') {
-      handleFetchCloseBookSummary(authEmployee);
+    setAuthSubmitting(true);
+    try {
+      const r = await loginEmployee(authEmployee, authPassword);
+      if (!r.ok) { setAuthError(r.message); return; }
+      setAuthError('');
+      setShowAuthModal(false);
+      if (authMode === 'open') {
+        handleOpenBook(authEmployee);
+      } else if (authMode === 'close') {
+        handleFetchCloseBookSummary(authEmployee);
+      }
+      setAuthEmployee('');
+      setAuthPassword('');
+    } finally {
+      setAuthSubmitting(false);
     }
-    setAuthEmployee('');
-    setAuthPassword('');
   };
 
   const handlePrintCloseBook = async (summary) => {
@@ -597,9 +605,9 @@ const POSModals = () => {
 
               {authError && <p className="text-[10px] font-bold text-red-400 text-center">{authError}</p>}
 
-              <button onClick={handleAuth}
-                className="w-full py-2.5 rounded-xl font-black text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all active:scale-[0.98]">
-                {authMode === 'open' ? 'Open Register' : 'View Close Summary'}
+              <button onClick={handleAuth} disabled={authSubmitting}
+                className="w-full py-2.5 rounded-xl font-black text-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition-all active:scale-[0.98]">
+                {authSubmitting ? 'Processing...' : (authMode === 'open' ? 'Open Register' : 'View Close Summary')}
               </button>
             </div>
           </div>
