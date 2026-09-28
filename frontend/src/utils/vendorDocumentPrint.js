@@ -518,7 +518,7 @@ th, td { padding: 5px 8px; }
 .page-break { page-break-before: always; }
 `;
 
-function buildDeliverySheetHTML(order, copyLabel, customFields = {}) {
+function buildDeliverySheetHTML(order, copyLabel, customFields = {}, isDataOnly = false, logoUrl = '') {
   const vendorName = order.vendor?.name || 'VENDOR';
   const asmName = order.asm?.name || '—';
   const storeName = order.storeName || 'Main Store / Warehouse';
@@ -548,6 +548,8 @@ function buildDeliverySheetHTML(order, copyLabel, customFields = {}) {
 
   return `
   <div class="a4-container">
+    ${!isDataOnly && logoUrl ? buildHeaderHTML(logoUrl) : ''}
+
     <!-- COPY LABEL -->
     <div style="text-align: right; font-size: 8px; color: #94a3b8; font-weight: 700; margin-bottom: 4px;">${copyLabel}</div>
 
@@ -629,15 +631,18 @@ function buildDeliverySheetHTML(order, copyLabel, customFields = {}) {
         </div>
       </div>
     </div>
+
+    ${!isDataOnly ? buildFooterHTML() : ''}
   </div>`;
 }
 
-export function printDeliverySheet(order, customFields = {}) {
-  const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE', customFields);
-  const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM', customFields);
+export function printDeliverySheet(order, customFields = {}, isDataOnly = false, logoUrl = '') {
+  const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE', customFields, isDataOnly, logoUrl);
+  const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM', customFields, isDataOnly, logoUrl);
   const html = copy1 + `<div class="page-break"></div>` + copy2;
   const title = `Delivery Sheet — ${order.orderNumber || ''}`;
-  printIframe(html, title, [], DELIVERY_SHEET_CSS);
+  const css = isDataOnly ? DELIVERY_SHEET_CSS : PRINT_CSS;
+  printIframe(html, title, [], css);
 }
 
 // ── ASM Bulk Order Job Sheet (for Logo & Production routing) ─────────────
@@ -816,6 +821,7 @@ export const DOCUMENT_CONFIG = {
     label: 'Delivery Sheet',
     docType: 'DELIVERY_SHEET',
     hasLetterheadMargins: true,
+    supportsDataModeToggle: true,
     supportsMultiPage: true,
     defaultTitle: 'Delivery Sheet',
     fields: [
@@ -899,17 +905,19 @@ export function getDocumentPrintDetails({
   const orderNumber = order?.orderNumber || '—';
 
   // 1. DELIVERY SHEET
-  if (normKind === 'delivery-sheet' || normKind === 'delivery_sheet') {
-    const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE', customFields);
-    const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM', customFields);
+  if (normKind === 'delivery-sheet' || normKind === 'delivery_sheet' || normKind === 'delivery-sheet-data') {
+    const isDataOnly = useDataOnlyMode !== undefined ? useDataOnlyMode : (normKind === 'delivery-sheet-data');
+    const copy1 = buildDeliverySheetHTML(order, 'COPY 1 — STORE', customFields, isDataOnly, logoUrl);
+    const copy2 = buildDeliverySheetHTML(order, 'COPY 2 — ASM', customFields, isDataOnly, logoUrl);
+    const css = isDataOnly ? DELIVERY_SHEET_CSS : PRINT_CSS;
     return {
       docType: 'DELIVERY_SHEET',
       title: `Delivery Sheet — ${orderNumber}`,
-      css: DELIVERY_SHEET_CSS,
-      hasLetterheadMargins: true,
+      css,
+      hasLetterheadMargins: isDataOnly,
       pages: [
-        { label: 'Copy 1 — Store', html: copy1 },
-        { label: 'Copy 2 — ASM', html: copy2 },
+        { label: isDataOnly ? 'Copy 1 — Store (Data-Only)' : 'Copy 1 — Store (Complete)', html: copy1 },
+        { label: isDataOnly ? 'Copy 2 — ASM (Data-Only)' : 'Copy 2 — ASM (Complete)', html: copy2 },
       ],
       fullHtml: copy1 + `<div class="page-break"></div>` + copy2,
     };

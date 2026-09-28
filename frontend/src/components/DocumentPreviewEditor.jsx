@@ -142,8 +142,8 @@ export default function DocumentPreviewEditor({
 
   // Compile print details & pages using our shared helper
   const effectiveKind = useDataOnlyMode
-    ? (baseDocType === 'QUOTATION' ? 'quotation-data' : 'invoice-data')
-    : kind;
+    ? (baseDocType === 'QUOTATION' ? 'quotation-data' : (baseDocType === 'DELIVERY_SHEET' ? 'delivery-sheet-data' : 'invoice-data'))
+    : (baseDocType === 'DELIVERY_SHEET' ? 'delivery-sheet' : kind);
 
   const docDetails = useMemo(() => {
     return getDocumentPrintDetails({
@@ -338,7 +338,7 @@ export default function DocumentPreviewEditor({
 
         {/* Action Controls in Header */}
         <div className="flex items-center gap-2">
-          {/* SubDocMode Toggle (for Quotation / Invoice) */}
+          {/* SubDocMode Toggle (for Delivery Sheet / Quotation / Invoice) */}
           {config.supportsDataModeToggle && (
             <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5 mr-2">
               <button
@@ -348,8 +348,9 @@ export default function DocumentPreviewEditor({
                     ? 'bg-teal-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
+                title={baseDocType === 'DELIVERY_SHEET' ? 'Complete Delivery Sheet with header & footer' : 'Full document with company header & footer'}
               >
-                Full A4
+                {baseDocType === 'DELIVERY_SHEET' ? 'Complete Delivery Sheet' : 'Full A4'}
               </button>
               <button
                 onClick={() => setUseDataOnlyMode(true)}
@@ -360,7 +361,7 @@ export default function DocumentPreviewEditor({
                 }`}
                 title="Body only with 3-inch top and bottom letterhead margins"
               >
-                Data-Only (Letterhead)
+                {baseDocType === 'DELIVERY_SHEET' ? 'Delivery Sheet Data' : 'Data-Only (Letterhead)'}
               </button>
             </div>
           )}

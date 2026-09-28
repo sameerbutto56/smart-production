@@ -884,10 +884,10 @@ const getStoreAllocationOrders = async (req, res) => {
 };
 
 // ── HELPER: Deduct Inventory Variant & Record Audit ─────────────────────────
-async function deductWarehouseInventory({ tx, item, deductQty, order, req, actionId }) {
+async function deductWarehouseInventory({ tx, item, deductQty, order, req, actionId, preloadedInv = null }) {
   if (deductQty <= 0) return { deducted: 0, prevStock: 0, newStock: 0 };
-  let inv = null;
-  if (item.catalogItemId) {
+  let inv = preloadedInv;
+  if (!inv && item.catalogItemId) {
     inv = await tx.inventoryItem.findUnique({ where: { id: item.catalogItemId } });
   }
   if (!inv && item.productName) {
@@ -989,13 +989,33 @@ const storeAllocate = async (req, res) => {
 
     const order = await prisma.vendorOrder.findUnique({
       where: { id },
-      include: { items: true, vendor: true, asm: true }
+      include: { items: true, vendor: true, asm: true, routingItems: true }
     });
 
     if (!order) return res.status(404).json({ message: 'Order not found.' });
     if (!['SENT_TO_STORE', 'ADMIN_APPROVED'].includes(order.currentStage)) {
       return res.status(400).json({ message: `Order cannot be allocated in stage ${order.currentStage}.` });
     }
+
+    // Preload inventory items in batch for fast execution without sequential roundtrips
+    const catalogItemIds = order.items.map(it => it.catalogItemId).filter(Boolean);
+    const productNames = order.items.map(it => it.productName.trim()).filter(Boolean);
+    const preloadedInventory = await prisma.inventoryItem.findMany({
+      where: {
+        OR: [
+          { id: { in: catalogItemIds } },
+          { name: { in: productNames, mode: 'insensitive' } }
+        ]
+      }
+    });
+
+    const getInvItem = (item) => {
+      if (item.catalogItemId) {
+        const found = preloadedInventory.find(i => i.id === item.catalogItemId);
+        if (found) return found;
+      }
+      return preloadedInventory.find(i => i.name.trim().toLowerCase() === item.productName.trim().toLowerCase()) || null;
+    };
 
     // Atomic transaction for inventory deduction and allocation finalization
     const updatedOrder = await prisma.$transaction(async (tx) => {
@@ -1017,15 +1037,20 @@ const storeAllocate = async (req, res) => {
           throw new Error(`Allocated quantity (${allocQty}) cannot exceed requested quantity (${item.quantity}) for ${item.productName}`);
         }
 
-        // Deduct inventory only if allocQty > 0
-        if (allocQty > 0) {
+        const existingRouting = order.routingItems?.find(r => r.orderItemId === item.id);
+        const alreadyDeducted = existingRouting ? (existingRouting.storeAvailableQuantity || 0) : (item.allocatedQuantity || 0);
+        const netDeduct = Math.max(0, allocQty - alreadyDeducted);
+
+        // Deduct inventory only if net new allocation > 0
+        if (netDeduct > 0) {
           await deductWarehouseInventory({
             tx,
             item,
-            deductQty: allocQty,
+            deductQty: netDeduct,
             order,
             req,
             actionId: 'STORE_ALLOCATION',
+            preloadedInv: getInvItem(item),
           });
         }
 
@@ -1036,9 +1061,6 @@ const storeAllocate = async (req, res) => {
         });
 
         // Upsert Routing Item
-        const existingRouting = await tx.vendorOrderRoutingItem.findFirst({
-          where: { orderId: id, orderItemId: item.id }
-        });
         const checkStatus = allocQty === item.quantity ? 'FULLY_AVAILABLE' : (allocQty > 0 ? 'PARTIALLY_AVAILABLE' : 'NOT_AVAILABLE');
         if (existingRouting) {
           await tx.vendorOrderRoutingItem.update({
@@ -1140,7 +1162,7 @@ const storeAllocate = async (req, res) => {
       });
 
       return updated;
-    }, { timeout: 30000 });
+    }, { timeout: 60000, maxWait: 20000 });
 
     try {
       await notify.create(req, {
@@ -1159,7 +1181,8 @@ const storeAllocate = async (req, res) => {
 
     res.json({ order: updatedOrder, message: 'Stock allocated from Warehouse and marked to ASM successfully.' });
   } catch (error) {
-    res.status(500).json({ message: error.message || 'Failed to allocate stock', error: error.message });
+    console.error('Error in storeAllocate:', error);
+    res.status(400).json({ message: error.message || 'Failed to allocate stock', error: error.message });
   }
 };
 
@@ -1179,6 +1202,26 @@ const storeCheckAvailability = async (req, res) => {
     });
 
     if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    // Preload inventory items in batch for fast execution
+    const catalogItemIds = order.items.map(it => it.catalogItemId).filter(Boolean);
+    const productNames = order.items.map(it => it.productName.trim()).filter(Boolean);
+    const preloadedInventory = await prisma.inventoryItem.findMany({
+      where: {
+        OR: [
+          { id: { in: catalogItemIds } },
+          { name: { in: productNames, mode: 'insensitive' } }
+        ]
+      }
+    });
+
+    const getInvItem = (item) => {
+      if (item.catalogItemId) {
+        const found = preloadedInventory.find(i => i.id === item.catalogItemId);
+        if (found) return found;
+      }
+      return preloadedInventory.find(i => i.name.trim().toLowerCase() === item.productName.trim().toLowerCase()) || null;
+    };
 
     const updated = await prisma.$transaction(async (tx) => {
       const now = new Date();
@@ -1206,6 +1249,7 @@ const storeCheckAvailability = async (req, res) => {
             order,
             req,
             actionId: 'STORE_CHECK_AVAILABILITY',
+            preloadedInv: getInvItem(item),
           });
           totalDeducted += netDeduct;
         }
@@ -1275,11 +1319,12 @@ const storeCheckAvailability = async (req, res) => {
           allocations: true,
         }
       });
-    }, { timeout: 30000 });
+    }, { timeout: 60000, maxWait: 20000 });
 
     res.json({ order: updated, message: 'Store availability confirmed and inventory deducted.' });
   } catch (error) {
-    res.status(500).json({ message: error.message || 'Failed to check store availability', error: error.message });
+    console.error('Error in storeCheckAvailability:', error);
+    res.status(400).json({ message: error.message || 'Failed to check store availability', error: error.message });
   }
 };
 
@@ -1295,17 +1340,29 @@ const allProductsAvailable = async (req, res) => {
 
     if (!order) return res.status(404).json({ message: 'Order not found.' });
 
+    // Preload inventory items in batch
+    const catalogItemIds = order.items.map(it => it.catalogItemId).filter(Boolean);
+    const productNames = order.items.map(it => it.productName.trim()).filter(Boolean);
+    const preloadedInventory = await prisma.inventoryItem.findMany({
+      where: {
+        OR: [
+          { id: { in: catalogItemIds } },
+          { name: { in: productNames, mode: 'insensitive' } }
+        ]
+      }
+    });
+
+    const getInvItem = (item) => {
+      if (item.catalogItemId) {
+        const found = preloadedInventory.find(i => i.id === item.catalogItemId);
+        if (found) return found;
+      }
+      return preloadedInventory.find(i => i.name.trim().toLowerCase() === item.productName.trim().toLowerCase()) || null;
+    };
+
     // Validate that all items can be fulfilled from warehouse
     for (const item of order.items) {
-      let inv = null;
-      if (item.catalogItemId) {
-        inv = await prisma.inventoryItem.findUnique({ where: { id: item.catalogItemId } });
-      }
-      if (!inv && item.productName) {
-        inv = await prisma.inventoryItem.findFirst({
-          where: { name: { equals: item.productName.trim(), mode: 'insensitive' } }
-        });
-      }
+      const inv = getInvItem(item);
       if (!inv) {
         return res.status(400).json({ message: `Inventory item not found for product "${item.productName}".` });
       }
@@ -1353,6 +1410,7 @@ const allProductsAvailable = async (req, res) => {
             order,
             req,
             actionId: 'ALL_PRODUCTS_AVAILABLE',
+            preloadedInv: getInvItem(item),
           });
         }
 
@@ -1420,11 +1478,12 @@ const allProductsAvailable = async (req, res) => {
           allocations: true,
         }
       });
-    }, { timeout: 30000 });
+    }, { timeout: 60000, maxWait: 20000 });
 
     res.json({ order: updated, message: 'All products marked available and warehouse inventory deducted.' });
   } catch (error) {
-    res.status(500).json({ message: error.message || 'Failed to execute all products available', error: error.message });
+    console.error('Error in allProductsAvailable:', error);
+    res.status(400).json({ message: error.message || 'Failed to execute all products available', error: error.message });
   }
 };
 

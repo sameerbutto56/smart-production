@@ -6,7 +6,8 @@ import {
   Package, ShoppingCart, Search, Plus, Trash2, CheckCircle2, RotateCcw,
   Printer, ArrowRight, X, AlertCircle, RefreshCw, FileText, Check, User,
   Building2, ChevronRight, ChevronDown, Layers, LayoutGrid, List, Minus,
-  Sparkles, Factory, Palette, Truck, ShieldCheck, CheckCheck
+  Sparkles, Factory, Palette, Truck, ShieldCheck, CheckCheck,
+  CheckSquare, Square, Info
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
@@ -94,12 +95,54 @@ const AsmAllowedStorePage = () => {
   const [bulkOrders, setBulkOrders] = useState([]);
   const [bulkOrdersLoading, setBulkOrdersLoading] = useState(false);
   const [bulkAllocations, setBulkAllocations] = useState({});
+  const [selectedForDeduct, setSelectedForDeduct] = useState({}); // { [orderId]: { [itemId]: boolean } }
   const [bulkSubTab, setBulkSubTab] = useState('pending'); // 'pending' | 'pipeline' | 'returns'
   const [productionReturns, setProductionReturns] = useState([]);
   const [productionReturnsLoading, setProductionReturnsLoading] = useState(false);
   const [routingModalOrder, setRoutingModalOrder] = useState(null);
   const [routeConfig, setRouteConfig] = useState({});
   const [actionInProgress, setActionInProgress] = useState(null);
+
+  // Toggle selection for deduction of an individual item
+  const handleToggleSelectItem = (orderId, itemId) => {
+    setSelectedForDeduct(prev => {
+      const curOrder = { ...(prev[orderId] || {}) };
+      curOrder[itemId] = !curOrder[itemId];
+      return { ...prev, [orderId]: curOrder };
+    });
+  };
+
+  // Select all items that have warehouse stock > 0
+  const handleSelectAllAvailable = (order) => {
+    setSelectedForDeduct(prev => {
+      const curOrder = { ...(prev[order.id] || {}) };
+      order.items?.forEach(item => {
+        const avail = item.availableWarehouseStock || 0;
+        if (avail > 0) {
+          curOrder[item.id] = true;
+        }
+      });
+      return { ...prev, [order.id]: curOrder };
+    });
+    setBulkAllocations(prev => {
+      const curAllocs = { ...(prev[order.id] || {}) };
+      order.items?.forEach(item => {
+        const avail = item.availableWarehouseStock || 0;
+        if (avail > 0 && (!curAllocs[item.id] || curAllocs[item.id] === 0)) {
+          curAllocs[item.id] = Math.min(item.quantity, avail);
+        }
+      });
+      return { ...prev, [order.id]: curAllocs };
+    });
+  };
+
+  // Deselect all items for this order
+  const handleDeselectAll = (order) => {
+    setSelectedForDeduct(prev => ({
+      ...prev,
+      [order.id]: {}
+    }));
+  };
 
   // Pre-Print Preview & Edit State
   const [previewDocState, setPreviewDocState] = useState({
@@ -179,17 +222,26 @@ const AsmAllowedStorePage = () => {
       setBulkOrders(orders);
       
       const initialAllocs = {};
+      const initialSelected = {};
       orders.forEach(order => {
         initialAllocs[order.id] = {};
+        initialSelected[order.id] = {};
         order.items?.forEach(item => {
           const routing = order.routingItems?.find(r => r.orderItemId === item.id);
           const currentStoreAvail = routing?.storeAvailableQuantity ?? item.allocatedQuantity;
-          initialAllocs[order.id][item.id] = (currentStoreAvail !== undefined && currentStoreAvail > 0)
-            ? currentStoreAvail
-            : Math.max(0, Math.min(item.quantity, item.availableWarehouseStock || 0));
+          const availStock = item.availableWarehouseStock || 0;
+          if (currentStoreAvail !== undefined && currentStoreAvail > 0) {
+            initialAllocs[order.id][item.id] = currentStoreAvail;
+            initialSelected[order.id][item.id] = true;
+          } else {
+            initialAllocs[order.id][item.id] = Math.max(0, Math.min(item.quantity, availStock));
+            // Crucial: Availability does not mean deduction! Unchecked by default until selected
+            initialSelected[order.id][item.id] = false;
+          }
         });
       });
       setBulkAllocations(initialAllocs);
+      setSelectedForDeduct(initialSelected);
     } catch (err) {
       toast.error('Failed to load bulk allocation orders');
     }
@@ -350,16 +402,29 @@ const AsmAllowedStorePage = () => {
     setAcceptingReturnId(null);
   };
 
-  // Handle Bulk Allocation Submit (legacy & quick one-click)
+  // Handle Bulk Allocation Submit (Sends allocated items to ASM)
   const handleBulkAllocate = async (orderId) => {
-    const orderAllocs = bulkAllocations[orderId];
-    if (!orderAllocs) return;
-    setActionInProgress(orderId);
-    const allocations = Object.entries(orderAllocs).map(([itemId, allocatedQuantity]) => ({
-      itemId,
-      allocatedQuantity: parseInt(allocatedQuantity) || 0
-    }));
+    const order = bulkOrders.find(o => o.id === orderId);
+    if (!order) return;
 
+    const orderSelected = selectedForDeduct[orderId] || {};
+    const orderAllocs = bulkAllocations[orderId] || {};
+
+    const allocations = (order.items || []).map(item => {
+      const isChecked = !!orderSelected[item.id];
+      const qty = isChecked ? (parseInt(orderAllocs[item.id]) || 0) : 0;
+      return {
+        itemId: item.id,
+        allocatedQuantity: qty
+      };
+    });
+
+    const totalAllocated = allocations.reduce((sum, a) => sum + a.allocatedQuantity, 0);
+    if (totalAllocated === 0) {
+      return toast.error("Please select at least 1 item with available stock to send to ASM, or use 'Route Order' to route to Production/Logo.");
+    }
+
+    setActionInProgress(orderId);
     try {
       await api.post(`/api/vendors/orders/${orderId}/store-allocate`, { allocations });
       toast.success('Order allocated and sent to ASM!');
@@ -387,14 +452,27 @@ const AsmAllowedStorePage = () => {
 
   // Item-by-item availability check and partial warehouse deduction
   const handleCheckAvailability = async (orderId) => {
-    const orderAllocs = bulkAllocations[orderId];
-    if (!orderAllocs) return;
-    setActionInProgress(orderId);
-    const items = Object.entries(orderAllocs).map(([itemId, availableQuantity]) => ({
-      itemId,
-      availableQuantity: parseInt(availableQuantity) || 0
-    }));
+    const order = bulkOrders.find(o => o.id === orderId);
+    if (!order) return;
 
+    const orderSelected = selectedForDeduct[orderId] || {};
+    const orderAllocs = bulkAllocations[orderId] || {};
+
+    const items = (order.items || []).map(item => {
+      const isChecked = !!orderSelected[item.id];
+      const qty = isChecked ? (parseInt(orderAllocs[item.id]) || 0) : 0;
+      return {
+        itemId: item.id,
+        availableQuantity: qty
+      };
+    });
+
+    const anyChecked = Object.values(orderSelected).some(Boolean);
+    if (!anyChecked) {
+      return toast.error("Please select the items you wish to verify and deduct.");
+    }
+
+    setActionInProgress(orderId);
     try {
       const res = await api.post(`/api/vendors/orders/${orderId}/store-check-availability`, { items });
       toast.success(res.data?.message || 'Store availability confirmed and inventory deducted!');
@@ -1266,6 +1344,21 @@ const AsmAllowedStorePage = () => {
                     {pendingOrders.map(order => {
                       const isOrderBusy = actionInProgress === order.id;
                       const hasAllStock = order.canAllProductsAvailable;
+                      const orderSelected = selectedForDeduct[order.id] || {};
+                      const orderAllocs = bulkAllocations[order.id] || {};
+
+                      const checkedCount = (order.items || []).filter(it => orderSelected[it.id] && (orderAllocs[it.id] || 0) > 0).length;
+                      const checkedUnits = (order.items || []).reduce((sum, it) => {
+                        if (orderSelected[it.id]) {
+                          return sum + (parseInt(orderAllocs[it.id]) || 0);
+                        }
+                        return sum;
+                      }, 0);
+                      const remainingCount = (order.items || []).length - checkedCount;
+                      const remainingUnits = (order.items || []).reduce((sum, it) => {
+                        const deducted = orderSelected[it.id] ? (parseInt(orderAllocs[it.id]) || 0) : 0;
+                        return sum + Math.max(0, it.quantity - deducted);
+                      }, 0);
 
                       return (
                         <div key={order.id} className="bg-gray-900/90 rounded-2xl p-5 border border-gray-800 space-y-4 shadow-xl">
@@ -1289,7 +1382,7 @@ const AsmAllowedStorePage = () => {
                               </p>
                             </div>
 
-                            {/* 1-Click Action: All Products Available */}
+                            {/* Action Buttons in Order Header */}
                             <div className="flex flex-wrap items-center gap-2">
                               {hasAllStock && (
                                 <button
@@ -1312,47 +1405,104 @@ const AsmAllowedStorePage = () => {
                             </div>
                           </div>
 
+                          {/* Item Selection Toolbar & Deduction Policy Notice */}
+                          <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-slate-950/70 border border-gray-800 rounded-xl">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAllAvailable(order)}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-1.5 transition"
+                                title="Check all items that have available stock in warehouse"
+                              >
+                                <CheckSquare size={13} /> Select All Available
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeselectAll(order)}
+                                className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-xs font-bold flex items-center gap-1.5 transition"
+                                title="Uncheck all items to prevent inventory deduction"
+                              >
+                                <Square size={13} /> Deselect All
+                              </button>
+                            </div>
+                            <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                              <Info size={13} className="text-amber-400 shrink-0" />
+                              <span>Warehouse availability does <strong>not</strong> deduct stock. Only checked (<span className="text-emerald-400 font-bold">☑</span>) items will be deducted.</span>
+                            </div>
+                          </div>
+
                           {/* Items Table */}
                           <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs border-collapse">
                               <thead>
-                                <tr className="border-b border-gray-800 text-gray-500 font-bold uppercase">
-                                  <th className="py-2">Product Name</th>
-                                  <th className="py-2">Color</th>
-                                  <th className="py-2">Size</th>
-                                  <th className="py-2 text-right">Requested</th>
-                                  <th className="py-2 text-right">Warehouse Stock</th>
-                                  <th className="py-2 text-center w-36">Store Available</th>
-                                  <th className="py-2 text-right">Remaining</th>
+                                <tr className="border-b border-gray-800 text-gray-400 font-bold uppercase text-[11px]">
+                                  <th className="py-2.5 px-2 text-center w-12">Select</th>
+                                  <th className="py-2.5">Product Name</th>
+                                  <th className="py-2.5">Color</th>
+                                  <th className="py-2.5">Size</th>
+                                  <th className="py-2.5 text-right">Requested</th>
+                                  <th className="py-2.5 text-right">Warehouse Stock</th>
+                                  <th className="py-2.5 text-center w-36">Deduct Qty (Store Avail)</th>
+                                  <th className="py-2.5 text-right">Remaining (to Prod)</th>
+                                  <th className="py-2.5 text-center">Allocation Status</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {order.items.map(item => {
-                                  const allocQty = bulkAllocations[order.id]?.[item.id] ?? (item.allocatedQuantity || 0);
+                                  const isChecked = !!orderSelected[item.id];
+                                  const allocQty = orderAllocs[item.id] ?? 0;
                                   const availStock = item.availableWarehouseStock || 0;
                                   const stockLow = availStock < item.quantity;
-                                  const remaining = Math.max(0, item.quantity - allocQty);
+                                  const maxDeduct = Math.min(item.quantity, availStock);
+                                  const remaining = Math.max(0, item.quantity - (isChecked ? allocQty : 0));
+                                  const isFullyFulfilled = isChecked && allocQty === item.quantity;
+                                  const isPartial = isChecked && allocQty > 0 && allocQty < item.quantity;
 
                                   return (
-                                    <tr key={item.id} className={`border-b border-gray-800/50 text-gray-300 ${stockLow ? 'bg-amber-500/5' : ''}`}>
-                                      <td className="py-2 font-bold text-white">{item.productName}</td>
-                                      <td className="py-2 font-bold text-gray-200">{item.color || '—'}</td>
+                                    <tr
+                                      key={item.id}
+                                      className={`border-b border-gray-800/50 transition ${
+                                        isChecked ? 'bg-emerald-500/5 text-white' : 'text-gray-400 bg-transparent'
+                                      }`}
+                                    >
+                                      <td className="py-2.5 px-2 text-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          disabled={availStock === 0}
+                                          onChange={() => handleToggleSelectItem(order.id, item.id)}
+                                          className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                                          title={availStock === 0 ? "No warehouse stock available to deduct" : (isChecked ? "Uncheck to skip deduction" : "Check to deduct from warehouse stock")}
+                                        />
+                                      </td>
+                                      <td className="py-2 font-bold text-white">
+                                        {item.productName}
+                                        {item.productType && <span className="ml-1.5 text-[10px] text-gray-400 font-normal">({item.productType})</span>}
+                                      </td>
+                                      <td className="py-2 font-medium text-gray-200">{item.color || '—'}</td>
                                       <td className="py-2 font-black text-amber-300">{item.size || '—'}</td>
                                       <td className="py-2 text-right font-bold text-blue-400">{item.quantity}</td>
-                                      <td className="py-2 text-right font-bold text-emerald-400">
-                                        {availStock}
-                                        {stockLow && <span className="ml-1 text-[10px] text-amber-400 font-normal">(low)</span>}
+                                      <td className="py-2 text-right font-bold">
+                                        <span className={availStock === 0 ? 'text-rose-400' : (stockLow ? 'text-amber-400' : 'text-emerald-400')}>
+                                          {availStock}
+                                        </span>
+                                        {availStock === 0 ? (
+                                          <span className="ml-1 text-[10px] text-rose-400 font-normal">(out)</span>
+                                        ) : stockLow ? (
+                                          <span className="ml-1 text-[10px] text-amber-400 font-normal">(low)</span>
+                                        ) : null}
                                       </td>
                                       <td className="py-2">
                                         <div className="flex items-center justify-center">
                                           <input
                                             type="number"
                                             min="0"
-                                            max={item.quantity}
-                                            value={allocQty}
+                                            max={maxDeduct}
+                                            disabled={!isChecked || availStock === 0}
+                                            value={isChecked ? allocQty : 0}
                                             onChange={e => {
                                               const val = parseInt(e.target.value) || 0;
-                                              const bounded = Math.max(0, Math.min(item.quantity, val));
+                                              const bounded = Math.max(0, Math.min(maxDeduct, val));
                                               setBulkAllocations(prev => ({
                                                 ...prev,
                                                 [order.id]: {
@@ -1361,12 +1511,35 @@ const AsmAllowedStorePage = () => {
                                                 }
                                               }));
                                             }}
-                                            className="w-16 bg-gray-950 border border-gray-700 rounded text-center text-xs font-black text-white py-1 outline-none focus:border-amber-500"
+                                            className={`w-16 border rounded text-center text-xs font-black py-1 outline-none transition ${
+                                              !isChecked || availStock === 0
+                                                ? 'bg-gray-900 border-gray-800 text-gray-500 cursor-not-allowed'
+                                                : 'bg-gray-950 border-emerald-500 text-emerald-300 focus:border-amber-400'
+                                            }`}
                                           />
                                         </div>
                                       </td>
                                       <td className={`py-2 text-right font-bold ${remaining > 0 ? 'text-amber-400' : 'text-gray-500'}`}>
                                         {remaining}
+                                      </td>
+                                      <td className="py-2 text-center">
+                                        {!isChecked ? (
+                                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">
+                                            ☐ Unchecked ({item.quantity} to Prod)
+                                          </span>
+                                        ) : isFullyFulfilled ? (
+                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                                            ☑ Full to ASM ({allocQty})
+                                          </span>
+                                        ) : isPartial ? (
+                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                            ☑ Partial ({allocQty} ASM / {remaining} Prod)
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-800 text-gray-400">
+                                            0 Deducted
+                                          </span>
+                                        )}
                                       </td>
                                     </tr>
                                   );
@@ -1375,11 +1548,50 @@ const AsmAllowedStorePage = () => {
                             </table>
                           </div>
 
+                          {/* Review Summary Box */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-950 border border-gray-800 rounded-xl text-xs">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-black">
+                                ✓
+                              </div>
+                              <div>
+                                <div className="text-gray-400 text-[11px] font-medium">Selected for Inventory Deduction:</div>
+                                <div className="text-emerald-400 font-black text-sm">
+                                  {checkedCount} of {order.items.length} items ({checkedUnits} units to ASM)
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black">
+                                !
+                              </div>
+                              <div>
+                                <div className="text-gray-400 text-[11px] font-medium">Unselected / Remaining (for Production):</div>
+                                <div className="text-amber-400 font-black text-sm">
+                                  {remainingCount} items ({remainingUnits} units)
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
                           {/* Action Footer */}
                           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-800/60">
-                            <span className="text-[11px] text-gray-400">
-                              * Inventory is deducted atomically when availability is confirmed.
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => handleOpenPrintPreview(order, 'delivery-sheet')}
+                                className="bg-teal-900/60 hover:bg-teal-800/80 text-teal-200 border border-teal-500/30 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition"
+                                title="Preview Complete Delivery Sheet with company header & footer"
+                              >
+                                <Printer size={13} /> Complete Delivery Sheet
+                              </button>
+                              <button
+                                onClick={() => handleOpenPrintPreview(order, 'delivery-sheet-data')}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition"
+                                title="Preview 3-inch margin Data-Only Delivery Sheet for pre-printed letterhead"
+                              >
+                                <Printer size={13} /> Delivery Sheet Data
+                              </button>
+                            </div>
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => handleCheckAvailability(order.id)}
@@ -1392,7 +1604,7 @@ const AsmAllowedStorePage = () => {
                               <button
                                 onClick={() => handleBulkAllocate(order.id)}
                                 disabled={isOrderBusy}
-                                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+                                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition"
                               >
                                 Send to ASM <ArrowRight size={14} />
                               </button>
@@ -1477,9 +1689,17 @@ const AsmAllowedStorePage = () => {
                                   </button>
                                   <button
                                     onClick={() => handleOpenPrintPreview(order, 'delivery-sheet')}
-                                    className="bg-teal-600 hover:bg-teal-500 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition"
+                                    className="bg-teal-600 hover:bg-teal-500 text-white font-black px-3.5 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition"
+                                    title="Complete Delivery Sheet with header & footer"
                                   >
-                                    <Printer size={14} /> Delivery Sheet
+                                    <Printer size={13} /> Complete Delivery Sheet
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenPrintPreview(order, 'delivery-sheet-data')}
+                                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 transition"
+                                    title="Delivery Sheet Data only for pre-printed letterhead"
+                                  >
+                                    <Printer size={13} /> Delivery Sheet Data
                                   </button>
                                 </>
                               )}
@@ -1610,8 +1830,16 @@ const AsmAllowedStorePage = () => {
                               <button
                                 onClick={() => handleOpenPrintPreview(order, 'delivery-sheet')}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600/80 hover:bg-teal-600 text-white text-xs font-bold transition shadow"
+                                title="Complete Delivery Sheet"
                               >
-                                <Printer size={13} /> Delivery Sheet
+                                <Printer size={13} /> Complete Delivery Sheet
+                              </button>
+                              <button
+                                onClick={() => handleOpenPrintPreview(order, 'delivery-sheet-data')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition shadow"
+                                title="Delivery Sheet Data (3-inch letterhead margins)"
+                              >
+                                <Printer size={13} /> Delivery Sheet Data
                               </button>
                             </div>
                           </div>
@@ -1819,7 +2047,7 @@ const AsmAllowedStorePage = () => {
         targetDepartment={previewDocState.targetDepartment}
         processingItems={previewDocState.processingItems}
         onSaveSuccess={() => {
-          fetchBulkAllocationOrders();
+          fetchBulkOrders();
           fetchProductionReturns();
         }}
       />
