@@ -1,5 +1,42 @@
 ## Goals
-### Implemented This Session — ASM Store Allocation: Item-Level Inventory Deduction Control, Review Summary & Dual Delivery Sheet System (deployed & live-verified)
+### Implemented This Session — ASM Request Edit, Version Diff, Re-Approval & Store Allocation Workflow (deployed & live-verified)
+- **Problem & Requirements**:
+  - ASM users needed the ability to edit existing bulk requests/orders across editable stages (`SUBMITTED`, `AWAITED_ADMIN`, `APPROVED`, `ADMIN_APPROVED`, `SENT_TO_STORE`, `REJECTED`, `GIVE_STOCK`, `CREATED`).
+  - Critical rule: **Editing never auto-approves**. Any revision must increment the order version (`v1` → `v2`, `v3`...), compute an exact item diff (`added`, `removed`, `modified`), reset the stage to `AWAITED_ADMIN`, and require explicit Admin re-approval.
+  - Line items modification: Add new products (catalog search or custom), modify quantities, prices, specs (color/size), and delete items.
+  - Foreign key and audit safety on removed items:
+    - If a removed item had prior warehouse allocations (`allocatedQuantity > 0`), it must NOT be deleted. Instead, it is soft-removed (`isRemoved: true`, `removalReason: 'Removed from revised request (Previously allocated: X)'`) so Store can reconcile stock.
+    - If a removed item had zero prior allocations, it is deleted cleanly.
+  - Store Allocation: Zero double inventory deduction on revised orders via net deduction calculation (`Math.max(0, allocQty - alreadyDeducted)`).
+  - Documents (Quotation, Invoice, Delivery Sheet, Gate Pass, Job Sheet) must only render active approved items (`!it.isRemoved`).
+  - Single order identity: The `id` and `orderNumber` remain completely immutable across all versions.
+- **Implementation & Fixes**:
+  - **Prisma Schema (`backend/prisma/schema.prisma`)**:
+    - Added `version`, `isEdited`, `lastEditedAt`, `lastEditedById`, `lastEditedByName`, `editSummary`, `revisionHistory` (Json) to `VendorOrder`.
+    - Added `isRemoved`, `removalReason`, `previousQuantity` to `VendorOrderItem`.
+    - Synced database via `prisma db push` and `prisma generate`.
+  - **Backend Controller & Routes (`backend/src/controllers/vendor.controller.js`, `vendor.routes.js`)**:
+    - Created `editVendorOrder(req, res)`:
+      - Validates stage suitability.
+      - Updates permitted vendor profile details (phone, company, email, city, address).
+      - Computes line items diff against active items (`added`, `removed`, `modified`).
+      - Flags allocated removed items with `isRemoved: true` and deletes unallocated removed items.
+      - Recalculates subtotal (`totalOrderValue`), discount amount, percent, grand total, and remaining balance.
+      - Increments `version`, pushes previous snapshot and diff to `revisionHistory`, and sets `currentStage: 'AWAITED_ADMIN'`, `status: 'AWAITED_ADMIN'`, `fulfillmentMethod: null`.
+      - Logs timeline entry `RESUBMITTED_AWAITED_ADMIN` in `VendorOrderStatus`.
+      - Dispatches high-priority notification to Super Admin / Admin roles.
+    - Updated `storeCheckAvailability` and `allProductsAvailable` to only process active items (`!it.isRemoved`).
+    - Registered `PUT /api/vendors/orders/:id/edit`.
+  - **Frontend Implementation**:
+    - `AsmPage.jsx`: Added `EditOrderModal` with vendor details modification, full catalog item picker, line addition/removal, quantity/price changes, live financial calculations, order version chips (`vX (Edited)`), and detailed diff banner in `OrderDetailDrawer`.
+    - `VendorsPage.jsx`: Added `vX • EDITED` badge in order table and `Revised Request (Version X)` changes summary box in Admin's `OrderDetailDrawer` for immediate clarity before re-approving.
+    - `AsmAllowedStorePage.jsx`: Added `vX REVISED` badges and revision summary banners in Store Allocation, warning badges for soft-removed items requiring stock reconciliation, and filtered active non-removed items for bulk allocation.
+    - `vendorDocumentPrint.js`: Filtered all printable documents to strictly render active non-removed items (`!it.isRemoved`).
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-asm-edit-workflow.cjs`: All 44/44 assertions passed (100% pass rate) covering: order creation $\rightarrow$ Admin approve $\rightarrow$ Store partial allocation $\rightarrow$ ASM order edit $\rightarrow$ version increment to v2 $\rightarrow$ diff recording $\rightarrow$ stage reset to `AWAITED_ADMIN` $\rightarrow$ soft-removal on allocated item $\rightarrow$ v3 edit $\rightarrow$ net deduction calculation $\rightarrow$ keeper order `VO-2026-00004` (65 items) intact $\rightarrow$ clean teardown.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+
+### Implemented Prior Session — ASM Store Allocation: Item-Level Inventory Deduction Control, Review Summary & Dual Delivery Sheet System (deployed & live-verified)
 - **Problem & Root Causes**:
   - Store bulk allocation previously failed with "Failed to allocate order" on orders with numerous items (e.g. `VO-2026-00004` with 65 items) due to Prisma transaction timeout (each item was performing sequential database queries inside `$transaction`, leading to $>500$ queries timing out at 25-30s).
   - Out-of-stock items allowed input values exceeding available warehouse stock, triggering unhandled exceptions.

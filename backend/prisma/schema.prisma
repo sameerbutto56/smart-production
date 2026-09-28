@@ -1932,6 +1932,15 @@ model VendorOrder {
   asmReceivedAt     DateTime?
   asmReceivedByName String?
 
+  // Revision & Edit Tracking
+  version           Int       @default(1)
+  isEdited          Boolean   @default(false)
+  lastEditedAt      DateTime?
+  lastEditedById    String?
+  lastEditedByName  String?
+  editSummary       String?   // summary of changes made in latest edit
+  revisionHistory   Json?     // snapshots of prior versions: [{ version, editedAt, editedByName, editSummary, itemsSnapshot, previousGrandTotal, newGrandTotal }]
+
   // Immutable timeline
   statusHistory     VendorOrderStatus[]
   deliveries        VendorDelivery[]
@@ -1996,6 +2005,9 @@ model VendorOrderItem {
   unitPrice         Float     @default(0)
   lineTotal         Float     @default(0)
   notes             String?
+  isRemoved         Boolean   @default(false)
+  removalReason     String?
+  previousQuantity  Int?
   routingItems      VendorOrderRoutingItem[]
 
   @@index([orderId])

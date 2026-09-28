@@ -410,7 +410,7 @@ const AsmAllowedStorePage = () => {
     const orderSelected = selectedForDeduct[orderId] || {};
     const orderAllocs = bulkAllocations[orderId] || {};
 
-    const allocations = (order.items || []).map(item => {
+    const allocations = (order.items || []).filter(it => !it.isRemoved).map(item => {
       const isChecked = !!orderSelected[item.id];
       const qty = isChecked ? (parseInt(orderAllocs[item.id]) || 0) : 0;
       return {
@@ -1347,15 +1347,16 @@ const AsmAllowedStorePage = () => {
                       const orderSelected = selectedForDeduct[order.id] || {};
                       const orderAllocs = bulkAllocations[order.id] || {};
 
-                      const checkedCount = (order.items || []).filter(it => orderSelected[it.id] && (orderAllocs[it.id] || 0) > 0).length;
-                      const checkedUnits = (order.items || []).reduce((sum, it) => {
+                      const activeItems = (order.items || []).filter(it => !it.isRemoved);
+                      const checkedCount = activeItems.filter(it => orderSelected[it.id] && (orderAllocs[it.id] || 0) > 0).length;
+                      const checkedUnits = activeItems.reduce((sum, it) => {
                         if (orderSelected[it.id]) {
                           return sum + (parseInt(orderAllocs[it.id]) || 0);
                         }
                         return sum;
                       }, 0);
-                      const remainingCount = (order.items || []).length - checkedCount;
-                      const remainingUnits = (order.items || []).reduce((sum, it) => {
+                      const remainingCount = activeItems.length - checkedCount;
+                      const remainingUnits = activeItems.reduce((sum, it) => {
                         const deducted = orderSelected[it.id] ? (parseInt(orderAllocs[it.id]) || 0) : 0;
                         return sum + Math.max(0, it.quantity - deducted);
                       }, 0);
@@ -1370,6 +1371,11 @@ const AsmAllowedStorePage = () => {
                                 <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                   SENT TO STORE
                                 </span>
+                                {((order.version || 1) > 1 || order.isEdited) && (
+                                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                                    v{order.version || 1} {order.isEdited ? 'REVISED' : ''}
+                                  </span>
+                                )}
                                 {hasAllStock && (
                                   <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                                     <Sparkles size={11} /> 100% In Stock
@@ -1380,6 +1386,12 @@ const AsmAllowedStorePage = () => {
                                 Vendor: <span className="text-white font-bold">{order.vendor?.name}</span>
                                 {order.vendor?.companyName ? ` (${order.vendor.companyName})` : ''} | ASM: <span className="text-gray-300 font-bold">{order.asm?.name}</span> | Date: {formatDateTime(order.createdAt)}
                               </p>
+                              {order.isEdited && order.editSummary && (
+                                <div className="mt-2 text-xs bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                                  <Sparkles size={12} className="text-indigo-400 shrink-0" />
+                                  <span><strong>Revised in v{order.version || 1}:</strong> {order.editSummary}</span>
+                                </div>
+                              )}
                             </div>
 
                             {/* Action Buttons in Order Header */}
@@ -1449,6 +1461,35 @@ const AsmAllowedStorePage = () => {
                               </thead>
                               <tbody>
                                 {order.items.map(item => {
+                                  if (item.isRemoved) {
+                                    return (
+                                      <tr key={item.id} className="border-b border-rose-900/30 bg-rose-950/20 text-rose-300">
+                                        <td className="py-2.5 px-2 text-center">
+                                          <span className="text-[10px] text-rose-400 font-bold">REMOVED</span>
+                                        </td>
+                                        <td className="py-2 font-bold text-rose-200">
+                                          <span className="line-through">{item.productName}</span>
+                                          <span className="ml-2 text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded border border-rose-500/30">
+                                            {item.removalReason || 'Removed from revision'}
+                                          </span>
+                                        </td>
+                                        <td className="py-2 text-rose-300/80">{item.color || '—'}</td>
+                                        <td className="py-2 text-rose-300/80">{item.size || '—'}</td>
+                                        <td className="py-2 text-right font-bold text-rose-400/80 line-through">{item.quantity}</td>
+                                        <td className="py-2 text-right text-gray-500">—</td>
+                                        <td className="py-2 text-center text-xs font-semibold text-rose-300">
+                                          Allocated: {item.allocatedQuantity || 0}
+                                        </td>
+                                        <td className="py-2 text-right text-gray-500">0</td>
+                                        <td className="py-2 text-center">
+                                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                                            {item.allocatedQuantity > 0 ? 'Reconcile Stock' : 'Removed'}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  }
+
                                   const isChecked = !!orderSelected[item.id];
                                   const allocQty = orderAllocs[item.id] ?? 0;
                                   const availStock = item.availableWarehouseStock || 0;

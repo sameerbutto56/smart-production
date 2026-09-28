@@ -869,7 +869,8 @@ const getStoreAllocationOrders = async (req, res) => {
         };
       }));
 
-      const canAllProductsAvailable = enrichedItems.length > 0 && enrichedItems.every(it => (it.availableWarehouseStock || 0) >= (it.quantity || 0));
+      const activeItems = enrichedItems.filter(it => !it.isRemoved);
+      const canAllProductsAvailable = activeItems.length > 0 && activeItems.every(it => (it.availableWarehouseStock || 0) >= (it.quantity || 0));
 
       return {
         ...ord,
@@ -1341,9 +1342,10 @@ const allProductsAvailable = async (req, res) => {
 
     if (!order) return res.status(404).json({ message: 'Order not found.' });
 
-    // Preload inventory items in batch
-    const catalogItemIds = order.items.map(it => it.catalogItemId).filter(Boolean);
-    const productNames = order.items.map(it => it.productName.trim()).filter(Boolean);
+    // Preload inventory items in batch for active non-removed items
+    const activeItems = (order.items || []).filter(it => !it.isRemoved);
+    const catalogItemIds = activeItems.map(it => it.catalogItemId).filter(Boolean);
+    const productNames = activeItems.map(it => it.productName.trim()).filter(Boolean);
     const preloadedInventory = await prisma.inventoryItem.findMany({
       where: {
         OR: [
@@ -1361,8 +1363,8 @@ const allProductsAvailable = async (req, res) => {
       return preloadedInventory.find(i => i.name.trim().toLowerCase() === item.productName.trim().toLowerCase()) || null;
     };
 
-    // Validate that all items can be fulfilled from warehouse
-    for (const item of order.items) {
+    // Validate that all active items can be fulfilled from warehouse
+    for (const item of activeItems) {
       const inv = getInvItem(item);
       if (!inv) {
         return res.status(400).json({ message: `Inventory item not found for product "${item.productName}".` });
@@ -1398,7 +1400,7 @@ const allProductsAvailable = async (req, res) => {
       const now = new Date();
       let totalUnits = 0;
 
-      for (const item of order.items) {
+      for (const item of activeItems) {
         const existingRouting = order.routingItems?.find(r => r.orderItemId === item.id);
         const alreadyAllocated = existingRouting ? existingRouting.storeAvailableQuantity : (item.allocatedQuantity || 0);
         const needed = Math.max(0, item.quantity - alreadyAllocated);
@@ -3081,6 +3083,379 @@ const updateVendorOrderDiscount = async (req, res) => {
   }
 };
 
+// PUT /api/vendors/orders/:id/edit — ASM edits order line items / attributes and resubmits to Admin
+const editVendorOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      vendorData,
+      items,
+      deliveryCharges,
+      discount,
+      discountPercent,
+      discountType,
+      notes,
+      deliveryAddress,
+      deliveryCity,
+      deliveryDate,
+    } = req.body || {};
+
+    const existing = await prisma.vendorOrder.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        payments: true,
+        vendor: true,
+        routingItems: true,
+        allocations: true,
+      },
+    });
+
+    if (!existing) return res.status(404).json({ message: 'Vendor order not found.' });
+
+    const allowedStages = ['SUBMITTED', 'AWAITED_ADMIN', 'APPROVED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'REJECTED', 'GIVE_STOCK', 'CREATED'];
+    const curStage = existing.currentStage || existing.status;
+    if (!allowedStages.includes(curStage)) {
+      return res.status(400).json({
+        message: `Order cannot be edited in stage "${curStage}". Allowed stages: ${allowedStages.join(', ')}.`,
+      });
+    }
+
+    // 1. Update permitted vendor fields if provided
+    if (vendorData && existing.vendorId) {
+      const vUpdates = {};
+      if (vendorData.phone !== undefined && String(vendorData.phone).trim()) vUpdates.phone = String(vendorData.phone).trim();
+      if (vendorData.company !== undefined) vUpdates.company = vendorData.company?.trim() || null;
+      if (vendorData.email !== undefined) vUpdates.email = vendorData.email?.trim() || null;
+      if (vendorData.city !== undefined) vUpdates.city = vendorData.city?.trim() || null;
+      if (vendorData.address !== undefined) vUpdates.address = vendorData.address?.trim() || null;
+      if (Object.keys(vUpdates).length > 0) {
+        await prisma.vendor.update({
+          where: { id: existing.vendorId },
+          data: vUpdates,
+        });
+      }
+    }
+
+    // 2. Validate incoming line items
+    const incomingItems = (Array.isArray(items) ? items : [])
+      .filter((i) => i && (i.productName || i.catalogItemId))
+      .map((i) => ({
+        id: i.id || null,
+        catalogItemId: i.catalogItemId || null,
+        productName: (i.productName || '').trim(),
+        productType: i.productType || null,
+        color: i.color || null,
+        size: i.size || null,
+        articleName: i.articleName || null,
+        articleNumber: i.articleNumber || null,
+        unit: i.unit || null,
+        variant: i.variant || null,
+        quantity: Math.max(1, parseInt(i.quantity, 10) || 1),
+        unitPrice: parseFloat(i.unitPrice) || 0,
+        notes: i.notes || null,
+      }))
+      .map((i) => ({
+        ...i,
+        lineTotal: i.quantity * i.unitPrice,
+      }));
+
+    if (incomingItems.length === 0) {
+      return res.status(400).json({ message: 'Order must contain at least one valid product line.' });
+    }
+
+    // 3. Diff calculation against existing active items
+    const existingActiveItems = (existing.items || []).filter(it => !it.isRemoved);
+    const added = [];
+    const modified = [];
+    const removed = [];
+
+    const existingById = new Map();
+    existingActiveItems.forEach(it => existingById.set(it.id, it));
+    const matchedExistingIds = new Set();
+
+    for (const inc of incomingItems) {
+      if (inc.id && existingById.has(inc.id)) {
+        matchedExistingIds.add(inc.id);
+        const oldItem = existingById.get(inc.id);
+        const qtyChanged = oldItem.quantity !== inc.quantity;
+        const priceChanged = oldItem.unitPrice !== inc.unitPrice;
+        const colorChanged = (oldItem.color || '') !== (inc.color || '');
+        const sizeChanged = (oldItem.size || '') !== (inc.size || '');
+
+        if (qtyChanged || priceChanged || colorChanged || sizeChanged) {
+          modified.push({
+            id: inc.id,
+            productName: inc.productName,
+            color: inc.color,
+            size: inc.size,
+            oldQuantity: oldItem.quantity,
+            newQuantity: inc.quantity,
+            oldUnitPrice: oldItem.unitPrice,
+            newUnitPrice: inc.unitPrice,
+            diffQuantity: inc.quantity - oldItem.quantity,
+          });
+        }
+      } else {
+        // Fallback match by (catalogItemId || productName) + color + size
+        const fallbackMatch = existingActiveItems.find(it =>
+          !matchedExistingIds.has(it.id) &&
+          (it.catalogItemId && inc.catalogItemId ? it.catalogItemId === inc.catalogItemId : it.productName.toLowerCase() === inc.productName.toLowerCase()) &&
+          (it.color || '').toLowerCase() === (inc.color || '').toLowerCase() &&
+          (it.size || '').toLowerCase() === (inc.size || '').toLowerCase()
+        );
+
+        if (fallbackMatch) {
+          inc.id = fallbackMatch.id;
+          matchedExistingIds.add(fallbackMatch.id);
+          const qtyChanged = fallbackMatch.quantity !== inc.quantity;
+          const priceChanged = fallbackMatch.unitPrice !== inc.unitPrice;
+          if (qtyChanged || priceChanged) {
+            modified.push({
+              id: fallbackMatch.id,
+              productName: inc.productName,
+              color: inc.color,
+              size: inc.size,
+              oldQuantity: fallbackMatch.quantity,
+              newQuantity: inc.quantity,
+              oldUnitPrice: fallbackMatch.unitPrice,
+              newUnitPrice: inc.unitPrice,
+              diffQuantity: inc.quantity - fallbackMatch.quantity,
+            });
+          }
+        } else {
+          added.push({
+            catalogItemId: inc.catalogItemId,
+            productName: inc.productName,
+            color: inc.color,
+            size: inc.size,
+            quantity: inc.quantity,
+            unitPrice: inc.unitPrice,
+            lineTotal: inc.lineTotal,
+          });
+        }
+      }
+    }
+
+    // Identify removed items
+    for (const oldItem of existingActiveItems) {
+      if (!matchedExistingIds.has(oldItem.id)) {
+        removed.push({
+          id: oldItem.id,
+          productName: oldItem.productName,
+          color: oldItem.color,
+          size: oldItem.size,
+          quantity: oldItem.quantity,
+          allocatedQuantity: oldItem.allocatedQuantity || 0,
+          hadAllocation: (oldItem.allocatedQuantity || 0) > 0,
+        });
+      }
+    }
+
+    // Build human-readable summary
+    const summaryParts = [];
+    if (added.length > 0) summaryParts.push(`+${added.length} item${added.length > 1 ? 's' : ''} added`);
+    if (removed.length > 0) summaryParts.push(`-${removed.length} item${removed.length > 1 ? 's' : ''} removed`);
+    if (modified.length > 0) summaryParts.push(`${modified.length} item${modified.length > 1 ? 's' : ''} modified`);
+    if (summaryParts.length === 0) summaryParts.push('Order details updated');
+    const editSummary = summaryParts.join(', ');
+
+    // 4. Financial recalculation
+    const dc = deliveryCharges !== undefined ? Math.max(0, parseFloat(deliveryCharges) || 0) : (existing.deliveryCharges || 0);
+    const subtotal = incomingItems.reduce((s, i) => s + i.lineTotal, 0);
+
+    let finalDiscount = existing.discount || 0;
+    let finalDiscountPercent = existing.discountPercent !== null && existing.discountPercent !== undefined ? existing.discountPercent : 0;
+    const finalDiscountType = discountType || existing.discountType || 'PERCENT';
+
+    if (discountPercent !== undefined && discountPercent !== null && discountPercent !== '') {
+      finalDiscountPercent = parseFloat(discountPercent) || 0;
+      finalDiscount = Math.round((subtotal * finalDiscountPercent) / 100 * 100) / 100;
+    } else if (discount !== undefined) {
+      const parsedDiscount = parseFloat(discount) || 0;
+      if (finalDiscountType === 'PERCENT' && parsedDiscount > 0) {
+        finalDiscountPercent = parsedDiscount;
+        finalDiscount = Math.round((subtotal * finalDiscountPercent) / 100 * 100) / 100;
+      } else {
+        finalDiscount = parsedDiscount;
+        finalDiscountPercent = subtotal > 0 && finalDiscount > 0 ? Math.round((finalDiscount / subtotal) * 10000) / 100 : 0;
+      }
+    } else if (finalDiscountPercent > 0) {
+      finalDiscount = Math.round((subtotal * finalDiscountPercent) / 100 * 100) / 100;
+    }
+
+    const grandTotal = Math.max(0, subtotal + dc - finalDiscount);
+    const totalPaid = (existing.payments || [])
+      .filter((p) => p.status === 'CLEARED' || !p.status)
+      .reduce((s, p) => s + (p.amount || 0), 0);
+    const remainingBalance = Math.max(0, grandTotal - totalPaid);
+
+    // 5. Version numbering & snapshot
+    const currentVersion = existing.version || 1;
+    const newVersion = currentVersion + 1;
+    const revisionRecord = {
+      version: currentVersion,
+      newVersion,
+      editedAt: new Date().toISOString(),
+      editedById: req.user?.id || null,
+      editedByName: req.user?.name || 'ASM',
+      editSummary,
+      diff: { added, removed, modified },
+      previousGrandTotal: existing.grandTotal,
+      newGrandTotal: grandTotal,
+      previousItemsCount: existingActiveItems.length,
+      newItemsCount: incomingItems.length,
+    };
+    const updatedRevisionHistory = [...(Array.isArray(existing.revisionHistory) ? existing.revisionHistory : []), revisionRecord];
+
+    // 6. Execute atomic update
+    const updated = await prisma.$transaction(async (tx) => {
+      // Removed items
+      for (const rem of removed) {
+        if (rem.allocatedQuantity > 0) {
+          // Keep item flagged so store and audits know it was allocated
+          await tx.vendorOrderItem.update({
+            where: { id: rem.id },
+            data: {
+              isRemoved: true,
+              removalReason: `Removed from revised request (Previously allocated: ${rem.allocatedQuantity})`,
+            },
+          });
+        } else {
+          // Unallocated item: delete cleanly
+          await tx.vendorOrderItem.delete({ where: { id: rem.id } });
+        }
+      }
+
+      // Existing/modified & new items
+      for (const inc of incomingItems) {
+        if (inc.id && existingById.has(inc.id)) {
+          const oldItem = existingById.get(inc.id);
+          await tx.vendorOrderItem.update({
+            where: { id: inc.id },
+            data: {
+              catalogItemId: inc.catalogItemId,
+              productName: inc.productName,
+              productType: inc.productType,
+              color: inc.color,
+              size: inc.size,
+              articleName: inc.articleName,
+              articleNumber: inc.articleNumber,
+              unit: inc.unit,
+              variant: inc.variant,
+              quantity: inc.quantity,
+              previousQuantity: oldItem.quantity,
+              unitPrice: inc.unitPrice,
+              lineTotal: inc.lineTotal,
+              notes: inc.notes,
+              isRemoved: false,
+              removalReason: null,
+            },
+          });
+        } else {
+          await tx.vendorOrderItem.create({
+            data: {
+              orderId: id,
+              catalogItemId: inc.catalogItemId,
+              productName: inc.productName,
+              productType: inc.productType,
+              color: inc.color,
+              size: inc.size,
+              articleName: inc.articleName,
+              articleNumber: inc.articleNumber,
+              unit: inc.unit,
+              variant: inc.variant,
+              quantity: inc.quantity,
+              unitPrice: inc.unitPrice,
+              lineTotal: inc.lineTotal,
+              notes: inc.notes,
+            },
+          });
+        }
+      }
+
+      // Update Order
+      const orderUpdate = await tx.vendorOrder.update({
+        where: { id },
+        data: {
+          version: newVersion,
+          isEdited: true,
+          lastEditedAt: new Date(),
+          lastEditedById: req.user?.id || null,
+          lastEditedByName: req.user?.name || 'ASM',
+          editSummary,
+          revisionHistory: updatedRevisionHistory,
+          totalOrderValue: subtotal,
+          grandTotal,
+          remainingBalance,
+          deliveryCharges: dc,
+          discount: finalDiscount,
+          discountPercent: finalDiscountPercent,
+          discountType: finalDiscountType,
+          notes: notes !== undefined ? notes : existing.notes,
+          deliveryAddress: deliveryAddress !== undefined ? deliveryAddress : existing.deliveryAddress,
+          deliveryCity: deliveryCity !== undefined ? deliveryCity : existing.deliveryCity,
+          deliveryDate: deliveryDate ? new Date(deliveryDate) : existing.deliveryDate,
+          // Re-submission always resets to AWAITED_ADMIN for Admin re-approval
+          status: 'AWAITED_ADMIN',
+          currentStage: 'AWAITED_ADMIN',
+          fulfillmentMethod: null,
+          updatedAt: new Date(),
+        },
+        include: {
+          vendor: true,
+          items: true,
+          payments: { orderBy: { createdAt: 'asc' } },
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          asm: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      // Insert timeline entry
+      await tx.vendorOrderStatus.create({
+        data: {
+          orderId: id,
+          status: 'RESUBMITTED_AWAITED_ADMIN',
+          fromStage: curStage,
+          toStage: 'AWAITED_ADMIN',
+          changedBy: req.user?.name || 'ASM',
+          changedById: req.user?.id || null,
+          remarks: `Order revised to v${newVersion}: ${editSummary}. Resubmitted for Admin re-approval.`,
+        },
+      });
+
+      return orderUpdate;
+    });
+
+    try {
+      await notify.create(req, {
+        type: 'vendor_order',
+        moduleName: 'Vendors',
+        path: '/vendors',
+        role: ['SUPER_ADMIN', 'ADMIN'],
+        title: `Order Revised (v${newVersion}) - Re-Approval Required`,
+        message: `Order ${updated.orderNumber} (${updated.vendor?.name}) was revised to v${newVersion} by ${req.user?.name || 'ASM'}. Summary: ${editSummary}.`,
+        orderNumber: updated.orderNumber,
+        customerName: updated.vendor?.name,
+        action: 'NOTIFY',
+        employeeName: req.user?.name || null,
+      });
+    } catch (e) {}
+
+    res.json({
+      success: true,
+      order: updated,
+      message: `Order ${updated.orderNumber} successfully revised to version ${newVersion} and resubmitted for Admin approval.`,
+      diff: { added, removed, modified },
+      editSummary,
+      version: newVersion,
+    });
+  } catch (error) {
+    console.error('Error in editVendorOrder:', error);
+    res.status(500).json({ message: 'Failed to edit vendor order', error: error.message });
+  }
+};
+
 module.exports = {
   getCatalog,
   listVendors,
@@ -3091,6 +3466,7 @@ module.exports = {
   listVendorOrders,
   getVendorOrder,
   updateVendorOrderDiscount,
+  editVendorOrder,
   submitVendorOrder,
   approveVendorOrder,
   rejectVendorOrder,

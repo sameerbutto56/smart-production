@@ -8,7 +8,7 @@ import {
   Search, RefreshCcw, Plus, X, Building2, Phone, Mail, MapPin, Users, User,
   ClipboardList, TrendingUp, CreditCard, Package, CheckCircle2, Ban, Truck, Eye, Hash,
   ArrowDownToLine, Printer, FileText, Receipt, Trash2, BarChart3,
-  BarChart2, DollarSign, AlertCircle, List, Store, ShoppingBag,
+  BarChart2, DollarSign, AlertCircle, List, Store, ShoppingBag, Sparkles,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet } from '../utils/vendorDocumentPrint';
@@ -525,6 +525,11 @@ const AdminOrderRow = ({ order, onOpen, onReject, onAction, t }) => {
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${color}`}>
             {STAGE_LABELS[stage] || stage}
           </span>
+          {((order.version || 1) > 1 || order.isEdited) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+              v{order.version || 1}{order.isEdited ? ' • EDITED' : ''}
+            </span>
+          )}
           {remaining > 0.01 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
               {t('Balance')}
@@ -532,7 +537,7 @@ const AdminOrderRow = ({ order, onOpen, onReject, onAction, t }) => {
           )}
         </button>
         <div className="flex items-center gap-2 flex-wrap">
-          {stage === 'SUBMITTED' && (
+          {(stage === 'SUBMITTED' || stage === 'AWAITED_ADMIN' || stage === 'CREATED' || order.canApprove) && (
             <>
               <button
                 onClick={() => onAction(order.id, '/approve', null, null)}
@@ -1284,11 +1289,37 @@ const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t 
           <span className={`px-2 py-0.5 rounded-full text-xs font-bold text-white ${color}`}>
             {STAGE_LABELS[stage] || stage}
           </span>
+          {((order.version || 1) > 1 || order.isEdited) && (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+              v{order.version || 1}{order.isEdited ? ' • EDITED' : ''}
+            </span>
+          )}
         </div>
         <button onClick={onClose} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300">
           <X className="h-4 w-4" />
         </button>
       </div>
+
+      {(order.isEdited || (order.version || 1) > 1) && (
+        <div className="bg-indigo-950/40 border border-indigo-500/40 rounded-xl p-3.5 mb-4 space-y-1.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-xs font-black uppercase text-indigo-300 flex items-center gap-1.5 tracking-wider">
+              <Sparkles className="h-4 w-4 text-indigo-400" />
+              {t('Revised Request')} — Version {order.version || 1}
+            </span>
+            {order.lastEditedAt && (
+              <span className="text-[11px] text-slate-400">
+                Edited by <strong className="text-slate-200">{order.lastEditedByName || 'ASM'}</strong> · {formatDateTime(order.lastEditedAt)}
+              </span>
+            )}
+          </div>
+          {order.editSummary && (
+            <div className="text-xs text-indigo-200 bg-indigo-900/40 px-3 py-1.5 rounded-lg border border-indigo-500/30">
+              <strong>{t('Changes:')}</strong> {order.editSummary}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="bg-slate-800/50 rounded-lg p-3 mb-4">
         <p className="text-sm font-bold text-white flex items-center gap-2"><Building2 className="h-4 w-4 text-blue-400" />{order.vendor?.name || '—'}</p>
@@ -1321,7 +1352,14 @@ const OrderDetailDrawer = ({ order, onClose, runAction, handlePrint, flexDir, t 
           {(order.items || []).map((it) => (
             <div key={it.id} className="flex items-center justify-between bg-slate-800/50 rounded-lg p-2 text-sm">
               <div>
-                <p className="font-semibold text-white">{it.productName}</p>
+                <p className="font-semibold text-white">
+                  {it.productName}
+                  {it.isRemoved && (
+                    <span className="ml-2 text-xs font-semibold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                      {it.removalReason || 'Removed in revision'}
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-slate-400">
                   {[it.color, it.size, it.productType].filter(Boolean).join(' · ') || '—'}
                 </p>

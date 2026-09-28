@@ -10,6 +10,7 @@ const {
   listVendorOrders,
   getVendorOrder,
   updateVendorOrderDiscount,
+  editVendorOrder,
   submitVendorOrder,
   approveVendorOrder,
   sendToStore,
@@ -83,6 +84,7 @@ router.get('/orders', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'S
 router.post('/orders', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), createVendorOrder);
 router.get('/orders/:id', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN', 'STORE']), getVendorOrder);
 router.put('/orders/:id/discount', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), updateVendorOrderDiscount);
+router.put('/orders/:id/edit', authenticate, authorize(['ASM', 'SUPER_ADMIN', 'ADMIN']), editVendorOrder);
 
 // ── ORDER WORKFLOW ──────────────────────────────────────────────────────────
 // Store availability, routing & allocation actions

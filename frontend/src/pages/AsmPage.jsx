@@ -9,7 +9,7 @@ import {
   Search, RefreshCcw, FileText, X, User, Phone, MapPin, Calendar,
   Hash, CreditCard, Package, Truck, Plus, CheckCircle2, Printer, Receipt,
   Download, ClipboardList, Building2, TrendingUp, Users, ArrowDownToLine, Ban, RotateCcw, BarChart3, Clock as ClockIcon,
-  Store, ShoppingBag,
+  Store, ShoppingBag, Pencil, Sparkles, AlertTriangle,
 } from 'lucide-react';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet, printVendorJobSheet } from '../utils/vendorDocumentPrint';
@@ -105,6 +105,7 @@ const AsmPage = () => {
   const [filter, setFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingOrder, setEditingOrder] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showDirectVendorModal, setShowDirectVendorModal] = useState(false);
@@ -662,6 +663,7 @@ const AsmPage = () => {
                     onPrint={handlePrint}
                     isAdmin={isAdmin}
                     flexDir={flexDir}
+                    onEdit={(ord) => setEditingOrder(ord)}
                   />
                 ))}
               </div>
@@ -809,8 +811,22 @@ const AsmPage = () => {
           runAction={runAction}
           onPrint={handlePrint}
           onReject={handleReject}
+          onEdit={(ord) => setEditingOrder(ord)}
           isAdmin={isAdmin}
           flexDir={flexDir}
+        />
+      )}
+
+      {editingOrder && (
+        <EditOrderModal
+          order={editingOrder}
+          catalog={Array.isArray(catalog) ? catalog : []}
+          onClose={() => setEditingOrder(null)}
+          onUpdated={(updated) => {
+            setEditingOrder(null);
+            refresh();
+            if (selectedOrder?.id === updated?.id) setSelectedOrder(updated);
+          }}
         />
       )}
 
@@ -859,7 +875,7 @@ const AsmPage = () => {
   );
 };
 
-const OrderRow = ({ order, onOpen, onAction, onReject, onPrint, isAdmin, flexDir }) => {
+const OrderRow = ({ order, onOpen, onAction, onReject, onPrint, onEdit, isAdmin, flexDir }) => {
   const { t } = useLanguage();
   const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, (order.grandTotal || 0) - totalPaid);
@@ -883,6 +899,11 @@ const OrderRow = ({ order, onOpen, onAction, onReject, onPrint, isAdmin, flexDir
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${color}`}>
             {STAGE_LABELS[stage] || stage}
           </span>
+          {((order.version || 1) > 1 || order.isEdited) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+              v{order.version || 1}{order.isEdited ? ' (Edited)' : ''}
+            </span>
+          )}
           {order.fulfillmentMethod && (
             <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-700 text-slate-300 uppercase">
               {order.fulfillmentMethod === 'SEND_TO_STORE' ? 'Store Allocation' : 'Buy Itself'}
@@ -903,6 +924,19 @@ const OrderRow = ({ order, onOpen, onAction, onReject, onPrint, isAdmin, flexDir
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {['SUBMITTED', 'AWAITED_ADMIN', 'APPROVED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'REJECTED', 'GIVE_STOCK', 'CREATED'].includes(stage) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit?.(order);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-bold transition shadow"
+              title={t('Edit this order (resubmits to AWAITED_ADMIN)')}
+            >
+              <Pencil className="h-3.5 w-3.5" /> {t('Edit')}
+            </button>
+          )}
           {isAdmin && isAwaited && (
             <>
               <button
@@ -1020,7 +1054,7 @@ const OrderRow = ({ order, onOpen, onAction, onReject, onPrint, isAdmin, flexDir
   );
 };
 
-const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReject, isAdmin, flexDir }) => {
+const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReject, onEdit, isAdmin, flexDir }) => {
   const { t } = useLanguage();
   const [showPayForm, setShowPayForm] = useState(false);
   const [payAmount, setPayAmount] = useState('');
@@ -1075,6 +1109,11 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Package className="h-5 w-5 text-cyan-400" />
             {order.orderNumber}
+            {((order.version || 1) > 1 || order.isEdited) && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                v{order.version || 1}{order.isEdited ? ' • EDITED' : ''}
+              </span>
+            )}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400">
             <X className="h-5 w-5" />
@@ -1090,12 +1129,38 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
                 <span className={`px-3 py-1 rounded-full text-xs font-bold text-white ${STAGE_COLORS[stage] || 'bg-slate-500'}`}>
                   {STAGE_LABELS[stage] || stage}
                 </span>
+                {((order.version || 1) > 1 || order.isEdited) && (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                    Version {order.version || 1}
+                  </span>
+                )}
                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                   remaining > 0.01 ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
                 }`}>
                   {remaining > 0.01 ? `${t('Balance')}: ${fmtCurrency(remaining)}` : t('Paid')}
                 </span>
               </div>
+
+              {(order.isEdited || (order.version || 1) > 1) && (
+                <div className="bg-indigo-950/40 border border-indigo-500/40 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-black uppercase text-indigo-300 flex items-center gap-1.5 tracking-wider">
+                      <Sparkles className="h-4 w-4 text-indigo-400" />
+                      Revised Request — Version {order.version || 1}
+                    </span>
+                    {order.lastEditedAt && (
+                      <span className="text-[11px] text-slate-400">
+                        Edited by <strong className="text-slate-200">{order.lastEditedByName || 'ASM'}</strong> · {formatDateTime(order.lastEditedAt)}
+                      </span>
+                    )}
+                  </div>
+                  {order.editSummary && (
+                    <div className="text-xs text-indigo-200 bg-indigo-900/40 px-3 py-2 rounded-lg border border-indigo-500/30">
+                      <strong>Changes:</strong> {order.editSummary}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <InfoRow icon={User} label={t('Vendor')} value={order.vendor?.name} />
               <InfoRow icon={Phone} label={t('Phone')} value={order.vendor?.phone} />
@@ -1117,6 +1182,11 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
                           {it.allocatedQuantity !== undefined && it.allocatedQuantity !== null && it.allocatedQuantity > 0 && (
                             <span className="ml-2 text-xs font-semibold text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20">
                               {t('Allocated')}: {it.allocatedQuantity} / {it.quantity}
+                            </span>
+                          )}
+                          {it.isRemoved && (
+                            <span className="ml-2 text-xs font-semibold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                              {it.removalReason || 'Removed in revision'}
                             </span>
                           )}
                         </p>
@@ -1173,6 +1243,14 @@ const OrderDetailDrawer = ({ order, loading, onClose, runAction, onPrint, onReje
               </div>
 
               <div className="flex flex-wrap gap-2 pt-2">
+                {['SUBMITTED', 'AWAITED_ADMIN', 'APPROVED', 'ADMIN_APPROVED', 'SENT_TO_STORE', 'REJECTED', 'GIVE_STOCK', 'CREATED'].includes(stage) && (
+                  <ActionBtn
+                    icon={Pencil}
+                    color="bg-amber-600 hover:bg-amber-500"
+                    label={t('Edit Request (v' + ((order.version || 1) + 1) + ')')}
+                    onClick={() => onEdit?.(order)}
+                  />
+                )}
                 {(stage === 'GIVE_STOCK' || stage === 'SENT_TO_ASM') && (
                   <ActionBtn icon={CheckCircle2} color="bg-teal-600 hover:bg-teal-500" label={t('Accept / Receive Stock')}
                     onClick={() => runAction(order.id, `/accept`, t('Stock received & accepted'), { confirmText: t('Accept and receive this allocated stock?') })} />
@@ -2065,6 +2143,626 @@ const CreateOrderModal = ({ catalog, vendors, initialVendorId, onClose, onCreate
           }}
         />
       )}
+    </div>
+  );
+};
+
+const EditOrderModal = ({ order, catalog, onClose, onUpdated }) => {
+  const { t } = useLanguage();
+
+  const [vendorData, setVendorData] = useState({
+    phone: order.vendor?.phone || '',
+    company: order.vendor?.companyName || order.vendor?.company || '',
+    email: order.vendor?.email || '',
+    city: order.vendor?.city || '',
+    address: order.vendor?.address || '',
+  });
+
+  const initialItems = (order.items || [])
+    .filter((it) => !it.isRemoved)
+    .map((it) => ({
+      id: it.id,
+      catalogItemId: it.catalogItemId || '',
+      productName: it.productName || '',
+      category: it.productType || '',
+      color: it.color || '',
+      size: it.size || '',
+      articleName: it.articleName || '',
+      articleNumber: it.articleNumber || '',
+      unit: it.unit || '',
+      variant: it.variant || '',
+      quantity: it.quantity || 1,
+      unitPrice: it.unitPrice || 0,
+      notes: it.notes || '',
+      allocatedQuantity: it.allocatedQuantity || 0,
+      isManual: !it.catalogItemId,
+    }));
+
+  const [lineItems, setLineItems] = useState(initialItems.length > 0 ? initialItems : [emptyLine()]);
+  const [deliveryCharges, setDeliveryCharges] = useState(order.deliveryCharges || '');
+  const [discount, setDiscount] = useState(
+    order.discountPercent !== null && order.discountPercent !== undefined && order.discountPercent > 0
+      ? order.discountPercent
+      : (order.discount || '')
+  );
+  const [discountType, setDiscountType] = useState(order.discountType || 'PERCENT');
+  const [notes, setNotes] = useState(order.notes || '');
+  const [deliveryAddress, setDeliveryAddress] = useState(order.deliveryAddress || '');
+  const [deliveryCity, setDeliveryCity] = useState(order.deliveryCity || '');
+  const [deliveryDate, setDeliveryDate] = useState(order.deliveryDate ? order.deliveryDate.slice(0, 10) : '');
+  const [submitting, setSubmitting] = useState(false);
+  const [lineSearch, setLineSearch] = useState({});
+  const [resultsOpen, setResultsOpen] = useState(null);
+
+  const updateLine = (idx, field, value) => {
+    setLineItems((prev) => prev.map((li, i) => (i === idx ? { ...li, [field]: value } : li)));
+  };
+
+  const addLine = () => setLineItems((prev) => [...prev, emptyLine()]);
+  const removeLine = (idx) => setLineItems((prev) => prev.filter((_, i) => i !== idx));
+
+  const lineItem = (idx) => (catalog || []).find((c) => c.id === lineItems[idx]?.catalogItemId) || null;
+  const lineVariants = (idx) => vendorVariants(lineItem(idx));
+  const lineColors = (idx) => uniqValues(lineVariants(idx), 'color');
+  const lineSizes = (idx) => uniqValues(lineVariants(idx), 'size');
+  const lineIsOther = (idx) => Boolean(lineItems[idx]?.isManual) || !lineItems[idx]?.catalogItemId;
+
+  const filteredCatalog = (idx) => {
+    const q = ((lineSearch[idx] !== undefined ? lineSearch[idx] : lineItems[idx]?.productName) || '').trim().toLowerCase();
+    if (!q) return (catalog || []).slice(0, 20);
+    return (catalog || []).filter((c) => {
+      const haystack = [
+        c.name, c.category, c.id,
+        ...(Array.isArray(c.variants) ? c.variants : [])
+          .flatMap((v) => [v.articleName, v.articleNumber, v.unit, v.variant, v.color, v.size]),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    }).slice(0, 25);
+  };
+
+  const markAsOther = (idx, customName = '') => {
+    const name = (customName || lineSearch[idx] || lineItems[idx]?.productName || '').trim();
+    setLineItems((prev) => prev.map((li, i) =>
+      i === idx ? {
+        ...li,
+        catalogItemId: '',
+        productName: name,
+        category: null,
+        isManual: true,
+      } : li
+    ));
+    setLineSearch((prev) => {
+      const next = { ...prev };
+      delete next[idx];
+      return next;
+    });
+    setResultsOpen(null);
+  };
+
+  const selectCatalogItem = (idx, item) => {
+    if (!item) return;
+    const variants = vendorVariants(item);
+    const colors = uniqValues(variants, 'color');
+    const sizes = uniqValues(variants, 'size');
+    const firstVariant = variants[0] || {};
+    const defaultColor = colors[0] || firstVariant.color || '';
+    const defaultSize = sizes[0] || firstVariant.size || '';
+    const unitPrice = firstVariant.price != null ? firstVariant.price : (item.price != null ? item.price : '');
+
+    setLineItems((prev) => prev.map((li, i) =>
+      i === idx
+        ? {
+            ...li,
+            catalogItemId: item.id,
+            productName: item.name || item.category || 'Product',
+            category: item.category || null,
+            color: defaultColor,
+            size: defaultSize,
+            unitPrice: unitPrice,
+            isManual: false,
+          }
+        : li
+    ));
+    setLineSearch((prev) => {
+      const next = { ...prev };
+      delete next[idx];
+      return next;
+    });
+    setResultsOpen(null);
+  };
+
+  const submit = async () => {
+    const items = lineItems
+      .filter((li) => String(li.productName || '').trim() || li.catalogItemId)
+      .map((li) => ({
+        id: li.id || undefined,
+        catalogItemId: li.catalogItemId || null,
+        productName: String(li.productName || '').trim(),
+        productType: li.category || null,
+        color: li.color || null,
+        size: li.size || null,
+        articleName: li.articleName || null,
+        articleNumber: li.articleNumber || null,
+        unit: li.unit || null,
+        variant: li.variant || null,
+        quantity: Math.max(1, parseInt(li.quantity, 10) || 1),
+        unitPrice: parseFloat(li.unitPrice) || 0,
+        notes: li.notes || null,
+      }));
+
+    if (!items.length) {
+      return toast.error(t('At least one product line is required. Please select or enter a product.'));
+    }
+
+    const subtotal = items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0);
+    const discVal = parseFloat(discount) || 0;
+    const calculatedDiscount = discountType === 'PERCENT'
+      ? Math.round((subtotal * discVal) / 100 * 100) / 100
+      : discVal;
+
+    setSubmitting(true);
+    try {
+      const res = await api.put(`/api/vendors/orders/${order.id}/edit`, {
+        vendorData,
+        items,
+        deliveryCharges: parseFloat(deliveryCharges) || 0,
+        discount: calculatedDiscount,
+        discountPercent: discountType === 'PERCENT' ? discVal : 0,
+        discountType,
+        notes: notes || null,
+        deliveryAddress: deliveryAddress || null,
+        deliveryCity: deliveryCity || null,
+        deliveryDate: deliveryDate ? new Date(deliveryDate).toISOString() : null,
+      });
+
+      toast.success(res.data?.message || t('Order updated and resubmitted to Admin!'));
+      onUpdated?.(res.data?.order);
+      onClose();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || t('Failed to update order'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const nextVer = (order.version || 1) + 1;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-xl font-black text-white flex items-center gap-2">
+                <Pencil className="h-5 w-5 text-amber-400" />
+                {t('Edit Vendor Order')} — {order.orderNumber}
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                v{order.version || 1} → v{nextVer}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Vendor: <strong className="text-slate-200">{order.vendor?.name}</strong> | Current Stage: <span className="text-cyan-400 font-semibold">{STAGE_LABELS[order.currentStage] || order.currentStage}</span>
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Workflow Banner */}
+        <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3.5 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-200 space-y-1">
+            <p className="font-bold">
+              {t('Re-Approval Workflow Rule:')} Saving revisions will advance this order to <span className="underline font-black text-white">Version {nextVer}</span> and return it to <span className="underline font-black text-white">AWAITED ADMIN</span>.
+            </p>
+            <p className="text-amber-300/80">
+              Admin must re-approve the revised version before Store allocation. Any previously allocated units will not be duplicated.
+            </p>
+          </div>
+        </div>
+
+        {/* Permitted Vendor Information */}
+        <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/60 space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-cyan-400" />
+            {t('Vendor Contact & Delivery Details')}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-slate-400">{t('Phone Number')}</label>
+              <input
+                value={vendorData.phone}
+                onChange={(e) => setVendorData((s) => ({ ...s, phone: e.target.value }))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1 focus:border-cyan-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400">{t('Company / Organization')}</label>
+              <input
+                value={vendorData.company}
+                onChange={(e) => setVendorData((s) => ({ ...s, company: e.target.value }))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1 focus:border-cyan-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400">{t('Email')}</label>
+              <input
+                value={vendorData.email}
+                onChange={(e) => setVendorData((s) => ({ ...s, email: e.target.value }))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1 focus:border-cyan-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400">{t('City')}</label>
+              <input
+                value={deliveryCity}
+                onChange={(e) => setDeliveryCity(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1 focus:border-cyan-500 outline-none"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-slate-400">{t('Delivery Address')}</label>
+              <input
+                value={deliveryAddress}
+                onChange={(e) => setDeliveryAddress(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1 focus:border-cyan-500 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Product Lines */}
+        <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <Package className="h-4 w-4 text-cyan-400" />
+              {t('Product Lines')} ({lineItems.length})
+            </h3>
+            <button
+              type="button"
+              onClick={addLine}
+              className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-cyan-950/40 border border-cyan-500/40 px-3 py-1.5 rounded-lg transition"
+            >
+              <Plus className="h-3.5 w-3.5" /> {t('Add Product Line')}
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {lineItems.map((li, idx) => {
+              const colors = lineColors(idx);
+              const sizes = lineSizes(idx);
+              const lineAlloc = Number(li.allocatedQuantity) || 0;
+
+              return (
+                <div key={idx} className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-700/60 space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-slate-400 uppercase tracking-wider">#{idx + 1}</span>
+                      {lineAlloc > 0 && (
+                        <span className="bg-teal-500/20 text-teal-400 border border-teal-500/40 text-[10px] font-black px-2 py-0.5 rounded-full">
+                          Allocated: {lineAlloc}
+                        </span>
+                      )}
+                    </div>
+                    {lineItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeLine(idx)}
+                        className="text-rose-400 hover:text-rose-300 text-xs font-bold flex items-center gap-1 hover:bg-rose-950/40 px-2 py-1 rounded transition"
+                      >
+                        <X className="h-3.5 w-3.5" /> {t('Remove Line')}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    <div className="md:col-span-2 lg:col-span-4">
+                      <label className="text-[11px] text-slate-400 font-semibold">{t('Product')} *</label>
+                      {li.catalogItemId ? (
+                        <div className="w-full bg-slate-800 border border-emerald-500/50 rounded-lg px-3 py-2 flex items-center justify-between mt-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-black px-1.5 py-0.5 rounded uppercase">
+                              Catalog
+                            </span>
+                            <span className="text-white text-sm font-semibold">{li.productName}</span>
+                            {li.category && <span className="text-slate-400 text-xs">({li.category})</span>}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateLine(idx, 'catalogItemId', '');
+                              updateLine(idx, 'productName', '');
+                              setResultsOpen(idx);
+                            }}
+                            className="text-xs text-slate-300 hover:text-white px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded transition"
+                          >
+                            {t('Change')}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative mt-1">
+                          <div className="flex gap-1.5">
+                            <input
+                              value={lineSearch[idx] !== undefined ? lineSearch[idx] : (li.productName || '')}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setLineSearch((prev) => ({ ...prev, [idx]: val }));
+                                updateLine(idx, 'productName', val);
+                                setResultsOpen(idx);
+                              }}
+                              onFocus={() => setResultsOpen(idx)}
+                              onBlur={() => setTimeout(() => setResultsOpen(null), 250)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 outline-none"
+                              placeholder={t('Click to select from catalog or type custom product...')}
+                            />
+                            {li.isManual && (
+                              <span className="shrink-0 bg-amber-500/20 text-amber-300 text-xs font-semibold px-2.5 py-2 rounded-lg flex items-center">
+                                {t('Custom')}
+                              </span>
+                            )}
+                          </div>
+
+                          {resultsOpen === idx && (
+                            <div className="absolute z-30 mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto divide-y divide-slate-800">
+                              <button
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  markAsOther(idx, lineSearch[idx] || li.productName);
+                                }}
+                                className="w-full text-left px-3 py-2.5 text-xs font-semibold text-amber-300 hover:bg-slate-800 flex items-center justify-between"
+                              >
+                                <span>+ {t('Add as manual / custom product')}</span>
+                                {(lineSearch[idx] || li.productName) && (
+                                  <span className="text-[11px] text-slate-400 italic">
+                                    "{lineSearch[idx] || li.productName}"
+                                  </span>
+                                )}
+                              </button>
+                              {filteredCatalog(idx).map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    selectCatalogItem(idx, c);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 hover:text-white flex items-center justify-between transition"
+                                >
+                                  <div>
+                                    <span className="font-semibold">{c.name || c.category || c.id}</span>
+                                    {c.category && <span className="ml-2 text-xs text-slate-400">({c.category})</span>}
+                                  </div>
+                                  {c.price != null && (
+                                    <span className="text-xs text-cyan-400 font-bold shrink-0">Rs. {c.price.toLocaleString()}</span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Color */}
+                    <div>
+                      <label className="text-[11px] text-slate-400">{t('Color')}</label>
+                      {colors.length > 0 ? (
+                        <select
+                          value={li.color}
+                          onChange={(e) => updateLine(idx, 'color', e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs mt-1"
+                        >
+                          <option value="">{t('Select color')}</option>
+                          {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          value={li.color}
+                          onChange={(e) => updateLine(idx, 'color', e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs mt-1"
+                          placeholder="e.g. Navy Blue"
+                        />
+                      )}
+                    </div>
+
+                    {/* Size */}
+                    <div>
+                      <label className="text-[11px] text-slate-400">{t('Size')}</label>
+                      {sizes.length > 0 ? (
+                        <select
+                          value={li.size}
+                          onChange={(e) => updateLine(idx, 'size', e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs mt-1"
+                        >
+                          <option value="">{t('Select size')}</option>
+                          {sizes.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          value={li.size}
+                          onChange={(e) => updateLine(idx, 'size', e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs mt-1"
+                          placeholder="e.g. M / L / XL"
+                        />
+                      )}
+                    </div>
+
+                    {/* Quantity */}
+                    <div>
+                      <label className="text-[11px] text-slate-400">{t('Quantity')}</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={li.quantity}
+                        onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs mt-1 font-bold"
+                      />
+                    </div>
+
+                    {/* Unit Price */}
+                    <div>
+                      <label className="text-[11px] text-slate-400">{t('Unit Price (Rs.)')}</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={li.unitPrice}
+                        onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Financials & Notes */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-800/40 rounded-xl p-4 border border-slate-700/60">
+          <div>
+            <label className="text-xs text-slate-400 font-semibold">{t('Delivery Charges')}</label>
+            <input
+              type="number"
+              min="0"
+              value={deliveryCharges}
+              onChange={(e) => setDeliveryCharges(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-slate-400 font-semibold">{t('Discount')}</label>
+              <div className="flex gap-1 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('PERCENT')}
+                  className={`px-1.5 py-0.5 rounded ${discountType === 'PERCENT' ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400'}`}
+                >
+                  %
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('FIXED')}
+                  className={`px-1.5 py-0.5 rounded ${discountType === 'FIXED' ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400'}`}
+                >
+                  Rs
+                </button>
+              </div>
+            </div>
+            <input
+              type="number"
+              min="0"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1"
+              placeholder={discountType === 'PERCENT' ? 'e.g. 10' : 'e.g. 500'}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400 font-semibold">{t('Target Delivery Date')}</label>
+            <input
+              type="date"
+              value={deliveryDate}
+              onChange={(e) => setDeliveryDate(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1"
+            />
+          </div>
+
+          <div className="md:col-span-3">
+            <label className="text-xs text-slate-400 font-semibold">{t('Order Notes / Revision Instructions')}</label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs mt-1"
+              placeholder={t('Add reason for edit or special instructions...')}
+            />
+          </div>
+        </div>
+
+        {/* Financial Summary */}
+        {(() => {
+          const subtotal = lineItems.reduce((acc, li) => {
+            const q = parseInt(li.quantity, 10) || 0;
+            const p = parseFloat(li.unitPrice) || 0;
+            return acc + (q * p);
+          }, 0);
+          const discVal = parseFloat(discount) || 0;
+          const calcDiscount = discountType === 'PERCENT'
+            ? Math.round((subtotal * discVal) / 100 * 100) / 100
+            : discVal;
+          const dc = parseFloat(deliveryCharges) || 0;
+          const grand = Math.max(0, subtotal + dc - calcDiscount);
+          const paid = (order.payments || []).reduce((s, p) => s + (p.amount || 0), 0);
+          const bal = Math.max(0, grand - paid);
+
+          return (
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-6 flex-wrap text-xs">
+                <div>
+                  <span className="text-slate-400">Subtotal:</span>
+                  <strong className="ml-1.5 text-white">Rs. {subtotal.toLocaleString()}</strong>
+                </div>
+                {calcDiscount > 0 && (
+                  <div>
+                    <span className="text-slate-400">Discount:</span>
+                    <strong className="ml-1.5 text-emerald-400">-Rs. {calcDiscount.toLocaleString()}</strong>
+                  </div>
+                )}
+                {dc > 0 && (
+                  <div>
+                    <span className="text-slate-400">Delivery:</span>
+                    <strong className="ml-1.5 text-white">Rs. {dc.toLocaleString()}</strong>
+                  </div>
+                )}
+                <div>
+                  <span className="text-slate-400">Grand Total:</span>
+                  <strong className="ml-1.5 text-cyan-400 text-sm font-black">Rs. {grand.toLocaleString()}</strong>
+                </div>
+                {paid > 0 && (
+                  <div>
+                    <span className="text-slate-400">Paid:</span>
+                    <strong className="ml-1.5 text-emerald-400">Rs. {paid.toLocaleString()}</strong>
+                  </div>
+                )}
+                <div>
+                  <span className="text-slate-400">Remaining:</span>
+                  <strong className={`ml-1.5 ${bal > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>Rs. {bal.toLocaleString()}</strong>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+                >
+                  {t('Cancel')}
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={submit}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-900/30 transition transform hover:-translate-y-0.5"
+                >
+                  <Pencil className="h-4 w-4" />
+                  {submitting ? t('Saving...') : t(`Save & Resubmit to Admin (v${nextVer})`)}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
     </div>
   );
 };

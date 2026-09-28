@@ -260,15 +260,16 @@ function buildBodyHTML(order, kind, customFields = {}) {
   const locationStr = locationParts.join(', ') || 'Lahore, Pakistan';
 
   // Subject line
-  const firstItem = (order.items || [])[0];
-  const itemsCount = (order.items || []).length;
+  const activeItems = (order.items || []).filter(it => !it.isRemoved);
+  const firstItem = activeItems[0];
+  const itemsCount = activeItems.length;
   let subjectDetail = firstItem ? `${firstItem.productName}${firstItem.color ? ` (${firstItem.color})` : ''}` : 'Medical Apparel & Scrubs';
   if (itemsCount > 1) subjectDetail += ` & ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`;
   const subjectStr = `Price ${isInvoice ? 'Invoice' : 'Quotation'} For ${subjectDetail}`;
 
   // Items table rows
   let itemsRows = '';
-  (order.items || []).forEach((it, idx) => {
+  activeItems.forEach((it, idx) => {
     const specs = [it.articleName, it.articleNumber ? `#${it.articleNumber}` : null, it.color, it.size, it.variant, it.unit, it.productType]
       .filter(Boolean)
       .join(' · ');
@@ -527,8 +528,9 @@ function buildDeliverySheetHTML(order, copyLabel, customFields = {}, isDataOnly 
     ? new Date(order.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
+  const activeItems = (order.items || []).filter(it => !it.isRemoved);
   let itemsRows = '';
-  (order.items || []).forEach((it, idx) => {
+  activeItems.forEach((it, idx) => {
     const allocQty = (it.allocatedQuantity !== undefined && it.allocatedQuantity !== null) ? it.allocatedQuantity : 0;
     const specs = [it.color, it.size, it.variant, it.unit].filter(Boolean).join(' / ');
     itemsRows += `
@@ -543,8 +545,8 @@ function buildDeliverySheetHTML(order, copyLabel, customFields = {}, isDataOnly 
       </tr>`;
   });
 
-  const totalRequested = (order.items || []).reduce((s, it) => s + (it.quantity || 0), 0);
-  const totalAllocated = (order.items || []).reduce((s, it) => s + ((it.allocatedQuantity !== undefined && it.allocatedQuantity !== null) ? it.allocatedQuantity : 0), 0);
+  const totalRequested = activeItems.reduce((s, it) => s + (it.quantity || 0), 0);
+  const totalAllocated = activeItems.reduce((s, it) => s + ((it.allocatedQuantity !== undefined && it.allocatedQuantity !== null) ? it.allocatedQuantity : 0), 0);
 
   return `
   <div class="a4-container">
@@ -675,9 +677,10 @@ export function buildVendorJobSheetHTML(order, targetDepartment = 'PRODUCTION', 
   const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const deptLabel = targetDepartment.toUpperCase();
 
+  const activeItems = (order.items || []).filter(it => !it.isRemoved);
   const items = Array.isArray(processingItems) && processingItems.length > 0
     ? processingItems
-    : (order.items || []).map(i => ({
+    : activeItems.map(i => ({
         ...i,
         processingQuantity: i.quantity - (i.allocatedQuantity || 0) || i.quantity,
       }));
@@ -851,7 +854,7 @@ export function buildGatePassHTML(order, customFields = {}, logoUrl = '') {
   const categoryMap = {};
   let totalAllocatedUnits = 0;
 
-  (order?.items || []).forEach(item => {
+  (order?.items || []).filter(it => !it.isRemoved).forEach(item => {
     const cat = getCategoryName(item);
     const qty = Number(item.allocatedQuantity) || 0;
     if (!categoryMap[cat]) {
