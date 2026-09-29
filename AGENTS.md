@@ -1,5 +1,37 @@
 ## Goals
-### Implemented This Session — Johar Town & Jail Road Outlet Order Lookup, A4 Invoice/Quotation Generator & Navbar Enhancement (deployed & live-verified)
+### Implemented This Session — Delete Invoice 500 Error Resolution, Outlet Selector Dropdown & Clean Permanent Deletion (deployed & live-verified)
+- **Problem & Root Cause**:
+  - `GET /api/software-settings/delete-invoice/lookup?query=RCP-20260928-00009` and numeric `query=20260928-00009` threw HTTP 500:
+    1. `PosSale` model in Prisma has no columns named `invoiceNumber` or `saleNumber`, and has no relation named `payments` (the relation is `balancePayments`). The query in `softwareSettings.controller.js` attempted `posSale.findFirst({ where: { OR: [ { invoiceNumber }, { saleNumber } ] }, include: { payments } })`, causing PrismaClientValidationError exceptions.
+    2. Non-UUID queries (e.g. `20260928-00009`) were being tested against `{ id: query }` across `Order`, `PosSale`, and `VendorOrder`, which risked database syntax errors.
+    3. `Order` model in Prisma has no relation `orderItems` (order items are serialized in `productDetails` JSON column). Attempting `include: { orderItems: true }` threw PrismaClientValidationError on every lookup.
+    4. In `deleteInvoicePermanently`: attempted deletions against non-existent Prisma models and columns (`tx.orderItem.deleteMany`, `tx.journalEntry.deleteMany({ where: { reference } })` — `JournalEntry` has no `reference` column, and `ReturnExchangeItem`/`ReplacementItem` don't exist as models since `ReturnExchange` uses JSON columns).
+    5. The Delete Invoice UI lacked an Outlet selector dropdown, making it impossible to target a specific outlet or distinguish between duplicate receipt numbering across outlets.
+- **Fix & Implementation**:
+  - **Backend Controller (`backend/src/controllers/softwareSettings.controller.js`)**:
+    - Fixed `lookupInvoiceForDeletion`:
+      - Added UUID verification (`isUUID`) before querying `{ id: query }`.
+      - Updated `PosSale` search to query `receiptNumber` (exact, prefixed `RCP-${cleanQ}`, and case-insensitive contains), `orderNumber`, and `clientRequestId`.
+      - Replaced `payments: true` with `balancePayments: true`.
+      - Removed non-existent `orderItems: true` include on `Order` and gracefully parsed product line items from `productDetails` JSON.
+      - Added `outlet` query parameter filtering (`hasOutletFilter`) for `Order`, `PosSale`, and `VendorOrder`.
+    - Fixed `deleteInvoicePermanently`:
+      - Removed non-existent `tx.orderItem.deleteMany` and child return exchange models.
+      - Scoped permanent deletion cleanly to the selected outlet if provided.
+    - Updated `getPaymentChangeOutlets`:
+      - Added resilient fallback to `KNOWN_POS_OUTLETS` (`['Johar Town', 'Jail Road', 'Abbottabad']`) to ensure outlet dropdown never fails even during momentary database connection hiccups.
+  - **Backend Routes (`backend/src/routes/softwareSettings.routes.js`)**:
+    - Expanded authorization on `/payment-change/outlets` to include `['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']` so all users authorized to delete invoices can populate the outlet selector.
+  - **Frontend UI (`frontend/src/components/DeleteInvoicePanel.jsx`)**:
+    - Added `outlets` state, fetching dynamically from `/api/software-settings/payment-change/outlets` on mount.
+    - Added styled `<select>` Outlet dropdown with `Store` icon, featuring `All Outlets (Search Everywhere)` as default plus all registered outlets.
+    - Automatically appends `&outlet=...` to the lookup query and passes `outlet` in the permanent delete payload.
+- **Verification**:
+  - Automated verification script `backend/scripts/verify-delete-invoice-lookup.cjs`: All 5 test cases passed (100% pass rate) for dynamic outlet list fetching, full receipt `RCP-20260928-00009` lookup (200), short numeric `20260928-00009` lookup (200), matching outlet `Jail Road` lookup (200), and mismatched outlet `Johar Town` (clean 404).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly into `SoftwareSettings-P7W7qx_g.js.br` and `index-Cy8cMW8d.js.br`.
+  - Production deployment to Vercel (`smart-production-v2.vercel.app`): Deployed, aliased, and verified live with chunk inspection (`All Outlets (Search Everywhere)` present) and `/api/health` 200 OK.
+
+### Implemented Prior Session — Johar Town & Jail Road Outlet Order Lookup, A4 Invoice/Quotation Generator & Navbar Enhancement (deployed & live-verified)
 - **Requirements & Objectives**:
   - **New Navbar Options**:
     - **Johar Town Outlet**: `Orders` and `Invoice / Quotation`.
