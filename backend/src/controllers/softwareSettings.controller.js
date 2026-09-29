@@ -182,7 +182,8 @@ const getPaymentChangeOutlets = async (req, res) => {
     employeeOutlets.forEach(o => push(o.outletName));
     res.json(outlets);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch outlets', error: error.message });
+    console.error('Failed to fetch dynamic outlets, falling back to known outlets:', error.message);
+    res.json(KNOWN_POS_OUTLETS);
   }
 };
 
@@ -571,22 +572,30 @@ const updateOrderRange = async (req, res) => {
 const lookupInvoiceForDeletion = async (req, res) => {
   try {
     const query = String(req.query.query || req.query.invoiceNumber || '').trim();
+    const outlet = String(req.query.outlet || '').trim();
     if (!query) return res.status(400).json({ message: 'Invoice number or order number is required' });
 
     const cleanQ = query.replace(/^#/, '');
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query);
+    const hasOutletFilter = outlet && outlet !== 'ALL' && outlet !== 'All Outlets';
 
     // 1. Search Order table
+    const orderWhere = {
+      OR: [
+        { invoiceNumber: { equals: query, mode: 'insensitive' } },
+        { orderNumber: { equals: query, mode: 'insensitive' } },
+        { orderNumber: { equals: `#${cleanQ}`, mode: 'insensitive' } },
+        ...(cleanQ !== query ? [{ invoiceNumber: { equals: cleanQ, mode: 'insensitive' } }] : []),
+        ...(isUUID ? [{ id: query }] : [])
+      ]
+    };
+    if (hasOutletFilter) {
+      orderWhere.outletName = { equals: outlet, mode: 'insensitive' };
+    }
+
     const order = await prisma.order.findFirst({
-      where: {
-        OR: [
-          { invoiceNumber: { equals: query, mode: 'insensitive' } },
-          { orderNumber: { equals: query, mode: 'insensitive' } },
-          { orderNumber: { equals: `#${cleanQ}`, mode: 'insensitive' } },
-          { id: query }
-        ]
-      },
+      where: orderWhere,
       include: {
-        orderItems: true,
         orderAcceptances: true,
         deliveryAttempts: true,
         deliveryPayments: true,
@@ -598,6 +607,21 @@ const lookupInvoiceForDeletion = async (req, res) => {
     });
 
     if (order) {
+      let items = [];
+      if (order.productDetails) {
+        try {
+          const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+          if (Array.isArray(pd)) {
+            items = pd.map((p, idx) => ({
+              id: p.id || `item-${idx + 1}`,
+              name: p.productType || p.name || `Article ${idx + 1}`,
+              quantity: p.quantity || 1,
+              price: p.unitPrice || p.price || 0
+            }));
+          }
+        } catch (e) {}
+      }
+
       return res.json({
         found: true,
         targetType: 'ORDER',
@@ -615,9 +639,9 @@ const lookupInvoiceForDeletion = async (req, res) => {
         currentStage: order.currentStage,
         status: order.status,
         createdBy: order.createdBy?.name || 'System',
-        items: (order.orderItems || []).map(i => ({ id: i.id, name: i.productName || i.name || 'Product', quantity: i.quantity || 1, price: i.price || 0 })),
+        items,
         relatedRecords: {
-          itemsCount: (order.orderItems || []).length,
+          itemsCount: items.length,
           paymentsCount: (order.deliveryPayments || []).length,
           attemptsCount: (order.deliveryAttempts || []).length,
           acceptancesCount: (order.orderAcceptances || []).length,
@@ -627,18 +651,25 @@ const lookupInvoiceForDeletion = async (req, res) => {
     }
 
     // 2. Search PosSale table
+    const posSaleWhere = {
+      OR: [
+        { receiptNumber: { equals: query, mode: 'insensitive' } },
+        { receiptNumber: { equals: `RCP-${cleanQ}`, mode: 'insensitive' } },
+        { receiptNumber: { contains: cleanQ, mode: 'insensitive' } },
+        { orderNumber: { equals: query, mode: 'insensitive' } },
+        { clientRequestId: { equals: query, mode: 'insensitive' } },
+        ...(isUUID ? [{ id: query }, { orderId: query }] : [])
+      ]
+    };
+    if (hasOutletFilter) {
+      posSaleWhere.outletName = { equals: outlet, mode: 'insensitive' };
+    }
+
     const posSale = await prisma.posSale.findFirst({
-      where: {
-        OR: [
-          { invoiceNumber: { equals: query, mode: 'insensitive' } },
-          { receiptNumber: { equals: query, mode: 'insensitive' } },
-          { saleNumber: { equals: query, mode: 'insensitive' } },
-          { id: query }
-        ]
-      },
+      where: posSaleWhere,
       include: {
         items: true,
-        payments: true,
+        balancePayments: true,
         returns: true
       }
     });
@@ -648,73 +679,90 @@ const lookupInvoiceForDeletion = async (req, res) => {
         found: true,
         targetType: 'POS_SALE',
         id: posSale.id,
-        invoiceNumber: posSale.invoiceNumber || posSale.receiptNumber || posSale.saleNumber,
-        orderNumber: posSale.saleNumber || posSale.receiptNumber,
+        invoiceNumber: posSale.receiptNumber,
+        orderNumber: posSale.orderNumber || posSale.receiptNumber,
         customerName: posSale.customerName || 'Walk-in Customer',
         customerPhone: posSale.customerPhone || '—',
         outletName: posSale.outletName || 'POS Outlet',
         createdAt: posSale.createdAt,
-        totalAmount: posSale.grandTotal || posSale.totalPrice || 0,
-        advanceAmount: 0,
+        totalAmount: posSale.grandTotal || 0,
+        advanceAmount: posSale.advanceAmount || 0,
         paymentMethod: posSale.paymentMethod,
-        paymentStatus: 'PAID',
+        paymentStatus: posSale.refundedAt ? 'REFUNDED' : 'PAID',
         currentStage: 'COMPLETED',
-        status: 'COMPLETED',
+        status: posSale.refundedAt ? 'REFUNDED' : 'COMPLETED',
         createdBy: posSale.cashierName || 'Cashier',
-        items: (posSale.items || []).map(i => ({ id: i.id, name: i.productName || i.name || 'POS Item', quantity: i.quantity || 1, price: i.unitPrice || i.price || 0 })),
+        items: (posSale.items || []).map(i => ({
+          id: i.id,
+          name: i.productName || 'POS Item',
+          quantity: i.quantity || 1,
+          price: i.unitPrice || i.lineTotal || 0
+        })),
         relatedRecords: {
           itemsCount: (posSale.items || []).length,
-          paymentsCount: (posSale.payments || []).length,
+          paymentsCount: (posSale.balancePayments || []).length,
           returnsCount: (posSale.returns || []).length
         }
       });
     }
 
-    // 3. Search VendorOrder table
-    const vendorOrder = await prisma.vendorOrder.findFirst({
-      where: {
+    // 3. Search VendorOrder table (only if not restricted to specific POS outlet)
+    if (!hasOutletFilter) {
+      const vendorOrderWhere = {
         OR: [
           { invoiceNumber: { equals: query, mode: 'insensitive' } },
           { quotationNumber: { equals: query, mode: 'insensitive' } },
           { orderNumber: { equals: query, mode: 'insensitive' } },
-          { id: query }
+          { orderNumber: { equals: `#${cleanQ}`, mode: 'insensitive' } },
+          ...(isUUID ? [{ id: query }] : [])
         ]
-      },
-      include: {
-        items: true,
-        payments: true,
-        deliveries: true
-      }
-    });
+      };
 
-    if (vendorOrder) {
-      return res.json({
-        found: true,
-        targetType: 'VENDOR_ORDER',
-        id: vendorOrder.id,
-        invoiceNumber: vendorOrder.invoiceNumber || vendorOrder.orderNumber,
-        orderNumber: vendorOrder.orderNumber,
-        customerName: vendorOrder.vendorName || 'Vendor',
-        customerPhone: '—',
-        outletName: 'Vendor ASM',
-        createdAt: vendorOrder.createdAt,
-        totalAmount: vendorOrder.grandTotal || 0,
-        advanceAmount: 0,
-        paymentMethod: 'VENDOR',
-        paymentStatus: vendorOrder.status,
-        currentStage: vendorOrder.currentStage,
-        status: vendorOrder.status,
-        createdBy: vendorOrder.asmName || 'ASM',
-        items: (vendorOrder.items || []).map(i => ({ id: i.id, name: i.productName || 'Item', quantity: i.quantity || 1, price: i.unitPrice || 0 })),
-        relatedRecords: {
-          itemsCount: (vendorOrder.items || []).length,
-          paymentsCount: (vendorOrder.payments || []).length,
-          deliveriesCount: (vendorOrder.deliveries || []).length
+      const vendorOrder = await prisma.vendorOrder.findFirst({
+        where: vendorOrderWhere,
+        include: {
+          vendor: { select: { name: true } },
+          asm: { select: { name: true } },
+          items: true,
+          payments: true,
+          deliveries: true
         }
       });
+
+      if (vendorOrder) {
+        return res.json({
+          found: true,
+          targetType: 'VENDOR_ORDER',
+          id: vendorOrder.id,
+          invoiceNumber: vendorOrder.invoiceNumber || vendorOrder.orderNumber,
+          orderNumber: vendorOrder.orderNumber,
+          customerName: vendorOrder.vendor?.name || 'Vendor',
+          customerPhone: '—',
+          outletName: 'Vendor ASM',
+          createdAt: vendorOrder.createdAt,
+          totalAmount: vendorOrder.grandTotal || 0,
+          advanceAmount: vendorOrder.advancePaid || 0,
+          paymentMethod: 'VENDOR',
+          paymentStatus: vendorOrder.status,
+          currentStage: vendorOrder.currentStage || vendorOrder.status,
+          status: vendorOrder.status,
+          createdBy: vendorOrder.asm?.name || 'ASM',
+          items: (vendorOrder.items || []).map(i => ({
+            id: i.id,
+            name: i.productName || 'Item',
+            quantity: i.quantity || 1,
+            price: i.unitPrice || 0
+          })),
+          relatedRecords: {
+            itemsCount: (vendorOrder.items || []).length,
+            paymentsCount: (vendorOrder.payments || []).length,
+            deliveriesCount: (vendorOrder.deliveries || []).length
+          }
+        });
+      }
     }
 
-    return res.status(404).json({ message: `No active invoice or order found matching "${query}".` });
+    return res.status(404).json({ message: `No active invoice or sale found matching "${query}"${hasOutletFilter ? ` for ${outlet}` : ''}.` });
   } catch (error) {
     console.error('lookupInvoiceForDeletion error:', error);
     res.status(500).json({ message: 'Failed to lookup invoice', error: error.message });
@@ -724,133 +772,136 @@ const lookupInvoiceForDeletion = async (req, res) => {
 // POST /api/software-settings/delete-invoice/permanent — atomic permanent deletion of invoice and all related records
 const deleteInvoicePermanently = async (req, res) => {
   try {
-    const { invoiceNumber, targetType, targetId } = req.body || {};
+    const { invoiceNumber, targetType, targetId, outlet } = req.body || {};
     const query = String(invoiceNumber || '').trim();
     if (!query && !targetId) {
       return res.status(400).json({ message: 'Invoice number or target ID is required' });
     }
 
     const cleanQ = query.replace(/^#/, '');
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query);
+    const hasOutletFilter = outlet && outlet !== 'ALL' && outlet !== 'All Outlets';
 
     const result = await prisma.$transaction(async (tx) => {
       let deletedType = null;
       let deletedNumber = query;
 
       // 1. Check Order
-      const order = await tx.order.findFirst({
-        where: {
+      if (!targetType || targetType === 'ORDER') {
+        const orderWhere = {
           OR: [
-            ...(targetId ? [{ id: targetId }] : []),
+            ...(targetId && isUUID ? [{ id: targetId }] : []),
             ...(query ? [
               { invoiceNumber: { equals: query, mode: 'insensitive' } },
               { orderNumber: { equals: query, mode: 'insensitive' } },
               { orderNumber: { equals: `#${cleanQ}`, mode: 'insensitive' } },
-              { id: query }
+              ...(isUUID ? [{ id: query }] : [])
             ] : [])
           ]
-        }
-      });
-
-      if (order) {
-        const orderId = order.id;
-        deletedType = 'ORDER';
-        deletedNumber = order.invoiceNumber || order.orderNumber;
-
-        await tx.orderItem.deleteMany({ where: { orderId } });
-        await tx.orderAcceptance.deleteMany({ where: { orderId } });
-        await tx.deliveryAttempt.deleteMany({ where: { orderId } });
-        await tx.deliveryPayment.deleteMany({ where: { orderId } });
-        await tx.deliveryCharge.deleteMany({ where: { orderId } });
-        await tx.noResponseLog.deleteMany({ where: { orderId } });
-        await tx.orderStage.deleteMany({ where: { orderId } });
-        await tx.orderEditRequest.deleteMany({ where: { orderId } });
-        await tx.orderCancellationRequest.deleteMany({ where: { orderId } });
-        await tx.routingHistory.deleteMany({ where: { orderId } });
-        await tx.seenTask.deleteMany({ where: { orderId } });
-        await tx.dispatchLog.deleteMany({ where: { orderId } });
-        await tx.revenueRecord.deleteMany({ where: { orderId } });
-        await tx.auditLog.deleteMany({ where: { orderId } });
-        await tx.deletedOrder.deleteMany({ where: { orderId } });
-
-        const retCases = await tx.returnExchange.findMany({ where: { orderId }, select: { id: true } });
-        if (retCases.length > 0) {
-          const caseIds = retCases.map(c => c.id);
-          await tx.returnExchangeItem.deleteMany({ where: { returnExchangeId: { in: caseIds } } });
-          await tx.replacementItem.deleteMany({ where: { returnExchangeId: { in: caseIds } } });
-          await tx.returnExchange.deleteMany({ where: { id: { in: caseIds } } });
+        };
+        if (hasOutletFilter) {
+          orderWhere.outletName = { equals: outlet, mode: 'insensitive' };
         }
 
-        await tx.paymentMethodChangeLog.deleteMany({ where: { saleId: orderId } });
-        if (order.invoiceNumber) {
-          await tx.journalEntry.deleteMany({ where: { reference: order.invoiceNumber } });
-        }
+        const order = await tx.order.findFirst({ where: orderWhere });
 
-        await tx.order.delete({ where: { id: orderId } });
-        return { deletedType, deletedNumber };
+        if (order) {
+          const orderId = order.id;
+          deletedType = 'ORDER';
+          deletedNumber = order.invoiceNumber || order.orderNumber;
+
+          await tx.orderAcceptance.deleteMany({ where: { orderId } });
+          await tx.deliveryAttempt.deleteMany({ where: { orderId } });
+          await tx.deliveryPayment.deleteMany({ where: { orderId } });
+          await tx.deliveryCharge.deleteMany({ where: { orderId } });
+          await tx.noResponseLog.deleteMany({ where: { orderId } });
+          await tx.orderStage.deleteMany({ where: { orderId } });
+          await tx.orderEditRequest.deleteMany({ where: { orderId } });
+          await tx.orderCancellationRequest.deleteMany({ where: { orderId } });
+          await tx.routingHistory.deleteMany({ where: { orderId } });
+          await tx.seenTask.deleteMany({ where: { orderId } });
+          await tx.dispatchLog.deleteMany({ where: { orderId } });
+          await tx.revenueRecord.deleteMany({ where: { orderId } });
+          await tx.auditLog.deleteMany({ where: { orderId } });
+          await tx.deletedOrder.deleteMany({ where: { orderId } });
+          await tx.returnExchange.deleteMany({ where: { orderId } });
+          await tx.paymentMethodChangeLog.deleteMany({ where: { saleId: orderId } });
+
+          await tx.order.delete({ where: { id: orderId } });
+          return { deletedType, deletedNumber };
+        }
       }
 
       // 2. Check PosSale
-      const posSale = await tx.posSale.findFirst({
-        where: {
+      if (!targetType || targetType === 'POS_SALE') {
+        const posSaleWhere = {
           OR: [
-            ...(targetId ? [{ id: targetId }] : []),
+            ...(targetId && isUUID ? [{ id: targetId }] : []),
             ...(query ? [
-              { invoiceNumber: { equals: query, mode: 'insensitive' } },
               { receiptNumber: { equals: query, mode: 'insensitive' } },
-              { saleNumber: { equals: query, mode: 'insensitive' } },
-              { id: query }
+              { receiptNumber: { equals: `RCP-${cleanQ}`, mode: 'insensitive' } },
+              { receiptNumber: { contains: cleanQ, mode: 'insensitive' } },
+              { orderNumber: { equals: query, mode: 'insensitive' } },
+              { clientRequestId: { equals: query, mode: 'insensitive' } },
+              ...(isUUID ? [{ id: query }] : [])
             ] : [])
           ]
+        };
+        if (hasOutletFilter) {
+          posSaleWhere.outletName = { equals: outlet, mode: 'insensitive' };
         }
-      });
 
-      if (posSale) {
-        const saleId = posSale.id;
-        deletedType = 'POS_SALE';
-        deletedNumber = posSale.invoiceNumber || posSale.receiptNumber || posSale.saleNumber;
+        const posSale = await tx.posSale.findFirst({ where: posSaleWhere });
 
-        await tx.posSaleItem.deleteMany({ where: { saleId } });
-        await tx.posBalancePayment.deleteMany({ where: { posSaleId: saleId } });
-        await tx.paymentMethodChangeLog.deleteMany({ where: { saleId } });
-        await tx.posReturn.deleteMany({ where: { saleId } });
-        if (posSale.invoiceNumber || posSale.receiptNumber) {
-          await tx.journalEntry.deleteMany({
-            where: { reference: { in: [posSale.invoiceNumber, posSale.receiptNumber].filter(Boolean) } }
-          });
+        if (posSale) {
+          const saleId = posSale.id;
+          deletedType = 'POS_SALE';
+          deletedNumber = posSale.receiptNumber;
+
+          await tx.posSaleItem.deleteMany({ where: { saleId } });
+          await tx.posBalancePayment.deleteMany({ where: { posSaleId: saleId } });
+          await tx.paymentMethodChangeLog.deleteMany({ where: { saleId } });
+          await tx.posReturn.deleteMany({ where: { saleId } });
+
+          await tx.posSale.delete({ where: { id: saleId } });
+          return { deletedType, deletedNumber };
         }
-        await tx.posSale.delete({ where: { id: saleId } });
-        return { deletedType, deletedNumber };
       }
 
       // 3. Check VendorOrder
-      const vendorOrder = await tx.vendorOrder.findFirst({
-        where: {
+      if (!targetType || targetType === 'VENDOR_ORDER') {
+        const vendorOrderWhere = {
           OR: [
-            ...(targetId ? [{ id: targetId }] : []),
+            ...(targetId && isUUID ? [{ id: targetId }] : []),
             ...(query ? [
               { invoiceNumber: { equals: query, mode: 'insensitive' } },
               { quotationNumber: { equals: query, mode: 'insensitive' } },
               { orderNumber: { equals: query, mode: 'insensitive' } },
-              { id: query }
+              { orderNumber: { equals: `#${cleanQ}`, mode: 'insensitive' } },
+              ...(isUUID ? [{ id: query }] : [])
             ] : [])
           ]
+        };
+
+        const vendorOrder = await tx.vendorOrder.findFirst({ where: vendorOrderWhere });
+
+        if (vendorOrder) {
+          const vId = vendorOrder.id;
+          deletedType = 'VENDOR_ORDER';
+          deletedNumber = vendorOrder.invoiceNumber || vendorOrder.orderNumber;
+
+          await tx.vendorOrderItem.deleteMany({ where: { vendorOrderId: vId } });
+          await tx.vendorPayment.deleteMany({ where: { orderId: vId } });
+          await tx.vendorOrderStatus.deleteMany({ where: { vendorOrderId: vId } });
+          await tx.vendorDelivery.deleteMany({ where: { vendorOrderId: vId } });
+          await tx.vendorDocument.deleteMany({ where: { vendorOrderId: vId } });
+          await tx.vendorOrderAllocation.deleteMany({ where: { orderId: vId } });
+          await tx.quotation.deleteMany({ where: { orderId: vId } });
+          await tx.invoice.deleteMany({ where: { orderId: vId } });
+
+          await tx.vendorOrder.delete({ where: { id: vId } });
+          return { deletedType, deletedNumber };
         }
-      });
-
-      if (vendorOrder) {
-        const vId = vendorOrder.id;
-        deletedType = 'VENDOR_ORDER';
-        deletedNumber = vendorOrder.invoiceNumber || vendorOrder.orderNumber;
-
-        await tx.vendorOrderItem.deleteMany({ where: { vendorOrderId: vId } });
-        await tx.vendorPayment.deleteMany({ where: { vendorOrderId: vId } });
-        await tx.vendorOrderStatus.deleteMany({ where: { vendorOrderId: vId } });
-        await tx.vendorDelivery.deleteMany({ where: { vendorOrderId: vId } });
-        await tx.vendorDocument.deleteMany({ where: { vendorOrderId: vId } });
-        await tx.quotation.deleteMany({ where: { vendorOrderId: vId } });
-        await tx.invoice.deleteMany({ where: { vendorOrderId: vId } });
-        await tx.vendorOrder.delete({ where: { id: vId } });
-        return { deletedType, deletedNumber };
       }
 
       return null;

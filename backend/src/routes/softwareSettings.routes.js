@@ -34,8 +34,8 @@ router.post('/employees', authenticate, authorize('SOFTWARE_SETTINGS'), createEm
 router.patch('/employees/:id', authenticate, authorize('SOFTWARE_SETTINGS'), updateEmployee);
 router.post('/employees/:id/reset-password', authenticate, authorize('SOFTWARE_SETTINGS'), resetPassword);
 
-// Payment method change — SOFTWARE_SETTINGS only
-router.get('/payment-change/outlets', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeOutlets);
+// Payment method change — SOFTWARE_SETTINGS, SUPER_ADMIN, ADMIN
+router.get('/payment-change/outlets', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), getPaymentChangeOutlets);
 router.get('/payment-change/invoices', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeInvoices);
 router.get('/payment-change/history', authenticate, authorize('SOFTWARE_SETTINGS'), getPaymentChangeHistory);
 router.post('/payment-change', authenticate, authorize('SOFTWARE_SETTINGS'), changePaymentMethod);

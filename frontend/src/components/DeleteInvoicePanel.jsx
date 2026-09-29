@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Trash2, Search, Loader2, AlertTriangle, CheckCircle2, RefreshCw, X, ShieldAlert } from 'lucide-react';
+import { Trash2, Search, Loader2, AlertTriangle, CheckCircle2, RefreshCw, X, ShieldAlert, Store } from 'lucide-react';
 
 const DeleteInvoicePanel = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -10,6 +10,27 @@ const DeleteInvoicePanel = () => {
   const [showModal, setShowModal] = useState(false);
   const [confirmInput, setConfirmInput] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [outlets, setOutlets] = useState([]);
+  const [selectedOutlet, setSelectedOutlet] = useState('');
+  const [loadingOutlets, setLoadingOutlets] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingOutlets(true);
+        const res = await api.get('/api/software-settings/payment-change/outlets');
+        if (mounted && Array.isArray(res.data)) {
+          setOutlets(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load outlets for delete invoice:', err);
+      } finally {
+        if (mounted) setLoadingOutlets(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const handleLookup = async (e) => {
     if (e) e.preventDefault();
@@ -21,7 +42,8 @@ const DeleteInvoicePanel = () => {
     setLoading(true);
     setInvoiceData(null);
     try {
-      const res = await api.get(`/api/software-settings/delete-invoice/lookup?query=${encodeURIComponent(q)}`);
+      const outletParam = selectedOutlet && selectedOutlet !== 'ALL' ? `&outlet=${encodeURIComponent(selectedOutlet)}` : '';
+      const res = await api.get(`/api/software-settings/delete-invoice/lookup?query=${encodeURIComponent(q)}${outletParam}`);
       setInvoiceData(res.data);
       toast.success('Invoice details loaded');
     } catch (err) {
@@ -52,7 +74,8 @@ const DeleteInvoicePanel = () => {
       const res = await api.post('/api/software-settings/delete-invoice/permanent', {
         invoiceNumber: invoiceData.invoiceNumber,
         targetType: invoiceData.targetType,
-        targetId: invoiceData.id
+        targetId: invoiceData.id,
+        outlet: selectedOutlet && selectedOutlet !== 'ALL' ? selectedOutlet : (invoiceData.outletName || undefined)
       });
 
       toast.success(res.data.message || 'Invoice permanently deleted');
@@ -82,13 +105,29 @@ const DeleteInvoicePanel = () => {
           </div>
         </div>
 
-        {/* Search Bar */}
+        {/* Search Bar & Outlet Selector */}
         <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-3">
+          {/* Outlet Selector */}
+          <div className="relative sm:w-64">
+            <Store className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={17} />
+            <select
+              value={selectedOutlet}
+              onChange={(e) => setSelectedOutlet(e.target.value)}
+              className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-10 pr-8 py-3 text-sm font-bold text-white focus:border-red-500 outline-none transition-all cursor-pointer appearance-none"
+            >
+              <option value="">All Outlets (Search Everywhere)</option>
+              {outlets.map((ot) => (
+                <option key={ot} value={ot}>{ot}</option>
+              ))}
+            </select>
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">▼</div>
+          </div>
+
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="Enter Invoice / Receipt Number (e.g. INV-2026-00125, POS-2026-00042, #51237)..."
+              placeholder="Enter Invoice / Receipt Number (e.g. RCP-20260928-00009, 20260928-00009, #51237)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-11 pr-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none transition-all"
@@ -97,7 +136,7 @@ const DeleteInvoicePanel = () => {
           <button
             type="submit"
             disabled={loading || !searchQuery.trim()}
-            className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-red-900/30"
+            className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-red-900/30 whitespace-nowrap"
           >
             {loading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />}
             <span>Lookup Invoice</span>
