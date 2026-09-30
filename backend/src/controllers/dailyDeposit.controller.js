@@ -32,6 +32,15 @@ const invalidateDepositCache = (outletName) => {
 const PK_OFFSET = 5 * 60 * 60 * 1000;
 
 /**
+ * Automatically rounds bank deposit amounts, requirements, available cash,
+ * and carry-forward balances to whole rupee amounts (standard rounding: >= 0.50 round up, < 0.50 round down).
+ */
+const roundDepositRupee = (val) => {
+  if (val === null || val === undefined || isNaN(val)) return 0;
+  return Math.round(Number(val));
+};
+
+/**
  * Returns current date string 'YYYY-MM-DD' in Pakistan timezone (UTC+5).
  */
 const getPktDateString = (date = new Date()) => {
@@ -172,8 +181,8 @@ const calculateAuthoritativeDailyCash = async (outletName, businessDate) => {
     .filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH')
     .reduce((sum, j) => sum + (j.amount || 0), 0);
 
-  // Net cash generated to deposit
-  const netCash = Math.max(0, Math.round((salesCash + balanceCash - cashRefunded - cashExpenses) * 100) / 100);
+  // Net cash generated to deposit (whole rupee rounding)
+  const netCash = Math.max(0, roundDepositRupee(salesCash + balanceCash - cashRefunded - cashExpenses));
 
   return {
     netCash,
@@ -209,11 +218,11 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
       const s = typeof session.summary === 'string' ? JSON.parse(session.summary) : session.summary;
       const rawCash = s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash;
       if (rawCash !== undefined && rawCash !== null) {
-        const generatedCash = Math.max(0, Math.round(Number(rawCash) * 100) / 100);
-        const generalEntryReduction = Math.max(0, Math.round(Number(s.totalJournalEntries || 0) * 100) / 100);
-        const cashReturns = Math.max(0, Math.round(Number(s.returnSummary?.cash || 0) * 100) / 100);
-        const faisalTake = Math.max(0, Math.round(Number(s.totalFaisalTake || 0) * 100) / 100);
-        const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction - cashReturns - faisalTake) * 100) / 100);
+        const generatedCash = Math.max(0, roundDepositRupee(Number(rawCash)));
+        const generalEntryReduction = Math.max(0, roundDepositRupee(Number(s.totalJournalEntries || 0)));
+        const cashReturns = Math.max(0, roundDepositRupee(Number(s.returnSummary?.cash || 0)));
+        const faisalTake = Math.max(0, roundDepositRupee(Number(s.totalFaisalTake || 0)));
+        const availableCash = Math.max(0, roundDepositRupee(generatedCash - generalEntryReduction - cashReturns - faisalTake));
         return {
           generatedCash,
           generalEntryReduction,
@@ -314,10 +323,10 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
     }
   });
 
-  const generatedCash = Math.max(0, Math.round(totalCash * 100) / 100);
-  const generalEntryReduction = Math.max(0, Math.round(journals.reduce((sum, j) => sum + (j.amount || 0), 0) * 100) / 100);
-  const cashReturns = Math.max(0, Math.round(cashRefunded * 100) / 100);
-  const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction - cashReturns) * 100) / 100);
+  const generatedCash = Math.max(0, roundDepositRupee(totalCash));
+  const generalEntryReduction = Math.max(0, roundDepositRupee(journals.reduce((sum, j) => sum + (j.amount || 0), 0)));
+  const cashReturns = Math.max(0, roundDepositRupee(cashRefunded));
+  const availableCash = Math.max(0, roundDepositRupee(generatedCash - generalEntryReduction - cashReturns));
 
   return {
     generatedCash,
@@ -445,17 +454,17 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
         const s = typeof session.summary === 'string' ? JSON.parse(session.summary) : session.summary;
         const rawCash = s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash;
         if (rawCash !== undefined && rawCash !== null) {
-          const generatedCash = Math.max(0, Math.round(Number(rawCash) * 100) / 100);
+          const generatedCash = Math.max(0, roundDepositRupee(Number(rawCash)));
           const sumDayJournals = dayJournals
             .filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH')
             .reduce((sum, j) => sum + (j.amount || 0), 0);
           const generalEntryReduction = Math.max(
-            Math.round(Number(s.totalJournalEntries || 0) * 100) / 100,
-            Math.round(sumDayJournals * 100) / 100
+            roundDepositRupee(Number(s.totalJournalEntries || 0)),
+            roundDepositRupee(sumDayJournals)
           );
-          const cashReturns = Math.max(0, Math.round(Number(s.returnSummary?.cash || 0) * 100) / 100);
-          const faisalTake = Math.max(0, Math.round(Number(s.totalFaisalTake || 0) * 100) / 100);
-          const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction - cashReturns - faisalTake) * 100) / 100);
+          const cashReturns = Math.max(0, roundDepositRupee(Number(s.returnSummary?.cash || 0)));
+          const faisalTake = Math.max(0, roundDepositRupee(Number(s.totalFaisalTake || 0)));
+          const availableCash = Math.max(0, roundDepositRupee(generatedCash - generalEntryReduction - cashReturns - faisalTake));
           const journalEntries = dayJournals.length > 0 ? dayJournals : (Array.isArray(s.journalEntries) ? s.journalEntries : []);
 
           regData = {
@@ -481,11 +490,11 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
         data: {
           outletName,
           businessDate: bDate,
-          cashGenerated: regData.generatedCash,
+          cashGenerated: roundDepositRupee(regData.generatedCash),
           previousPending: 0,
-          requiredAmount: regData.availableCash,
+          requiredAmount: roundDepositRupee(regData.availableCash),
           depositedAmount: 0,
-          pendingAmount: regData.availableCash,
+          pendingAmount: roundDepositRupee(regData.availableCash),
           excessAmount: 0,
           status: regData.availableCash > 0 ? 'PENDING' : 'CLEARED',
         },
@@ -510,29 +519,29 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
 
   for (const day of dayBaseData) {
     const { businessDate: bDate, reqId, regData } = day;
-    const baseRequired = regData.availableCash;
-    const generatedCash = regData.generatedCash;
-    const generalEntryReduction = regData.generalEntryReduction;
+    const baseRequired = roundDepositRupee(regData.availableCash);
+    const generatedCash = roundDepositRupee(regData.generatedCash);
+    const generalEntryReduction = roundDepositRupee(regData.generalEntryReduction);
     const journalEntries = regData.journalEntries;
 
     const dayDeposits = depositsByDate.get(bDate) || [];
-    const totalDayDeposit = Math.round(dayDeposits.reduce((sum, d) => sum + (d.amount || 0), 0) * 100) / 100;
+    const totalDayDeposit = roundDepositRupee(dayDeposits.reduce((sum, d) => sum + roundDepositRupee(d.amount || 0), 0));
 
     // A. Apply Previous Excess Credit (if any) to reduce current day requirement
-    const prevExcess = carriedExcess;
+    const prevExcess = roundDepositRupee(carriedExcess);
     let excessConsumed = 0;
     let unconsumedExcess = 0;
     let effectiveDayReq = baseRequired;
 
     if (prevExcess > 0) {
       excessConsumed = Math.min(baseRequired, prevExcess);
-      effectiveDayReq = Math.max(0, Math.round((baseRequired - prevExcess) * 100) / 100);
-      unconsumedExcess = Math.max(0, Math.round((prevExcess - baseRequired) * 100) / 100);
+      effectiveDayReq = Math.max(0, roundDepositRupee(baseRequired - prevExcess));
+      unconsumedExcess = Math.max(0, roundDepositRupee(prevExcess - baseRequired));
     }
 
     // B. Calculate previous pending from unfulfilled requirements queue
-    const prevPending = Math.round(unfulfilledReqQueue.reduce((sum, u) => sum + u.needed, 0) * 100) / 100;
-    const netRequired = Math.round((effectiveDayReq + prevPending) * 100) / 100;
+    const prevPending = roundDepositRupee(unfulfilledReqQueue.reduce((sum, u) => sum + u.needed, 0));
+    const netRequired = roundDepositRupee(effectiveDayReq + prevPending);
 
     // C. Allocate today's deposits according to Priority:
     //    1. Oldest Pending -> 2. Current Day Effective Requirement -> 3. New Excess
@@ -541,7 +550,7 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     let totalAppliedToPrev = 0;
 
     for (const dep of dayDeposits) {
-      let depLeft = dep.amount;
+      let depLeft = roundDepositRupee(dep.amount);
 
       // Priority 1: Clear older unfulfilled requirements
       while (depLeft > 0 && unfulfilledReqQueue.length > 0) {
@@ -552,31 +561,31 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
             cashDepositId: dep.id,
             requirementId: oldest.reqId,
             businessDate: oldest.date,
-            amount: Math.round(allocAmt * 100) / 100,
+            amount: allocAmt,
             allocationType: 'PREVIOUS_PENDING',
           });
-          oldest.needed = Math.round((oldest.needed - allocAmt) * 100) / 100;
-          depLeft = Math.round((depLeft - allocAmt) * 100) / 100;
-          totalAppliedToPrev = Math.round((totalAppliedToPrev + allocAmt) * 100) / 100;
+          oldest.needed = roundDepositRupee(oldest.needed - allocAmt);
+          depLeft = roundDepositRupee(depLeft - allocAmt);
+          totalAppliedToPrev = roundDepositRupee(totalAppliedToPrev + allocAmt);
         }
-        if (oldest.needed <= 0.001) {
+        if (oldest.needed <= 0) {
           unfulfilledReqQueue.shift();
         }
       }
 
       // Priority 2: Clear current day's effective requirement
-      const neededForToday = Math.max(0, Math.round((effectiveDayReq - todaySatisfiedSoFar) * 100) / 100);
+      const neededForToday = Math.max(0, roundDepositRupee(effectiveDayReq - todaySatisfiedSoFar));
       if (depLeft > 0 && neededForToday > 0) {
         const allocAmt = Math.min(depLeft, neededForToday);
         allocationsToCreate.push({
           cashDepositId: dep.id,
           requirementId: reqId,
           businessDate: bDate,
-          amount: Math.round(allocAmt * 100) / 100,
+          amount: allocAmt,
           allocationType: 'CURRENT_DAY',
         });
-        todaySatisfiedSoFar = Math.round((todaySatisfiedSoFar + allocAmt) * 100) / 100;
-        depLeft = Math.round((depLeft - allocAmt) * 100) / 100;
+        todaySatisfiedSoFar = roundDepositRupee(todaySatisfiedSoFar + allocAmt);
+        depLeft = roundDepositRupee(depLeft - allocAmt);
       }
 
       // Priority 3: Excess
@@ -585,23 +594,23 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
           cashDepositId: dep.id,
           requirementId: reqId,
           businessDate: bDate,
-          amount: Math.round(depLeft * 100) / 100,
+          amount: depLeft,
           allocationType: 'EXCESS',
         });
-        todayExcessSoFar = Math.round((todayExcessSoFar + depLeft) * 100) / 100;
+        todayExcessSoFar = roundDepositRupee(todayExcessSoFar + depLeft);
         depLeft = 0;
       }
     }
 
     // D. Check leftover needed for today's requirement
-    const todayLeftover = Math.max(0, Math.round((effectiveDayReq - todaySatisfiedSoFar) * 100) / 100);
+    const todayLeftover = Math.max(0, roundDepositRupee(effectiveDayReq - todaySatisfiedSoFar));
     if (todayLeftover > 0) {
       unfulfilledReqQueue.push({ reqId, date: bDate, needed: todayLeftover });
     }
 
     // E. Running totals and carry-forward to next day
     const appliedToCurrent = todaySatisfiedSoFar;
-    const newExcess = Math.round((todayExcessSoFar + unconsumedExcess) * 100) / 100;
+    const newExcess = roundDepositRupee(todayExcessSoFar + unconsumedExcess);
     carriedExcess = newExcess;
 
     const notesObj = {
@@ -643,12 +652,12 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
   const dbUpdateOps = [];
 
   for (const ru of reqUpdates) {
-    const remainingPending = Math.round((unfulfilledMap.get(ru.id) || 0) * 100) / 100;
-    const newExcess = ru.excessAmount;
-    const baseReq = ru.requiredAmount;
-    const depAmt = ru.depositedAmount;
-    const prevExcess = ru.notesObj.previousExcess;
-    const netReq = ru.notesObj.netRequired;
+    const remainingPending = roundDepositRupee(unfulfilledMap.get(ru.id) || 0);
+    const newExcess = roundDepositRupee(ru.excessAmount);
+    const baseReq = roundDepositRupee(ru.requiredAmount);
+    const depAmt = roundDepositRupee(ru.depositedAmount);
+    const prevExcess = roundDepositRupee(ru.notesObj.previousExcess);
+    const netReq = roundDepositRupee(ru.notesObj.netRequired);
 
     let status = 'PENDING';
     if (newExcess > 0) {
@@ -802,52 +811,52 @@ const getDailyDeposits = async (req, res) => {
 
     // All active pending across all dates >= outletCutoff
     const allPendingReqs = requirementsResult.filter(r => r.pendingAmount > 0);
-    const totalPendingAllTime = allPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0);
+    const totalPendingAllTime = roundDepositRupee(allPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0));
 
     // Previous pending: sum of active pending for dates prior to today
     const pastPendingReqs = requirementsResult.filter(r => r.businessDate < todayPkt && r.pendingAmount > 0);
-    const previousPending = pastPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0);
+    const previousPending = roundDepositRupee(pastPendingReqs.reduce((sum, r) => sum + r.pendingAmount, 0));
 
     let todayReduction = 0;
     let todayPrevPending = 0;
     let todayPrevExcess = 0;
-    let todayNetRequired = todayReq ? todayReq.requiredAmount : 0;
+    let todayNetRequired = todayReq ? roundDepositRupee(todayReq.requiredAmount) : 0;
     let todayConsumedCredit = 0;
 
     if (todayReq?.notes) {
       try {
         const p = JSON.parse(todayReq.notes);
-        if (typeof p?.generalEntryReduction === 'number') todayReduction = p.generalEntryReduction;
-        if (typeof p?.previousPending === 'number') todayPrevPending = p.previousPending;
-        if (typeof p?.previousExcess === 'number') todayPrevExcess = p.previousExcess;
-        if (typeof p?.consumedCredit === 'number') todayConsumedCredit = p.consumedCredit;
-        if (typeof p?.netRequired === 'number') todayNetRequired = p.netRequired;
+        if (typeof p?.generalEntryReduction === 'number') todayReduction = roundDepositRupee(p.generalEntryReduction);
+        if (typeof p?.previousPending === 'number') todayPrevPending = roundDepositRupee(p.previousPending);
+        if (typeof p?.previousExcess === 'number') todayPrevExcess = roundDepositRupee(p.previousExcess);
+        if (typeof p?.consumedCredit === 'number') todayConsumedCredit = roundDepositRupee(p.consumedCredit);
+        if (typeof p?.netRequired === 'number') todayNetRequired = roundDepositRupee(p.netRequired);
       } catch (e) {}
     }
     if (!todayReduction && todayReq && todayReq.cashGenerated > todayReq.requiredAmount) {
-      todayReduction = Math.max(0, Math.round((todayReq.cashGenerated - todayReq.requiredAmount) * 100) / 100);
+      todayReduction = Math.max(0, roundDepositRupee(todayReq.cashGenerated - todayReq.requiredAmount));
     }
 
     const summary = {
-      todayCashGenerated: todayReq ? todayReq.cashGenerated : 0,
-      todayGeneralEntryReduction: todayReduction,
-      todayAvailableCash: todayReq ? todayReq.requiredAmount : 0,
-      todayBaseRequired: todayReq ? todayReq.requiredAmount : 0,
-      todayPreviousPending: todayPrevPending,
-      todayPreviousExcess: todayPrevExcess,
-      todayConsumedCredit: todayConsumedCredit,
-      todayNetRequired: todayNetRequired,
-      todayRequiredDeposit: todayNetRequired,
-      todayDeposited: todayReq ? todayReq.depositedAmount : 0,
-      todayPending: todayReq ? todayReq.pendingAmount : 0,
-      previousPending: Math.round(previousPending * 100) / 100,
-      excessDeposit: todayReq ? todayReq.excessAmount : 0,
+      todayCashGenerated: roundDepositRupee(todayReq ? todayReq.cashGenerated : 0),
+      todayGeneralEntryReduction: roundDepositRupee(todayReduction),
+      todayAvailableCash: roundDepositRupee(todayReq ? todayReq.requiredAmount : 0),
+      todayBaseRequired: roundDepositRupee(todayReq ? todayReq.requiredAmount : 0),
+      todayPreviousPending: roundDepositRupee(todayPrevPending),
+      todayPreviousExcess: roundDepositRupee(todayPrevExcess),
+      todayConsumedCredit: roundDepositRupee(todayConsumedCredit),
+      todayNetRequired: roundDepositRupee(todayNetRequired),
+      todayRequiredDeposit: roundDepositRupee(todayNetRequired),
+      todayDeposited: roundDepositRupee(todayReq ? todayReq.depositedAmount : 0),
+      todayPending: roundDepositRupee(todayReq ? todayReq.pendingAmount : 0),
+      previousPending: roundDepositRupee(previousPending),
+      excessDeposit: roundDepositRupee(todayReq ? todayReq.excessAmount : 0),
       depositStatus: todayReq ? todayReq.status : 'PENDING',
-      totalPendingAllTime: Math.round(totalPendingAllTime * 100) / 100,
+      totalPendingAllTime: roundDepositRupee(totalPendingAllTime),
       lastDeposit: lastDeposit
         ? {
             id: lastDeposit.id,
-            amount: lastDeposit.amount,
+            amount: roundDepositRupee(lastDeposit.amount),
             referenceNumber: lastDeposit.referenceNumber,
             actualDepositDate: lastDeposit.actualDepositDate,
             createdByName: lastDeposit.createdByName,
@@ -859,61 +868,64 @@ const getDailyDeposits = async (req, res) => {
     const enhancedRequirements = requirements.map(r => {
       let generalEntryReduction = 0;
       let journalEntries = [];
-      let previousPending = r.previousPending || 0;
+      let previousPending = roundDepositRupee(r.previousPending || 0);
       let previousExcess = 0;
       let consumedCredit = 0;
-      let netRequired = r.requiredAmount;
+      let netRequired = roundDepositRupee(r.requiredAmount);
       let appliedToPrev = 0;
-      let appliedToCurrent = r.depositedAmount;
+      let appliedToCurrent = roundDepositRupee(r.depositedAmount);
 
       if (r.notes) {
         try {
           const parsed = JSON.parse(r.notes);
           if (typeof parsed?.generalEntryReduction === 'number') {
-            generalEntryReduction = parsed.generalEntryReduction;
+            generalEntryReduction = roundDepositRupee(parsed.generalEntryReduction);
           }
           if (Array.isArray(parsed?.journalEntries)) {
             journalEntries = parsed.journalEntries;
           }
           if (typeof parsed?.previousPending === 'number') {
-            previousPending = parsed.previousPending;
+            previousPending = roundDepositRupee(parsed.previousPending);
           }
           if (typeof parsed?.previousExcess === 'number') {
-            previousExcess = parsed.previousExcess;
+            previousExcess = roundDepositRupee(parsed.previousExcess);
           }
           if (typeof parsed?.consumedCredit === 'number') {
-            consumedCredit = parsed.consumedCredit;
+            consumedCredit = roundDepositRupee(parsed.consumedCredit);
           }
           if (typeof parsed?.netRequired === 'number') {
-            netRequired = parsed.netRequired;
+            netRequired = roundDepositRupee(parsed.netRequired);
           }
           if (typeof parsed?.appliedToPrev === 'number') {
-            appliedToPrev = parsed.appliedToPrev;
+            appliedToPrev = roundDepositRupee(parsed.appliedToPrev);
           }
           if (typeof parsed?.appliedToCurrent === 'number') {
-            appliedToCurrent = parsed.appliedToCurrent;
+            appliedToCurrent = roundDepositRupee(parsed.appliedToCurrent);
           }
         } catch (e) {}
       }
       if (!generalEntryReduction && r.cashGenerated > r.requiredAmount) {
-        generalEntryReduction = Math.max(0, Math.round((r.cashGenerated - r.requiredAmount) * 100) / 100);
+        generalEntryReduction = Math.max(0, roundDepositRupee(r.cashGenerated - r.requiredAmount));
       }
 
       return {
         ...r,
-        generatedCash: r.cashGenerated,
-        registerCash: r.cashGenerated,
-        generalEntryReduction,
+        generatedCash: roundDepositRupee(r.cashGenerated),
+        registerCash: roundDepositRupee(r.cashGenerated),
+        generalEntryReduction: roundDepositRupee(generalEntryReduction),
         journalEntries,
-        baseRequired: r.requiredAmount,
-        availableCash: r.requiredAmount,
-        previousPending,
-        previousExcess,
-        consumedCredit,
-        netRequired,
-        appliedToPrev,
-        appliedToCurrent,
-        remainingAmount: r.pendingAmount,
+        baseRequired: roundDepositRupee(r.requiredAmount),
+        availableCash: roundDepositRupee(r.requiredAmount),
+        previousPending: roundDepositRupee(previousPending),
+        previousExcess: roundDepositRupee(previousExcess),
+        consumedCredit: roundDepositRupee(consumedCredit),
+        netRequired: roundDepositRupee(netRequired),
+        appliedToPrev: roundDepositRupee(appliedToPrev),
+        appliedToCurrent: roundDepositRupee(appliedToCurrent),
+        depositedAmount: roundDepositRupee(r.depositedAmount),
+        pendingAmount: roundDepositRupee(r.pendingAmount),
+        excessAmount: roundDepositRupee(r.excessAmount),
+        remainingAmount: roundDepositRupee(r.pendingAmount),
       };
     });
 
@@ -951,7 +963,7 @@ const submitDailyDeposit = async (req, res) => {
       employeeName,
     } = req.body;
 
-    const depositAmount = parseFloat(amount);
+    const depositAmount = roundDepositRupee(parseFloat(amount));
     if (isNaN(depositAmount) || depositAmount <= 0) {
       return res.status(400).json({ message: 'Deposit amount must be greater than 0' });
     }
@@ -1119,7 +1131,7 @@ const getDepositRecordForDate = async (req, res) => {
     const regData = await getAuthoritativeRegisterCash(outletName, businessDate);
 
     // Sum total currently recorded deposit for this date
-    const totalDepositedAmount = Math.round(deposits.reduce((sum, d) => sum + (d.amount || 0), 0) * 100) / 100;
+    const totalDepositedAmount = roundDepositRupee(deposits.reduce((sum, d) => sum + (d.amount || 0), 0));
 
     // Fetch audit history for this specific outlet and date
     const audits = await prisma.depositCorrectionAudit.findMany({
@@ -1131,12 +1143,12 @@ const getDepositRecordForDate = async (req, res) => {
     res.json({
       outletName,
       businessDate,
-      generatedCash: requirement?.cashGenerated ?? regData.generatedCash ?? 0,
-      generalEntryReduction: regData.generalEntryReduction ?? 0,
-      availableCash: requirement?.requiredAmount ?? regData.availableCash ?? 0,
+      generatedCash: roundDepositRupee(requirement?.cashGenerated ?? regData.generatedCash ?? 0),
+      generalEntryReduction: roundDepositRupee(regData.generalEntryReduction ?? 0),
+      availableCash: roundDepositRupee(requirement?.requiredAmount ?? regData.availableCash ?? 0),
       totalDepositedAmount,
-      pendingAmount: requirement?.pendingAmount ?? 0,
-      excessAmount: requirement?.excessAmount ?? 0,
+      pendingAmount: roundDepositRupee(requirement?.pendingAmount ?? 0),
+      excessAmount: roundDepositRupee(requirement?.excessAmount ?? 0),
       status: requirement?.status || (totalDepositedAmount > 0 ? 'DEPOSITED' : 'PENDING'),
       notes: requirement?.notes,
       slips: deposits,
@@ -1174,7 +1186,7 @@ const correctDepositRecord = async (req, res) => {
       return res.status(400).json({ message: 'A reason/note for this correction or reversal is required' });
     }
 
-    const correctedAmount = Math.round(Math.max(0, parseFloat(rawCorrectedAmount || 0)) * 100) / 100;
+    const correctedAmount = roundDepositRupee(Math.max(0, parseFloat(rawCorrectedAmount || 0)));
     if (isNaN(correctedAmount)) {
       return res.status(400).json({ message: 'Valid corrected deposit amount is required' });
     }
@@ -1190,11 +1202,11 @@ const correctDepositRecord = async (req, res) => {
         orderBy: { createdAt: 'asc' },
       });
 
-      const previousDepositAmount = Math.round(
-        existingDeposits.reduce((sum, d) => sum + (d.amount || 0), 0) * 100
-      ) / 100;
+      const previousDepositAmount = roundDepositRupee(
+        existingDeposits.reduce((sum, d) => sum + (d.amount || 0), 0)
+      );
 
-      const difference = Math.round((correctedAmount - previousDepositAmount) * 100) / 100;
+      const difference = roundDepositRupee(correctedAmount - previousDepositAmount);
       const originalReferences = existingDeposits
         .map((d) => d.referenceNumber)
         .filter(Boolean)

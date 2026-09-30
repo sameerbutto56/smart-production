@@ -1,5 +1,47 @@
 ## Goals
-### Implemented This Session — Bank Deposit: General Entry / Journal Expense Deduction Fix & Real-Time Sync (deployed & live-verified)
+### Implemented This Session — Bank Deposit Amount: Automatic Whole-Number Rounding Across All Ledgers & Slips (deployed & live-verified)
+- **Problem & Requirements**:
+  - Bank deposit amounts and requirements previously tracked floating point cent values (e.g. `16,892.28` on 2026-09-21 in Johar Town).
+  - This caused fractional pending balances (e.g. `0.28` dangling pending on 2026-09-24) and forced users to manually adjust or deal with decimals.
+  - Requirement:
+    - Automatically convert all calculated and submitted bank deposit amounts to **whole rupee amounts**.
+    - Standard rounding: decimal value $\ge 0.50 \rightarrow$ round up; $< 0.50 \rightarrow$ round down (e.g. `35,000.25` $\rightarrow$ `35,000`, `35,000.49` $\rightarrow$ `35,000`, `35,000.50` $\rightarrow$ `35,001`, `35,000.75` $\rightarrow$ `35,001`).
+    - Flow: Register Cash $\rightarrow$ General Entry deductions $\rightarrow$ Other cash adjustments $\rightarrow$ Available Cash $\rightarrow$ **Automatic Whole-Rupee Rounding** $\rightarrow$ Final Deposit Amount.
+    - Consistency across the board: Bank Deposit screen, modal suggestions, deposit slip, deposit history, pending calculation, excess credit calculation, short deposit, carry forward, Excel export, and Price/Exceptions editing.
+    - Underlying sales/orders in POS/DB strictly retain original fractional precision; only bank deposit amounts/requirements are rounded to whole rupees.
+- **Implementation & Fixes**:
+  - **Backend Controller (`backend/src/controllers/dailyDeposit.controller.js`)**:
+    - Added authoritative rounding helper `roundDepositRupee(val)` applying standard mathematical rounding `Math.round(Number(val))`.
+    - Wrapped net cash in `calculateAuthoritativeDailyCash` with `roundDepositRupee`, preserving original line precision in `breakdown`.
+    - Wrapped all generated cash, general entry reductions, returns, and available cash in `getAuthoritativeRegisterCash` with `roundDepositRupee`.
+    - In `syncDailyRequirements`:
+      - Ensured base requirements, previous excess carry-forward, previous pending, effective day requirements, deposit allocations, and excess credits are all strictly computed as integers.
+      - Fixed priority allocation logic to eliminate sub-cent allocations and dangling floating-point residuals.
+    - In `submitDailyDeposit`:
+      - Auto-rounded incoming deposit amount with `roundDepositRupee(parseFloat(amount))` before storing in `CashDeposit` and `BankDeposit`.
+    - In `correctDepositRecord` & `getDepositRecordForDate`:
+      - Auto-rounded corrected amount and differences to whole rupees.
+    - In `getDailyDeposits`:
+      - Ensured all summary metrics and enhanced requirements arrays return clean whole integer rupees.
+  - **Frontend UI (`DailyCashDepositSection.jsx` & `DepositRecordExceptionPanel.jsx`)**:
+    - `DailyCashDepositSection.jsx`:
+      - Auto-rounds suggested deposit amount (`Math.round`) when opening modal or selecting dates.
+      - Updated `<input id="deposit-amount">` with `step="1"` and added `onBlur` whole rupee rounding.
+      - Form submit parses and rounds via `Math.round(parseFloat(depositAmount))`.
+    - `DepositRecordExceptionPanel.jsx`:
+      - Formatted money with `Math.round(Number(n || 0))`.
+      - Pre-fills corrected amount with whole rupees.
+      - Updated input with `step="1"` and onBlur whole rupee formatting.
+      - "Fill Available Cash" helper button passes `Math.round(recordData.availableCash)`.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-daily-deposit-rounding.cjs`:
+    - 100% pass across all 52 DailyCashRequirement rows in database: zero decimal occurrences.
+    - 100% pass across all 12 CashDepositAllocation rows: zero decimal allocations.
+    - Johar Town 2026-09-21 (`16,892.28` $\rightarrow$ `16,892`) and 2026-09-24 (`0.28` dangling pending cleanly resolved to `0`).
+    - getDailyDeposits payload summary and requirements contain 0 decimals.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 3,192 modules bundled cleanly.
+
+### Implemented Prior Session — Bank Deposit: General Entry / Journal Expense Deduction Fix & Real-Time Sync (deployed & live-verified)
 - **Problem & Root Cause**:
   - For Johar Town on 25 September 2026, cash generated was Rs. 3,500 and a General Entry / Journal expense of Rs. 2,700 was entered at 18:30 PKT (ID: `d573e365-17d0-4cc4-9bae-0b4546ecc4ba`: Tea & Refreshments).
   - When the register closed, `PosBookSession` correctly recorded `totalJournalEntries: 2700`.

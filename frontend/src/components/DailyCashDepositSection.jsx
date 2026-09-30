@@ -9,7 +9,7 @@ import { formatDateTime, formatDateOnly, formatDateTimePKT } from '../utils/date
 import { exportDailyDepositsToExcel } from '../utils/outletExportExcel';
 import toast from 'react-hot-toast';
 
-const fmt = (n) => `₨${(Math.round(n) || 0).toLocaleString()}`;
+const fmt = (n) => `₨${(Math.round(Number(n || 0))).toLocaleString()}`;
 
 const STATUS_BADGES = {
   DEPOSITED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -78,11 +78,12 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
     }
 
     const reqForDate = (requirements || []).find(r => r.businessDate === selectedDate);
-    const amountToSuggest = (reqForDate && typeof reqForDate.netRequired === 'number' && reqForDate.netRequired > 0)
+    const rawSuggest = (reqForDate && typeof reqForDate.netRequired === 'number' && reqForDate.netRequired > 0)
       ? reqForDate.netRequired
       : (reqForDate && reqForDate.pendingAmount > 0
         ? reqForDate.pendingAmount
         : (summary.todayNetRequired > 0 ? summary.todayNetRequired : (summary.todayRequiredDeposit > 0 ? summary.todayRequiredDeposit : '')));
+    const amountToSuggest = rawSuggest ? Math.round(Number(rawSuggest)) : '';
 
     setBusinessDate(selectedDate);
     setActualDepositDate(getPktInputDateTime());
@@ -96,7 +97,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
 
   const handleSubmitDeposit = async (e) => {
     e.preventDefault();
-    const amt = parseFloat(depositAmount);
+    const amt = Math.round(parseFloat(depositAmount));
     if (!amt || amt <= 0) {
       toast.error('Please enter a valid deposit amount');
       return;
@@ -545,11 +546,16 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                   id="deposit-amount"
                   name="depositAmount"
                   type="number"
-                  step="any"
+                  step="1"
                   min="1"
                   required
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(e.target.value)}
+                  onBlur={() => {
+                    if (depositAmount) {
+                      setDepositAmount(String(Math.round(parseFloat(depositAmount) || 0)));
+                    }
+                  }}
                   placeholder="e.g. 10000"
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm font-black text-white focus:outline-none focus:border-emerald-500"
                 />
@@ -571,7 +577,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                       setBusinessDate(newDate);
                       const req = (requirements || []).find(r => r.businessDate === newDate);
                       if (req && req.pendingAmount > 0) {
-                        setDepositAmount(req.pendingAmount.toString());
+                        setDepositAmount(Math.round(Number(req.pendingAmount)).toString());
                       }
                     }}
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-gray-300 focus:outline-none focus:border-emerald-500"

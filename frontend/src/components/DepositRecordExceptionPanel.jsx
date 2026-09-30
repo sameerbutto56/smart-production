@@ -37,7 +37,7 @@ const getYesterdayPktDateString = () => {
   return new Date(pktMs).toISOString().slice(0, 10);
 };
 
-const fmtMoney = (n) => '₨' + Number(n || 0).toLocaleString();
+const fmtMoney = (n) => '₨' + Math.round(Number(n || 0)).toLocaleString();
 
 const STATUS_BADGES = {
   DEPOSITED: { label: 'Deposited', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' },
@@ -80,8 +80,8 @@ const DepositRecordExceptionPanel = () => {
         params: { outletName: selectedOutlet, businessDate },
       });
       setRecordData(res.data);
-      // Pre-fill corrected amount with existing deposit amount if available
-      setCorrectedAmount(String(res.data.totalDepositedAmount ?? 0));
+      // Pre-fill corrected amount with existing deposit amount if available (whole rupee)
+      setCorrectedAmount(String(Math.round(Number(res.data.totalDepositedAmount ?? 0))));
       // Pre-fill bank or ref if single slip exists
       if (res.data.slips && res.data.slips.length === 1) {
         setBankName(res.data.slips[0].bankName || '');
@@ -121,9 +121,9 @@ const DepositRecordExceptionPanel = () => {
     fetchAuditHistory();
   }, [fetchAuditHistory]);
 
-  const existingAmount = Number(recordData?.totalDepositedAmount || 0);
-  const targetAmount = Math.max(0, parseFloat(correctedAmount) || 0);
-  const diff = Math.round((targetAmount - existingAmount) * 100) / 100;
+  const existingAmount = Math.round(Number(recordData?.totalDepositedAmount || 0));
+  const targetAmount = Math.max(0, Math.round(parseFloat(correctedAmount) || 0));
+  const diff = Math.round(targetAmount - existingAmount);
   const isReversal = targetAmount === 0 && existingAmount > 0;
 
   const handleOpenConfirm = (isDirectReversal = false) => {
@@ -398,10 +398,15 @@ const DepositRecordExceptionPanel = () => {
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">₨</span>
                     <input
                       type="number"
-                      step="any"
+                      step="1"
                       min="0"
                       value={correctedAmount}
                       onChange={(e) => setCorrectedAmount(e.target.value)}
+                      onBlur={() => {
+                        if (correctedAmount) {
+                          setCorrectedAmount(String(Math.round(parseFloat(correctedAmount) || 0)));
+                        }
+                      }}
                       placeholder="e.g. 28000"
                       className="w-full bg-gray-800 border-2 border-gray-700 focus:border-blue-500 rounded-xl pl-8 pr-4 py-2.5 text-white font-black text-base focus:outline-none"
                     />
@@ -410,10 +415,10 @@ const DepositRecordExceptionPanel = () => {
                   <div className="flex flex-wrap gap-2 mt-2">
                     <button
                       type="button"
-                      onClick={() => setCorrectedAmount(String(recordData.availableCash || 0))}
+                      onClick={() => setCorrectedAmount(String(Math.round(Number(recordData?.availableCash || 0))))}
                       className="text-[11px] px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 font-bold"
                     >
-                      Fill Available Cash ({fmtMoney(recordData.availableCash)})
+                      Fill Available Cash ({fmtMoney(recordData?.availableCash)})
                     </button>
                     {existingAmount > 0 && (
                       <button
