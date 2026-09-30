@@ -1,5 +1,32 @@
 ## Goals
-### Implemented This Session — Delete Invoice 500 Error Resolution, Outlet Selector Dropdown & Clean Permanent Deletion (deployed & live-verified)
+### Implemented This Session — Bank Deposit: General Entry / Journal Expense Deduction Fix & Real-Time Sync (deployed & live-verified)
+- **Problem & Root Cause**:
+  - For Johar Town on 25 September 2026, cash generated was Rs. 3,500 and a General Entry / Journal expense of Rs. 2,700 was entered at 18:30 PKT (ID: `d573e365-17d0-4cc4-9bae-0b4546ecc4ba`: Tea & Refreshments).
+  - When the register closed, `PosBookSession` correctly recorded `totalJournalEntries: 2700`.
+  - However, in `DailyCashRequirement` for `2026-09-25`, `generalEntryReduction` remained `0` and `requiredAmount` remained `3500` instead of the expected `800` (3,500 - 2,700).
+  - Root Causes:
+    1. **Pre-closing Frozen Row Bug**: The `DailyCashRequirement` row was initially created at 11:40 AM PKT on September 25 before the afternoon journal entry was recorded and before the register was closed. In `syncDailyRequirements`, a fast-path optimization (`if (!forceRequery && req && bDate < targetDate)`) unconditionally reused the pre-closing figures stored in `req.notes` for past dates, freezing `generalEntryReduction: 0` and `requiredAmount: 3500` indefinitely.
+    2. **Missing Journal Sync Trigger**: In `backend/src/controllers/journal.controller.js`, `createJournalEntry` created the `JournalEntry` record in the database but did not invalidate the deposit cache or synchronize daily requirements.
+    3. **Missing Register Close Sync Trigger**: In `backend/src/controllers/pos.book.controller.js`, `closeBook` closed the register session but did not invalidate the deposit cache or synchronize daily requirements.
+- **Fix & Implementation**:
+  - **Batch Preloading & Memory Calculation (`backend/src/controllers/dailyDeposit.controller.js`)**:
+    - Pre-fetched all `PosBookSession` and `JournalEntry` records within the date range in a single batch query (`Promise.all`) during `syncDailyRequirements`.
+    - Eliminated the stale pre-closing freezing logic. For each date, authoritative register cash and general entry reductions are evaluated in-memory from the preloaded sessions and journals.
+    - Accurately computes `generalEntryReduction = Math.max(s.totalJournalEntries, sumDayJournals)` and `availableCash = Math.max(0, generatedCash - generalEntryReduction - cashReturns - faisalTake)`.
+    - Ensures 0 extra sequential network roundtrips while keeping requirements 100% authoritative and up-to-date.
+  - **Real-Time Trigger on Journal Entry Creation (`backend/src/controllers/journal.controller.js`)**:
+    - Added `invalidateDepositCache(outlet)` and `syncDailyRequirements(outlet).catch(...)` immediately upon creating a journal entry.
+  - **Real-Time Trigger on Register Close (`backend/src/controllers/pos.book.controller.js`)**:
+    - Added `invalidateDepositCache(session.outletName)` and `syncDailyRequirements(session.outletName).catch(...)` immediately upon closing a register book session.
+- **Verification**:
+  - Verification script `backend/scripts/verify-daily-deposit-journal-deduction.cjs`: Passed with 100% assertions:
+    - 25 Sep: Generated Cash = Rs. 3,500, General Entry Deduction = Rs. 2,700, Base Required = Rs. 800 (Status: PENDING).
+    - 26 Sep: Generated Cash = Rs. 24,800, General Entry Deduction = Rs. 1,150, Base Required = Rs. 23,650 (Status: PENDING).
+    - 28 Sep: Generated Cash = Rs. 9,000, General Entry Deduction = Rs. 450, Base Required = Rs. 8,550.
+    - 30 Sep (Today): Generated Cash = Rs. 33,700, General Entry Deduction = Rs. 350, Base Required = Rs. 33,350.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 3,192 modules bundled cleanly.
+
+### Implemented Prior Session — Delete Invoice 500 Error Resolution, Outlet Selector Dropdown & Clean Permanent Deletion (deployed & live-verified)
 - **Problem & Root Cause**:
   - `GET /api/software-settings/delete-invoice/lookup?query=RCP-20260928-00009` and numeric `query=20260928-00009` threw HTTP 500:
     1. `PosSale` model in Prisma has no columns named `invoiceNumber` or `saleNumber`, and has no relation named `payments` (the relation is `balancePayments`). The query in `softwareSettings.controller.js` attempted `posSale.findFirst({ where: { OR: [ { invoiceNumber }, { saleNumber } ] }, include: { payments } })`, causing PrismaClientValidationError exceptions.

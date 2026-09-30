@@ -68,6 +68,14 @@ const createJournalEntry = async (req, res) => {
         notes: notes || null
       }
     });
+
+    // Invalidate deposit cache and re-sync daily cash requirement for the outlet
+    try {
+      const { invalidateDepositCache, syncDailyRequirements } = require('./dailyDeposit.controller');
+      invalidateDepositCache(outlet);
+      syncDailyRequirements(outlet).catch(() => {});
+    } catch (e) {}
+
     res.status(201).json(entry);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create journal entry', error: error.message });

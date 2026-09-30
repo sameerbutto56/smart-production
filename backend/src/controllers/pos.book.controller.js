@@ -460,6 +460,14 @@ const closeBook = async (req, res) => {
     }).catch(() => {});
 
     await notify.create(req, { type: 'register_close', moduleName: 'POS', path: '/pos', role: 'OUTLET', title: 'Register Closed', message: `${session.outletName} register closed by ${closedBy}`, action: 'Register Closed', employeeName: req.user?.name }).catch(() => {});
+
+    // Invalidate deposit cache and sync daily cash requirement for the outlet
+    try {
+      const { invalidateDepositCache, syncDailyRequirements } = require('./dailyDeposit.controller');
+      invalidateDepositCache(session.outletName);
+      syncDailyRequirements(session.outletName).catch(() => {});
+    } catch (e) {}
+
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to close register', error: error.message });

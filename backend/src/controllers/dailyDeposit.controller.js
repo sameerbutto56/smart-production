@@ -368,8 +368,11 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
 
   const dates = getDateRangeList(outletCutoff, targetDate);
 
-  // 1. Fetch existing requirements and cash deposits in range
-  const [existingReqs, allDeposits] = await Promise.all([
+  const cutoffBounds = getPktDayBounds(outletCutoff);
+  const targetBounds = getPktDayBounds(targetDate);
+
+  // 1. Fetch existing requirements, cash deposits, and all pos book sessions & journals in range
+  const [existingReqs, allDeposits, allSessions, allJournals] = await Promise.all([
     prisma.dailyCashRequirement.findMany({
       where: {
         outletName,
@@ -395,6 +398,20 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
         { createdAt: 'asc' },
       ],
     }),
+    prisma.posBookSession.findMany({
+      where: {
+        outletName,
+        openedAt: { gte: cutoffBounds.start, lt: targetBounds.end },
+      },
+      orderBy: { openedAt: 'desc' },
+    }),
+    prisma.journalEntry.findMany({
+      where: {
+        outletName,
+        createdAt: { gte: cutoffBounds.start, lt: targetBounds.end },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
 
   const reqMap = new Map();
@@ -411,37 +428,51 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     depositsByDate.get(d.businessDate).push(d);
   }
 
-  // 2. Ensure all requirement rows exist in database
+  // 2. Ensure all requirement rows exist in database with authoritative register & general entry data
   const dayBaseData = [];
   for (const bDate of dates) {
     let req = reqMap.get(bDate);
+    const { start: dayStart, end: dayEnd } = getPktDayBounds(bDate);
+
+    // Look for closed or recent session for this business date
+    const daySessions = allSessions.filter(s => s.openedAt >= dayStart && s.openedAt < dayEnd);
+    const session = daySessions.find(s => s.status === 'CLOSED') || daySessions[0];
+    const dayJournals = allJournals.filter(j => j.createdAt >= dayStart && j.createdAt < dayEnd);
+
     let regData;
+    if (session && session.summary) {
+      try {
+        const s = typeof session.summary === 'string' ? JSON.parse(session.summary) : session.summary;
+        const rawCash = s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash;
+        if (rawCash !== undefined && rawCash !== null) {
+          const generatedCash = Math.max(0, Math.round(Number(rawCash) * 100) / 100);
+          const sumDayJournals = dayJournals
+            .filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH')
+            .reduce((sum, j) => sum + (j.amount || 0), 0);
+          const generalEntryReduction = Math.max(
+            Math.round(Number(s.totalJournalEntries || 0) * 100) / 100,
+            Math.round(sumDayJournals * 100) / 100
+          );
+          const cashReturns = Math.max(0, Math.round(Number(s.returnSummary?.cash || 0) * 100) / 100);
+          const faisalTake = Math.max(0, Math.round(Number(s.totalFaisalTake || 0) * 100) / 100);
+          const availableCash = Math.max(0, Math.round((generatedCash - generalEntryReduction - cashReturns - faisalTake) * 100) / 100);
+          const journalEntries = dayJournals.length > 0 ? dayJournals : (Array.isArray(s.journalEntries) ? s.journalEntries : []);
 
-    // Fast-path: if requirement row already exists for a past closed date,
-    // its register figures (generatedCash, requiredAmount, generalEntryReduction) are frozen.
-    // Reuse them directly to avoid slow sequential DB queries over remote network.
-    if (!forceRequery && req && bDate < targetDate) {
-      let journalEntries = [];
-      let generalEntryReduction = Math.max(0, Math.round(((req.cashGenerated || 0) - (req.requiredAmount || 0)) * 100) / 100);
-      if (req.notes) {
-        try {
-          const parsed = typeof req.notes === 'string' ? JSON.parse(req.notes) : req.notes;
-          if (Array.isArray(parsed?.journalEntries)) journalEntries = parsed.journalEntries;
-          if (typeof parsed?.generalEntryReduction === 'number') generalEntryReduction = parsed.generalEntryReduction;
-        } catch (e) {}
-      }
+          regData = {
+            generatedCash,
+            generalEntryReduction,
+            cashReturns,
+            faisalTake,
+            availableCash,
+            journalEntries,
+            isClosedSession: session.status === 'CLOSED',
+            found: true,
+          };
+        }
+      } catch (e) {}
+    }
 
-      regData = {
-        generatedCash: req.cashGenerated,
-        generalEntryReduction,
-        cashReturns: 0,
-        faisalTake: 0,
-        availableCash: req.requiredAmount,
-        journalEntries,
-        isClosedSession: true,
-        found: true,
-      };
-    } else {
+    if (!regData) {
       regData = await getAuthoritativeRegisterCash(outletName, bDate);
     }
 
