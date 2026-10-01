@@ -433,6 +433,14 @@ const changePaymentMethod = async (req, res) => {
       console.error('[paymentChange] register recompute error:', recomputeErr.message);
     }
 
+    try {
+      const { invalidateDepositCache, syncDailyRequirements } = require('./dailyDeposit.controller');
+      invalidateDepositCache(sale.outletName);
+      await syncDailyRequirements(sale.outletName).catch(() => {});
+    } catch (depErr) {
+      console.error('[paymentChange] daily deposit sync error:', depErr.message);
+    }
+
     if (req.app.get('io')) {
       req.app.get('io').emit('inventory-updated', { source: 'payment-change', outletName: sale.outletName, saleId });
     }
@@ -864,7 +872,7 @@ const deleteInvoicePermanently = async (req, res) => {
           await tx.posReturn.deleteMany({ where: { saleId } });
 
           await tx.posSale.delete({ where: { id: saleId } });
-          return { deletedType, deletedNumber };
+          return { deletedType, deletedNumber, outletName: posSale.outletName, createdAt: posSale.createdAt };
         }
       }
 
@@ -916,6 +924,35 @@ const deleteInvoicePermanently = async (req, res) => {
     cache.delPattern('pos');
     cache.delPattern('analytics');
     cache.delPattern('delivery');
+
+    if (result && result.deletedType === 'POS_SALE' && result.outletName) {
+      try {
+        const { computeBookSummary } = require('./pos.book.controller');
+        const saleDate = new Date(result.createdAt);
+        const sessions = await prisma.posBookSession.findMany({
+          where: { outletName: result.outletName, status: 'CLOSED' },
+          select: { id: true, outletName: true, openedAt: true, closedAt: true },
+        });
+        const matched = sessions.filter(s => {
+          const o = new Date(s.openedAt);
+          return o.getFullYear() === saleDate.getFullYear() && o.getMonth() === saleDate.getMonth() && o.getDate() === saleDate.getDate();
+        });
+        for (const session of matched) {
+          const summary = await computeBookSummary(session);
+          await prisma.posBookSession.update({ where: { id: session.id }, data: { summary: JSON.stringify(summary) } });
+        }
+      } catch (recomputeErr) {
+        console.error('[deleteInvoice] register recompute error:', recomputeErr.message);
+      }
+
+      try {
+        const { invalidateDepositCache, syncDailyRequirements } = require('./dailyDeposit.controller');
+        invalidateDepositCache(result.outletName);
+        await syncDailyRequirements(result.outletName).catch(() => {});
+      } catch (depErr) {
+        console.error('[deleteInvoice] daily deposit sync error:', depErr.message);
+      }
+    }
 
     res.json({
       ok: true,

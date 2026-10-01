@@ -73,7 +73,7 @@ const createJournalEntry = async (req, res) => {
     try {
       const { invalidateDepositCache, syncDailyRequirements } = require('./dailyDeposit.controller');
       invalidateDepositCache(outlet);
-      syncDailyRequirements(outlet).catch(() => {});
+      await syncDailyRequirements(outlet).catch(() => {});
     } catch (e) {}
 
     res.status(201).json(entry);

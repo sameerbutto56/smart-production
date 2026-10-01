@@ -465,7 +465,7 @@ const closeBook = async (req, res) => {
     try {
       const { invalidateDepositCache, syncDailyRequirements } = require('./dailyDeposit.controller');
       invalidateDepositCache(session.outletName);
-      syncDailyRequirements(session.outletName).catch(() => {});
+      await syncDailyRequirements(session.outletName).catch(() => {});
     } catch (e) {}
 
     res.json(updated);

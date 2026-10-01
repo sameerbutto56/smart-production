@@ -204,46 +204,19 @@ const calculateAuthoritativeDailyCash = async (outletName, businessDate) => {
 const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
   const { start, end } = getPktDayBounds(businessDate);
 
-  // 1. Check for PosBookSession for this business date
-  const session = await prisma.posBookSession.findFirst({
-    where: {
-      outletName,
-      openedAt: { gte: start, lt: end },
-    },
-    orderBy: { openedAt: 'desc' },
-  });
-
-  if (session && session.summary) {
-    try {
-      const s = typeof session.summary === 'string' ? JSON.parse(session.summary) : session.summary;
-      const rawCash = s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash;
-      if (rawCash !== undefined && rawCash !== null) {
-        const generatedCash = Math.max(0, roundDepositRupee(Number(rawCash)));
-        const generalEntryReduction = Math.max(0, roundDepositRupee(Number(s.totalJournalEntries || 0)));
-        const cashReturns = Math.max(0, roundDepositRupee(Number(s.returnSummary?.cash || 0)));
-        const faisalTake = Math.max(0, roundDepositRupee(Number(s.totalFaisalTake || 0)));
-        const availableCash = Math.max(0, roundDepositRupee(generatedCash - generalEntryReduction - cashReturns - faisalTake));
-        return {
-          generatedCash,
-          generalEntryReduction,
-          cashReturns,
-          faisalTake,
-          availableCash,
-          journalEntries: s.journalEntries || [],
-          isClosedSession: session.status === 'CLOSED',
-          found: true,
-        };
-      }
-    } catch (e) {}
-  }
-
-  // 2. Fallback to real-time POS sales cash query, returns, and journal entries
-  const [sales, balancePayments, returns, journals] = await Promise.all([
+  const [session, sales, balancePayments, returns, journals] = await Promise.all([
+    prisma.posBookSession.findFirst({
+      where: {
+        outletName,
+        openedAt: { gte: start, lt: end },
+      },
+      orderBy: { openedAt: 'desc' },
+    }),
     prisma.posSale.findMany({
       where: {
         outletName,
         createdAt: { gte: start, lt: end },
-        faisalTake: false,
+        faisalTake: { not: true },
       },
       select: {
         grandTotal: true,
@@ -324,7 +297,7 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
   });
 
   const generatedCash = Math.max(0, roundDepositRupee(totalCash));
-  const generalEntryReduction = Math.max(0, roundDepositRupee(journals.reduce((sum, j) => sum + (j.amount || 0), 0)));
+  const generalEntryReduction = Math.max(0, roundDepositRupee(journals.filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH').reduce((sum, j) => sum + (j.amount || 0), 0)));
   const cashReturns = Math.max(0, roundDepositRupee(cashRefunded));
   const availableCash = Math.max(0, roundDepositRupee(generatedCash - generalEntryReduction - cashReturns));
 
@@ -335,8 +308,8 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
     faisalTake: 0,
     availableCash,
     journalEntries: journals,
-    isClosedSession: false,
-    found: false,
+    isClosedSession: session?.status === 'CLOSED',
+    found: Boolean(session || sales.length > 0 || balancePayments.length > 0 || journals.length > 0),
   };
 };
 
@@ -380,8 +353,8 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
   const cutoffBounds = getPktDayBounds(outletCutoff);
   const targetBounds = getPktDayBounds(targetDate);
 
-  // 1. Fetch existing requirements, cash deposits, and all pos book sessions & journals in range
-  const [existingReqs, allDeposits, allSessions, allJournals] = await Promise.all([
+  // 1. Fetch existing requirements, cash deposits, and all pos book sessions, journals, sales, balance payments & returns in range
+  const [existingReqs, allDeposits, allSessions, allJournals, allSales, allBalancePayments, allReturns] = await Promise.all([
     prisma.dailyCashRequirement.findMany({
       where: {
         outletName,
@@ -421,6 +394,46 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
       },
       orderBy: { createdAt: 'asc' },
     }),
+    prisma.posSale.findMany({
+      where: {
+        outletName,
+        createdAt: { gte: cutoffBounds.start, lt: targetBounds.end },
+        faisalTake: { not: true },
+      },
+      select: {
+        id: true,
+        grandTotal: true,
+        advanceAmount: true,
+        paymentMethod: true,
+        cashAmount: true,
+        onlineAmount: true,
+        createdAt: true,
+      },
+    }),
+    prisma.posBalancePayment.findMany({
+      where: {
+        posSale: { outletName },
+        paidAt: { gte: cutoffBounds.start, lt: targetBounds.end },
+      },
+      select: {
+        amountPaidNow: true,
+        paymentMethod: true,
+        cashAmount: true,
+        paidAt: true,
+      },
+    }),
+    prisma.posReturn.findMany({
+      where: {
+        OR: [{ sale: { outletName } }, { outletName }],
+        createdAt: { gte: cutoffBounds.start, lt: targetBounds.end },
+      },
+      select: {
+        refundAmount: true,
+        refundPaymentMethod: true,
+        createdAt: true,
+        sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } },
+      },
+    }),
   ]);
 
   const reqMap = new Map();
@@ -447,43 +460,85 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
     const daySessions = allSessions.filter(s => s.openedAt >= dayStart && s.openedAt < dayEnd);
     const session = daySessions.find(s => s.status === 'CLOSED') || daySessions[0];
     const dayJournals = allJournals.filter(j => j.createdAt >= dayStart && j.createdAt < dayEnd);
+    const daySales = allSales.filter(s => s.createdAt >= dayStart && s.createdAt < dayEnd);
+    const dayBp = allBalancePayments.filter(bp => bp.paidAt >= dayStart && bp.paidAt < dayEnd);
+    const dayReturns = allReturns.filter(r => r.createdAt >= dayStart && r.createdAt < dayEnd);
 
-    let regData;
-    if (session && session.summary) {
+    // Derive authoritative live cash directly from records (100% match with POS History)
+    let liveTotalCash = 0;
+    daySales.forEach((s) => {
+      const received = s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
+      if (s.paymentMethod === 'CASH') {
+        liveTotalCash += received;
+      } else if (s.paymentMethod === 'CASH_ONLINE') {
+        const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
+        const ratio = totalCO > 0 ? (s.cashAmount || 0) / totalCO : 1;
+        liveTotalCash += received * ratio;
+      }
+    });
+
+    dayBp.forEach((bp) => {
+      const amt = bp.amountPaidNow || 0;
+      if (bp.paymentMethod === 'CASH' || !bp.paymentMethod) {
+        liveTotalCash += amt;
+      } else if (bp.paymentMethod === 'CASH_ONLINE') {
+        const cashPortion = bp.cashAmount !== null && bp.cashAmount !== undefined
+          ? bp.cashAmount
+          : (amt / 2);
+        liveTotalCash += cashPortion;
+      }
+    });
+
+    let liveCashRefunded = 0;
+    dayReturns.forEach((r) => {
+      const refundMethod = r.refundPaymentMethod || r.sale?.paymentMethod || 'CASH';
+      const amt = r.refundAmount || 0;
+      if (refundMethod === 'CASH') {
+        liveCashRefunded += amt;
+      } else if (refundMethod === 'CASH_ONLINE') {
+        const cashAmt = r.sale?.cashAmount || 0;
+        const onlineAmt = r.sale?.onlineAmount || 0;
+        const total = cashAmt + onlineAmt || 1;
+        const ratio = cashAmt / total;
+        liveCashRefunded += amt * ratio;
+      }
+    });
+
+    const sumDayJournals = dayJournals
+      .filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH')
+      .reduce((sum, j) => sum + (j.amount || 0), 0);
+
+    const generatedCash = Math.max(0, roundDepositRupee(liveTotalCash));
+    const generalEntryReduction = Math.max(0, roundDepositRupee(sumDayJournals));
+    const cashReturns = Math.max(0, roundDepositRupee(liveCashRefunded));
+    const availableCash = Math.max(0, roundDepositRupee(generatedCash - generalEntryReduction - cashReturns));
+
+    // If session is closed and has stale summary, reconcile it so Register History also matches
+    if (session && session.status === 'CLOSED' && session.summary) {
       try {
         const s = typeof session.summary === 'string' ? JSON.parse(session.summary) : session.summary;
-        const rawCash = s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash;
-        if (rawCash !== undefined && rawCash !== null) {
-          const generatedCash = Math.max(0, roundDepositRupee(Number(rawCash)));
-          const sumDayJournals = dayJournals
-            .filter(j => !j.paymentMethod || String(j.paymentMethod).toUpperCase() === 'CASH')
-            .reduce((sum, j) => sum + (j.amount || 0), 0);
-          const generalEntryReduction = Math.max(
-            roundDepositRupee(Number(s.totalJournalEntries || 0)),
-            roundDepositRupee(sumDayJournals)
-          );
-          const cashReturns = Math.max(0, roundDepositRupee(Number(s.returnSummary?.cash || 0)));
-          const faisalTake = Math.max(0, roundDepositRupee(Number(s.totalFaisalTake || 0)));
-          const availableCash = Math.max(0, roundDepositRupee(generatedCash - generalEntryReduction - cashReturns - faisalTake));
-          const journalEntries = dayJournals.length > 0 ? dayJournals : (Array.isArray(s.journalEntries) ? s.journalEntries : []);
-
-          regData = {
-            generatedCash,
-            generalEntryReduction,
-            cashReturns,
-            faisalTake,
-            availableCash,
-            journalEntries,
-            isClosedSession: session.status === 'CLOSED',
-            found: true,
-          };
+        const sRawCash = Number(s.paymentSummary?.cashCollected ?? s.paymentSummary?.cash ?? 0);
+        if (Math.abs(sRawCash - generatedCash) > 0.01) {
+          if (s.paymentSummary) s.paymentSummary.cashCollected = generatedCash;
+          s.availableCash = availableCash;
+          prisma.posBookSession.update({
+            where: { id: session.id },
+            data: { summary: JSON.stringify(s) },
+          }).catch(() => {});
         }
       } catch (e) {}
     }
 
-    if (!regData) {
-      regData = await getAuthoritativeRegisterCash(outletName, bDate);
-    }
+    const regData = {
+      generatedCash,
+      generalEntryReduction,
+      cashReturns,
+      faisalTake: 0,
+      availableCash,
+      journalEntries: dayJournals,
+      isClosedSession: session?.status === 'CLOSED',
+      found: Boolean(session || daySales.length > 0 || dayBp.length > 0 || dayJournals.length > 0),
+    };
 
     if (!req) {
       req = await prisma.dailyCashRequirement.create({
