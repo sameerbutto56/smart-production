@@ -190,23 +190,32 @@ const createOutletOrder = async (req, res) => {
           placedByEmployeeId: resolvedEmployee?.id || null,
           deliveryType: deliveryType || 'DELIVERY',
           advanceAmount: adv,
-          balanceAmount: payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || 0) : null,
+          balanceAmount: payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || Math.max(0, totalPrice - adv)) : 0,
           totalPrice,
           paymentStatus: payStatus,
           currentStage: 'ORDER_ENTRY'
         }
       });
 
+      // Link PosSale to created Order if a PosSale matches this orderNumber
+      if (orderNumber) {
+        await tx.posSale.updateMany({
+          where: { orderNumber },
+          data: { orderId: created.id }
+        }).catch(() => {});
+      }
+
       // Create PENDING ORDER_ENTRY stage — order stays in Outlet's Unseen Tasks until accepted
       await tx.orderStage.create({
         data: { orderId: created.id, stageName: 'ORDER_ENTRY', status: 'PENDING' }
       });
 
+      const finalBal = payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || Math.max(0, totalPrice - adv)) : 0;
       await tx.auditLog.create({
         data: {
           orderId: created.id,
           action: 'OUTLET_ORDER_CREATED',
-          details: `Outlet order created, pending acceptance at ${outletName}${resolvedEmployee ? ` — entered by ${resolvedEmployee.name}` : ''}`,
+          details: `Outlet order created, pending acceptance at ${outletName}${resolvedEmployee ? ` — entered by ${resolvedEmployee.name}` : ''} | Total: ₨${totalPrice}, Paid: ₨${adv}, Balance: ₨${finalBal}, Payment Status: ${payStatus}`,
           performedBy: req.user?.id || 'SYSTEM'
         }
       });
@@ -947,6 +956,129 @@ const lookupOrderWithFinancials = async (req, res) => {
   }
 };
 
+const lookupPosSaleForOrderEntry = async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+    if (!orderNumber || !orderNumber.trim()) {
+      return res.status(400).json({ message: 'Order number is required' });
+    }
+    const q = orderNumber.trim();
+
+    // 1. Look up POS sale by orderNumber, receiptNumber, or clientRequestId
+    const posSale = await prisma.posSale.findFirst({
+      where: {
+        OR: [
+          { orderNumber: q },
+          { receiptNumber: q },
+          { clientRequestId: q }
+        ]
+      },
+      include: {
+        items: true,
+        returns: true,
+        balancePayments: { orderBy: { paidAt: 'asc' } }
+      }
+    });
+
+    // 2. Check if Order already exists in DB
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        OR: [
+          { orderNumber: q },
+          { invoiceNumber: q }
+        ]
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        invoiceNumber: true,
+        customerName: true,
+        customerPhone: true,
+        address: true,
+        city: true,
+        totalPrice: true,
+        advanceAmount: true,
+        balanceAmount: true,
+        paymentStatus: true,
+        currentStage: true,
+        status: true
+      }
+    });
+
+    if (!posSale && !existingOrder) {
+      return res.status(404).json({ message: `No POS sale or order found for "${q}"`, found: false });
+    }
+
+    if (posSale) {
+      const totalPaid = (posSale.advanceAmount || 0) + (posSale.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0);
+      const grandTotal = Math.round((posSale.grandTotal || 0) * 100) / 100;
+      const effectivePaid = Math.round(totalPaid * 100) / 100;
+      const balanceAmount = Math.max(0, Math.round((grandTotal - effectivePaid) * 100) / 100);
+      const paymentStatus = balanceAmount <= 0.01 ? 'PAID' : 'BALANCE';
+
+      return res.json({
+        found: true,
+        posSaleId: posSale.id,
+        orderNumber: posSale.orderNumber || q,
+        receiptNumber: posSale.receiptNumber,
+        customerName: posSale.customerName || existingOrder?.customerName || '',
+        customerPhone: posSale.customerPhone || existingOrder?.customerPhone || '',
+        grandTotal,
+        totalOrderAmount: grandTotal,
+        advanceAmount: posSale.advanceAmount || 0,
+        paidAmount: effectivePaid,
+        totalPaid: effectivePaid,
+        balanceAmount,
+        paymentStatus,
+        paymentMethod: posSale.paymentMethod || 'CASH',
+        outletName: posSale.outletName,
+        cashierName: posSale.cashierName,
+        createdAt: posSale.createdAt,
+        items: (posSale.items || []).map(it => ({
+          id: it.id,
+          variantId: it.variantId,
+          productName: it.productName,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          lineTotal: it.lineTotal,
+          color: it.color,
+          size: it.size,
+          alterationCharges: it.alterationCharges
+        })),
+        orderExists: !!existingOrder,
+        existingOrder: existingOrder || null
+      });
+    }
+
+    // Only existingOrder exists
+    const grandTotal = existingOrder.totalPrice || 0;
+    const paidAmount = existingOrder.advanceAmount || 0;
+    const balanceAmount = existingOrder.balanceAmount != null ? existingOrder.balanceAmount : Math.max(0, grandTotal - paidAmount);
+    return res.json({
+      found: true,
+      orderOnly: true,
+      orderNumber: existingOrder.orderNumber,
+      invoiceNumber: existingOrder.invoiceNumber,
+      customerName: existingOrder.customerName || '',
+      customerPhone: existingOrder.customerPhone || '',
+      address: existingOrder.address || '',
+      city: existingOrder.city || '',
+      grandTotal,
+      totalOrderAmount: grandTotal,
+      advanceAmount: paidAmount,
+      paidAmount,
+      totalPaid: paidAmount,
+      balanceAmount,
+      paymentStatus: existingOrder.paymentStatus || (balanceAmount <= 0.01 ? 'PAID' : 'BALANCE'),
+      orderExists: true,
+      existingOrder
+    });
+  } catch (error) {
+    console.error('[lookupPosSaleForOrderEntry] error:', error.message);
+    res.status(500).json({ message: 'Error looking up POS sale', error: error.message });
+  }
+};
+
 const searchOutletOrders = async (req, res) => {
   try {
     const { q, stage, status, outlet, page = 1, limit = 25 } = req.query;
@@ -1558,4 +1690,4 @@ const verifyOutletEmployee = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, lookupOrderWithFinancials, searchOutletOrders, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee };
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, lookupOrderWithFinancials, lookupPosSaleForOrderEntry, searchOutletOrders, getOutletAnalytics, outletRouteOrder, getInDispatchOrders, getComeFromProduction, getOutletEmployees, verifyOutletEmployee };

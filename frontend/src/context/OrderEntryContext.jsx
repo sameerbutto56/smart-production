@@ -361,6 +361,33 @@ export const OrderEntryProvider = ({ children }) => {
           setEditOrderError('Failed to load order. Please try again or contact support.');
         }
       })();
+    } else if (!verifReturn && !editId) {
+      // Check if orderNumber is provided for new order (e.g. from Outlet POS)
+      const initialOrderNumber = sp.get('orderNumber');
+      if (initialOrderNumber) {
+        const cleanNum = String(initialOrderNumber).trim();
+        setFormData(prev => ({ ...prev, orderNumber: cleanNum }));
+        (async () => {
+          try {
+            const res = await api.get(`/api/outlet-orders/pos-sale-lookup/${encodeURIComponent(cleanNum)}`);
+            if (res.data?.success && res.data?.sale) {
+              const s = res.data.sale;
+              setFormData(prev => ({
+                ...prev,
+                customerName: prev.customerName || s.customerName || '',
+                customerPhone: prev.customerPhone || s.customerPhone || '',
+                totalPrice: prev.totalPrice || (s.grandTotal ? String(s.grandTotal) : ''),
+                advanceAmount: prev.advanceAmount || (s.paidAmount ? String(s.paidAmount) : ''),
+                advancePaid: prev.advancePaid || (s.paidAmount > 0),
+                balanceAmount: prev.balanceAmount || (s.balanceAmount != null ? String(s.balanceAmount) : ''),
+                paymentStatus: prev.paymentStatus || s.paymentStatus || ''
+              }));
+            }
+          } catch (e) {
+            // Non-blocking
+          }
+        })();
+      }
     }
   }, [searchParams]);
 
@@ -911,13 +938,26 @@ export const OrderEntryProvider = ({ children }) => {
       const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : 250;
       const adjTotal = (parseFloat(formData.adjProductPrice) || calcProductPrice) + (parseFloat(formData.adjLogoCharges) || calcLogo) + (parseFloat(formData.adjNamePrinting) || calcName) + (parseFloat(formData.adjCustomization) || calcCustomization) + (parseFloat(formData.adjCapCharges) || calcCap) + calcDelivery - (parseFloat(formData.adjDiscount) || 0);
       const faisalEmp = localStorage.getItem('faisalEmployee') || null;
+      const advAmount = parseFloat(formData.advanceAmount) || 0;
+      const calcBalance = Math.max(0, adjTotal - advAmount);
+      const computedPayStatus = formData.paymentStatus
+        ? formData.paymentStatus
+        : (adjTotal > 0 && calcBalance <= 0)
+          ? 'PAID'
+          : (advAmount > 0 && calcBalance > 0)
+            ? 'BALANCE'
+            : (firstItem.paymentStatus || 'PENDING');
+      const computedBalance = computedPayStatus === 'PAID'
+        ? 0
+        : (formData.balanceAmount != null && formData.balanceAmount !== '' ? parseFloat(formData.balanceAmount) : calcBalance);
+
       await api.post('/api/orders', {
         orderNumber: formData.orderNumber || firstItem.orderNumber, customerName: formData.customerName || firstItem.customerName,
         customerPhone: formData.customerPhone || firstItem.customerPhone, address: formData.address || firstItem.address, city: formData.city || firstItem.city,
-        type: formData.type || firstItem.type, priority: formData.priority || firstItem.priority, advancePaid: firstItem.advancePaid,
-        advanceAmount: parseFloat(formData.advanceAmount) || 0,
-        balanceAmount: (formData.paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? parseFloat(formData.balanceAmount) || 0 : null,
-        paymentStatus: formData.paymentStatus || firstItem.paymentStatus || 'PENDING',
+        type: formData.type || firstItem.type, priority: formData.priority || firstItem.priority, advancePaid: advAmount > 0,
+        advanceAmount: advAmount,
+        balanceAmount: computedPayStatus === 'PAID' ? 0 : computedBalance,
+        paymentStatus: computedPayStatus,
         isPr: !!formData.isPr,
         isPrOrder: !!formData.isPr,
         logoDesign: firstItem.logoDesign, logoName: firstItem.logoName,

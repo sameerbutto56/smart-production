@@ -1,5 +1,45 @@
 ## Goals
-### Implemented This Session — Bank Deposit Amount: Automatic Whole-Number Rounding Across All Ledgers & Slips (deployed & live-verified)
+### Implemented This Session — Outlet POS → Order Entry → Dispatch → Delivery Boy Full Lifecycle Balance & Customer Sync + Marketing Fix (deployed & live-verified)
+- **Problem & Requirements**:
+  1. **Marketing Activity 500 Error**: `POST /api/marketing/activities` failed with HTTP 500 due to a PostgreSQL foreign key constraint violation (`MarketingActivity.userId` referencing `User.id` while passing an `OutletEmployee` ID).
+  2. **Outlet POS → Order Entry → Dispatch → Delivery Boy Lifecycle Synchronization**:
+     - POS bill Customer Name and Phone Number must automatically carry forward to Order Entry and remain **100% editable**.
+     - Existing generated `orderNumber` remains unchanged throughout the entire lifecycle (zero second order number generation).
+     - POS Total Bill Amount automatically becomes Total Order Amount in Order Entry.
+     - POS Paid/Advance Amount automatically populates Paid Amount in Order Entry.
+     - Balance Amount is calculated as `Total Order Amount - Paid Amount`.
+     - Balance & Paid amounts remain editable in Order Entry with automatic recalculation and audit trail.
+     - Payment Status: Balance == 0 $\rightarrow$ `PAID`; Balance > 0 $\rightarrow$ `BALANCE DUE` / `BALANCE`.
+     - Dispatch portal displays customer name, phone, delivery method, order total, paid amount, and amount to collect.
+     - Delivery Boy portal shows Order Total, Paid Amount, and Amount to Collect.
+     - When Delivery Boy delivers and collects payment $\rightarrow$ Order is marked `PAID` (Balance = ₨0) AND the linked `PosSale` pending balance is **automatically cleared** via `PosBalancePayment` with receipt number (zero double collection, zero manual cashier intervention).
+- **Implementation & Fixes**:
+  - **Marketing 500 Fix (`backend/src/controllers/marketing.controller.js`)**:
+    - Linked `MarketingActivity.userId` to authenticated Marketing User UUID (`req.user?.id`), preserving `employeeName` for employee-level data isolation.
+    - Updated `getMyActivities` and `getAdminActivities` to filter and correlate activities cleanly across personnel.
+  - **POS Sale Lookup & Bidirectional Order Linkage (`backend/src/controllers/outletOrder.controller.js`, `backend/src/routes/outletOrder.routes.js`)**:
+    - Created `lookupPosSaleForOrderEntry` (`GET /api/outlet-orders/pos-sale-lookup/:orderNumber`): looks up POS sale by `orderNumber`, `receiptNumber`, or `clientRequestId`; checks if order already exists; computes `grandTotal`, `paidAmount`, `balanceAmount`, `paymentStatus`, and extracts line items.
+    - Updated `createOutletOrder`: links `posSale.orderId = created.id` where `orderNumber` matches; saves exact `balanceAmount` and `paymentStatus`.
+  - **Order Controller (`backend/src/controllers/order.controller.js`, `backend/src/routes/order.routes.js`)**:
+    - Updated `createOrder`: links `posSale.orderId = order.id` where `orderNumber` matches.
+    - Updated `editProductAmount`: recalculates `balanceAmount` and `paymentStatus` when `totalPrice` changes; logs audit trail.
+    - Added `adjustOrderPayment` (`PUT /api/orders/:orderId/adjust-payment`): allows authorized roles to adjust Paid / Balance with recalculation and audit trail (`PAYMENT_ADJUSTED`).
+  - **Delivery Boy Auto-Clearance & POS Balance Sync (`backend/src/controllers/delivery.controller.js`, `backend/src/controllers/order-delivery.controller.js`)**:
+    - In `deliverOrder` and `updateDeliveryStatus`: sets `balanceAmount: 0`, `paymentStatus: 'PAID'`.
+    - Automatically checks for linked `PosSale` (by `orderId` or `orderNumber`). If pending balance exists, generates receipt via `generateBalanceReceiptNumber()`, creates `PosBalancePayment`, invalidates `pos:` cache, and emits socket events.
+  - **Frontend Integration (`OutletOrderEntry.jsx`, `OrderEntryContext.jsx`, `BasicInfoTab.jsx`)**:
+    - `OutletOrderEntry.jsx`: Auto-fetches POS sale data on load, populates customer name, phone, line items, advance amount, balance amount, and payment status while keeping all fields editable.
+    - `OrderEntryContext.jsx`: When `orderNumber` is in query params (from POS), auto-calls `pos-sale-lookup` and pre-populates customer info and financials. In `handleCheckout`, calculates authoritative balance and payment status.
+    - `BasicInfoTab.jsx`: Sanitization updated to allow alphanumeric order numbers (`replace(/[^a-zA-Z0-9\-_#]/g, '')`), added debounced auto-lookup on `orderNumber` to fetch POS sale data, and added real-time remaining balance and payment status indicators.
+- **Verification**:
+  - Automated verification test suite `backend/scripts/verify-pos-order-delivery-flow.cjs`:
+    - 100% pass across Marketing activity creation without 500 error.
+    - 100% pass across POS sale creation (₨5,000 Total, ₨3,000 Paid).
+    - 100% pass across Order creation and linkage (₨2,000 Balance).
+    - 100% pass across Delivery Boy delivery collection: `PosBalancePayment` generated with receipt number, POS sale balance cleared to ₨0.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+
+### Implemented Prior Session — Bank Deposit Amount: Automatic Whole-Number Rounding Across All Ledgers & Slips (deployed & live-verified)
 - **Problem & Requirements**:
   - Bank deposit amounts and requirements previously tracked floating point cent values (e.g. `16,892.28` on 2026-09-21 in Johar Town).
   - This caused fractional pending balances (e.g. `0.28` dangling pending on 2026-09-24) and forced users to manually adjust or deal with decimals.

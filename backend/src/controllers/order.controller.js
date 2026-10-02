@@ -654,6 +654,14 @@ const createOrder = async (req, res) => {
       }
     });
 
+    // Link PosSale to created Order if a PosSale matches this orderNumber
+    if (orderNumber) {
+      await prisma.posSale.updateMany({
+        where: { orderNumber },
+        data: { orderId: order.id }
+      }).catch(() => {});
+    }
+
     // Stamp the dedup map so rapid double-submits are rejected
     if (orderNumber) _recentOrders.set(orderNumber, Date.now());
 
@@ -5412,7 +5420,8 @@ const editProductAmount = async (req, res) => {
       select: {
         id: true, orderNumber: true, status: true, currentStage: true, totalPrice: true,
         baseProductAmount: true, discountAmount: true, logoCharges: true,
-        namePrintingCharges: true, customizationPrice: true, deliveryCharges: true
+        namePrintingCharges: true, customizationPrice: true, deliveryCharges: true,
+        advanceAmount: true, balanceAmount: true, paymentStatus: true
       }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
@@ -5434,6 +5443,9 @@ const editProductAmount = async (req, res) => {
 
     const brandingTotal = (order.logoCharges || 0) + (order.namePrintingCharges || 0) + (order.customizationPrice || 0);
     const newTotalPrice = Math.max(0, newProductAmt + brandingTotal - newDiscount + (order.deliveryCharges || 0));
+    const advance = order.advanceAmount || 0;
+    const newBalance = Math.max(0, Math.round((newTotalPrice - advance) * 100) / 100);
+    const newPayStatus = newBalance <= 0.01 ? 'PAID' : 'BALANCE';
 
     const [updated] = await prisma.$transaction([
       prisma.order.update({
@@ -5442,6 +5454,8 @@ const editProductAmount = async (req, res) => {
           baseProductAmount: newProductAmt,
           discountAmount: newDiscount,
           totalPrice: newTotalPrice,
+          balanceAmount: newBalance,
+          paymentStatus: newPayStatus,
           baseProductAmountEditedBy: req.user?.name || req.user?.email || 'Unknown',
           baseProductAmountEditedAt: new Date()
         }
@@ -5452,9 +5466,9 @@ const editProductAmount = async (req, res) => {
           action: 'MANUAL_PRODUCT_AMOUNT_ADJUSTED',
           performedBy: req.user?.name || req.user?.email || 'Unknown',
           performedById: req.user?.id || null,
-          details: `Product amount adjusted from Rs. ${order.baseProductAmount || 0} to Rs. ${newProductAmt}${newDiscount !== (order.discountAmount || 0) ? `, discount from Rs. ${order.discountAmount || 0} to Rs. ${newDiscount}` : ''}. New totalPrice: Rs. ${newTotalPrice}. Reason: ${reason || 'No reason provided'}`,
-          previousValue: { baseProductAmount: order.baseProductAmount, discountAmount: order.discountAmount, totalPrice: order.totalPrice },
-          newValue: { baseProductAmount: newProductAmt, discountAmount: newDiscount, totalPrice: newTotalPrice }
+          details: `Product amount adjusted from Rs. ${order.baseProductAmount || 0} to Rs. ${newProductAmt}${newDiscount !== (order.discountAmount || 0) ? `, discount from Rs. ${order.discountAmount || 0} to Rs. ${newDiscount}` : ''}. New totalPrice: Rs. ${newTotalPrice}, Balance: Rs. ${newBalance}, Payment Status: ${newPayStatus}. Reason: ${reason || 'No reason provided'}`,
+          previousValue: { baseProductAmount: order.baseProductAmount, discountAmount: order.discountAmount, totalPrice: order.totalPrice, balanceAmount: order.balanceAmount, paymentStatus: order.paymentStatus },
+          newValue: { baseProductAmount: newProductAmt, discountAmount: newDiscount, totalPrice: newTotalPrice, balanceAmount: newBalance, paymentStatus: newPayStatus }
         }
       })
     ]);
@@ -5470,6 +5484,8 @@ const editProductAmount = async (req, res) => {
         baseProductAmount: updated.baseProductAmount,
         discountAmount: updated.discountAmount,
         totalPrice: updated.totalPrice,
+        balanceAmount: updated.balanceAmount,
+        paymentStatus: updated.paymentStatus,
         editedBy: updated.baseProductAmountEditedBy,
         editedAt: updated.baseProductAmountEditedAt
       }
@@ -5477,6 +5493,79 @@ const editProductAmount = async (req, res) => {
   } catch (error) {
     console.error('[editProductAmount] Error:', error);
     res.status(500).json({ message: 'Failed to update product amount', error: error.message });
+  }
+};
+
+// ====== ADJUST ORDER PAYMENT & BALANCE (with Audit Trail) ======
+const adjustOrderPayment = async (req, res) => {
+  const { orderId } = req.params;
+  const { paidAmount, balanceAmount, paymentStatus, reason, paymentMethod } = req.body;
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true, orderNumber: true, status: true, currentStage: true, totalPrice: true,
+        advanceAmount: true, balanceAmount: true, paymentStatus: true, paymentMethod: true
+      }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const total = parseFloat(order.totalPrice) || 0;
+    let newPaid = order.advanceAmount || 0;
+    let newBal = order.balanceAmount != null ? order.balanceAmount : Math.max(0, total - newPaid);
+
+    if (paidAmount !== undefined && paidAmount !== null && paidAmount !== '') {
+      newPaid = Math.max(0, parseFloat(paidAmount) || 0);
+      newBal = Math.max(0, Math.round((total - newPaid) * 100) / 100);
+    } else if (balanceAmount !== undefined && balanceAmount !== null && balanceAmount !== '') {
+      newBal = Math.max(0, parseFloat(balanceAmount) || 0);
+      newPaid = Math.max(0, Math.round((total - newBal) * 100) / 100);
+    }
+
+    const payStat = (paymentStatus || '').toString().trim().toUpperCase();
+    const finalPayStatus = payStat && ['PAID', 'BALANCE'].includes(payStat)
+      ? payStat
+      : (newBal <= 0.01 ? 'PAID' : 'BALANCE');
+
+    if (finalPayStatus === 'PAID') {
+      newBal = 0;
+      if (newPaid < total) newPaid = total;
+    }
+
+    const [updated] = await prisma.$transaction([
+      prisma.order.update({
+        where: { id: orderId },
+        data: {
+          advanceAmount: newPaid,
+          balanceAmount: newBal,
+          paymentStatus: finalPayStatus,
+          paymentMethod: paymentMethod || order.paymentMethod || 'CASH'
+        }
+      }),
+      prisma.auditLog.create({
+        data: {
+          orderId,
+          action: 'PAYMENT_ADJUSTED',
+          performedBy: req.user?.name || req.user?.email || 'Unknown',
+          performedById: req.user?.id || null,
+          details: `Payment adjusted: Paid ₨${order.advanceAmount || 0} → ₨${newPaid}, Balance ₨${order.balanceAmount != null ? order.balanceAmount : 'N/A'} → ₨${newBal}, Status ${order.paymentStatus} → ${finalPayStatus}. Reason: ${reason || 'Manual adjustment'}`,
+          previousValue: { advanceAmount: order.advanceAmount, balanceAmount: order.balanceAmount, paymentStatus: order.paymentStatus },
+          newValue: { advanceAmount: newPaid, balanceAmount: newBal, paymentStatus: finalPayStatus }
+        }
+      })
+    ]);
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId, action: 'payment-adjusted' });
+
+    res.json({
+      message: 'Payment details adjusted successfully',
+      order: updated
+    });
+  } catch (error) {
+    console.error('[adjustOrderPayment] Error:', error);
+    res.status(500).json({ message: 'Failed to adjust payment details', error: error.message });
   }
 };
 
@@ -5635,6 +5724,7 @@ module.exports = {
   approveCancellationRequest,
   rejectCancellationRequest,
   editProductAmount,
+  adjustOrderPayment,
   generatePrNumberEndpoint,
   getNextPrNumber
 };

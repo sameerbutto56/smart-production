@@ -169,10 +169,69 @@ const OutletOrderEntry = () => {
   const [createdOrder, setCreatedOrder] = useState(null);
 
   const [showJobSheetPreview, setShowJobSheetPreview] = useState(false);
+  const [posSaleInfo, setPosSaleInfo] = useState(null);
+  const [posSaleLoading, setPosSaleLoading] = useState(false);
+
+  const fetchPosSaleData = useCallback(async (targetNum) => {
+    const q = (targetNum || '').trim();
+    if (!q || q.length < 3) return;
+    setPosSaleLoading(true);
+    try {
+      const res = await api.get(`/api/outlet-orders/pos-sale-lookup/${encodeURIComponent(q)}`);
+      const data = res.data;
+      if (data && data.found) {
+        setPosSaleInfo(data);
+        // Pre-fill customer info (fully editable)
+        if (data.customerName || data.customerPhone) {
+          setCustomer(prev => ({
+            ...prev,
+            name: data.customerName || prev.name,
+            phone: data.customerPhone || prev.phone
+          }));
+          setCustomerMode('new');
+        }
+        // Pre-fill products from POS items if products are empty
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          setProducts(prev => {
+            if (prev.length > 0) return prev;
+            return data.items.map((it, idx) => ({
+              _tempId: Date.now() + idx,
+              name: it.productName || 'Scrubs',
+              fabric: '',
+              color: it.color || '',
+              size: it.size || '',
+              quantity: it.quantity || 1,
+              unitPrice: it.unitPrice || 0,
+              gender: 'Male',
+              matchingCap: false,
+              matchingCapQty: 0,
+              engravingRequired: false,
+              stitchingNotes: '',
+              measurementSpecialNote: ''
+            }));
+          });
+        }
+        // Pre-fill financial amounts
+        const paid = data.paidAmount != null ? data.paidAmount : (data.advanceAmount || 0);
+        setAdvanceAmount(paid);
+        const bal = data.balanceAmount != null ? data.balanceAmount : Math.max(0, (data.grandTotal || 0) - paid);
+        setBalanceAmount(bal > 0 ? String(bal) : '0');
+        setPaymentStatus(bal <= 0.01 ? 'PAID' : 'BALANCE');
+        toast.success(`POS Bill connected: ${data.customerName || 'Customer'} (Total: ₨${(data.grandTotal || 0).toLocaleString()}, Paid: ₨${paid.toLocaleString()}, Balance: ₨${bal.toLocaleString()})`);
+      }
+    } catch (e) {
+      // not a fatal error
+    } finally {
+      setPosSaleLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (prefilledOrderNumber) setOrderNumber(prefilledOrderNumber);
-  }, [prefilledOrderNumber]);
+    if (prefilledOrderNumber) {
+      setOrderNumber(prefilledOrderNumber);
+      fetchPosSaleData(prefilledOrderNumber);
+    }
+  }, [prefilledOrderNumber, fetchPosSaleData]);
 
   useEffect(() => {
     if (!prefilledOrderNumber && !orderNumber) {
@@ -355,13 +414,18 @@ const OutletOrderEntry = () => {
   }, []);
 
   const CAP_UNIT_PRICE = 500;
-  const totalAmount = useMemo(() => products.reduce((sum, p) => {
-    const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
-    const cap = p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0;
-    return sum + line + cap;
-  }, 0), [products]);
+  const totalAmount = useMemo(() => {
+    const prodTotal = products.reduce((sum, p) => {
+      const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
+      const cap = p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0;
+      return sum + line + cap;
+    }, 0);
+    if (prodTotal > 0) return prodTotal;
+    if (posSaleInfo?.grandTotal > 0) return posSaleInfo.grandTotal;
+    return 0;
+  }, [products, posSaleInfo]);
   const advance = parseFloat(advanceAmount) || 0;
-  const balance = totalAmount - advance;
+  const balance = Math.max(0, totalAmount - advance);
 
   const canProceed = useMemo(() => {
     const hasOrderNumber = orderNumber.trim().length > 0;
@@ -1242,14 +1306,14 @@ const OutletOrderEntry = () => {
               </div>
               <p className="text-[11px] font-bold text-gray-400">Select whether this order is Paid or Balance before proceeding.</p>
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <button type="button" onClick={() => setPaymentStatus('PAID')}
+                <button type="button" onClick={() => { setPaymentStatus('PAID'); setAdvanceAmount(totalAmount); setBalanceAmount('0'); }}
                   className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'PAID' ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
                   <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'PAID' ? 'border-white' : ''}`}>
                     {paymentStatus === 'PAID' && <span className="w-2 h-2 rounded-full bg-white"></span>}
                   </span>
                   PAID
                 </button>
-                <button type="button" onClick={() => setPaymentStatus('BALANCE')}
+                <button type="button" onClick={() => { setPaymentStatus('BALANCE'); const b = Math.max(0, totalAmount - advanceAmount); setBalanceAmount(b > 0 ? String(b) : ''); }}
                   className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'BALANCE' ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
                   <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'BALANCE' ? 'border-white' : ''}`}>
                     {paymentStatus === 'BALANCE' && <span className="w-2 h-2 rounded-full bg-white"></span>}
@@ -1266,7 +1330,14 @@ const OutletOrderEntry = () => {
                     min="0"
                     placeholder="Enter exact balance amount (must be > 0)"
                     value={balanceAmount}
-                    onChange={(e) => setBalanceAmount(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBalanceAmount(val);
+                      const newBal = Math.max(0, parseFloat(val) || 0);
+                      const newPaid = Math.max(0, totalAmount - newBal);
+                      setAdvanceAmount(newPaid);
+                      if (newBal <= 0) setPaymentStatus('PAID');
+                    }}
                     className={`w-full bg-gray-900 border-2 rounded-xl px-3 py-2.5 text-base font-bold text-white outline-none transition-all ${!(balanceAmount != null && String(balanceAmount).trim() !== '' && parseFloat(balanceAmount) > 0) ? 'border-red-500/70 focus:border-red-400' : 'border-amber-500/50 focus:border-amber-400'}`}
                   />
                   {!(balanceAmount != null && String(balanceAmount).trim() !== '' && !isNaN(parseFloat(balanceAmount)) && parseFloat(balanceAmount) > 0) && (
@@ -1281,12 +1352,79 @@ const OutletOrderEntry = () => {
               )}
             </div>
 
-            <div className="bg-gray-800 rounded-xl p-4 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400 font-bold">Total Amount</span>
-                <span className="text-white font-black">₨{totalAmount.toLocaleString()}</span>
+            <div className="bg-gray-800/90 border border-gray-700 rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-700/60 pb-3">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-gray-400">Total Order Amount</span>
+                  {posSaleInfo && (
+                    <span className="ml-2 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
+                      From POS ({posSaleInfo.receiptNumber})
+                    </span>
+                  )}
+                </div>
+                <span className="text-xl font-black text-white">₨{totalAmount.toLocaleString()}</span>
               </div>
-              <p className="text-[10px] font-bold text-gray-500">Payment handled at POS — no advance required here.</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Paid Amount Input */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-emerald-400 block">
+                    Paid Amount / Advance (₨)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={advanceAmount || ''}
+                    onChange={(e) => {
+                      const newPaid = Math.max(0, parseFloat(e.target.value) || 0);
+                      setAdvanceAmount(newPaid);
+                      const newBal = Math.max(0, totalAmount - newPaid);
+                      setBalanceAmount(newBal > 0 ? String(newBal) : '0');
+                      setPaymentStatus(newBal <= 0 ? 'PAID' : 'BALANCE');
+                    }}
+                    className="w-full bg-gray-900 border border-emerald-500/40 focus:border-emerald-400 rounded-xl px-3 py-2 text-base font-black text-emerald-300 outline-none"
+                  />
+                  <p className="text-[10px] text-gray-400">Amount received at POS / in advance</p>
+                </div>
+
+                {/* Balance Amount Display & Input */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-amber-400 block">
+                    Balance Amount (₨)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={balanceAmount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBalanceAmount(val);
+                      const newBal = Math.max(0, parseFloat(val) || 0);
+                      const newPaid = Math.max(0, totalAmount - newBal);
+                      setAdvanceAmount(newPaid);
+                      setPaymentStatus(newBal <= 0 ? 'PAID' : 'BALANCE');
+                    }}
+                    className={`w-full bg-gray-900 border rounded-xl px-3 py-2 text-base font-black outline-none ${
+                      paymentStatus === 'PAID' || parseFloat(balanceAmount) === 0
+                        ? 'border-emerald-500/40 text-emerald-300'
+                        : 'border-amber-500/50 text-amber-300'
+                    }`}
+                  />
+                  <p className="text-[10px] text-gray-400">Remaining amount to collect at delivery</p>
+                </div>
+              </div>
+
+              {/* Status indicator */}
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-700/60">
+                <span className="text-gray-400 font-bold">Payment Status:</span>
+                <span className={`px-2.5 py-1 rounded-lg font-black text-xs ${
+                  paymentStatus === 'PAID' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50' : 'bg-red-900/40 text-red-300 border border-red-700/50'
+                }`}>
+                  {paymentStatus === 'PAID' ? '✓ FULLY PAID' : `⚠ BALANCE DUE: ₨${(parseFloat(balanceAmount) || 0).toLocaleString()}`}
+                </span>
+              </div>
             </div>
 
             <div className="bg-gray-800 rounded-xl p-4 text-sm space-y-2">

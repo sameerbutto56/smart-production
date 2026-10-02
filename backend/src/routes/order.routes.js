@@ -50,6 +50,7 @@ const {
   approveCancellationRequest,
   rejectCancellationRequest,
   editProductAmount,
+  adjustOrderPayment,
   generatePrNumberEndpoint
 } = require('../controllers/order.controller');
 const {
@@ -163,6 +164,9 @@ router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_
 
 // Edit Product Amount (Admin/Faisal only)
 router.put('/:orderId/product-amount', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), editProductAmount);
+
+// Adjust Payment & Balance Amount (with audit trail)
+router.put('/:orderId/adjust-payment', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET']), adjustOrderPayment);
 
 // Manual Routing (Admin/FAISAL only)
 router.post('/:orderId/route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), manualRouteOrder);

@@ -160,7 +160,7 @@ const createActivity = async (req, res) => {
 
     const activity = await prisma.marketingActivity.create({
       data: {
-        userId: identity.employeeId,
+        userId: req.user?.id,
         employeeName: identity.employeeName,
         date: dateStr,
         time: timeStr,
@@ -383,8 +383,8 @@ const getMyActivities = async (req, res) => {
 
     // Build today filter
     const todayWhere = { date: todayStr };
-    if (userId) {
-      todayWhere.userId = userId;
+    if (employeeName) {
+      todayWhere.employeeName = employeeName;
     }
 
     // Fetch today's activities for summary calculations
@@ -399,7 +399,7 @@ const getMyActivities = async (req, res) => {
     const visitedCompaniesSet = new Set(todayActivities.map(a => a.companyName).filter(Boolean));
 
     // Latest overall activity
-    const latestWhere = userId ? { userId } : {};
+    const latestWhere = employeeName ? { employeeName } : {};
     const latestActivity = todayActivities.length > 0 ? todayActivities[0] : (
       await prisma.marketingActivity.findFirst({
         where: latestWhere,
@@ -408,7 +408,7 @@ const getMyActivities = async (req, res) => {
     );
 
     // Filtered historical activities
-    const histWhere = userId ? { userId } : {};
+    const histWhere = employeeName ? { employeeName } : {};
     if (date && date !== 'all') {
       histWhere.date = date;
     }
@@ -472,7 +472,17 @@ const getAdminActivities = async (req, res) => {
     } = req.query;
 
     const where = {};
-    if (employeeId && employeeId !== 'all') where.userId = employeeId;
+    if (employeeId && employeeId !== 'all') {
+      const emp = await prisma.outletEmployee.findUnique({
+        where: { id: employeeId },
+        select: { name: true }
+      }).catch(() => null);
+      if (emp?.name) {
+        where.employeeName = emp.name;
+      } else {
+        where.OR = [{ userId: employeeId }, { employeeName: employeeId }];
+      }
+    }
     if (date && date !== 'all') where.date = date;
     if (dateFrom || dateTo) {
       where.date = {};
@@ -491,22 +501,23 @@ const getAdminActivities = async (req, res) => {
       take: Math.min(parseInt(limit) || 100, 300),
       include: {
         user: {
-          select: { id: true, name: true, email: true, employeeId: true }
+          select: { id: true, name: true, email: true }
         }
       }
     });
 
     // Get list of all marketing employees for dropdown
-    const marketingEmployees = await prisma.user.findMany({
-      where: { role: 'MARKETING' },
-      select: { id: true, name: true, email: true, employeeId: true }
+    const outletEmps = await prisma.outletEmployee.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, profiles: true, outletName: true }
     });
+    const marketingEmployees = outletEmps.filter(e => Array.isArray(e.profiles) && e.profiles.includes('MARKETING'));
 
     // Get latest active location for each marketing employee
     const latestPerEmployee = [];
     for (const emp of marketingEmployees) {
       const last = await prisma.marketingActivity.findFirst({
-        where: { userId: emp.id },
+        where: { employeeName: emp.name },
         orderBy: { createdAt: 'desc' }
       });
       if (last) {

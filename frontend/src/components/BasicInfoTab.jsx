@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Hash, User, Phone, Star, Layout, Search, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import api from '../services/api';
 import { useOrderEntry } from '../context/OrderEntryContext';
 import { getDateFormatPlaceholder, formatDateWithPreference, MONTHS_LIST, YEARS_LIST, getDaysInMonth } from '../utils/dateFormat';
 
@@ -89,18 +90,38 @@ const BasicInfoTab = () => {
     setShopifyInput(fmtDate(formData.shopifyOrderDate));
   }, [formData.shopifyOrderDate, fmtDate]);
 
-  // Debounced auto-lookup for existing orders by order number (Outlet Order Entry only)
+  // Debounced auto-lookup for existing orders & POS sales by order number
   useEffect(() => {
-    if (!isOutlet || isEditMode) return;
+    if (isEditMode) return;
     const num = (formData.orderNumber || '').trim();
     if (num.length < 3 || num === lastLookupRef.current) return;
     if (orderNumberDebounceRef.current) clearTimeout(orderNumberDebounceRef.current);
-    orderNumberDebounceRef.current = setTimeout(() => {
+    orderNumberDebounceRef.current = setTimeout(async () => {
       lastLookupRef.current = num;
-      lookupOrderByNumber(num);
+      if (isOutlet && lookupOrderByNumber) {
+        lookupOrderByNumber(num);
+      }
+      try {
+        const res = await api.get(`/api/outlet-orders/pos-sale-lookup/${encodeURIComponent(num)}`);
+        if (res.data?.success && res.data?.sale) {
+          const s = res.data.sale;
+          setFormData(prev => ({
+            ...prev,
+            customerName: prev.customerName || s.customerName || '',
+            customerPhone: prev.customerPhone || s.customerPhone || '',
+            totalPrice: prev.totalPrice || (s.grandTotal ? String(s.grandTotal) : ''),
+            advanceAmount: prev.advanceAmount || (s.paidAmount ? String(s.paidAmount) : ''),
+            advancePaid: prev.advancePaid || (s.paidAmount > 0),
+            balanceAmount: prev.balanceAmount || (s.balanceAmount != null ? String(s.balanceAmount) : ''),
+            paymentStatus: prev.paymentStatus || s.paymentStatus || ''
+          }));
+        }
+      } catch (e) {
+        // Non-blocking
+      }
     }, 600);
     return () => { if (orderNumberDebounceRef.current) clearTimeout(orderNumberDebounceRef.current); };
-  }, [formData.orderNumber, isOutlet, isEditMode, lookupOrderByNumber]);
+  }, [formData.orderNumber, isOutlet, isEditMode, lookupOrderByNumber, setFormData]);
 
   // Clear lookup result when order number is cleared or shortened
   useEffect(() => {
@@ -176,7 +197,8 @@ const BasicInfoTab = () => {
                 value={formData.orderNumber}
                 onChange={(e) => {
                   if (formData.isPr) return;
-                  setFormData({ ...formData, orderNumber: e.target.value.replace(/\D/g, '') });
+                  const val = e.target.value.replace(/[^a-zA-Z0-9\-_#]/g, '');
+                  setFormData({ ...formData, orderNumber: val });
                   clearFieldError('orderNumber');
                 }}
                 style={errStyle(requiredErrors?.orderNumber)}
@@ -597,8 +619,17 @@ const BasicInfoTab = () => {
             ))}
           </div>
         </div>
-        <div className="space-y-3">
-          <label htmlFor="order-entry-advance-amount" className="text-xs md:text-sm font-black uppercase theme-text-muted tracking-[0.2em]">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</label>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label htmlFor="order-entry-advance-amount" className="text-xs md:text-sm font-black uppercase theme-text-muted tracking-[0.2em]">
+              {useUrdu ? 'ادائیگی / ایڈوانس (₨)' : 'Paid / Advance (₨)'}
+            </label>
+            {formData.totalPrice && (
+              <span className="text-[10px] font-black text-gray-400">
+                Total: ₨{parseFloat(formData.totalPrice || 0).toLocaleString()}
+              </span>
+            )}
+          </div>
           <div className="relative">
             <input
               type="number"
@@ -607,15 +638,61 @@ const BasicInfoTab = () => {
               min="0"
               value={formData.advanceAmount || ''}
               placeholder="e.g. 2000"
-              onChange={e => setFormData({ ...formData, advanceAmount: e.target.value })}
+              onChange={e => {
+                const advVal = e.target.value;
+                const tot = parseFloat(formData.totalPrice || memoCartTotalPrice || 0);
+                const advNum = parseFloat(advVal || 0);
+                const bal = Math.max(0, tot - advNum);
+                setFormData(prev => ({
+                  ...prev,
+                  advanceAmount: advVal,
+                  advancePaid: advNum > 0,
+                  balanceAmount: tot > 0 ? String(bal) : prev.balanceAmount,
+                  paymentStatus: (tot > 0 && bal <= 0) ? 'PAID' : (advNum > 0 ? 'BALANCE' : prev.paymentStatus)
+                }));
+              }}
               className="w-full bg-gray-900 border-2 border-emerald-500/30 rounded-xl py-3 md:py-4 px-4 text-sm md:text-base font-bold text-emerald-400 focus:border-emerald-500 outline-none transition-all"
             />
-            {parseFloat(formData.advanceAmount) > 0 && (
-              <p className="text-xs text-emerald-400 font-bold mt-1.5">
-                {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
-              </p>
-            )}
           </div>
+
+          {/* Remaining Balance Display & Auto-Status */}
+          {(() => {
+            const tot = parseFloat(formData.totalPrice || memoCartTotalPrice || 0);
+            const paid = parseFloat(formData.advanceAmount || 0);
+            const bal = formData.balanceAmount !== '' && formData.balanceAmount != null
+              ? parseFloat(formData.balanceAmount)
+              : Math.max(0, tot - paid);
+            const isFullyPaid = (tot > 0 && bal <= 0) || formData.paymentStatus === 'PAID';
+
+            return tot > 0 || paid > 0 ? (
+              <div className="p-3 rounded-xl bg-gray-950/70 border border-gray-800 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-gray-400">
+                  <span>{useUrdu ? 'کل رقم:' : 'Order Total:'}</span>
+                  <span className="text-white font-black">₨{tot.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-gray-400">
+                  <span>{useUrdu ? 'ادا شدہ:' : 'Paid / Advance:'}</span>
+                  <span className="text-emerald-400 font-black">₨{paid.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-gray-800 pt-1.5 font-black">
+                  <span>{useUrdu ? 'بقایا رقم:' : 'Remaining Balance:'}</span>
+                  <span className={isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}>
+                    ₨{bal.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-[10px] uppercase font-bold text-gray-500">Payment Status:</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                    isFullyPaid
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  }`}>
+                    {isFullyPaid ? '✓ PAID' : '⚠️ BALANCE DUE'}
+                  </span>
+                </div>
+              </div>
+            ) : null;
+          })()}
         </div>
       </div>
     </div>

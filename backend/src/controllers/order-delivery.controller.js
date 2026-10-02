@@ -51,11 +51,84 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
       courierDetails.payments.push({ method: paymentMethod || 'CASH', amount: order.totalPrice || 0, date: new Date().toISOString(), recordedBy: userId });
     }
     const totalPaid = courierDetails.payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-    const paymentStatus = totalPaid >= (order.totalPrice || 0) ? 'FULL_PAID' : 'PARTIAL_PAID';
-    const updateData = { status: 'COMPLETED', currentStage: 'DELIVERED', paymentStatus, advancePaid: true, dispatchStatus: 'DELIVERED', paymentMethod: paymentMethod || 'CASH', courierDetails, deliveredAt: new Date(), updatedAt: new Date() };
+    const paymentStatus = totalPaid >= (order.totalPrice || 0) ? 'PAID' : 'PARTIAL_PAID';
+    const updateData = { status: 'COMPLETED', currentStage: 'DELIVERED', paymentStatus, balanceAmount: paymentStatus === 'PAID' ? 0 : Math.max(0, (order.totalPrice || 0) - totalPaid), advancePaid: true, dispatchStatus: 'DELIVERED', paymentMethod: paymentMethod || 'CASH', courierDetails, deliveredAt: new Date(), updatedAt: new Date() };
     if (deliveryMethod) updateData.deliveryMethod = deliveryMethod;
     const updatedOrder = await prisma.order.update({ where: { id: orderId }, data: updateData, include: { stages: true } });
     await prisma.deliveryAttempt.create({ data: { orderId, attemptNumber: (order.noResponseCount || 0) + 1, status: 'DELIVERED', riderId: userId, riderName, notes: remarks || 'Order delivered successfully' } });
+
+    // Record DeliveryPayment
+    const finalCash = paymentMethod === 'HALF_CASH_HALF_ONLINE' ? (parseFloat(cashAmount || 0)) : (paymentMethod === 'CASH' ? Math.max(0, (order.totalPrice || 0) - (order.advanceAmount || 0)) : 0);
+    const finalOnline = paymentMethod === 'HALF_CASH_HALF_ONLINE' ? (parseFloat(onlineAmount || 0)) : (paymentMethod === 'ONLINE' ? Math.max(0, (order.totalPrice || 0) - (order.advanceAmount || 0)) : 0);
+    if (finalCash > 0 || finalOnline > 0) {
+      await prisma.deliveryPayment.create({
+        data: {
+          orderId,
+          paymentMethod: paymentMethod || 'CASH',
+          cashAmount: finalCash,
+          onlineAmount: finalOnline,
+          collectedBy: riderName || req.user?.name || 'Enamels Delivery',
+          collectedAt: new Date()
+        }
+      }).catch(() => {});
+    }
+
+    // Auto-clear linked POS Sale balance if this order originated from or is linked to a POS sale
+    try {
+      const posSale = await prisma.posSale.findFirst({
+        where: {
+          OR: [
+            { orderId: order.id },
+            ...(order.orderNumber ? [{ orderNumber: order.orderNumber }] : [])
+          ]
+        },
+        include: { balancePayments: { select: { amountPaidNow: true } } }
+      });
+
+      if (posSale && !posSale.faisalTake) {
+        const totalPaidSoFar = (posSale.advanceAmount || 0) + (posSale.balancePayments || []).reduce((sum, bp) => sum + (bp.amountPaidNow || 0), 0);
+        const remainingToClear = Math.max(0, (posSale.grandTotal || 0) - totalPaidSoFar);
+
+        if (remainingToClear > 0.01) {
+          const { generateBalanceReceiptNumber } = require('./pos.controller');
+          const receiptNumber = await generateBalanceReceiptNumber();
+          await prisma.posBalancePayment.create({
+            data: {
+              posSaleId: posSale.id,
+              receiptNumber,
+              originalInvoiceNumber: posSale.receiptNumber,
+              originalInvoiceTotal: posSale.grandTotal,
+              previouslyPaidAmount: totalPaidSoFar,
+              remainingBalanceBeforePayment: remainingToClear,
+              amountPaidNow: remainingToClear,
+              outstandingBalanceAfterPayment: 0,
+              paymentMethod: paymentMethod || 'CASH',
+              cashAmount: finalCash,
+              onlineAmount: finalOnline,
+              cashierName: riderName || req.user?.name || 'Enamels Delivery',
+              paidAt: new Date()
+            }
+          });
+
+          const cache = require('../utils/cache');
+          cache.delPattern('pos:');
+          const ioInst = req.app?.get('io');
+          if (ioInst) ioInst.emit('inventory-updated', { source: 'delivery-boy', outletName: posSale.outletName, balancePayment: true });
+
+          await prisma.auditLog.create({
+            data: {
+              orderId: order.id,
+              action: 'POS_BALANCE_AUTOCLEARED',
+              details: `Delivery marked & collected ₨${remainingToClear}. Linked POS receipt ${posSale.receiptNumber} balance cleared automatically (${receiptNumber}).`,
+              performedBy: req.user?.id || 'SYSTEM'
+            }
+          });
+        }
+      }
+    } catch (posClearErr) {
+      console.error('[order-delivery] Error auto-clearing linked POS balance:', posClearErr.message);
+    }
+
     await calculateAndRecordRevenue(updatedOrder);
     await syncReplacementCaseOnOrderCompletion(updatedOrder, userId);
     await markAssignmentTerminal(orderId, { delivered: true });
