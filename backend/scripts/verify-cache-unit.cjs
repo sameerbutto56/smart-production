@@ -12,7 +12,7 @@ const s1 = cache.stats();
 console.log('1. Initial stats:', s1);
 assert.strictEqual(typeof s1.hits, 'number');
 assert.strictEqual(typeof s1.misses, 'number');
-assert.strictEqual(typeof s1.redisEnabled, 'boolean');
+assert.strictEqual(typeof cache.isRedisEnabled(), 'boolean');
 
 // 2. Set & Get
 cache.set('test:user:1', { id: 1, name: 'Alice' }, 5000);
