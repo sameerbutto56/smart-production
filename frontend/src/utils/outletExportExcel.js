@@ -1,7 +1,8 @@
-import * as XLSX from 'xlsx';
 import { formatDateTime, formatDateOnly } from './dateTime';
 import { toUrduName } from './urduDictionary';
 import { computePosFinancialSummary } from './posFinancialSummary';
+
+const getXLSX = () => import('xlsx');
 
 const fmt = (n) => typeof n === 'number' ? Math.round(n) : '';
 
@@ -48,7 +49,7 @@ const fmtPayment = (s) => {
  *  - General Entries / Expense rows
  *  - Authoritative financial Summary block at the bottom
  */
-export const exportInvoicesToExcel = ({
+export const exportInvoicesToExcel = async ({
   sales = [],
   returns = [],
   balancePayments = [],
@@ -59,6 +60,7 @@ export const exportInvoicesToExcel = ({
   rangeLabel = 'All',
   isUrdu = false,
 }) => {
+  const XLSX = await getXLSX();
   // 1. Per-invoice data rows
   const saleRows = sales.map((s) => {
     const pay = resolvePaymentAmounts(s);
@@ -243,7 +245,8 @@ export const exportInvoicesToExcel = ({
 /**
  * Universal export function for all other Outlet Dashboard sections.
  */
-export const exportSectionToExcel = (sectionId, data, outlet = 'Outlet', rangeLabel = 'All') => {
+export const exportSectionToExcel = async (sectionId, data, outlet = 'Outlet', rangeLabel = 'All') => {
+  const XLSX = await getXLSX();
   const wb = XLSX.utils.book_new();
   const dateStr = new Date().toISOString().split('T')[0];
 
@@ -464,7 +467,8 @@ export const exportSectionToExcel = (sectionId, data, outlet = 'Outlet', rangeLa
 /**
  * Exports Daily Cash Deposits to Excel.
  */
-export const exportDailyDepositsToExcel = (requirements = [], outlet = 'Outlet') => {
+export const exportDailyDepositsToExcel = async (requirements = [], outlet = 'Outlet') => {
+  const XLSX = await getXLSX();
   const rows = requirements.map(r => ({
     'Business Date': r.businessDate,
     'Generated Cash': fmt(r.generatedCash ?? r.cashGenerated),

@@ -753,6 +753,8 @@ model PosSale {
 
   @@index([outletName, createdAt])
   @@index([orderId])
+  @@index([orderNumber])
+  @@index([customerPhone])
   @@index([paymentMethod])
   @@index([cashierName])
   @@index([faisalTake])
@@ -848,6 +850,7 @@ model PosReturn {
   @@index([outletVariantId])
   @@index([outletName])
   @@index([createdAt])
+  @@index([outletName, createdAt])
 }
 
 model OutletTransfer {
@@ -918,6 +921,7 @@ model PosBookSession {
   status          String    @default("OPEN") // OPEN, CLOSED
 
   @@index([outletName, status])
+  @@index([outletName, openedAt])
 }
 
 model OutletEmployee {
@@ -946,6 +950,7 @@ model JournalEntry {
 
   @@index([outletName])
   @@index([createdAt])
+  @@index([outletName, createdAt])
 }
 
 // Delivery enhancement: tracks payment split per delivery (Cash/Online/Multiple Online)
@@ -1499,6 +1504,7 @@ model CashDeposit {
   @@index([outletName])
   @@index([businessDate])
   @@index([actualDepositDate])
+  @@index([outletName, businessDate])
 }
 
 model CashDepositAllocation {

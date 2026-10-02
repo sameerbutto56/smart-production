@@ -1,0 +1,22 @@
+name: Free Keep-Warm Ping
+
+on:
+  schedule:
+    # Runs every 10 minutes during retail business hours (4am to 6pm UTC = 9am to 11pm PKT)
+    - cron: '*/10 4-18 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  ping-health:
+    name: Ping Vercel Serverless Function
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API Health Endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://smart-production-v2.vercel.app/api/health)
+          echo "Health check HTTP response code: $response"
+          if [ "$response" != "200" ]; then
+            echo "Warning: Health endpoint returned $response"
+            exit 1
+          fi
+          echo "Instance is warm and ready!"

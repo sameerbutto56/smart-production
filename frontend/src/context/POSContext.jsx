@@ -2,7 +2,6 @@ import React, { createContext, useContext, useReducer, useEffect, useRef, useMem
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
 import useCache, { invalidateKey } from '../hooks/useCache';
 import { enqueue } from '../utils/syncQueue';
 import { debounce } from '../utils/debounce';
@@ -880,8 +879,9 @@ export function POSProvider({ children }) {
     }
   }, [sales, receiptSearch, historySearchResults, filteredSales, selectedOutlet, salesRange, salesDateFrom, salesDateTo]);
 
-  const downloadDashboardExcel = useCallback(() => {
+  const downloadDashboardExcel = useCallback(async () => {
     if (!dashboard) return toast.error('No dashboard data to export');
+    const XLSX = await import('xlsx');
     const kpiRows = [
       { Metric: 'Total Sales', Value: dashboard.totalSales || 0 },
       { Metric: 'Net Revenue', Value: dashboard.netRevenue || 0 },

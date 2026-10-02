@@ -4,7 +4,6 @@ import toast from 'react-hot-toast';
 import { Clock, Printer, Search, X, ChevronDown, ChevronUp, Book, User, DollarSign, CreditCard, Globe, FileText, RotateCcw, RefreshCw, Download, Calendar, Filter } from 'lucide-react';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { formatDateOnly, formatTimeOnly } from '../utils/dateTime';
-import * as XLSX from 'xlsx';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
@@ -308,8 +307,9 @@ const OutletRegisters = ({ outlet }) => {
   };
 
   // ─── Bulk Excel Export ──────────────────────────────────────
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (filtered.length === 0) { toast.error('No registers to export'); return; }
+    const XLSX = await import('xlsx');
     const rows = [];
     for (const reg of filtered) {
       const m = getRegisterCashMetrics(reg);

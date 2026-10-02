@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
-import * as XLSX from 'xlsx';
 import { 
   History as HistoryIcon, 
   Search, 
@@ -86,7 +85,8 @@ const History = () => {
 
   const [isGroupedView, setIsGroupedView] = useState(false);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import('xlsx');
     const data = (searchTerm ? filteredOrders : orders).map((order, idx) => {
       let rawPd = order.productDetails || {};
       const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
