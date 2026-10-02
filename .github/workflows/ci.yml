@@ -10,6 +10,9 @@ jobs:
   validate-backend:
     name: Backend Schema Validation & Unit Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -22,17 +25,23 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Install Backend Dependencies
-        run: npm --prefix backend ci
+        run: npm ci
 
       - name: Validate Prisma Schema
-        run: npx --prefix backend prisma validate --schema=backend/prisma/schema.prisma
+        run: npx prisma validate --schema=prisma/schema.prisma
+        env:
+          DATABASE_URL: "postgresql://ci_dummy:ci_dummy@localhost:5432/ci_dummy?sslmode=disable"
+          DIRECT_URL: "postgresql://ci_dummy:ci_dummy@localhost:5432/ci_dummy?sslmode=disable"
 
       - name: Run Cache & Unit Verifications
-        run: node backend/scripts/verify-cache-unit.cjs
+        run: node scripts/verify-cache-unit.cjs
 
   build-frontend:
     name: Frontend Production Build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -45,7 +54,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Frontend Dependencies
-        run: npm --prefix frontend ci
+        run: npm ci
 
       - name: Build Frontend
-        run: npm --prefix frontend run build
+        run: npm run build
