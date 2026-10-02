@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
@@ -79,8 +79,13 @@ const OutletInvoiceQuotation = lazy(() => import('./pages/OutletInvoiceQuotation
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div>Loading...</div>;
   if (!user) return <Navigate to="/login" />;
+  const role = String(user?.role || '').toUpperCase().trim();
+  if (role === 'MARKETING' && location.pathname !== '/marketing') {
+    return <Navigate to="/marketing" replace />;
+  }
   return children;
 };
 

@@ -131,6 +131,19 @@ async function runVerification() {
     invalidatePermissionCache('OUTLET');
     console.log('🧹 Cleaned up verification test records');
 
+    // 7. Marketing Employee Authentication & Password Isolation
+    const bcrypt = require('bcryptjs');
+    const junaid = await prisma.outletEmployee.findFirst({
+      where: { name: 'Junaid' }
+    });
+    assert(!!junaid, 'Junaid exists in employee database');
+    const hasMarketingProfile = Array.isArray(junaid?.profiles) && junaid.profiles.includes('MARKETING');
+    assert(hasMarketingProfile === true, 'Junaid is assigned to MARKETING profile');
+    const validPass = await bcrypt.compare('J1-2-5', junaid.password);
+    assert(validPass === true, 'Junaid authenticates with password J1-2-5');
+    const invalidPass = await bcrypt.compare('wrong-password', junaid.password);
+    assert(invalidPass === false, 'Invalid employee password correctly rejected');
+
     if (failures === 0) {
       console.log('🎉 ALL MARKETING & SYSTEM CONTROL VERIFICATION TESTS PASSED!');
     } else {

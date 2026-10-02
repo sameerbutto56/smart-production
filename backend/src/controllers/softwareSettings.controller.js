@@ -4,7 +4,7 @@ const cache = require('../utils/cache');
 const { computeBookSummary } = require('./pos.book.controller');
 const { DEFAULT_DELAY_CONFIG, computeStageDeadline } = require('../utils/orderDelay');
 
-const PROFILE_OPTIONS = ['POS', 'OUTLET_ORDER_ENTRY', 'DISPATCH', 'FAISAL_PROFILE', 'INVENTORY_VIEW', 'STORE', 'PRODUCTION'];
+const PROFILE_OPTIONS = ['POS', 'OUTLET_ORDER_ENTRY', 'DISPATCH', 'FAISAL_PROFILE', 'INVENTORY_VIEW', 'STORE', 'PRODUCTION', 'MARKETING'];
 
 const METHOD_LABELS = { CASH: 'Cash', ONLINE: 'Online', CARD: 'Card', CASH_ONLINE: 'Cash+Online' };
 const PURE_METHODS = ['CASH', 'ONLINE', 'CARD'];

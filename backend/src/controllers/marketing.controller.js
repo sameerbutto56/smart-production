@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const bcrypt = require('bcryptjs');
 
 /**
  * Format date and time in Pakistan Standard Time (PKT).
@@ -19,6 +20,108 @@ const getPktTimeString = (d = new Date()) => {
     minute: '2-digit',
     hour12: true
   }).format(d); // e.g. '11:30 AM'
+};
+
+/**
+ * Resolves the authenticated individual Marketing employee.
+ * Uses x-marketing-employee-id header validated against active Marketing employees.
+ */
+const getEffectiveMarketingIdentity = async (req) => {
+  const employeeIdHeader = req.headers['x-marketing-employee-id'];
+  if (employeeIdHeader) {
+    const emp = await prisma.outletEmployee.findUnique({
+      where: { id: employeeIdHeader },
+      select: { id: true, name: true, profiles: true, isActive: true }
+    });
+    if (emp && emp.isActive) {
+      const profs = Array.isArray(emp.profiles) ? emp.profiles : [];
+      if (profs.includes('MARKETING')) {
+        return { employeeId: emp.id, employeeName: emp.name };
+      }
+    }
+  }
+  return { employeeId: req.user.id, employeeName: req.user.name || 'Marketing Employee' };
+};
+
+/**
+ * Get all active employees assigned to the Marketing profile.
+ */
+const getMarketingEmployees = async (req, res) => {
+  try {
+    const employees = await prisma.outletEmployee.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, outletName: true, profiles: true },
+      orderBy: { name: 'asc' }
+    });
+
+    const filtered = employees.filter(e => {
+      const profs = Array.isArray(e.profiles) ? e.profiles : [];
+      return profs.includes('MARKETING');
+    }).map(e => ({
+      id: e.id,
+      name: e.name,
+      outletName: e.outletName
+    }));
+
+    // Deduplicate by name if assigned across multiple outlets
+    const seenNames = new Set();
+    const uniqueEmployees = [];
+    for (const emp of filtered) {
+      const key = emp.name.toLowerCase().trim();
+      if (!seenNames.has(key)) {
+        seenNames.add(key);
+        uniqueEmployees.push(emp);
+      }
+    }
+
+    res.json({ success: true, employees: uniqueEmployees });
+  } catch (error) {
+    console.error('Error fetching marketing employees:', error);
+    res.status(500).json({ message: 'Failed to fetch marketing employees', error: error.message });
+  }
+};
+
+/**
+ * Authenticate a selected marketing employee with their employee-level password.
+ */
+const loginMarketingEmployee = async (req, res) => {
+  try {
+    const { employeeId, password } = req.body || {};
+    if (!employeeId || !password) {
+      return res.status(400).json({ message: 'Employee and password are required' });
+    }
+
+    const emp = await prisma.outletEmployee.findUnique({
+      where: { id: employeeId }
+    });
+
+    if (!emp || !emp.isActive) {
+      return res.status(401).json({ message: 'Invalid employee password' });
+    }
+
+    const profs = Array.isArray(emp.profiles) ? emp.profiles : [];
+    if (!profs.includes('MARKETING')) {
+      return res.status(403).json({ message: 'Employee is not assigned to Marketing profile' });
+    }
+
+    const isValid = await bcrypt.compare(password.toString(), emp.password);
+    if (!isValid) {
+      return res.status(401).json({ message: 'Invalid employee password' });
+    }
+
+    res.json({
+      success: true,
+      employee: {
+        id: emp.id,
+        name: emp.name,
+        outletName: emp.outletName
+      },
+      message: `Authenticated as ${emp.name}`
+    });
+  } catch (error) {
+    console.error('Error authenticating marketing employee:', error);
+    res.status(500).json({ message: 'Authentication failed', error: error.message });
+  }
 };
 
 /**
@@ -53,10 +156,12 @@ const createActivity = async (req, res) => {
     const parsedLat = latitude !== undefined && latitude !== null && latitude !== '' ? parseFloat(latitude) : null;
     const parsedLng = longitude !== undefined && longitude !== null && longitude !== '' ? parseFloat(longitude) : null;
 
+    const identity = await getEffectiveMarketingIdentity(req);
+
     const activity = await prisma.marketingActivity.create({
       data: {
-        userId: req.user.id,
-        employeeName: req.user.name || 'Marketing Employee',
+        userId: identity.employeeId,
+        employeeName: identity.employeeName,
         date: dateStr,
         time: timeStr,
         timestamp: now,
@@ -76,7 +181,7 @@ const createActivity = async (req, res) => {
     if (req.app.get('io')) {
       req.app.get('io').emit('marketing:new-activity', {
         activity,
-        employeeName: req.user.name,
+        employeeName: identity.employeeName,
       });
     }
 
@@ -96,7 +201,8 @@ const createActivity = async (req, res) => {
  */
 const getMyActivities = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const identity = await getEffectiveMarketingIdentity(req);
+    const userId = identity.employeeId;
     const todayStr = getPktDateString(new Date());
     const { date, limit = 50 } = req.query;
 
@@ -352,4 +458,6 @@ module.exports = {
   createConfiguredLocation,
   updateConfiguredLocation,
   deleteConfiguredLocation,
+  getMarketingEmployees,
+  loginMarketingEmployee,
 };

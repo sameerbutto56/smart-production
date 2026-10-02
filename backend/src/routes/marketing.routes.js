@@ -9,9 +9,15 @@ const {
   createConfiguredLocation,
   updateConfiguredLocation,
   deleteConfiguredLocation,
+  getMarketingEmployees,
+  loginMarketingEmployee,
 } = require('../controllers/marketing.controller');
 
 const router = express.Router();
+
+// Marketing Employee Selection & Login
+router.get('/employees', authenticate, getMarketingEmployees);
+router.post('/employee-login', authenticate, loginMarketingEmployee);
 
 // Marketing Employee Endpoints
 router.post('/activities', authenticate, requirePermission('MARKETING_LOCATION_ENTRY'), createActivity);

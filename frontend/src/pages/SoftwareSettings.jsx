@@ -24,9 +24,10 @@ const PROFILE_LABELS = {
   INVENTORY_VIEW: 'Inventory View',
   STORE: 'Store',
   PRODUCTION: 'Production',
+  MARKETING: 'Marketing',
 };
 
-const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Dispatch'];
+const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Dispatch', 'Marketing'];
 
 const METHOD_LABELS = { CASH: 'Cash', ONLINE: 'Online', CARD: 'Card', CASH_ONLINE: 'Cash+Online' };
 const METHOD_STYLES = {

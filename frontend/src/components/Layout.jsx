@@ -223,6 +223,11 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
       return item.name === 'Deliveries' || item.name === 'Chat' || item.name === 'Notes' || item.name === 'Notifications';
     }
 
+    // 4. Strict Isolation for Marketing System
+    if (userRole === 'MARKETING') {
+      return item.name === 'Marketing';
+    }
+
     return true;
   });
 
