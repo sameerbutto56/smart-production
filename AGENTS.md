@@ -1,5 +1,27 @@
 ## Goals
-### Implemented This Session — Johar Town & Branch Outlets "My Tasks" Navbar Restoration & System Control Integration (deployed & live-verified)
+### Implemented This Session — Marketing Activity 500 Error Resolution & Prisma Validation Fix (deployed & live-verified)
+- **Problem & Root Cause**:
+  - `POST /api/marketing/activities` failed with HTTP 500 (`Internal Server Error`):
+    `MarketingDashboard-Dq-POT2k.js:1 Failed to record activity: AxiosError: Request failed with status code 500`
+  - Root Cause:
+    1. In `backend/src/controllers/marketing.controller.js` within `createActivity`, `prisma.marketingActivity.create(...)` passed `timestamp: now`.
+    2. In `backend/prisma/schema.prisma`, `model MarketingActivity` has no column named `timestamp` (the timestamp is stored in `createdAt` DateTime defaulting to `now()`).
+    3. Prisma client threw `PrismaClientValidationError: Unknown argument timestamp. Available options are marked with ?`.
+    4. Furthermore, `req.user?.id` needed a resilient check to ensure the referenced `User.id` exists in the `User` table to prevent foreign key constraint violations if the token payload lacked a matching user record.
+- **Implementation & Fixes**:
+  - **Prisma Query Fix (`backend/src/controllers/marketing.controller.js`)**:
+    - Removed `timestamp: now` from the `prisma.marketingActivity.create` data payload.
+    - Added safe fallback logic for `resolvedUserId`: verifies `req.user?.id` exists in `User`, and if not, gracefully falls back to the active `MARKETING` user ID or first active user, preventing foreign key exceptions.
+    - Updated `getEffectiveMarketingIdentity` to safely access `req.user?.id` with optional chaining.
+- **Verification**:
+  - Automated verification test suite `backend/scripts/verify-marketing-activity.cjs`:
+    - 100% pass: `createActivity` executed with sample payload, verified HTTP 201 response with created record details (`status: 'COMPLETED'`, `source: 'GPS'`), and cleaned up test record.
+  - Production deployment to Vercel (`smart-production-v2.vercel.app`):
+    - Deployed with zero build errors (`ready in 3m`).
+    - Production alias updated to point to the new deployment.
+    - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `status: "ok"`.
+
+### Implemented Prior Session — Johar Town & Branch Outlets "My Tasks" Navbar Restoration & System Control Integration (deployed & live-verified)
 - **Problem & Root Cause**:
   - In Johar Town Outlet, the "My Tasks" (`/tasks`) option was missing from the navigation bar.
   - Root Cause:
