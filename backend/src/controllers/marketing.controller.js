@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const bcrypt = require('bcryptjs');
+const { extractLocationFromUrl, isValidCoordinates } = require('../utils/mapUrlParser');
 
 /**
  * Format date and time in Pakistan Standard Time (PKT).
@@ -657,6 +658,177 @@ const deleteConfiguredLocation = async (req, res) => {
   }
 };
 
+/**
+ * Extracts structured location details from a map link (Google Maps, Apple Maps, OSM, etc.).
+ */
+const extractLocationLink = async (req, res) => {
+  try {
+    const { url } = req.body || {};
+    if (!url || typeof url !== 'string' || !url.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Unable to extract location from this link. Please paste a supported Google Maps/location link.',
+        reason: 'Empty or missing URL.'
+      });
+    }
+
+    const result = await extractLocationFromUrl(url.trim());
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error extracting location link:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to extract location from this link. Please paste a supported Google Maps/location link.',
+      reason: error.message
+    });
+  }
+};
+
+/**
+ * Saves or updates an active configured location for a specific Marketing employee.
+ * Ensures no duplicate active records exist for the employee.
+ */
+const saveEmployeeConfiguredLocation = async (req, res) => {
+  try {
+    const {
+      employeeId,
+      locationName,
+      area,
+      city,
+      hospitalName,
+      companyName,
+      address,
+      latitude,
+      longitude,
+      radius = 100,
+      originalMapUrl,
+      locationMode = 'CONFIGURED',
+      isActive = true
+    } = req.body || {};
+
+    if (!employeeId) {
+      return res.status(400).json({ success: false, message: 'Employee ID is required.' });
+    }
+
+    // Verify employee exists and is assigned to MARKETING
+    const employee = await prisma.outletEmployee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, name: true, profiles: true, isActive: true }
+    });
+
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Marketing employee not found.' });
+    }
+
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    if (!isValidCoordinates(lat, lng)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coordinates. Latitude must be between -90 and 90, and longitude between -180 and 180.'
+      });
+    }
+
+    const cleanName = (locationName || '').trim() || (hospitalName || companyName || area || '').trim() || `${employee.name}'s Configured Location`;
+    const cleanArea = (area || '').trim() || (city || '').trim() || 'Lahore';
+
+    // Check if an existing location record exists for this employee
+    const existing = await prisma.marketingConfiguredLocation.findFirst({
+      where: {
+        employeeId: employee.id,
+        isActive: true
+      }
+    });
+
+    let saved = null;
+    if (existing) {
+      // Update existing active configured location (Section 11: No duplicate location records)
+      saved = await prisma.marketingConfiguredLocation.update({
+        where: { id: existing.id },
+        data: {
+          employeeName: employee.name,
+          name: cleanName,
+          area: cleanArea,
+          city: (city || '').trim() || null,
+          hospitalName: hospitalName ? hospitalName.trim() : null,
+          companyName: companyName ? companyName.trim() : null,
+          address: address ? address.trim() : null,
+          latitude: lat,
+          longitude: lng,
+          radius: parseFloat(radius) || 100,
+          locationMode: locationMode || 'CONFIGURED',
+          originalMapUrl: originalMapUrl ? originalMapUrl.trim() : null,
+          isActive: Boolean(isActive),
+          createdById: req.user?.id || null,
+          createdByName: req.user?.name || 'Administrator',
+        }
+      });
+    } else {
+      saved = await prisma.marketingConfiguredLocation.create({
+        data: {
+          employeeId: employee.id,
+          employeeName: employee.name,
+          name: cleanName,
+          area: cleanArea,
+          city: (city || '').trim() || null,
+          hospitalName: hospitalName ? hospitalName.trim() : null,
+          companyName: companyName ? companyName.trim() : null,
+          address: address ? address.trim() : null,
+          latitude: lat,
+          longitude: lng,
+          radius: parseFloat(radius) || 100,
+          locationMode: locationMode || 'CONFIGURED',
+          originalMapUrl: originalMapUrl ? originalMapUrl.trim() : null,
+          isActive: Boolean(isActive),
+          createdById: req.user?.id || null,
+          createdByName: req.user?.name || 'Administrator',
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      location: saved,
+      message: `Configured location saved successfully for ${employee.name}.`
+    });
+  } catch (error) {
+    console.error('Error saving employee configured location:', error);
+    res.status(500).json({ success: false, message: 'Failed to save location', error: error.message });
+  }
+};
+
+/**
+ * Fetch the active configured location for a specific Marketing employee.
+ */
+const getEmployeeConfiguredLocation = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    if (!employeeId) {
+      return res.status(400).json({ success: false, message: 'Employee ID is required.' });
+    }
+
+    const location = await prisma.marketingConfiguredLocation.findFirst({
+      where: {
+        employeeId,
+        isActive: true
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    res.json({
+      success: true,
+      location: location || null
+    });
+  } catch (error) {
+    console.error('Error fetching employee configured location:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch location', error: error.message });
+  }
+};
+
 module.exports = {
   createActivity,
   getMyActivities,
@@ -668,4 +840,7 @@ module.exports = {
   getMarketingEmployees,
   loginMarketingEmployee,
   reverseGeocodeLocation,
+  extractLocationLink,
+  saveEmployeeConfiguredLocation,
+  getEmployeeConfiguredLocation,
 };

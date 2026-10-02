@@ -12,9 +12,17 @@ const {
   getMarketingEmployees,
   loginMarketingEmployee,
   reverseGeocodeLocation,
+  extractLocationLink,
+  saveEmployeeConfiguredLocation,
+  getEmployeeConfiguredLocation,
 } = require('../controllers/marketing.controller');
 
 const router = express.Router();
+
+// Map Link Extraction & Employee Location Configuration (Software Settings & Admin)
+router.post('/extract-location-link', authenticate, extractLocationLink);
+router.post('/employee-location', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), saveEmployeeConfiguredLocation);
+router.get('/employee-location/:employeeId', authenticate, getEmployeeConfiguredLocation);
 
 // Reverse geocoding endpoint for auto-filling live visit details
 router.get('/reverse-geocode', authenticate, reverseGeocodeLocation);
@@ -32,8 +40,8 @@ router.get('/admin/activities', authenticate, requirePermission('ADMIN_MARKETING
 
 // Configured Locations (Accessible by Software Settings and Admin)
 router.get('/locations', authenticate, getConfiguredLocations);
-router.post('/locations', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN']), createConfiguredLocation);
-router.put('/locations/:id', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN']), updateConfiguredLocation);
-router.delete('/locations/:id', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN']), deleteConfiguredLocation);
+router.post('/locations', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), createConfiguredLocation);
+router.put('/locations/:id', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), updateConfiguredLocation);
+router.delete('/locations/:id', authenticate, authorize(['SOFTWARE_SETTINGS', 'SUPER_ADMIN', 'ADMIN']), deleteConfiguredLocation);
 
 module.exports = router;

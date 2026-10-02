@@ -2743,20 +2743,26 @@ model MarketingActivity {
 
 model MarketingConfiguredLocation {
   id                    String   @id @default(uuid())
+  employeeId            String?
+  employeeName          String?
   name                  String
   area                  String
+  city                  String?
   hospitalName          String?
   companyName           String?
   address               String?
   latitude              Float
   longitude             Float
   radius                Float?   @default(100)
+  locationMode          String?  @default("CONFIGURED")
+  originalMapUrl        String?
   isActive              Boolean  @default(true)
   createdById           String?
   createdByName         String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
+  @@index([employeeId])
   @@index([area])
   @@index([isActive])
 }

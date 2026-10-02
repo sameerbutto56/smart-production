@@ -615,7 +615,7 @@ const SoftwareSettings = () => {
     { key: 'postex', label: 'PostEx Integration', icon: <Truck size={16} /> },
     { key: 'order-range', label: 'Order Range', icon: <Hash size={16} /> },
     { key: 'system-control', label: 'System Control', icon: <Shield size={16} /> },
-    { key: 'marketing-locations', label: 'Marketing Locations', icon: <Compass size={16} /> },
+    { key: 'marketing-locations', label: 'Marketing Location Management', icon: <Compass size={16} /> },
     { key: 'abbottabad-password', label: 'Abbottabad Password', icon: <Lock size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
