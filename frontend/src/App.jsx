@@ -94,7 +94,7 @@ const OutletBlockedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   const role = String(user?.role || '').toUpperCase().trim();
-  if (role === 'OUTLET') return <Navigate to="/outlet-dashboard" replace />;
+  if (role === 'OUTLET') return <Navigate to="/" replace />;
   return children;
 };
 
@@ -105,7 +105,7 @@ const JoharTownGatePassRoute = ({ children }) => {
   if (role === 'OUTLET') {
     const n = String(user?.name || '').toLowerCase();
     const isJohar = n.includes('johar') || user?.name?.includes('1');
-    if (!isJohar) return <Navigate to="/outlet-dashboard" replace />;
+    if (!isJohar) return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -117,7 +117,7 @@ const JoharTownOnlyRoute = ({ children }) => {
   if (role === 'OUTLET') {
     const n = String(user?.name || '').toLowerCase();
     const isJohar = n.includes('johar') || user?.name?.includes('1');
-    if (!isJohar) return <Navigate to="/outlet-dashboard" replace />;
+    if (!isJohar) return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -126,7 +126,7 @@ const AdminBlockedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   const role = String(user?.role || '').toUpperCase().trim();
-  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace />;
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/" replace />;
   return children;
 };
 
@@ -134,12 +134,12 @@ const OfficeSupplyRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   const role = String(user?.role || '').toUpperCase().trim();
-  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace />;
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/" replace />;
   if (role === 'OUTLET') {
     const n = String(user?.name || '').toLowerCase();
     const isJohar = n.includes('johar') || user?.name?.includes('1');
     const isJail = n.includes('jail') || user?.name?.includes('2');
-    if (!isJohar && !isJail) return <Navigate to="/outlet-dashboard" replace />;
+    if (!isJohar && !isJail) return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -153,18 +153,9 @@ const PermittedRoute = ({ feature, children }) => {
       </div>
     );
   }
+  // When a feature is disabled in Software Settings, completely remove access and redirect silently without showing an error or permission note
   if (feature && !hasPermission(feature)) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center">
-        <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mb-4 shadow-xl">
-          <ShieldAlert size={32} />
-        </div>
-        <h2 className="text-xl font-black text-white mb-2">Access Denied • Feature Disabled</h2>
-        <p className="text-sm text-gray-400 max-w-md mb-6 font-medium">
-          This functionality has been disabled for your profile in <span className="text-blue-400 font-bold">System Control</span>. Please contact your administrator if you require access.
-        </p>
-      </div>
-    );
+    return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -189,20 +180,82 @@ const AuthRedirectHandler = () => {
     if (hasPermission('PRODUCT_DATA_VIEW')) return <Navigate to="/product-data" replace={true} />;
     return <Navigate to="/software-settings" replace={true} />;
   }
-  if (role === 'FAISAL') return <Navigate to="/order-entry" replace={true} />;
-  if (role === 'ORDER_ENTRY') return <Navigate to={hasPermission('DASHBOARD_VIEW') ? "/dashboard" : "/order-entry"} replace={true} />;
-  if (role === 'OUTLET') return <Navigate to={hasPermission('OUTLET_DASHBOARD') ? "/outlet-dashboard" : "/pos"} replace={true} />;
-  if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
-  if (role === 'DISPATCH') return <Navigate to="/dispatch" replace={true} />;
-  if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
-  if (role === 'STORE') return <Navigate to="/warehouse" replace={true} />;
-  if (role === 'INVENTORY_VIEW') return <Navigate to="/order-track" replace={true} />;
-  if (role === 'CEO') return <Navigate to="/ceo-dashboard" replace={true} />;
+  if (role === 'FAISAL') {
+    if (hasPermission('ORDER_ENTRY')) return <Navigate to="/order-entry" replace={true} />;
+    if (hasPermission('ORDER_VIEW')) return <Navigate to="/orders" replace={true} />;
+    if (hasPermission('STORE_REPLACEMENTS')) return <Navigate to="/replacements" replace={true} />;
+    if (hasPermission('ORDER_CANCEL')) return <Navigate to="/order-cancellation" replace={true} />;
+    if (hasPermission('DISPATCH_TASKS')) return <Navigate to="/delivery-sheet" replace={true} />;
+    return <Navigate to="/notes" replace={true} />;
+  }
+  if (role === 'ORDER_ENTRY') {
+    if (hasPermission('ORDER_ENTRY')) return <Navigate to="/order-entry" replace={true} />;
+    if (hasPermission('DASHBOARD_VIEW')) return <Navigate to="/dashboard" replace={true} />;
+    if (hasPermission('ORDER_VIEW')) return <Navigate to="/orders" replace={true} />;
+    return <Navigate to="/notes" replace={true} />;
+  }
+  if (role === 'OUTLET') {
+    if (hasPermission('OUTLET_DASHBOARD')) return <Navigate to="/outlet-dashboard" replace={true} />;
+    if (hasPermission('OUTLET_POS')) return <Navigate to="/pos" replace={true} />;
+    if (hasPermission('OUTLET_ORDER_VIEW')) return <Navigate to="/outlet-orders" replace={true} />;
+    if (hasPermission('OUTLET_ORDER_ENTRY')) return <Navigate to="/outlet-order-entry" replace={true} />;
+    if (hasPermission('OUTLET_TASKS')) return <Navigate to="/tasks" replace={true} />;
+    if (hasPermission('BANK_DEPOSIT')) return <Navigate to="/bank-deposit" replace={true} />;
+    if (hasPermission('GENERAL_ENTRIES')) return <Navigate to="/journal" replace={true} />;
+    if (hasPermission('OUTLET_TRANSFERS')) return <Navigate to="/transfers" replace={true} />;
+    if (hasPermission('ORDER_TRACK')) return <Navigate to="/order-track" replace={true} />;
+    if (hasPermission('OUTLET_STOCK_REQUEST')) return <Navigate to="/outlet-requests" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
+  if (role === 'PRODUCTION') {
+    if (hasPermission('PRODUCTION_DASHBOARD')) return <Navigate to="/production" replace={true} />;
+    if (hasPermission('STORE_TASKS')) return <Navigate to="/tasks" replace={true} />;
+    if (hasPermission('ALTERATION_PRODUCTION')) return <Navigate to="/alteration-production" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
+  if (role === 'DISPATCH') {
+    if (hasPermission('DISPATCH_DASHBOARD')) return <Navigate to="/dispatch-dashboard" replace={true} />;
+    if (hasPermission('DISPATCH_TASKS')) return <Navigate to="/dispatch" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
+  if (role === 'DELIVERY_BOY') {
+    if (hasPermission('DELIVERY_DASHBOARD')) return <Navigate to="/delivery" replace={true} />;
+    if (hasPermission('REFUND_MANAGEMENT')) return <Navigate to="/refund-management" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
+  if (role === 'STORE') {
+    if (hasPermission('STORE_DASHBOARD')) return <Navigate to="/store-dashboard" replace={true} />;
+    if (hasPermission('WAREHOUSE_VIEW')) return <Navigate to="/warehouse" replace={true} />;
+    if (hasPermission('STORE_TASKS')) return <Navigate to="/tasks" replace={true} />;
+    if (hasPermission('STORE_INVENTORY_AUDIT')) return <Navigate to="/audit" replace={true} />;
+    if (hasPermission('STORE_RETURNS')) return <Navigate to="/returns" replace={true} />;
+    if (hasPermission('STORE_REPLACEMENTS')) return <Navigate to="/store-replacements" replace={true} />;
+    if (hasPermission('ORDER_VIEW')) return <Navigate to="/store-orders" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
+  if (role === 'INVENTORY_VIEW') {
+    if (hasPermission('ORDER_TRACK')) return <Navigate to="/order-track" replace={true} />;
+    if (hasPermission('STORE_INVENTORY_AUDIT')) return <Navigate to="/verification" replace={true} />;
+    if (hasPermission('STORE_RETURNS')) return <Navigate to="/return-exchange" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
+  if (role === 'CEO') {
+    if (hasPermission('CEO_DASHBOARD_VIEW')) return <Navigate to="/ceo-dashboard" replace={true} />;
+    if (hasPermission('PRODUCT_DATA_VIEW')) return <Navigate to="/product-data" replace={true} />;
+    if (hasPermission('ORDER_VIEW')) return <Navigate to="/orders" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
   if (role === 'SOFTWARE_SETTINGS') return <Navigate to="/software-settings" replace={true} />;
-  if (role === 'ASM') return <Navigate to="/asm" replace={true} />;
-  if (role === 'MARKETING') return <Navigate to="/marketing" replace={true} />;
+  if (role === 'ASM') {
+    if (hasPermission('ASM_DASHBOARD')) return <Navigate to="/asm" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
+  if (role === 'MARKETING') {
+    if (hasPermission('MARKETING_DASHBOARD')) return <Navigate to="/marketing" replace={true} />;
+    return <Navigate to="/chat" replace={true} />;
+  }
   
-  return <Navigate to="/tasks" replace={true} />;
+  return <Navigate to="/chat" replace={true} />;
 };
 
 function App() {

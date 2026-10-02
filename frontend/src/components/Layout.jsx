@@ -181,6 +181,10 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
       } else if (item.name === 'History') {
         featureIdToCheck = 'OUTLET_ORDER_VIEW';
       }
+    } else if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
+      if (item.name === 'Marketing') {
+        featureIdToCheck = 'ADMIN_MARKETING_VIEW';
+      }
     }
 
     // 0. System Control Feature check (if featureId defined)
@@ -405,6 +409,7 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
+  const { hasPermission } = useSystemControl();
   const { paused: systemPaused, affected: pauseAffected, info: pauseInfo } = useSystemPause();
   const { activeAlert, acknowledge } = useDemandNotification();
 
@@ -668,7 +673,7 @@ const Layout = () => {
             >
               <Menu size={16} />
             </button>
-            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'CEO') && (
+            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'CEO') && hasPermission('PRODUCT_DATA_VIEW') && (
               <Link
                 to="/product-data"
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${
@@ -839,7 +844,7 @@ const Layout = () => {
               <span className="text-amber-300 font-bold text-xs md:text-sm uppercase tracking-wider truncate">{activeAlert.message}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {activeAlert.type === 'demand:new' && (
+              {activeAlert.type === 'demand:new' && hasPermission('WAREHOUSE_VIEW') && (
                 <Link
                   to="/warehouse"
                   onClick={acknowledge}
@@ -848,7 +853,7 @@ const Layout = () => {
                   Receive
                 </Link>
               )}
-              {activeAlert.type === 'demand:accepted' && (
+              {activeAlert.type === 'demand:accepted' && hasPermission('WAREHOUSE_VIEW') && (
                 <Link
                   to="/warehouse"
                   onClick={acknowledge}
@@ -857,7 +862,7 @@ const Layout = () => {
                   View
                 </Link>
               )}
-              {activeAlert.type === 'demand:updated' && (
+              {activeAlert.type === 'demand:updated' && hasPermission('OUTLET_STOCK_REQUEST') && (
                 <Link
                   to="/outlet-requests"
                   onClick={acknowledge}

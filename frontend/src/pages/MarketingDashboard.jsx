@@ -60,6 +60,15 @@ export default function MarketingDashboard() {
   // Active tab within the Marketing shell
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'activities' | 'add' | 'map' | 'history'
 
+  // Gracefully reset activeTab if the selected tab is disabled
+  useEffect(() => {
+    if (activeTab === 'map' && !hasPermission('MARKETING_MAP_VIEW')) {
+      setActiveTab('dashboard');
+    } else if (activeTab === 'history' && !hasPermission('MARKETING_ACTIVITY_HISTORY')) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, hasPermission]);
+
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({
     summary: {
@@ -576,9 +585,9 @@ export default function MarketingDashboard() {
         {[
           { key: 'dashboard', label: 'Dashboard', icon: Layers },
           { key: 'activities', label: "Today's Activities", icon: Clock },
-          ...(!isAdmin ? [{ key: 'add', label: 'Add Activity', icon: Plus }] : []),
-          { key: 'map', label: 'Locations & Map', icon: MapPin },
-          { key: 'history', label: 'Activity History', icon: Calendar },
+          ...(!isAdmin && hasPermission('MARKETING_LOCATION_ENTRY') ? [{ key: 'add', label: 'Add Activity', icon: Plus }] : []),
+          ...(hasPermission('MARKETING_MAP_VIEW') ? [{ key: 'map', label: 'Locations & Map', icon: MapPin }] : []),
+          ...(hasPermission('MARKETING_ACTIVITY_HISTORY') ? [{ key: 'history', label: 'Activity History', icon: Calendar }] : []),
         ].map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.key;

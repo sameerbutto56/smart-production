@@ -4,6 +4,7 @@ import BackButton from '../components/BackButton';
 import api from '../services/api';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
+import { useSystemControl } from '../context/SystemControlContext';
 import {
   LayoutDashboard, Search, Clock, CheckCircle, XCircle,
   Package, Truck, UserCheck, Send,
@@ -152,6 +153,7 @@ const EmptyState = ({ icon: Icon, title, sub }) => (
 
 const OutletDashboard = () => {
   const { user } = useAuth();
+  const { hasPermission } = useSystemControl();
   const outletName = getOutletName(user);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'dashboard';
@@ -166,6 +168,23 @@ const OutletDashboard = () => {
       return next;
     });
   };
+
+  // If currently on a tab that has been disabled in Software Settings, gracefully fall back to 'dashboard'
+  useEffect(() => {
+    const tabFeatureMap = {
+      'pos-dashboard': 'OUTLET_POS',
+      invoices: 'OUTLET_ORDER_VIEW',
+      tracking: 'ORDER_TRACK',
+      'in-dispatch': 'OUTLET_IN_DISPATCH',
+      tasks: 'OUTLET_TASKS',
+      registers: 'OUTLET_POS',
+      'cash-deposit': 'BANK_DEPOSIT',
+    };
+    if (activeTab && tabFeatureMap[activeTab] && !hasPermission(tabFeatureMap[activeTab])) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, hasPermission]);
+
   const [showTabDropdown, setShowTabDropdown] = useState(false);
   const [datePreset, setDatePreset] = useState('today');
   const [analytics, setAnalytics] = useState(null);
@@ -490,14 +509,14 @@ const OutletDashboard = () => {
       icon: Wallet,
       badge: abbottabadIncomingCount
     }] : []),
-    { id: 'pos-dashboard', label: 'POS Dashboard', icon: BarChart3 },
-    { id: 'invoices', label: 'Total Invoices', icon: DollarSign },
-    { id: 'tracking', label: 'Order Track', icon: Search },
-    { id: 'in-dispatch', label: 'In Dispatch', icon: Truck, badge: inDispatchOrders.length },
-    { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length + alterationTasks.length },
-    { id: 'registers', label: 'Registers', icon: Clock },
-    { id: 'cash-deposit', label: 'Cash Deposit', icon: Banknote }
-  ];
+    { id: 'pos-dashboard', label: 'POS Dashboard', icon: BarChart3, feature: 'OUTLET_POS' },
+    { id: 'invoices', label: 'Total Invoices', icon: DollarSign, feature: 'OUTLET_ORDER_VIEW' },
+    { id: 'tracking', label: 'Order Track', icon: Search, feature: 'ORDER_TRACK' },
+    { id: 'in-dispatch', label: 'In Dispatch', icon: Truck, badge: inDispatchOrders.length, feature: 'OUTLET_IN_DISPATCH' },
+    { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length + alterationTasks.length, feature: 'OUTLET_TASKS' },
+    { id: 'registers', label: 'Registers', icon: Clock, feature: 'OUTLET_POS' },
+    { id: 'cash-deposit', label: 'Cash Deposit', icon: Banknote, feature: 'BANK_DEPOSIT' }
+  ].filter(tab => !tab.feature || hasPermission(tab.feature));
 
   const statusData = [
     { name: 'Pending', value: orderStats.pendingOrders || 0, color: COLORS.amber },
