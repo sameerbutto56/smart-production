@@ -1,5 +1,35 @@
 ## Goals
-### Implemented This Session — Outlet POS → Order Entry → Dispatch → Delivery Boy Full Lifecycle Balance & Customer Sync + Marketing Fix (deployed & live-verified)
+### Implemented This Session — Johar Town & Branch Outlets "My Tasks" Navbar Restoration & System Control Integration (deployed & live-verified)
+- **Problem & Root Cause**:
+  - In Johar Town Outlet, the "My Tasks" (`/tasks`) option was missing from the navigation bar.
+  - Root Cause:
+    1. In [`Layout.jsx`](file:///Users/apple/Desktop/Enamels/frontend/src/components/Layout.jsx), the `'My Tasks'` entry was assigned `featureId: 'STORE_TASKS'`.
+    2. In `featureRegistry.js` (both backend and frontend), `STORE_TASKS.defaultProfiles` only included `['STORE', 'STORE_EMPLOYEE']`, lacking `'OUTLET'`.
+    3. The System Control permission check (`item.featureId && !hasPermission(item.featureId)`) ran at step 0 of navigation filtering, evaluating to `false` for `OUTLET` users. This immediately purged `'My Tasks'` from the navbar before the outlet profile logic could retain it.
+    4. Furthermore, System Control lacked a dedicated feature toggle under the `OUTLET` module for branch tasks (`OUTLET_TASKS`), coupling outlet tasks to store warehouse tasks.
+- **Implementation & Fixes**:
+  - **Feature Registry Decoupling (`backend/src/utils/featureRegistry.js` & `frontend/src/utils/featureRegistry.js`)**:
+    - Added `OUTLET_TASKS` under the `OUTLET` module with `defaultProfiles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN']`.
+    - Added `'OUTLET'` to `STORE_TASKS`, `ORDER_VIEW`, `WAREHOUSE_VIEW`, `ALTERATION_PRODUCTION`, and `ENGRAVING_QUEUE` `defaultProfiles` so branch operations are permitted by default while remaining fully controllable in Software Settings → System Control.
+  - **Role-Aware Dynamic Feature Resolution in Navbar (`frontend/src/components/Layout.jsx`)**:
+    - Updated navigation filtering to resolve dynamic feature identifiers based on user role:
+      - If `userRole === 'OUTLET'` and `item.name === 'My Tasks'`: maps to `featureIdToCheck = 'OUTLET_TASKS'`.
+      - If `userRole === 'OUTLET'` and `item.name === 'History'`: maps to `featureIdToCheck = 'OUTLET_ORDER_VIEW'`.
+    - Checked role validity before applying the feature permission check, ensuring `"My Tasks"` is retained and visible by default for Johar Town and authorized outlets.
+  - **Route-Level Permission Guarding (`frontend/src/App.jsx`)**:
+    - Created `MyTasksRoute` wrapping `/tasks` with role-aware permission enforcement (`OUTLET_TASKS` for OUTLET, `STORE_TASKS` for STORE/PRODUCTION).
+    - Ensures that if an administrator disables Outlet Tasks in System Control, direct URL access to `/tasks` also displays the authoritative "Access Denied • Feature Disabled" banner.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-outlet-tasks-navbar.cjs`:
+    - 100% pass: Verified `OUTLET_TASKS` registry definition, default permissions, and `isFeatureAllowed('OUTLET', 'OUTLET_TASKS') === true`.
+    - 100% pass: Johar Town navbar filter simulation renders all 22 menu items, including `'My Tasks'`, `'Orders'`, `'POS'`, `'Invoice / Quotation'`, `'History'`, etc.
+    - 100% pass: Verified that setting `OUTLET_TASKS` to `false` in System Control cleanly disables and hides `'My Tasks'` from the navbar.
+  - Production build & deployment:
+    - Frontend bundled cleanly (`npm --prefix frontend run build`, exit code 0).
+    - Deployed to Vercel production (`vercel --prod`) and aliased to `smart-production-v2.vercel.app`.
+    - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `status: "ok"`.
+
+### Implemented Prior Session — Outlet POS → Order Entry → Dispatch → Delivery Boy Full Lifecycle Balance & Customer Sync + Marketing Fix (deployed & live-verified)
 - **Problem & Requirements**:
   1. **Marketing Activity 500 Error**: `POST /api/marketing/activities` failed with HTTP 500 due to a PostgreSQL foreign key constraint violation (`MarketingActivity.userId` referencing `User.id` while passing an `OutletEmployee` ID).
   2. **Outlet POS → Order Entry → Dispatch → Delivery Boy Lifecycle Synchronization**:
