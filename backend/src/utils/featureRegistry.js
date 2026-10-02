@@ -52,7 +52,7 @@ const FEATURES = [
     name: 'View Orders',
     description: 'View production orders list, customer information, and stage progressions.',
     module: 'ORDERS',
-    defaultProfiles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL', 'ORDER_ENTRY', 'INVENTORY_VIEW'],
+    defaultProfiles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL', 'ORDER_ENTRY', 'INVENTORY_VIEW', 'OUTLET'],
   },
   {
     id: 'ORDER_ENTRY',
@@ -110,7 +110,7 @@ const FEATURES = [
     name: 'Store Tasks',
     description: 'Process incoming order items and allocate inventory.',
     module: 'STORE',
-    defaultProfiles: ['STORE', 'STORE_EMPLOYEE'],
+    defaultProfiles: ['STORE', 'STORE_EMPLOYEE', 'OUTLET'],
   },
   {
     id: 'STORE_ASM_ALLOCATION',
@@ -159,7 +159,7 @@ const FEATURES = [
     name: 'Warehouse Inventory Ledger',
     description: 'View raw warehouse quantities, color/size stock, and adjustments.',
     module: 'STORE',
-    defaultProfiles: ['STORE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL', 'INVENTORY_VIEW'],
+    defaultProfiles: ['STORE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL', 'INVENTORY_VIEW', 'OUTLET'],
   },
 
   // ── PRODUCTION ──
@@ -196,14 +196,14 @@ const FEATURES = [
     name: 'Alteration Job Queue',
     description: 'Manage alterations, repairs, and custom resizing.',
     module: 'PRODUCTION',
-    defaultProfiles: ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'],
+    defaultProfiles: ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'OUTLET'],
   },
   {
     id: 'ENGRAVING_QUEUE',
     name: 'Logo Design & Engraving',
     description: 'Process custom name engravings, logo setups, and embroidery files.',
     module: 'PRODUCTION',
-    defaultProfiles: ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
+    defaultProfiles: ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'OUTLET'],
   },
 
   // ── DELIVERY ──
@@ -387,6 +387,13 @@ const FEATURES = [
     description: 'Track factory-to-outlet incoming shipments.',
     module: 'OUTLET',
     defaultProfiles: ['OUTLET'],
+  },
+  {
+    id: 'OUTLET_TASKS',
+    name: 'Outlet Tasks (My Tasks)',
+    description: 'Track orders, alteration jobs, engraving requests, and branch task queues.',
+    module: 'OUTLET',
+    defaultProfiles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN'],
   },
 
   // ── ASM ──

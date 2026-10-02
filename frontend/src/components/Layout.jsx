@@ -170,11 +170,21 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
   // Strict Role Filtering
   let filteredNavItems = navItems.filter(item => {
-    // 0. System Control Feature check (if featureId defined)
-    if (item.featureId && !hasPermission(item.featureId)) return false;
-
     // 1. Basic role check
     if (!item.roles.includes(userRole)) return false;
+
+    // Resolve dynamic feature ID based on role if shared
+    let featureIdToCheck = item.featureId;
+    if (userRole === 'OUTLET') {
+      if (item.name === 'My Tasks') {
+        featureIdToCheck = 'OUTLET_TASKS';
+      } else if (item.name === 'History') {
+        featureIdToCheck = 'OUTLET_ORDER_VIEW';
+      }
+    }
+
+    // 0. System Control Feature check (if featureId defined)
+    if (featureIdToCheck && !hasPermission(featureIdToCheck)) return false;
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {

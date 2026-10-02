@@ -169,6 +169,13 @@ const PermittedRoute = ({ feature, children }) => {
   return children;
 };
 
+const MyTasksRoute = ({ children }) => {
+  const { user } = useAuth();
+  const role = String(user?.role || '').toUpperCase().trim();
+  const feature = role === 'OUTLET' ? 'OUTLET_TASKS' : 'STORE_TASKS';
+  return <PermittedRoute feature={feature}>{children}</PermittedRoute>;
+};
+
 const AuthRedirectHandler = () => {
   const { user } = useAuth();
   const { hasPermission } = useSystemControl();
@@ -245,7 +252,7 @@ function App() {
                   <Route path="dashboard" element={<PermittedRoute feature="DASHBOARD_VIEW"><AdminDashboard /></PermittedRoute>} />
                   <Route path="product-data" element={<PermittedRoute feature="PRODUCT_DATA_VIEW"><ProductDataPage /></PermittedRoute>} />
                   <Route path="inventory" element={<PermittedRoute feature="WAREHOUSE_VIEW"><InventoryManagement /></PermittedRoute>} />
-                  <Route path="tasks" element={<MyTasks />} />
+                  <Route path="tasks" element={<MyTasksRoute><MyTasks /></MyTasksRoute>} />
                   <Route path="order-entry" element={<PermittedRoute feature="ORDER_ENTRY"><OrderEntry /></PermittedRoute>} />
                   <Route path="outlet-order-entry" element={<PermittedRoute feature="OUTLET_ORDER_ENTRY"><OutletOrderEntry /></PermittedRoute>} />
                   <Route path="order-edit" element={<PermittedRoute feature="ORDER_EDIT"><Navigate to="/order-entry?edit=1" replace /></PermittedRoute>} />
