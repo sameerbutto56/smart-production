@@ -5,6 +5,7 @@ import { ShoppingCart, X, Check, Printer, Minus, Plus, CheckCircle2, Book, BookO
 import toast from 'react-hot-toast';
 import { printReceipt, printBalanceReceipt, printBalanceGatePass, formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
 import { formatDateTime } from '../utils/dateTime';
+import { getProductColorImage } from '../utils/productImageUtils';
 
 const POSModals = () => {
   const {
@@ -85,7 +86,18 @@ const POSModals = () => {
       {showConfig && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-10 pb-10 overflow-y-auto" onClick={() => setShowConfig(null)}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-white mb-4">{showConfig.name}</h3>
+            <div className="flex items-center gap-3 mb-4">
+              {(() => {
+                const img = getProductColorImage(showConfig, selectedColor);
+                return img ? (
+                  <img src={img} alt={showConfig.name} className="w-14 h-14 rounded-xl object-cover border border-gray-700 shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
+                ) : null;
+              })()}
+              <div className="min-w-0">
+                <h3 className="text-base font-black text-white leading-tight truncate">{showConfig.name}</h3>
+                {selectedColor && <p className="text-xs text-blue-400 font-bold mt-0.5">Selected: {selectedColor}</p>}
+              </div>
+            </div>
             {showConfig.colors?.length > 0 && (
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-400 block mb-1">Color</label>
@@ -93,11 +105,13 @@ const POSModals = () => {
                   {showConfig.colors.map(c => {
                     const colorStockTotal = products.filter(v => v.name === showConfig.name && v.color === c).reduce((s, v) => s + (v.stock || 0), 0);
                     const hasColorStock = colorStockTotal > 0;
+                    const cImg = getProductColorImage(showConfig, c);
                     return (
                       <button key={c} onClick={() => { setSelectedColor(c); setSelectedSize(''); }}
                         disabled={!hasColorStock}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${!hasColorStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedColor === c ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                        {c} ({colorStockTotal})
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${!hasColorStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedColor === c ? 'border-blue-500 bg-blue-600/20 text-white shadow-md' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                        {cImg && <img src={cImg} alt={c} className="w-3.5 h-3.5 rounded object-cover" onError={(e) => { e.target.style.display = 'none'; }} />}
+                        <span>{c} ({colorStockTotal})</span>
                       </button>
                     );
                   })}

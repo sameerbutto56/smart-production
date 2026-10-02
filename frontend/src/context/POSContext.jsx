@@ -9,6 +9,7 @@ import socket from '../socket';
 import { printReturnReceipt } from '../utils/POSPrint';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
 import { exportInvoicesToExcel } from '../utils/outletExportExcel';
+import { getProductColorImage, extractColorImages } from '../utils/productImageUtils';
 
 const POSContext = createContext(null);
 
@@ -623,7 +624,27 @@ export function POSProvider({ children }) {
     const groups = {};
     filteredProducts.forEach(p => {
       const key = p.name;
-      if (!groups[key]) groups[key] = { id: key, name: key, price: p.price, imageUrl: p.imageUrl, category: p.category, totalStock: 0, colors: [], sizes: [], variants: [] };
+      if (!groups[key]) {
+        groups[key] = {
+          id: key,
+          name: key,
+          price: p.price,
+          imageUrl: p.imageUrl,
+          colorImages: p.colorImages ? { ...p.colorImages } : extractColorImages(p),
+          metadata: p.metadata,
+          category: p.category,
+          totalStock: 0,
+          colors: [],
+          sizes: [],
+          variants: []
+        };
+      }
+      if (p.colorImages && typeof p.colorImages === 'object') {
+        groups[key].colorImages = { ...groups[key].colorImages, ...p.colorImages };
+      }
+      if (!groups[key].imageUrl && p.imageUrl) {
+        groups[key].imageUrl = p.imageUrl;
+      }
       groups[key].variants.push(p);
       groups[key].totalStock += p.stock || 0;
       if (p.color && !groups[key].colors.includes(p.color)) groups[key].colors.push(p.color);

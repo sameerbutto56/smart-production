@@ -1135,6 +1135,8 @@ export const OrderEntryProvider = ({ children }) => {
         gender: chosenGender,
         fabricType: formData.fabricType || formData.customFabric,
         color: formData.color || formData.customColor, size: formData.size,
+        productImage: formData.productImage || null,
+        imageUrl: formData.productImage || null,
         femaleOptions: formData.femaleOptions, sleeveLength: formData.sleeveLength || '',
         shirtLength: formData.shirtLength || '', matchingCap: formData.matchingCap,
         matchingCapQty: formData.matchingCapQty,

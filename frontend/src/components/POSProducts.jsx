@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import { formatCurrency } from '../utils/POSPrint';
 import { RefreshCw, Package } from 'lucide-react';
+import { getProductColorImage } from '../utils/productImageUtils';
 
 const POSProducts = () => {
   const { isUrdu } = useLanguage();
@@ -52,13 +53,16 @@ const POSProducts = () => {
                   ? 'border-red-900/30 opacity-50 cursor-not-allowed'
                   : 'border-gray-700/50 hover:border-blue-500/50'
               }`}>
-              {g.imageUrl ? (
-                <img src={g.imageUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" />
-              ) : (
-                <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
-                  <Package size={24} className="text-gray-600" />
-                </div>
-              )}
+              {(() => {
+                const imgUrl = getProductColorImage(g);
+                return imgUrl ? (
+                  <img src={imgUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" onError={(e) => { e.target.style.display = 'none'; }} />
+                ) : (
+                  <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
+                    <Package size={24} className="text-gray-600" />
+                  </div>
+                );
+              })()}
               <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{g.name}</p>
               {g.variants.length > 1 && (
                 <span className="inline-block text-[7px] font-bold text-blue-400 bg-blue-900/30 rounded-full px-1.5 py-0.5 mb-0.5">{g.variants.length} variants</span>

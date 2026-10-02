@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Package, CheckCircle2, Layers, Palette, Hash, Search, X, Plus, FileEdit, Trash2, ShoppingCart, Pencil } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
+import { getProductColorImage } from '../utils/productImageUtils';
 
 const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color, disabled = false }) => (
   <button type="button" onClick={() => onClick(value)}
@@ -223,18 +224,24 @@ const ProductSelectionTab = () => {
                         }
                         if (error === 'Select the gender.' && setError) setError('');
                       }
+                      const resolvedImg = getProductColorImage(item, item.color || formData.color);
                       setFormData({
                         ...formData,
                         productType: item.name,
                         fabricType: item.fabric || formData.fabricType,
                         color: item.color || formData.color,
-                        productImage: item.imageUrl || null,
+                        productImage: resolvedImg || item.imageUrl || null,
                         gender: isApp ? formData.gender : ''
                       });
                     }
                   }}
                   className={`relative p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center justify-between min-h-[10rem] w-full group ${formData.productType === item.name ? 'border-blue-500 bg-blue-500/10 theme-text-primary shadow-xl shadow-blue-900/30' : 'theme-border theme-bg-subtle theme-text-secondary hover:border-gray-600 hover:bg-gray-800/60'}`}>
-                  {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-contain rounded-xl mb-2" onError={(e) => { e.target.style.display = 'none' }} />}
+                  {(() => {
+                    const cardImg = getProductColorImage(item, formData.productType === item.name ? formData.color : null);
+                    return cardImg ? (
+                      <img src={cardImg} alt={item.name} className="w-16 h-16 object-contain rounded-xl mb-2" onError={(e) => { e.target.style.display = 'none'; }} />
+                    ) : null;
+                  })()}
                   <div className={`p-3 rounded-xl ${formData.productType === item.name ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`}>
                     <Package size={22} />
                   </div>
@@ -353,11 +360,21 @@ const ProductSelectionTab = () => {
                   const normalizedKey = c.toLowerCase().trim();
                   const bgHex = colorMap[normalizedKey] || normalizedKey;
                   const textClass = darkColors.has(normalizedKey) ? 'text-white' : 'text-gray-900';
+                  const colorImg = getProductColorImage(selectedProduct, c);
                   return (
-                    <button key={c} type="button" onClick={() => setFormData({ ...formData, color: c })}
+                    <button key={c} type="button" onClick={() => {
+                      setFormData({
+                        ...formData,
+                        color: c,
+                        productImage: colorImg || formData.productImage || null
+                      });
+                    }}
                       className={`group relative w-full rounded-xl border-2 transition-all duration-200 flex flex-col items-center overflow-hidden ${formData.color === c ? 'border-white ring-2 ring-blue-500 scale-105 z-10' : 'border-gray-700/50 hover:border-gray-500'}`}>
-                      <div className="w-full aspect-square flex items-center justify-center relative" style={{ backgroundColor: bgHex }}>
-                        {formData.color === c && <div className={`${textClass} bg-black/20 backdrop-blur-sm p-1.5 rounded-full`}><CheckCircle2 size={16} className={textClass} /></div>}
+                      <div className="w-full aspect-square flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: bgHex }}>
+                        {colorImg && (
+                          <img src={colorImg} alt={c} className="absolute inset-0 w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                        )}
+                        {formData.color === c && <div className={`relative z-10 ${textClass} bg-black/40 backdrop-blur-sm p-1.5 rounded-full`}><CheckCircle2 size={16} className="text-white" /></div>}
                       </div>
                       <div className="w-full py-1.5 px-1 theme-bg text-center">
                         <p className={`text-xs md:text-sm font-black theme-text-primary ${formData.color === c ? 'whitespace-normal break-words' : 'truncate'}`}>{c}</p>

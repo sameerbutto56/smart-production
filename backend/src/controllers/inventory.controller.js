@@ -7,30 +7,66 @@ const getInventory = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 500;
     const items = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' }, take: limit });
-    if (req.user?.role === 'OUTLET') {
-      const sanitized = items.map(({ stock, ...rest }) => rest);
-      return res.json(sanitized);
-    }
-    res.json(items);
+    
+    const formatted = items.map(item => {
+      let colorImages = {};
+      try {
+        const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+        if (meta && meta.colorImages && typeof meta.colorImages === 'object') {
+          colorImages = meta.colorImages;
+        }
+      } catch (e) {}
+
+      const base = { ...item, colorImages };
+      if (req.user?.role === 'OUTLET') {
+        const { stock, ...rest } = base;
+        return rest;
+      }
+      return base;
+    });
+
+    res.json(formatted);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching inventory', error: error.message });
   }
 };
 
 const createInventoryItem = async (req, res) => {
-  const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable, colorImages, metadata } = req.body;
   try {
     let computedStock = stock;
     let computedPrice = price;
     let primaryColor = color;
     let primarySize = null;
 
+    let mergedMeta = {};
+    if (metadata) {
+      try {
+        mergedMeta = typeof metadata === 'string' ? JSON.parse(metadata) : { ...metadata };
+      } catch (e) {}
+    }
+    if (colorImages && typeof colorImages === 'object') {
+      mergedMeta.colorImages = colorImages;
+    }
+
+    let processedVariants = variants;
     if (variants && Array.isArray(variants) && variants.length > 0) {
       computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
       const firstPrice = parseFloat(variants[0].price);
       if (!price || price === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
       primaryColor = variants[0].color || color;
       primarySize = variants[0].size || null;
+
+      // Stamp color images onto variants if defined
+      if (colorImages && typeof colorImages === 'object') {
+        processedVariants = variants.map(v => {
+          const colImg = v.color ? colorImages[v.color] : null;
+          return {
+            ...v,
+            imageUrl: colImg || v.imageUrl || null
+          };
+        });
+      }
     }
 
     const resolvedGenderApplicable = typeof genderApplicable === 'boolean'
@@ -47,11 +83,25 @@ const createInventoryItem = async (req, res) => {
         size: primarySize, 
         fabric, 
         imageUrl,
+        metadata: Object.keys(mergedMeta).length > 0 ? JSON.stringify(mergedMeta) : null,
         genderApplicable: resolvedGenderApplicable,
-        variants: variants || null
+        variants: processedVariants || null
       }
     });
     
+    // Central image and price sync to outlets
+    try {
+      await prisma.outletInventory.updateMany({
+        where: { name: item.name },
+        data: {
+          imageUrl: item.imageUrl,
+          metadata: item.metadata
+        }
+      });
+    } catch (syncErr) {
+      console.error('IMAGE SYNC ERROR (createInventoryItem):', syncErr.message);
+    }
+
     try {
       await syncPricesForWarehouseItem(item.id);
     } catch (syncErr) {
@@ -61,7 +111,10 @@ const createInventoryItem = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
     
-    res.status(201).json(item);
+    res.status(201).json({
+      ...item,
+      colorImages: mergedMeta.colorImages || {}
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error creating inventory item', error: error.message });
   }
@@ -69,15 +122,48 @@ const createInventoryItem = async (req, res) => {
 
 const updateInventoryItem = async (req, res) => {
   const { id } = req.params;
-  const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable, colorImages, metadata } = req.body;
   try {
+    const existing = await prisma.inventoryItem.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ message: 'Inventory item not found' });
+    }
+
     let computedStock = stock;
     let computedPrice = price;
 
+    let mergedMeta = {};
+    if (existing.metadata) {
+      try {
+        mergedMeta = typeof existing.metadata === 'string' ? JSON.parse(existing.metadata) : { ...existing.metadata };
+      } catch (e) {}
+    }
+    if (metadata) {
+      try {
+        const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : { ...metadata };
+        mergedMeta = { ...mergedMeta, ...parsed };
+      } catch (e) {}
+    }
+    if (colorImages && typeof colorImages === 'object') {
+      mergedMeta.colorImages = colorImages;
+    }
+
+    let processedVariants = variants;
     if (variants && Array.isArray(variants) && variants.length > 0) {
       computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
       const firstPrice = parseFloat(variants[0].price);
       if (!price || price === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
+
+      // Stamp color images onto variants
+      if (colorImages && typeof colorImages === 'object') {
+        processedVariants = variants.map(v => {
+          const colImg = v.color ? colorImages[v.color] : null;
+          return {
+            ...v,
+            imageUrl: colImg || v.imageUrl || null
+          };
+        });
+      }
     }
 
     const updateData = { 
@@ -88,7 +174,8 @@ const updateInventoryItem = async (req, res) => {
       color, 
       fabric, 
       imageUrl,
-      variants: variants || null
+      metadata: Object.keys(mergedMeta).length > 0 ? JSON.stringify(mergedMeta) : null,
+      variants: processedVariants || null
     };
 
     if (genderApplicable !== undefined) {
@@ -102,8 +189,21 @@ const updateInventoryItem = async (req, res) => {
       data: updateData
     });
     
-    // Central price sync: Warehouse is the master — propagate the (possibly
-    // variant-resolved) price to every linked OutletInventory row. Price ONLY.
+    // Central image sync: Warehouse is the master — propagate imageUrl and metadata (colorImages)
+    // to every linked OutletInventory row sharing the same product name.
+    try {
+      await prisma.outletInventory.updateMany({
+        where: { name: item.name },
+        data: {
+          imageUrl: item.imageUrl,
+          metadata: item.metadata
+        }
+      });
+    } catch (syncErr) {
+      console.error('IMAGE SYNC ERROR (updateInventoryItem):', syncErr.message);
+    }
+
+    // Central price sync: Warehouse is the master — propagate the price
     try {
       await syncPricesForWarehouseItem(id);
     } catch (syncErr) {
@@ -113,7 +213,10 @@ const updateInventoryItem = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
     
-    res.json(item);
+    res.json({
+      ...item,
+      colorImages: mergedMeta.colorImages || {}
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error updating inventory item', error: error.message });
   }

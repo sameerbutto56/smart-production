@@ -18,13 +18,13 @@ const frontendUrl = process.env.FRONTEND_URL || "*";
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png|webp/;
-    const mimetype = filetypes.test(file.mimetype);
+    const filetypes = /jpeg|jpg|png|webp|svg|gif/;
+    const mimetype = filetypes.test(file.mimetype) || file.mimetype === 'image/svg+xml';
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-    if (mimetype && extname) return cb(null, true);
-    cb(new Error('Only images are allowed (jpeg, jpg, png, webp)'));
+    if (mimetype || extname) return cb(null, true);
+    cb(new Error('Only images are allowed (jpeg, jpg, png, webp, svg, gif)'));
   }
 });
 
@@ -34,7 +34,8 @@ app.use(cors({
   origin: frontendUrl,
   credentials: frontendUrl !== "*"
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Rate limiting per endpoint category
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -88,8 +89,10 @@ app.get('/health', (req, res) => {
 
 app.post('/api/upload', authenticate, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-  const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.originalname}`;
-  res.json({ url: fileUrl });
+  const base64Data = req.file.buffer.toString('base64');
+  const mime = req.file.mimetype || 'image/jpeg';
+  const dataUrl = `data:${mime};base64,${base64Data}`;
+  res.json({ success: true, url: dataUrl });
 });
 
 const { errorHandler } = require('./middleware/error.middleware');

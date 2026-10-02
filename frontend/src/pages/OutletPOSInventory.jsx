@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { formatDateTime } from '../utils/dateTime';
+import { getProductColorImage } from '../utils/productImageUtils';
 
 const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Warehouse'];
 const OUTLET_SHORT = { 'Johar Town': 'JT', 'Jail Road': 'JR', 'Abbottabad': 'AB', 'Warehouse': 'WH' };
@@ -211,7 +212,16 @@ const ViewOnlyInventory = () => {
               <div key={product.name + product.category} className="bg-gray-900/60 rounded-xl border border-gray-700/50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-700/30">
                   <div className="flex items-center gap-3">
-                    {product.imageUrl ? <img src={product.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
+                    {(() => {
+                      const img = getProductColorImage(product);
+                      return img ? (
+                        <img src={img} alt={product.name} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                          <Package size={18} className="text-gray-500" />
+                        </div>
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-white truncate">{product.name}</p>
                       <p className="text-[10px] text-gray-500 font-bold">{product.category} <span className={`ml-2 font-bold ${totalStock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>Total: {totalStock}</span></p>
@@ -1011,7 +1021,16 @@ const ManagementInventory = () => {
                 <button onClick={() => setExpandedId(isExpanded ? null : groupId)}
                   className="w-full flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
-                    {group.imageUrl ? <img src={group.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
+                    {(() => {
+                      const img = getProductColorImage(group);
+                      return img ? (
+                        <img src={img} alt={group.name} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                          <Package size={18} className="text-gray-500" />
+                        </div>
+                      );
+                    })()}
                     <div className="text-left">
                       <p className="text-sm font-bold text-white">{group.name}</p>
                       <p className="text-[10px] text-gray-500 font-bold">{group.category} {group.outletName && <span className="text-blue-400 ml-1">[{group.outletName}]</span>}</p>

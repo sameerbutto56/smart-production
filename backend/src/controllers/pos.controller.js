@@ -82,13 +82,31 @@ const getPosInventory = async (req, res) => {
     const items = await prisma.outletInventory.findMany({
       where,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, createdAt: true, updatedAt: true }
+      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true, createdAt: true, updatedAt: true }
     });
 
     const result = items.map(item => {
       let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null }];
       const colors = [...new Set(variantDefs.map(v => v.color).filter(Boolean))];
       const sizes = [...new Set(variantDefs.map(v => v.size).filter(Boolean))];
+      
+      let colorImages = {};
+      try {
+        const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+        if (meta && meta.colorImages && typeof meta.colorImages === 'object') {
+          colorImages = meta.colorImages;
+        }
+      } catch (e) {}
+
+      // If variants had imageUrl stamped, make sure colorImages includes them
+      if (Array.isArray(variantDefs)) {
+        for (const v of variantDefs) {
+          if (v && v.color && v.imageUrl && !colorImages[v.color]) {
+            colorImages[v.color] = v.imageUrl;
+          }
+        }
+      }
+
       return {
         id: item.id,
         name: item.name,
@@ -99,6 +117,8 @@ const getPosInventory = async (req, res) => {
         stock: item.stock,
         price: item.price || 0,
         imageUrl: item.imageUrl,
+        colorImages,
+        metadata: item.metadata,
         barcode: item.barcode,
         colors,
         sizes,

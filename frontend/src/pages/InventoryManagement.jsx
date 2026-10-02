@@ -32,9 +32,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 import { printInventoryReport } from '../utils/printReport';
+import toast from 'react-hot-toast';
+import { optimizeImage, formatFileSize } from '../utils/imageOptimizer';
+import { extractColorImages, getProductColorImage } from '../utils/productImageUtils';
 
 const LOW_STOCK_LIMIT = 5;
 
@@ -58,10 +60,12 @@ const InventoryManagement = () => {
     category: 'SCRUBS',
     fabric: '',
     imageUrl: '',
+    colorImages: {},
     variants: [{ color: '', size: '', stock: 0, price: 0 }]
   });
 
   const [uploading, setUploading] = useState(false);
+  const [colorUploading, setColorUploading] = useState({});
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = React.useRef(null);
   const backupInputRef = React.useRef(null);
@@ -95,19 +99,50 @@ const InventoryManagement = () => {
   const handleFileUpload = async (file) => {
     if (!file) return;
     setUploading(true);
-    const formDataUpload = new FormData();
-    formDataUpload.append('image', file);
-
     try {
-      const response = await api.post('/api/upload', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setFormData(prev => ({ ...prev, imageUrl: response.data.url }));
+      const opt = await optimizeImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.85 });
+      setFormData(prev => ({ ...prev, imageUrl: opt.dataUrl }));
+      toast.success(`Default image optimized & ready (${opt.originalSizeText} → ${opt.optimizedSizeText})`);
     } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Upload failed. Only images up to 5MB are allowed.');
+      console.error('Image processing failed:', error);
+      toast.error(error.message || 'Image processing failed');
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
+  };
+
+  const handleColorImageUpload = async (color, file) => {
+    if (!file || !color) return;
+    setColorUploading(prev => ({ ...prev, [color]: true }));
+    try {
+      const opt = await optimizeImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.85 });
+      setFormData(prev => ({
+        ...prev,
+        colorImages: {
+          ...(prev.colorImages || {}),
+          [color]: opt.dataUrl
+        }
+      }));
+      toast.success(`${color} image optimized & set (${opt.originalSizeText} → ${opt.optimizedSizeText})`);
+    } catch (error) {
+      console.error(`Failed to process image for ${color}:`, error);
+      toast.error(error.message || `Failed to process image for ${color}`);
+    } finally {
+      setColorUploading(prev => ({ ...prev, [color]: false }));
+    }
+  };
+
+  const removeColorImage = (color) => {
+    setFormData(prev => {
+      const updated = { ...(prev.colorImages || {}) };
+      delete updated[color];
+      return { ...prev, colorImages: updated };
+    });
+    toast.success(`Removed image for ${color}`);
+  };
+
+  const removeMasterImage = () => {
+    setFormData(prev => ({ ...prev, imageUrl: '' }));
   };
 
   const handleDrag = (e) => {
@@ -145,11 +180,13 @@ const InventoryManagement = () => {
       setEditingItem(item);
       const standardCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'];
       const isCustomCat = !standardCategories.includes(item.category);
+      const loadedColorImages = extractColorImages(item);
       setFormData({
         name: item.name,
         category: isCustomCat ? 'CUSTOM' : item.category,
         fabric: item.fabric || '',
         imageUrl: item.imageUrl || '',
+        colorImages: loadedColorImages,
         variants: (item.variants && Array.isArray(item.variants) && item.variants.length > 0)
           ? item.variants.map(v => ({ ...v }))
           : [{ color: item.color || '', size: item.size || '', stock: item.stock || 0, price: item.price || 0 }]
@@ -157,7 +194,7 @@ const InventoryManagement = () => {
       setCustomCategory(isCustomCat ? item.category : '');
     } else {
       setEditingItem(null);
-      setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', variants: [{ color: '', size: '', stock: 0, price: 0 }] });
+      setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', colorImages: {}, variants: [{ color: '', size: '', stock: 0, price: 0 }] });
       setCustomCategory('');
     }
     setIsModalOpen(true);
@@ -168,7 +205,7 @@ const InventoryManagement = () => {
     try {
       const resolvedCategory = formData.category === 'CUSTOM' ? customCategory.trim().toUpperCase() : formData.category;
       if (!resolvedCategory) {
-        alert('Please select or specify a category.');
+        toast.error('Please select or specify a category.');
         return;
       }
       const validVariants = formData.variants.filter(v => v.color || v.size || parseInt(v.stock) > 0);
@@ -176,19 +213,23 @@ const InventoryManagement = () => {
         name: formData.name,
         category: resolvedCategory,
         fabric: formData.fabric,
-        imageUrl: formData.imageUrl,
+        imageUrl: formData.imageUrl || null,
+        colorImages: formData.colorImages || {},
         price: validVariants.length > 0 ? parseFloat(validVariants[0].price) || 0 : 0,
         variants: validVariants
       };
       if (editingItem) {
         await api.put(`/api/inventory/${editingItem.id}`, payload);
+        toast.success('Product updated successfully');
       } else {
         await api.post('/api/inventory', payload);
+        toast.success('Product created successfully');
       }
       fetchInventory();
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving inventory item:', error);
+      toast.error('Error saving inventory item');
     }
   };
 
@@ -998,8 +1039,8 @@ const InventoryManagement = () => {
                   item.category === 'FABRIC' ? 'bg-emerald-600/10 text-emerald-400' :
                   'bg-purple-600/10 text-purple-400'
                 }`}>
-                  {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.name} className="w-6 h-6 object-cover rounded-md" />
+                  {getProductColorImage(item) ? (
+                    <img src={getProductColorImage(item)} alt={item.name} className="w-6 h-6 object-cover rounded-md" onError={(e) => { e.target.style.display = 'none'; }} />
                   ) : (
                     ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category || '') ? <Package size={20} /> : 
                     item.category === 'FABRIC' ? <Layers size={20} /> : <Palette size={20} />
@@ -1028,10 +1069,16 @@ const InventoryManagement = () => {
               {/* Variants List */}
               {(item.variants && Array.isArray(item.variants) && item.variants.length > 0) ? (
                 <div className="mt-6 space-y-2">
-                  {item.variants.slice(0, expandedItems[item.id] ? item.variants.length : VARIANTS_PREVIEW).map((v, vi) => (
+                  {item.variants.slice(0, expandedItems[item.id] ? item.variants.length : VARIANTS_PREVIEW).map((v, vi) => {
+                    const vColorImg = getProductColorImage(item, v.color);
+                    return (
                     <div key={vi} className="flex items-center justify-between theme-bg-subtle rounded-xl px-4 py-2.5 theme-border">
                       <div className="flex items-center space-x-3">
-                        <div className="w-3 h-3 rounded-full border-2 border-gray-700" style={{ backgroundColor: v.color ? undefined : 'transparent' }} />
+                        {vColorImg ? (
+                          <img src={vColorImg} alt={v.color} className="w-4 h-4 rounded object-cover border border-gray-700" onError={(e) => { e.target.style.display = 'none'; }} />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full border-2 border-gray-700" style={{ backgroundColor: v.color ? undefined : 'transparent' }} />
+                        )}
                         <span className="text-xs font-bold theme-text-secondary">
                           {[v.color, v.size].filter(Boolean).join(' • ')}
                         </span>
@@ -1045,7 +1092,8 @@ const InventoryManagement = () => {
                         {v.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{v.price}</span>}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                   {item.variants.length > VARIANTS_PREVIEW && (
                     <button
                       onClick={() => setExpandedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
@@ -1104,7 +1152,7 @@ const InventoryManagement = () => {
             initial={{ opacity: 0, scale: 0.9, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 30 }}
-            className="glass max-w-xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar p-4 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative"
+            className="glass max-w-3xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar p-4 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative"
           >
             <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 pointer-events-none">
               <Package size={200} />
@@ -1254,13 +1302,27 @@ const InventoryManagement = () => {
                     </button>
                   </div>
 
-                  {/* Image Upload */}
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3 mb-1">
-                      <div className="p-2 bg-yellow-500/10 rounded-lg">
-                        <ImageIcon size={16} className="text-yellow-400" />
+                  {/* Default / Master Product Image */}
+                  <div className="space-y-4 pt-4 border-t theme-border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-yellow-500/10 rounded-lg">
+                          <ImageIcon size={16} className="text-yellow-400" />
+                        </div>
+                        <div>
+                          <label className="text-xs md:text-sm font-black text-gray-300 uppercase tracking-[0.2em]">Default Product Image</label>
+                          <p className="text-[10px] text-gray-500 font-bold">Fallback master image shown whenever a color has no specific image</p>
+                        </div>
                       </div>
-                      <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Product Image</label>
+                      {formData.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={removeMasterImage}
+                          className="px-2.5 py-1 text-xs font-bold text-red-400 hover:text-white bg-red-500/10 hover:bg-red-600 rounded-lg transition-all"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                     
                     <div 
@@ -1268,38 +1330,153 @@ const InventoryManagement = () => {
                       onDragLeave={handleDrag}
                       onDragOver={handleDrag}
                       onDrop={handleDrop}
-                      className={`relative w-48 h-48 rounded-[1.25rem] border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 overflow-hidden ${
+                      className={`relative w-44 h-44 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-3 overflow-hidden ${
                         dragActive ? 'border-yellow-500 bg-yellow-500/10' : 'border-gray-800 bg-gray-950/50'
                       } ${formData.imageUrl ? 'border-solid border-emerald-500/40' : ''}`}
                     >
                       {formData.imageUrl ? (
                         <>
-                          <img src={formData.imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={formData.imageUrl} alt="Default preview" className="absolute inset-0 w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center flex-col gap-2 backdrop-blur-sm">
-                            <Upload size={32} className="text-white" />
-                            <span className="text-xs md:text-sm font-black text-white uppercase">Replace</span>
+                            <Upload size={24} className="text-white" />
+                            <span className="text-xs font-black text-white uppercase">Replace</span>
                           </div>
                         </>
                       ) : (
                         <>
                           {uploading ? (
-                            <RefreshCcw size={32} className="text-yellow-500 animate-spin" />
+                            <RefreshCcw size={28} className="text-yellow-500 animate-spin" />
                           ) : (
-                            <Upload size={32} className="text-gray-700" />
+                            <Upload size={28} className="text-gray-700" />
                           )}
-                          <div className="text-center">
-                            <p className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest">{uploading ? 'Processing...' : 'Drop image'}</p>
-                            <p className="text-xs text-gray-600 font-bold mt-1 uppercase">or click</p>
+                          <div className="text-center px-2">
+                            <p className="text-xs font-black text-gray-400 uppercase tracking-wider">{uploading ? 'Processing...' : 'Drop image'}</p>
+                            <p className="text-[10px] text-gray-600 font-bold mt-0.5 uppercase">or click to upload</p>
                           </div>
                         </>
                       )}
                       <input 
                         type="file" 
                         className="absolute inset-0 opacity-0 cursor-pointer" 
-                        onChange={(e) => handleFileUpload(e.target.files[0])}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleFileUpload(e.target.files[0]);
+                          }
+                        }}
                         accept="image/*"
                       />
                     </div>
+                  </div>
+
+                  {/* Color Images (Color-Wise, NOT Size-Wise) */}
+                  <div className="space-y-4 pt-4 border-t theme-border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                          <Palette size={16} className="text-blue-400" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.2em]">Color Images</label>
+                            <span className="text-[10px] bg-blue-500/20 text-blue-300 font-bold px-2 py-0.5 rounded-full uppercase">Color-Wise System</span>
+                          </div>
+                          <p className="text-[10px] text-gray-500 font-bold">1 image per color — automatically shared across all sizes (S, M, L, XL, etc.)</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const colorList = [];
+                      if (Array.isArray(formData.variants)) {
+                        formData.variants.forEach(v => {
+                          const c = (v.color || '').trim();
+                          if (c && !colorList.includes(c)) colorList.push(c);
+                        });
+                      }
+                      if (formData.colorImages) {
+                        Object.keys(formData.colorImages).forEach(c => {
+                          const trimmed = (c || '').trim();
+                          if (trimmed && !colorList.includes(trimmed)) colorList.push(trimmed);
+                        });
+                      }
+
+                      if (colorList.length === 0) {
+                        return (
+                          <div className="p-4 rounded-xl border border-dashed border-gray-800 bg-gray-950/30 text-center">
+                            <p className="text-xs text-gray-500 font-bold">No colors specified in variants yet. Add colors in the variant list above to upload color-specific images.</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {colorList.map(color => {
+                            const colImg = formData.colorImages?.[color];
+                            const isColUploading = colorUploading[color];
+
+                            return (
+                              <div key={color} className="p-3 rounded-xl border border-gray-800 bg-gray-950/60 flex flex-col justify-between gap-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="w-3 h-3 rounded-full border border-gray-600 bg-gray-700 flex-shrink-0" />
+                                    <span className="text-xs font-black text-white truncate">{color}</span>
+                                  </div>
+                                  {colImg ? (
+                                    <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Uploaded</span>
+                                  ) : (
+                                    <span className="text-[9px] font-bold text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">Fallback</span>
+                                  )}
+                                </div>
+
+                                <div className="relative aspect-video w-full rounded-lg border border-dashed border-gray-800 overflow-hidden bg-gray-900 flex items-center justify-center group">
+                                  {colImg ? (
+                                    <>
+                                      <img src={colImg} alt={color} className="w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
+                                        <Upload size={16} className="text-white" />
+                                        <span className="text-[10px] font-black text-white uppercase">Replace</span>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="flex flex-col items-center gap-1 text-gray-600 group-hover:text-blue-400 transition-colors">
+                                      {isColUploading ? (
+                                        <RefreshCcw size={18} className="animate-spin text-blue-400" />
+                                      ) : (
+                                        <Upload size={18} />
+                                      )}
+                                      <span className="text-[10px] font-bold">{isColUploading ? 'Processing...' : 'Upload Image'}</span>
+                                    </div>
+                                  )}
+                                  <input
+                                    type="file"
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      if (e.target.files && e.target.files[0]) {
+                                        handleColorImageUpload(color, e.target.files[0]);
+                                      }
+                                    }}
+                                  />
+                                </div>
+
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="text-gray-500 truncate">All {color} sizes</span>
+                                  {colImg && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeColorImage(color)}
+                                      className="text-red-400 hover:text-red-300 font-bold transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <Button 
