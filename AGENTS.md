@@ -1,5 +1,46 @@
 ## Goals
-### Implemented This Session — Marketing Activity 500 Error Resolution & Prisma Validation Fix (deployed & live-verified)
+### Implemented This Session — Marketing Location Link Extraction, Map Preview & Employee Location Configuration (deployed & live-verified)
+- **Problem & Requirements**:
+  1. In **Software Settings → Marketing → Location Management**, administrators needed to configure Marketing employees' (e.g. Junaid) active locations by pasting supported map/location links (`maps.app.goo.gl`, place links, search coordinates, etc.).
+  2. The system previously accepted the link without actually resolving redirects or extracting structured location attributes.
+  3. Requirements:
+     - Automatically extract Latitude, Longitude, Full Address, Location Name / Place Name, Area, City, Hospital Name, Company/Organization Name, Place ID, and Original Source URL.
+     - Interactive Map Preview with marker pinned at extracted coordinates, allowing visual verification before saving.
+     - Strict coordinate validation (`-90 <= lat <= 90`, `-180 <= lng <= 180`), rejecting malformed/NaN values.
+     - Single active configured location per employee: updating an employee's location updates the active record in-place (zero duplicate active records).
+     - Informative error handling explaining reasons for failure if an unsupported/broken link is provided.
+- **Implementation & Fixes**:
+  - **Prisma Schema & Database Migration (`backend/prisma/schema.prisma`)**:
+    - Updated `MarketingConfiguredLocation` model with `employeeId` (indexed), `employeeName`, `city`, `locationMode` (default `'CONFIGURED'`), and `originalMapUrl`.
+  - **Map URL Resolution & Parsing Engine (`backend/src/utils/mapUrlParser.js`)**:
+    - Built comprehensive redirect follower supporting short links (`maps.app.goo.gl`, `goo.gl/maps`, `bit.ly`).
+    - Multi-pattern coordinate extractor (`@lat,lng`, `!3dlat!4dlng`, `?q=lat,lng`, `?ll=lat,lng`, `?center=lat,lng`, `destination=lat,lng`, OSM/Geo schemas, and raw coordinates).
+    - Reverse geocoding via OpenStreetMap Nominatim with English locale headers to parse genuine street address, area (`suburb`/`neighbourhood`), city, and institution identification (hospitals, clinics, companies).
+  - **Backend Controllers & Routes (`backend/src/controllers/marketing.controller.js`, `backend/src/routes/marketing.routes.js`)**:
+    - `extractLocationLink` (`POST /api/marketing/extract-location-link`): Resolves and parses link, returning clean structured JSON response.
+    - `saveEmployeeConfiguredLocation` (`POST /api/marketing/employee-location`): Validates employee and coordinate boundaries; updates active record in-place to prevent duplicate records.
+    - `getEmployeeConfiguredLocation` (`GET /api/marketing/employee-location/:employeeId`): Fetches the employee's active configured location.
+    - Updated `reverseGeocodeLocation` to prioritize matching the employee's own configured location.
+  - **Frontend UI & Visual Map Preview (`frontend/src/components/MarketingLocationsConfigPanel.jsx`, `frontend/src/pages/SoftwareSettings.jsx`)**:
+    - Renamed tab to `'Marketing Location Management'`.
+    - Added Employee Selector (Junaid and active marketing personnel) and Location Mode toggle (`Configured Location` vs `Live Location`).
+    - Added link input with "Extract Location" button and comprehensive loading indicators.
+    - Interactive OpenStreetMap iframe pinned at extracted coordinates.
+    - Pre-filled editable review form allowing verification of place name, area, city, hospital, company, address, and coordinates before saving.
+    - "Save Location" action updating employee active state and displaying active location summary card.
+- **Verification**:
+  - Automated verification test suite `backend/scripts/verify-marketing-location-extraction.cjs`:
+    - 100% pass: Verified link extraction from Google Maps URL (`31.4697, 74.2728`).
+    - 100% pass: Saved configured location for employee (Junaid).
+    - 100% pass: Fetched active configured location.
+    - 100% pass: Replaced location and verified exactly 1 active record exists (zero duplicates).
+    - 100% pass: Verified rejection of empty URLs (400), out-of-bounds coordinates (400), and invalid employee IDs (404).
+  - Production build & deployment:
+    - Frontend bundled cleanly (`npm --prefix frontend run build`, exit code 0).
+    - Deployed to Vercel production (`vercel --prod`) and aliased to `smart-production-v2.vercel.app`.
+    - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `status: "ok"`.
+
+### Implemented Prior Session — Marketing Activity 500 Error Resolution & Prisma Validation Fix (deployed & live-verified)
 - **Problem & Root Cause**:
   - `POST /api/marketing/activities` failed with HTTP 500 (`Internal Server Error`):
     `MarketingDashboard-Dq-POT2k.js:1 Failed to record activity: AxiosError: Request failed with status code 500`
