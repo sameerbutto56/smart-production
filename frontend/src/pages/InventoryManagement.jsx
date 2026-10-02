@@ -37,6 +37,7 @@ import { printInventoryReport } from '../utils/printReport';
 import toast from 'react-hot-toast';
 import { optimizeImage, formatFileSize } from '../utils/imageOptimizer';
 import { extractColorImages, getProductColorImage } from '../utils/productImageUtils';
+import { PageLoader } from '../components/LoadingSpinner';
 
 const LOW_STOCK_LIMIT = 5;
 
