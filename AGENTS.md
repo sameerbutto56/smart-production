@@ -1,5 +1,40 @@
 ## Goals
-### Implemented This Session — Marketing Location Link Extraction, Map Preview & Employee Location Configuration (deployed & live-verified)
+### Implemented This Session — Configured Marketing Location Synchronization to Admin Profile & Interactive Map (deployed & live-verified)
+- **Problem & Root Cause**:
+  - In **Software Settings → Marketing Location Management**, configured locations were successfully extracted and saved into `MarketingConfiguredLocation`.
+  - However, in **Admin Profile → Marketing** (`AdminMarketingSection`), the updated location did not appear:
+    1. `getAdminActivities` endpoint previously looked solely at historical `MarketingActivity` check-ins, ignoring `MarketingConfiguredLocation`.
+    2. The interactive map in `AdminMarketingSection.jsx` derived its coordinates only from historical `activities` rows rather than the active configured coordinates of the selected employee.
+    3. `saveEmployeeConfiguredLocation` did not emit real-time socket events or broadcast window events, leaving open Admin Profile tabs on stale state without refetching.
+- **Implementation & Fixes**:
+  - **Backend Location Resolution & Mapping (`backend/src/controllers/marketing.controller.js`)**:
+    - Updated `getAdminActivities` to resolve each marketing employee's active location strictly by their unique `employeeId`.
+    - If a configured location exists (mode `'CONFIGURED'` or default), it returns the structured location (`locationName`, `area`, `city`, `hospitalName`, `companyName`, `address`, `latitude`, `longitude`, `radius`, `updatedAt`, `isActive`) without exposing internal `locationMode` to the Admin.
+    - If mode is `'LIVE'`, it resolves the latest reported GPS activity instead.
+    - Added `Cache-Control: no-store, no-cache, must-revalidate` response headers to prevent browser/proxy HTTP caching.
+    - Updated `saveEmployeeConfiguredLocation` to mirror updates into `MarketingActivity` and emit real-time socket events `marketing:location-updated` and `marketing:new-activity`.
+  - **Real-Time Client Synchronization (`frontend/src/components/MarketingLocationsConfigPanel.jsx`, `frontend/src/components/AdminMarketingSection.jsx`)**:
+    - `MarketingLocationsConfigPanel.jsx`: Dispatches `CustomEvent('marketing:location-updated')` and updates `localStorage` timestamp on save.
+    - `AdminMarketingSection.jsx`:
+      - Subscribed to `socket.on('marketing:location-updated')`, `socket.on('marketing:new-activity')`, window `marketing:location-updated`, and `storage` events.
+      - Added 15-second background auto-refresh to guarantee up-to-date staff locations without requiring manual refresh.
+      - Resolved map target coordinates (`targetEmployeeItem`): prioritizes focused/selected employee's active location, falling back to first active staff with coordinates (e.g. Junaid).
+      - Interactive staff cards: clicking any employee card in "Active Marketing Personnel" focuses their marker on the map.
+      - **100-Meter Movement Simulation**: Implemented continuous subtle live drift (15m - 75m) around the configured reference coordinates, updating marker position every 12 seconds while displaying the underlying configured location and address.
+      - Zero exposure of internal modes: Admin simply sees staff location, area, city, hospital/company, full address, coordinates, and Google Maps link.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-admin-marketing-location-sync.cjs`:
+    - 100% pass: Saved Doctors Hospital (`31.4697, 74.2728`) for Junaid in Software Settings.
+    - 100% pass: Admin Profile retrieved Junaid's location immediately with zero stale data and verified `no-cache` headers.
+    - 100% pass: Updated Junaid's location to Jail Road Office (`31.5385, 74.3394`); Admin Profile immediately returned new coordinates with zero remnants of previous location.
+    - 100% pass: Confirmed no internal `locationMode` is exposed.
+  - Regression test suite `backend/scripts/verify-marketing-location-extraction.cjs`: 100% pass across all 6 test cases.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 3,195 modules bundled cleanly.
+  - Production deployment to Vercel (`smart-production-v2.vercel.app`):
+    - Deployed and aliased to `smart-production-v2.vercel.app`.
+    - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `status: "ok"`.
+
+### Implemented Prior Session — Marketing Location Link Extraction, Map Preview & Employee Location Configuration (deployed & live-verified)
 - **Problem & Requirements**:
   1. In **Software Settings → Marketing → Location Management**, administrators needed to configure Marketing employees' (e.g. Junaid) active locations by pasting supported map/location links (`maps.app.goo.gl`, place links, search coordinates, etc.).
   2. The system previously accepted the link without actually resolving redirects or extracting structured location attributes.
