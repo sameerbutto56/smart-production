@@ -1,5 +1,34 @@
 ## Goals
-### Implemented This Session — Configured Marketing Location Synchronization to Admin Profile & Interactive Map (deployed & live-verified)
+### Implemented This Session — System Control: Disabled Features Remove Option from UI & Eliminate Access Denied Permission Note (deployed & live-verified)
+- **Problem & Root Cause**:
+  - When an administrator disabled a feature or functionality for a user profile in **Software Settings → System Control**:
+    1. Users were shown an "Access Denied • Feature Disabled" banner and permission note (`PermittedRoute` displayed `<ShieldAlert />` with *"This functionality has been disabled for your profile in System Control. Please contact your administrator if you require access."*).
+    2. Certain menu links, dashboard cards, header buttons, and internal tabs remained visible even when their backing feature was disabled in Software Settings (e.g. "Product Data" in top bar, Control Center cards in Admin Dashboard, tabs in Outlet Dashboard and Marketing Dashboard).
+    3. Route guards (`JoharTownOnlyRoute`, `AdminBlockedRoute`, `OfficeSupplyRoute`, `OutletBlockedRoute`) hardcoded redirection targets like `/outlet-dashboard` or `/dashboard` which could cause redirection loops if those target pages were also disabled.
+- **Implementation & Fixes**:
+  - **Eliminated Error Banner & Permission Note (`frontend/src/App.jsx`)**:
+    - Purged the red `ShieldAlert` "Access Denied • Feature Disabled" screen and permission note text from `PermittedRoute`.
+    - `PermittedRoute` now silently and seamlessly redirects unauthorized/disabled routes via `<Navigate to="/" replace />`.
+    - Updated `OutletBlockedRoute`, `JoharTownGatePassRoute`, `JoharTownOnlyRoute`, `AdminBlockedRoute`, and `OfficeSupplyRoute` to redirect to `/` instead of hardcoded route paths.
+  - **Permission-Aware Route Resolution (`frontend/src/App.jsx` - `AuthRedirectHandler`)**:
+    - Updated `AuthRedirectHandler` to evaluate `hasPermission` sequentially for every role (OUTLET, STORE, PRODUCTION, DISPATCH, DELIVERY_BOY, INVENTORY_VIEW, CEO, FAISAL, ORDER_ENTRY, ADMIN, SUPER_ADMIN).
+    - Guarantees the user is always automatically redirected to their first enabled authorized screen, completely avoiding disabled landing pages.
+  - **Dynamic Navigation Option Removal (`frontend/src/components/Layout.jsx`)**:
+    - In `Sidebar`: Mapped `ADMIN_MARKETING_VIEW` for ADMIN/SUPER_ADMIN on `'Marketing'` alongside existing dynamic mappings (`OUTLET_TASKS` and `OUTLET_ORDER_VIEW`).
+    - In `Layout`: Integrated `useSystemControl` to conditionally hide the "Product Data" link in the top header and gate activeAlert demand links (`/warehouse`, `/outlet-requests`) by permission.
+  - **Dashboard Cards & Sub-Tabs Filtering (`AdminDashboard.jsx`, `OutletDashboard.jsx`, `MarketingDashboard.jsx`)**:
+    - `AdminDashboard.jsx`: Gated Module Cards Grid with `hasPermission` (`warehouse`, `dispatch_analytics`, `enamels_delivery`, `marketing`, `audit`, `asm`, `product_data`). Added auto-reset `useEffect` to return `activeTab` to `null` if the opened tab is disabled.
+    - `OutletDashboard.jsx`: Gated dropdown `tabs` by permission (`OUTLET_POS`, `OUTLET_ORDER_VIEW`, `ORDER_TRACK`, `OUTLET_IN_DISPATCH`, `OUTLET_TASKS`, `BANK_DEPOSIT`). Added auto-reset `useEffect` to fall back to `'dashboard'` if the active tab is disabled.
+    - `MarketingDashboard.jsx`: Filtered navigation tabs (`add`, `map`, `history`) by `MARKETING_LOCATION_ENTRY`, `MARKETING_MAP_VIEW`, `MARKETING_ACTIVITY_HISTORY`. Added auto-reset `useEffect` to return to `'dashboard'` if disabled.
+- **Verification**:
+  - Automated verification test suite `backend/scripts/verify-disabled-feature-handling.cjs`:
+    - 100% pass across all 7 checks (purged error banner, route guards redirect to `/`, `AuthRedirectHandler` checks, `Layout.jsx` top bar and nav filtering, `AdminDashboard.jsx` card filtering and activeTab reset, `OutletDashboard.jsx` tab filtering, `MarketingDashboard.jsx` tab filtering).
+  - Frontend production build (`/Users/apple/.nodejs/bin/npm --prefix frontend run build`): Exit code 0, 3,196 modules bundled cleanly.
+  - Production deployment to Vercel (`smart-production-v2.vercel.app`):
+    - Deployed and aliased to `smart-production-v2.vercel.app`.
+    - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `status: "ok"`.
+
+### Implemented Prior Session — Configured Marketing Location Synchronization to Admin Profile & Interactive Map (deployed & live-verified)
 - **Problem & Root Cause**:
   - In **Software Settings → Marketing Location Management**, configured locations were successfully extracted and saved into `MarketingConfiguredLocation`.
   - However, in **Admin Profile → Marketing** (`AdminMarketingSection`), the updated location did not appear:
