@@ -116,10 +116,13 @@ export const getProductColorImage = (product, selectedColor = null) => {
         return matchingVariant.imageUrl;
       }
     }
+
+    // CRITICAL: A specific color was requested, but that color does NOT have an uploaded image.
+    // Must return null immediately — NEVER fall back to another color's image or product.imageUrl.
+    return null;
   }
 
-  // If no color selected, but product has colorImages and only 1 color or first color image exists,
-  // we can use the default imageUrl first; if default imageUrl is empty, use the first color image.
+  // ONLY when NO specific color is selected (general catalog card thumbnail):
   if (product.imageUrl && typeof product.imageUrl === 'string' && product.imageUrl.trim()) {
     return product.imageUrl;
   }

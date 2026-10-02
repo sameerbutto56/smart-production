@@ -63,7 +63,7 @@ const createInventoryItem = async (req, res) => {
           const colImg = v.color ? colorImages[v.color] : null;
           return {
             ...v,
-            imageUrl: colImg || v.imageUrl || null
+            imageUrl: colImg || null
           };
         });
       }
@@ -160,7 +160,7 @@ const updateInventoryItem = async (req, res) => {
           const colImg = v.color ? colorImages[v.color] : null;
           return {
             ...v,
-            imageUrl: colImg || v.imageUrl || null
+            imageUrl: colImg || null
           };
         });
       }

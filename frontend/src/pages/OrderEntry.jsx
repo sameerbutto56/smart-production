@@ -557,10 +557,18 @@ const SmartOrderForm = () => {
                 </div>
                 <div className="max-h-60 overflow-y-auto pr-2 space-y-3 custom-scrollbar mb-6">
                   {(cartItems || []).map((item, idx) => (
-                    <div key={idx} className="theme-bg-subtle p-4 rounded-2xl flex justify-between items-center border theme-border hover:border-gray-700 transition-colors">
-                      <div className="flex-1 min-w-0 pr-4">
+                    <div key={idx} className="theme-bg-subtle p-3.5 rounded-2xl flex justify-between items-center border theme-border hover:border-gray-700 transition-colors gap-3">
+                      {(item.productDetails?.productImage || item.productDetails?.imageUrl) && (
+                        <img
+                          src={item.productDetails.productImage || item.productDetails.imageUrl}
+                          alt={item.productDetails?.productType}
+                          className="w-10 h-10 rounded-xl object-cover border border-gray-700 shrink-0"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-black theme-text-primary truncate">{item.productDetails?.productType || 'Custom Item'}</p>
-                        <p className="text-xs md:text-sm theme-text-muted font-bold uppercase mt-1 truncate">{item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}</p>
+                        <p className="text-xs md:text-sm theme-text-muted font-bold uppercase mt-0.5 truncate">{item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}</p>
                       </div>
                       <div className="text-right shrink-0">
                         {item.quantity > 1 && item.totalPrice > 0 && <p className="text-xs theme-text-muted font-bold">₨{Number(item.totalPrice / item.quantity).toLocaleString()} × {item.quantity}</p>}
@@ -627,13 +635,21 @@ const SmartOrderForm = () => {
                         const hasCust = cust.nameSpelling || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
                         return (
                           <div key={idx} className="bg-gray-900/50 rounded-xl border border-gray-800/70 p-3 md:p-4">
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start justify-between gap-3">
+                              {(pd.productImage || pd.imageUrl || item.productImage) && (
+                                <img
+                                  src={pd.productImage || pd.imageUrl || item.productImage}
+                                  alt={pd.productType}
+                                  className="w-12 h-12 md:w-14 md:h-14 rounded-xl object-cover border border-gray-700/80 shrink-0"
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              )}
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-black text-gray-500">#{idx + 1}</span>
-                                  <span className="text-sm font-black text-white uppercase truncate">{pd.productType || '\u2014'}</span>
-                                  {pd.gender && <span className="text-[9px] font-black text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.gender}</span>}
-                                </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-gray-500">#{idx + 1}</span>
+                                <span className="text-sm font-black text-white uppercase truncate">{pd.productType || '\u2014'}</span>
+                                {pd.gender && <span className="text-[9px] font-black text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.gender}</span>}
+                              </div>
                                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                                   <span className="text-xs text-gray-300 uppercase font-bold">{pd.color || '\u2014'} / {pd.size || '\u2014'}</span>
                                   {pd.fabricType && <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}

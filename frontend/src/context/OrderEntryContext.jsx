@@ -800,6 +800,7 @@ export const OrderEntryProvider = ({ children }) => {
     setFormData(prev => ({
       ...prev,
       productType: pd.productType || '', fabricType: pd.fabricType || '', color: pd.color || '', size: pd.size || '',
+      productImage: pd.productImage || null,
       gender: pd.gender || '',
       femaleOptions: pd.femaleOptions || DEFAULT_FEMALE_OPTIONS,
       matchingCap: pd.matchingCap || false, matchingCapQty: pd.matchingCapQty || 0,

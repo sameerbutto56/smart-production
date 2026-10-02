@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Package, CheckCircle2, Layers, Palette, Hash, Search, X, Plus, FileEdit, Trash2, ShoppingCart, Pencil } from 'lucide-react';
+import { Package, CheckCircle2, Layers, Palette, Hash, Search, X, Plus, FileEdit, Trash2, ShoppingCart, Pencil, Camera, ZoomIn, Eye } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
-import { getProductColorImage } from '../utils/productImageUtils';
+import { getProductColorImage, getProductConfiguredColors } from '../utils/productImageUtils';
 
 const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color, disabled = false }) => (
   <button type="button" onClick={() => onClick(value)}
@@ -52,6 +52,8 @@ const ProductSelectionTab = () => {
     fromVerification, originalOrder,
     requiredErrors, setRequiredErrors, error, setError
   } = useOrderEntry();
+
+  const [zoomImage, setZoomImage] = useState(null);
 
   return (
     <motion.div
@@ -224,13 +226,17 @@ const ProductSelectionTab = () => {
                         }
                         if (error === 'Select the gender.' && setError) setError('');
                       }
-                      const resolvedImg = getProductColorImage(item, item.color || formData.color);
+                      const itemColors = getProductConfiguredColors(item);
+                      const initialColor = (formData.color && itemColors.includes(formData.color))
+                        ? formData.color
+                        : (item.color || (itemColors.length > 0 ? itemColors[0] : ''));
+                      const resolvedImg = initialColor ? getProductColorImage(item, initialColor) : null;
                       setFormData({
                         ...formData,
                         productType: item.name,
                         fabricType: item.fabric || formData.fabricType,
-                        color: item.color || formData.color,
-                        productImage: resolvedImg || item.imageUrl || null,
+                        color: initialColor,
+                        productImage: resolvedImg || null,
                         gender: isApp ? formData.gender : ''
                       });
                     }
@@ -239,12 +245,15 @@ const ProductSelectionTab = () => {
                   {(() => {
                     const cardImg = getProductColorImage(item, formData.productType === item.name ? formData.color : null);
                     return cardImg ? (
-                      <img src={cardImg} alt={item.name} className="w-16 h-16 object-contain rounded-xl mb-2" onError={(e) => { e.target.style.display = 'none'; }} />
-                    ) : null;
+                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-950/80 border border-gray-700/60 flex items-center justify-center mb-2 shadow-inner group-hover:scale-105 transition-transform shrink-0">
+                        <img src={cardImg} alt={item.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                      </div>
+                    ) : (
+                      <div className={`p-3 rounded-2xl mb-2 transition-all ${formData.productType === item.name ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-gray-800 text-gray-400 group-hover:text-gray-200'}`}>
+                        <Package size={22} />
+                      </div>
+                    );
                   })()}
-                  <div className={`p-3 rounded-xl ${formData.productType === item.name ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`}>
-                    <Package size={22} />
-                  </div>
                   <div className="text-center w-full mt-2 space-y-2">
                     <span className="block text-sm font-black uppercase tracking-wider leading-snug">{item.name}</span>
                     {!isEditMode && (
@@ -292,6 +301,199 @@ const ProductSelectionTab = () => {
             })}
         </div>
       </div>
+
+      {/* Selected Product & Color Showcase Card */}
+      {formData.productType && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border-2 border-blue-500/40 bg-gradient-to-br from-blue-950/40 via-gray-900/80 to-slate-900/60 shadow-2xl relative overflow-hidden backdrop-blur-xl"
+        >
+          {/* Subtle ambient lighting */}
+          <div className="absolute -top-24 -right-24 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
+            {/* Product Image / Color Swatch Showcase */}
+            <div className="flex flex-col items-center shrink-0">
+              <div className="relative w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 rounded-2xl md:rounded-[2rem] border-2 border-gray-700/80 bg-gray-950/90 overflow-hidden shadow-2xl flex items-center justify-center group">
+                {formData.productImage ? (
+                  <>
+                    <img
+                      src={formData.productImage}
+                      alt={formData.productType}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setZoomImage(formData.productImage)}
+                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 text-white backdrop-blur-[2px]"
+                      title="Click to view full photo"
+                    >
+                      <ZoomIn size={28} className="text-blue-400 drop-shadow" />
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-black/70 px-2.5 py-1 rounded-full">Zoom Photo</span>
+                    </button>
+                    <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 bg-emerald-500/90 text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg">
+                      <CheckCircle2 size={11} />
+                      <span>{formData.color ? `${formData.color} Photo` : 'Garment Photo'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                    {formData.color ? (
+                      <>
+                        <div
+                          className="w-16 h-16 md:w-20 md:h-20 rounded-full border-4 border-white/20 shadow-2xl mb-2 flex items-center justify-center"
+                          style={{ backgroundColor: colorMap[formData.color.toLowerCase().trim()] || formData.color.toLowerCase().trim() }}
+                        >
+                          <Palette size={24} className={darkColors.has(formData.color.toLowerCase().trim()) ? 'text-white' : 'text-gray-900'} />
+                        </div>
+                        <span className="text-xs font-black text-white uppercase tracking-wider">{formData.color} Swatch</span>
+                        <span className="text-[10px] text-gray-500 font-bold mt-1">No garment photo uploaded for {formData.color}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Package size={44} className="text-gray-600 mb-2" />
+                        <span className="text-xs font-bold text-gray-400">Select a color to preview</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              {formData.productImage && (
+                <button
+                  type="button"
+                  onClick={() => setZoomImage(formData.productImage)}
+                  className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <Eye size={13} />
+                  <span>Enlarge Photo Preview</span>
+                </button>
+              )}
+            </div>
+
+            {/* Selected Product Specifications */}
+            <div className="flex-1 w-full text-center md:text-left space-y-4">
+              <div className="flex flex-wrap items-center justify-center md:justify-between gap-2 border-b border-gray-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    Selected Product
+                  </span>
+                  <span className="text-xs font-bold text-gray-400">{selectedProductCategory || 'Catalog'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, productType: '', fabricType: '', color: '', productImage: null, gender: '' });
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-red-400 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-500/10"
+                >
+                  <X size={13} />
+                  <span>Change Product</span>
+                </button>
+              </div>
+
+              <div>
+                <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-wide leading-tight">
+                  {formData.productType}
+                </h2>
+                <div className="mt-3 flex flex-wrap items-center justify-center md:justify-start gap-2">
+                  {formData.color && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800/80 border border-gray-700 text-xs font-black text-white">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-white/40"
+                        style={{ backgroundColor: colorMap[formData.color.toLowerCase().trim()] || formData.color.toLowerCase().trim() }}
+                      />
+                      Color: {formData.color}
+                    </span>
+                  )}
+                  {formData.fabricType && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-black text-emerald-400">
+                      <Layers size={13} />
+                      Fabric: {formData.fabricType}
+                    </span>
+                  )}
+                  {formData.size && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-xs font-black text-purple-400">
+                      <Hash size={13} />
+                      Size: {formData.size}
+                    </span>
+                  )}
+                  {formData.gender && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-xs font-black text-cyan-400">
+                      Gender: {formData.gender}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Pricing and Stock Bar */}
+              <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-4">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-2.5 rounded-2xl">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Unit Price</span>
+                  <span className="text-xl md:text-2xl font-black text-emerald-400">
+                    ₨{(computedUnitPrice || 0).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="bg-gray-800/60 border border-gray-700/60 px-4 py-2.5 rounded-2xl">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Available Stock</span>
+                  <span className="text-sm md:text-base font-black text-white">
+                    {(() => {
+                      if (!selectedProduct) return '—';
+                      if (formData.color && formData.size) {
+                        const match = (selectedProductVariants || []).find(v => v.color === formData.color && v.size === formData.size);
+                        return match ? `${match.stock} units` : 'Out of stock';
+                      }
+                      if (formData.color) {
+                        const cStock = (selectedProductVariants || []).filter(v => v.color === formData.color).reduce((s, v) => s + (v.stock || 0), 0);
+                        return `${cStock} units (${formData.color})`;
+                      }
+                      const total = (selectedProductVariants || []).reduce((s, v) => s + (v.stock || 0), 0) || selectedProduct.stock || 0;
+                      return `${total} total units`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Lightbox Zoom Modal */}
+      {zoomImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setZoomImage(null)}
+        >
+          <div
+            className="relative max-w-3xl w-full bg-gray-900 border border-gray-700 rounded-3xl overflow-hidden shadow-2xl p-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 mb-2">
+              <div className="flex items-center gap-2">
+                <Package size={16} className="text-blue-400" />
+                <span className="text-sm font-black text-white uppercase">{formData.productType} ({formData.color || 'Preview'})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomImage(null)}
+                className="p-1.5 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-2 flex items-center justify-center bg-gray-950 rounded-2xl max-h-[75vh] overflow-hidden">
+              <img
+                src={zoomImage}
+                alt={formData.productType}
+                className="max-h-[70vh] w-auto object-contain rounded-xl shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8">
         <div className={`lg:col-span-5 glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
@@ -366,18 +568,27 @@ const ProductSelectionTab = () => {
                       setFormData({
                         ...formData,
                         color: c,
-                        productImage: colorImg || formData.productImage || null
+                        productImage: colorImg || null
                       });
                     }}
-                      className={`group relative w-full rounded-xl border-2 transition-all duration-200 flex flex-col items-center overflow-hidden ${formData.color === c ? 'border-white ring-2 ring-blue-500 scale-105 z-10' : 'border-gray-700/50 hover:border-gray-500'}`}>
+                      className={`group relative w-full rounded-2xl border-2 transition-all duration-200 flex flex-col items-center overflow-hidden ${formData.color === c ? 'border-blue-500 ring-4 ring-blue-500/30 scale-105 z-10 shadow-xl' : 'border-gray-700/60 hover:border-gray-500 bg-gray-900/60'}`}>
                       <div className="w-full aspect-square flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: bgHex }}>
-                        {colorImg && (
-                          <img src={colorImg} alt={c} className="absolute inset-0 w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                        {colorImg ? (
+                          <>
+                            <img src={colorImg} alt={c} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" onError={(e) => { e.target.style.display = 'none'; }} />
+                            <div className="absolute top-1.5 left-1.5 z-10 bg-black/60 backdrop-blur-md rounded-md p-1 shadow">
+                              <Camera size={11} className="text-emerald-400" />
+                            </div>
+                          </>
+                        ) : null}
+                        {formData.color === c && (
+                          <div className={`relative z-10 ${textClass} bg-black/50 backdrop-blur-md p-1.5 rounded-full shadow-lg`}>
+                            <CheckCircle2 size={16} className="text-white" />
+                          </div>
                         )}
-                        {formData.color === c && <div className={`relative z-10 ${textClass} bg-black/40 backdrop-blur-sm p-1.5 rounded-full`}><CheckCircle2 size={16} className="text-white" /></div>}
                       </div>
                       <div className="w-full py-1.5 px-1 theme-bg text-center">
-                        <p className={`text-xs md:text-sm font-black theme-text-primary ${formData.color === c ? 'whitespace-normal break-words' : 'truncate'}`}>{c}</p>
+                        <p className={`text-xs md:text-sm font-black theme-text-primary ${formData.color === c ? 'whitespace-normal break-words text-blue-400' : 'truncate'}`}>{c}</p>
                         {!isEditMode && <p className="text-[9px] font-bold theme-text-muted">{stockForColor} in stock</p>}
                       </div>
                     </button>
