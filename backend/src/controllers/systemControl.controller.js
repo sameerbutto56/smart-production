@@ -41,13 +41,7 @@ const getSystemControlMatrix = async (req, res) => {
     for (const prof of ALL_PROFILES) {
       matrix[prof] = {};
       for (const feat of FEATURES) {
-        const key = `${prof}:${feat.id}`;
-        if (permMap.has(key)) {
-          matrix[prof][feat.id] = permMap.get(key);
-        } else {
-          // Default
-          matrix[prof][feat.id] = prof === 'SUPER_ADMIN' ? true : (feat.defaultProfiles || []).includes(prof);
-        }
+        matrix[prof][feat.id] = await isFeatureAllowed(prof, feat.id);
       }
     }
 
@@ -86,27 +80,34 @@ const updateSystemControlPermission = async (req, res) => {
     // Determine previous value
     const previous = await isFeatureAllowed(prof, featureId);
 
-    // Upsert into database
-    const updated = await prisma.systemControlPermission.upsert({
-      where: {
-        profile_featureId: {
-          profile: prof,
-          featureId
+    // If updating ADMIN or SUPER_ADMIN, update both profiles in database so both stay synchronized
+    const profilesToUpdate = (prof === 'ADMIN' || prof === 'SUPER_ADMIN')
+      ? ['ADMIN', 'SUPER_ADMIN']
+      : [prof];
+
+    let lastUpdated = null;
+    for (const pr of profilesToUpdate) {
+      lastUpdated = await prisma.systemControlPermission.upsert({
+        where: {
+          profile_featureId: {
+            profile: pr,
+            featureId
+          }
+        },
+        update: {
+          isEnabled,
+          updatedById: req.user?.id || null,
+          updatedByName: req.user?.name || 'Admin',
+        },
+        create: {
+          profile: pr,
+          featureId,
+          isEnabled,
+          updatedById: req.user?.id || null,
+          updatedByName: req.user?.name || 'Admin',
         }
-      },
-      update: {
-        isEnabled,
-        updatedById: req.user?.id || null,
-        updatedByName: req.user?.name || 'Admin',
-      },
-      create: {
-        profile: prof,
-        featureId,
-        isEnabled,
-        updatedById: req.user?.id || null,
-        updatedByName: req.user?.name || 'Admin',
-      }
-    });
+      });
+    }
 
     // Record Audit Log
     await prisma.systemControlAuditLog.create({
@@ -123,19 +124,21 @@ const updateSystemControlPermission = async (req, res) => {
     // Invalidate memory cache immediately
     invalidatePermissionCache();
 
-    // Notify connected clients via WebSockets if io is available
+    // Notify connected clients via WebSockets if io is available for all synced profiles
     if (req.app.get('io')) {
-      req.app.get('io').emit('system-control:updated', {
-        profile: prof,
-        featureId,
-        isEnabled,
-        updatedAt: new Date()
-      });
+      for (const pr of profilesToUpdate) {
+        req.app.get('io').emit('system-control:updated', {
+          profile: pr,
+          featureId,
+          isEnabled,
+          updatedAt: new Date()
+        });
+      }
     }
 
     res.json({
       success: true,
-      permission: updated,
+      permission: lastUpdated,
       message: `Permission for '${featureDef.name}' (${prof}) updated to ${isEnabled ? 'ON' : 'OFF'}`
     });
   } catch (error) {

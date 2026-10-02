@@ -43,21 +43,40 @@ const isFeatureAllowed = async (profile, featureId) => {
     await loadPermissionsIntoMemory();
   }
 
-  const key = `${p}:${featureId}`;
+  // Candidate keys: If profile is SUPER_ADMIN, check SUPER_ADMIN:feat and ADMIN:feat.
+  // If profile is ADMIN, check ADMIN:feat and SUPER_ADMIN:feat.
+  const candidateKeys = [`${p}:${featureId}`];
+  if (p === 'SUPER_ADMIN') candidateKeys.push(`ADMIN:${featureId}`);
+  if (p === 'ADMIN') candidateKeys.push(`SUPER_ADMIN:${featureId}`);
 
-  // If explicitly configured in database, obey database decision
-  if (permissionCache.has(key)) {
-    return permissionCache.get(key);
+  // CRITICAL RULE 1: If ANY candidate key is explicitly disabled in DB, access is strictly denied (false)
+  for (const k of candidateKeys) {
+    if (permissionCache.has(k) && permissionCache.get(k) === false) {
+      return false;
+    }
+  }
+
+  // CRITICAL RULE 2: If ANY candidate key is explicitly enabled in DB, access is granted (true)
+  for (const k of candidateKeys) {
+    if (permissionCache.has(k) && permissionCache.get(k) === true) {
+      return true;
+    }
   }
 
   // Fallback to default definition in feature registry
   const featureDef = FEATURES.find(f => f.id === featureId);
   if (!featureDef) return false;
 
-  // By default, Super Admin has access unless explicitly toggled off
-  if (p === 'SUPER_ADMIN') return true;
+  const defaultProfiles = Array.isArray(featureDef.defaultProfiles) ? featureDef.defaultProfiles : [];
 
-  return Array.isArray(featureDef.defaultProfiles) && featureDef.defaultProfiles.includes(p);
+  // Default for Admin / Super Admin
+  if (p === 'SUPER_ADMIN' || p === 'ADMIN') {
+    return defaultProfiles.includes('SUPER_ADMIN') ||
+           defaultProfiles.includes('ADMIN') ||
+           p === 'SUPER_ADMIN';
+  }
+
+  return defaultProfiles.includes(p);
 };
 
 /**

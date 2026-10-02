@@ -7,10 +7,11 @@ import { LanguageProvider } from './context/LanguageContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { SystemPauseProvider } from './context/SystemPauseContext';
 import { DelayProvider } from './context/DelayContext';
-import { SystemControlProvider } from './context/SystemControlContext';
+import { SystemControlProvider, useSystemControl } from './context/SystemControlContext';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './context/ThemeContext';
+import { ShieldAlert } from 'lucide-react';
 
 // All pages lazy-loaded — each becomes its own chunk
 const Login = lazy(() => import('./pages/Login'));
@@ -143,16 +144,47 @@ const OfficeSupplyRoute = ({ children }) => {
   return children;
 };
 
+const PermittedRoute = ({ feature, children }) => {
+  const { hasPermission, loading } = useSystemControl();
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  if (feature && !hasPermission(feature)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mb-4 shadow-xl">
+          <ShieldAlert size={32} />
+        </div>
+        <h2 className="text-xl font-black text-white mb-2">Access Denied • Feature Disabled</h2>
+        <p className="text-sm text-gray-400 max-w-md mb-6 font-medium">
+          This functionality has been disabled for your profile in <span className="text-blue-400 font-bold">System Control</span>. Please contact your administrator if you require access.
+        </p>
+      </div>
+    );
+  }
+  return children;
+};
+
 const AuthRedirectHandler = () => {
   const { user } = useAuth();
+  const { hasPermission } = useSystemControl();
   if (!user) return <Navigate to="/login" replace={true} />;
   
   const role = String(user.role || '').toUpperCase().trim();
   
-  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace={true} />;
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
+    if (hasPermission('DASHBOARD_VIEW')) return <Navigate to="/dashboard" replace={true} />;
+    if (hasPermission('ORDER_VIEW')) return <Navigate to="/orders" replace={true} />;
+    if (hasPermission('PRODUCT_DATA_VIEW')) return <Navigate to="/product-data" replace={true} />;
+    return <Navigate to="/software-settings" replace={true} />;
+  }
   if (role === 'FAISAL') return <Navigate to="/order-entry" replace={true} />;
-  if (role === 'ORDER_ENTRY') return <Navigate to="/dashboard" replace={true} />;
-  if (role === 'OUTLET') return <Navigate to="/outlet-dashboard" replace={true} />;
+  if (role === 'ORDER_ENTRY') return <Navigate to={hasPermission('DASHBOARD_VIEW') ? "/dashboard" : "/order-entry"} replace={true} />;
+  if (role === 'OUTLET') return <Navigate to={hasPermission('OUTLET_DASHBOARD') ? "/outlet-dashboard" : "/pos"} replace={true} />;
   if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
   if (role === 'DISPATCH') return <Navigate to="/dispatch" replace={true} />;
   if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
@@ -210,67 +242,67 @@ function App() {
                   <Route index element={
                     <AuthRedirectHandler />
                   } />
-                  <Route path="dashboard" element={<AdminDashboard />} />
-                  <Route path="product-data" element={<ProductDataPage />} />
-                  <Route path="inventory" element={<InventoryManagement />} />
+                  <Route path="dashboard" element={<PermittedRoute feature="DASHBOARD_VIEW"><AdminDashboard /></PermittedRoute>} />
+                  <Route path="product-data" element={<PermittedRoute feature="PRODUCT_DATA_VIEW"><ProductDataPage /></PermittedRoute>} />
+                  <Route path="inventory" element={<PermittedRoute feature="WAREHOUSE_VIEW"><InventoryManagement /></PermittedRoute>} />
                   <Route path="tasks" element={<MyTasks />} />
-                  <Route path="order-entry" element={<OrderEntry />} />
-                  <Route path="outlet-order-entry" element={<OutletOrderEntry />} />
-                  <Route path="order-edit" element={<Navigate to="/order-entry?edit=1" replace />} />
-                  <Route path="orders" element={<AllOrders />} />
-                  <Route path="history" element={<History />} />
-                  <Route path="delivery" element={<DeliveryDashboard />} />
-                  <Route path="delivery-sheet" element={<DeliverySheet />} />
-                  <Route path="warehouse" element={<WarehouseDashboard />} />
-                  <Route path="outlet-requests" element={<OutletStockRequest />} />
-                  <Route path="outlet-dashboard" element={<OutletDashboard />} />
-                  <Route path="edit-requests" element={<OutletBlockedRoute><EditRequestDashboard /></OutletBlockedRoute>} />
-                  <Route path="deleted-orders" element={<DeletedOrders />} />
-                  <Route path="analytics" element={<UnifiedAnalytics />} />
-                  <Route path="production" element={<ProductionDashboard />} />
-                  <Route path="refund-management" element={<RefundManagement />} />
-                  <Route path="clients" element={<ClientRegistration />} />
-                  <Route path="pos" element={<OutletPOS />} />
-                  <Route path="pos-inventory" element={<OutletPOSInventory />} />
-                  <Route path="outlet-orders" element={<OutletOrderLookup />} />
-                  <Route path="outlet-invoice-quotation" element={<JoharTownOnlyRoute><OutletInvoiceQuotation /></JoharTownOnlyRoute>} />
-                  <Route path="transfers" element={<OutletTransfers />} />
-                  <Route path="order-track" element={<OrderTrack />} />
-                  <Route path="journal" element={<OutletJournalPage />} />
-                  <Route path="bank-deposit" element={<BankDepositPage />} />
+                  <Route path="order-entry" element={<PermittedRoute feature="ORDER_ENTRY"><OrderEntry /></PermittedRoute>} />
+                  <Route path="outlet-order-entry" element={<PermittedRoute feature="OUTLET_ORDER_ENTRY"><OutletOrderEntry /></PermittedRoute>} />
+                  <Route path="order-edit" element={<PermittedRoute feature="ORDER_EDIT"><Navigate to="/order-entry?edit=1" replace /></PermittedRoute>} />
+                  <Route path="orders" element={<PermittedRoute feature="ORDER_VIEW"><AllOrders /></PermittedRoute>} />
+                  <Route path="history" element={<PermittedRoute feature="ORDER_VIEW"><History /></PermittedRoute>} />
+                  <Route path="delivery" element={<PermittedRoute feature="DELIVERY_DASHBOARD"><DeliveryDashboard /></PermittedRoute>} />
+                  <Route path="delivery-sheet" element={<PermittedRoute feature="DISPATCH_TASKS"><DeliverySheet /></PermittedRoute>} />
+                  <Route path="warehouse" element={<PermittedRoute feature="WAREHOUSE_VIEW"><WarehouseDashboard /></PermittedRoute>} />
+                  <Route path="outlet-requests" element={<PermittedRoute feature="OUTLET_STOCK_REQUEST"><OutletStockRequest /></PermittedRoute>} />
+                  <Route path="outlet-dashboard" element={<PermittedRoute feature="OUTLET_DASHBOARD"><OutletDashboard /></PermittedRoute>} />
+                  <Route path="edit-requests" element={<PermittedRoute feature="ORDER_EDIT"><OutletBlockedRoute><EditRequestDashboard /></OutletBlockedRoute></PermittedRoute>} />
+                  <Route path="deleted-orders" element={<PermittedRoute feature="ORDER_DELETE"><DeletedOrders /></PermittedRoute>} />
+                  <Route path="analytics" element={<PermittedRoute feature="ANALYTICS_VIEW"><UnifiedAnalytics /></PermittedRoute>} />
+                  <Route path="production" element={<PermittedRoute feature="PRODUCTION_DASHBOARD"><ProductionDashboard /></PermittedRoute>} />
+                  <Route path="refund-management" element={<PermittedRoute feature="REFUND_MANAGEMENT"><RefundManagement /></PermittedRoute>} />
+                  <Route path="clients" element={<PermittedRoute feature="OUTLET_ORDER_ENTRY"><ClientRegistration /></PermittedRoute>} />
+                  <Route path="pos" element={<PermittedRoute feature="OUTLET_POS"><OutletPOS /></PermittedRoute>} />
+                  <Route path="pos-inventory" element={<PermittedRoute feature="WAREHOUSE_VIEW"><OutletPOSInventory /></PermittedRoute>} />
+                  <Route path="outlet-orders" element={<PermittedRoute feature="OUTLET_ORDER_VIEW"><OutletOrderLookup /></PermittedRoute>} />
+                  <Route path="outlet-invoice-quotation" element={<PermittedRoute feature="OUTLET_INVOICE_QUOTATION"><JoharTownOnlyRoute><OutletInvoiceQuotation /></JoharTownOnlyRoute></PermittedRoute>} />
+                  <Route path="transfers" element={<PermittedRoute feature="OUTLET_TRANSFERS"><OutletTransfers /></PermittedRoute>} />
+                  <Route path="order-track" element={<PermittedRoute feature="ORDER_TRACK"><OrderTrack /></PermittedRoute>} />
+                  <Route path="journal" element={<PermittedRoute feature="GENERAL_ENTRIES"><OutletJournalPage /></PermittedRoute>} />
+                  <Route path="bank-deposit" element={<PermittedRoute feature="BANK_DEPOSIT"><BankDepositPage /></PermittedRoute>} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="notes" element={<NotesPage />} />
-                  <Route path="dispatch" element={<DispatchPage />} />
-                  <Route path="dispatch-dashboard" element={<DispatchDashboard />} />
-                  <Route path="in-dispatch" element={<InDispatch />} />
-                  <Route path="gate-pass" element={<JoharTownGatePassRoute><GatePass /></JoharTownGatePassRoute>} />
-                  <Route path="store-dashboard" element={<StoreDashboardPage />} />
-                  <Route path="alteration-request" element={<AlterationRequest />} />
-                  <Route path="alteration-production" element={<AlterationProduction />} />
-                  <Route path="engraving-request" element={<EngravingRequest />} />
-                  <Route path="engraving-queue" element={<EngravingQueue />} />
-                  <Route path="verification" element={<VerificationPage />} />
-                  <Route path="returned-from-verification" element={<ReturnedFromVerification />} />
-                  <Route path="return-exchange" element={<ReturnExchangePage />} />
+                  <Route path="dispatch" element={<PermittedRoute feature="DISPATCH_TASKS"><DispatchPage /></PermittedRoute>} />
+                  <Route path="dispatch-dashboard" element={<PermittedRoute feature="DISPATCH_DASHBOARD"><DispatchDashboard /></PermittedRoute>} />
+                  <Route path="in-dispatch" element={<PermittedRoute feature="OUTLET_IN_DISPATCH"><InDispatch /></PermittedRoute>} />
+                  <Route path="gate-pass" element={<PermittedRoute feature="OUTLET_GATE_PASS"><JoharTownGatePassRoute><GatePass /></JoharTownGatePassRoute></PermittedRoute>} />
+                  <Route path="store-dashboard" element={<PermittedRoute feature="STORE_DASHBOARD"><StoreDashboardPage /></PermittedRoute>} />
+                  <Route path="alteration-request" element={<PermittedRoute feature="ALTERATION_PRODUCTION"><AlterationRequest /></PermittedRoute>} />
+                  <Route path="alteration-production" element={<PermittedRoute feature="ALTERATION_PRODUCTION"><AlterationProduction /></PermittedRoute>} />
+                  <Route path="engraving-request" element={<PermittedRoute feature="ENGRAVING_QUEUE"><EngravingRequest /></PermittedRoute>} />
+                  <Route path="engraving-queue" element={<PermittedRoute feature="ENGRAVING_QUEUE"><EngravingQueue /></PermittedRoute>} />
+                  <Route path="verification" element={<PermittedRoute feature="STORE_INVENTORY_AUDIT"><VerificationPage /></PermittedRoute>} />
+                  <Route path="returned-from-verification" element={<PermittedRoute feature="STORE_RETURNS"><ReturnedFromVerification /></PermittedRoute>} />
+                  <Route path="return-exchange" element={<PermittedRoute feature="STORE_RETURNS"><ReturnExchangePage /></PermittedRoute>} />
                   <Route path="notifications" element={<NotificationHistory />} />
-                  <Route path="ceo-dashboard" element={<CEODashboard />} />
-                  <Route path="audit" element={<WarehouseAudit />} />
-                  <Route path="audit-review" element={<AuditReview />} />
-                  <Route path="returns" element={<StoreReturns />} />
-                  <Route path="replacements" element={<FaisalReplacements />} />
-                  <Route path="store-replacements" element={<StoreReplacements />} />
-                  <Route path="store-order-tracker" element={<StoreOrderTracker />} />
-                  <Route path="store-orders" element={<StoreOrders />} />
-                  <Route path="order-cancellations" element={<OrderCancellations />} />
-                  <Route path="order-cancellation" element={<FaisalOrderCancellation />} />
+                  <Route path="ceo-dashboard" element={<PermittedRoute feature="CEO_DASHBOARD_VIEW"><CEODashboard /></PermittedRoute>} />
+                  <Route path="audit" element={<PermittedRoute feature="STORE_INVENTORY_AUDIT"><WarehouseAudit /></PermittedRoute>} />
+                  <Route path="audit-review" element={<PermittedRoute feature="STORE_INVENTORY_AUDIT"><AuditReview /></PermittedRoute>} />
+                  <Route path="returns" element={<PermittedRoute feature="STORE_RETURNS"><StoreReturns /></PermittedRoute>} />
+                  <Route path="replacements" element={<PermittedRoute feature="STORE_REPLACEMENTS"><FaisalReplacements /></PermittedRoute>} />
+                  <Route path="store-replacements" element={<PermittedRoute feature="STORE_REPLACEMENTS"><StoreReplacements /></PermittedRoute>} />
+                  <Route path="store-order-tracker" element={<PermittedRoute feature="ORDER_TRACK"><StoreOrderTracker /></PermittedRoute>} />
+                  <Route path="store-orders" element={<PermittedRoute feature="ORDER_VIEW"><StoreOrders /></PermittedRoute>} />
+                  <Route path="order-cancellations" element={<PermittedRoute feature="ORDER_CANCEL"><OrderCancellations /></PermittedRoute>} />
+                  <Route path="order-cancellation" element={<PermittedRoute feature="ORDER_CANCEL"><FaisalOrderCancellation /></PermittedRoute>} />
                   <Route path="software-settings" element={<SoftwareSettings />} />
-                  <Route path="postex-dashboard" element={<AdminBlockedRoute><PostExDashboard /></AdminBlockedRoute>} />
+                  <Route path="postex-dashboard" element={<PermittedRoute feature="POSTEX_DASHBOARD"><AdminBlockedRoute><PostExDashboard /></AdminBlockedRoute></PermittedRoute>} />
                   <Route path="demand-history" element={<DemandDeliveriesHistory />} />
-                  <Route path="asm" element={<AsmPage />} />
-                  <Route path="asm-allowed" element={<AdminBlockedRoute><AsmAllowedStorePage /></AdminBlockedRoute>} />
-                  <Route path="vendors-admin" element={<AdminBlockedRoute><VendorsPage /></AdminBlockedRoute>} />
+                  <Route path="asm" element={<PermittedRoute feature="ASM_DASHBOARD"><AsmPage /></PermittedRoute>} />
+                  <Route path="asm-allowed" element={<PermittedRoute feature="STORE_ASM_ALLOCATION"><AdminBlockedRoute><AsmAllowedStorePage /></AdminBlockedRoute></PermittedRoute>} />
+                  <Route path="vendors-admin" element={<PermittedRoute feature="ASM_VENDORS_ADMIN"><AdminBlockedRoute><VendorsPage /></AdminBlockedRoute></PermittedRoute>} />
                   <Route path="office-supply" element={<OfficeSupplyRoute><OfficeSupply /></OfficeSupplyRoute>} />
-                  <Route path="marketing" element={<MarketingDashboard />} />
+                  <Route path="marketing" element={<PermittedRoute feature="MARKETING_DASHBOARD"><MarketingDashboard /></PermittedRoute>} />
                 </Route>
               </Routes>
               </ErrorBoundary>

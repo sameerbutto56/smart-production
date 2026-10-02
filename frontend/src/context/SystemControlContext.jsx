@@ -45,7 +45,12 @@ export const SystemControlProvider = ({ children }) => {
     if (!socket) return;
     const handleUpdate = (data) => {
       const userRole = String(user?.role || '').toUpperCase().trim();
-      if (!data || data.profile === userRole || userRole === 'SUPER_ADMIN') {
+      if (
+        !data ||
+        data.profile === userRole ||
+        (data.profile === 'ADMIN' && userRole === 'SUPER_ADMIN') ||
+        (data.profile === 'SUPER_ADMIN' && userRole === 'ADMIN')
+      ) {
         fetchPermissions();
       }
     };
@@ -60,13 +65,27 @@ export const SystemControlProvider = ({ children }) => {
     if (!featureId) return true;
     if (!user) return false;
     const userRole = String(user?.role || '').toUpperCase().trim();
-    if (userRole === 'SUPER_ADMIN' && permissions[featureId] !== false) return true;
-    if (permissions[featureId] !== undefined) {
-      return Boolean(permissions[featureId]);
+
+    // 1. Strict check: If loaded permission explicitly says false, it is strictly disabled!
+    if (permissions[featureId] === false) {
+      return false;
     }
-    // Fallback if not loaded yet
+
+    // 2. If loaded permission explicitly says true, it is enabled
+    if (permissions[featureId] === true) {
+      return true;
+    }
+
+    // 3. Fallback to default definition if permission key not yet loaded
     const def = FEATURES.find(f => f.id === featureId);
-    if (!def) return true;
+    if (!def) return false;
+
+    if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+      return (def.defaultProfiles || []).includes('SUPER_ADMIN') ||
+             (def.defaultProfiles || []).includes('ADMIN') ||
+             userRole === 'SUPER_ADMIN';
+    }
+
     return (def.defaultProfiles || []).includes(userRole);
   }, [permissions, user]);
 

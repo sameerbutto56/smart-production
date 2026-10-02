@@ -71,18 +71,18 @@ router.post('/', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ORDER_ENTRY'
 // Clear history
 router.delete('/history', authenticate, authorize(['SUPER_ADMIN', 'FAISAL']), clearHistory);
 
-// List all orders (available to all authenticated users)
-router.get('/', authenticate, getOrders);
+// List all orders (guarded by ORDER_VIEW)
+router.get('/', authenticate, requirePermission('ORDER_VIEW'), getOrders);
 
 // Fast dashboard summary aggregations (KPI cards and pipeline stage counts)
-router.get('/dashboard-summary', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), getDashboardSummary);
+router.get('/dashboard-summary', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), requirePermission('DASHBOARD_VIEW'), getDashboardSummary);
 
 // Excel export of the Orders screen (category/department/stage delay filters).
 // Registered before /:orderId so 'export' is never captured as an order id.
-router.get('/export', authenticate, getOrdersExport);
+router.get('/export', authenticate, requirePermission('ORDER_EXCEL_EXPORT'), getOrdersExport);
 
 // Track order by orderNumber (any authenticated user)
-router.get('/track/:orderNumber', authenticate, trackOrder);
+router.get('/track/:orderNumber', authenticate, requirePermission('ORDER_TRACK'), trackOrder);
 router.get('/track/', authenticate, (req, res) => res.status(400).json({ message: 'Order number is required' }));
 
 // Module Employee: Request stage completion
@@ -96,7 +96,7 @@ router.put('/:orderId/hold', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', '
 router.delete('/:orderId', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), requirePermission('ORDER_DELETE'), deleteOrder);
 
 // Deleted orders (admin audit)
-router.get('/deleted-orders', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getDeletedOrders);
+router.get('/deleted-orders', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), requirePermission('ORDER_DELETE'), getDeletedOrders);
 
 // Check if an order was deleted (for source visibility)
 router.get('/deleted-check', authenticate, checkDeletedOrder);
