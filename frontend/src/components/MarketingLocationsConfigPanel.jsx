@@ -240,6 +240,12 @@ export default function MarketingLocationsConfigPanel() {
         setExtractedData(null);
         setMapUrlInput('');
         fetchLocations();
+
+        // Broadcast to Admin Profile and active tabs for instantaneous update
+        window.dispatchEvent(new CustomEvent('marketing:location-updated', { detail: res.data.location }));
+        try {
+          localStorage.setItem('marketing_location_last_updated', Date.now().toString());
+        } catch (_) {}
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save location');

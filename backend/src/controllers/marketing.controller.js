@@ -528,17 +528,103 @@ const getAdminActivities = async (req, res) => {
     });
     const marketingEmployees = outletEmps.filter(e => Array.isArray(e.profiles) && e.profiles.includes('MARKETING'));
 
-    // Get latest active location for each marketing employee
+    // Get latest active location for each marketing employee mapped strictly by employeeId
     const latestPerEmployee = [];
     for (const emp of marketingEmployees) {
-      const last = await prisma.marketingActivity.findFirst({
-        where: { employeeName: emp.name },
+      // 1. Fetch employee's active configured location (strictly by employeeId)
+      const configuredLoc = await prisma.marketingConfiguredLocation.findFirst({
+        where: {
+          employeeId: emp.id,
+          isActive: true
+        },
+        orderBy: { updatedAt: 'desc' }
+      });
+
+      // 2. Fetch employee's latest live activity
+      const lastActivity = await prisma.marketingActivity.findFirst({
+        where: {
+          OR: [
+            { employeeName: emp.name },
+            { user: { name: emp.name } }
+          ]
+        },
         orderBy: { createdAt: 'desc' }
       });
-      if (last) {
+
+      let resolvedLoc = null;
+
+      // Location resolution logic:
+      // If configured location exists and mode is CONFIGURED (or default), prioritize configured location
+      if (configuredLoc && (configuredLoc.locationMode !== 'LIVE' || !lastActivity)) {
+        resolvedLoc = {
+          id: configuredLoc.id,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          locationName: configuredLoc.name,
+          name: configuredLoc.name,
+          location: configuredLoc.name,
+          area: configuredLoc.area,
+          city: configuredLoc.city || 'Lahore',
+          hospitalName: configuredLoc.hospitalName || null,
+          companyName: configuredLoc.companyName || null,
+          address: configuredLoc.address || null,
+          latitude: configuredLoc.latitude,
+          longitude: configuredLoc.longitude,
+          radius: configuredLoc.radius || 100,
+          isActive: configuredLoc.isActive,
+          updatedAt: configuredLoc.updatedAt,
+          date: getPktDateString(configuredLoc.updatedAt),
+          time: getPktTimeString(configuredLoc.updatedAt),
+        };
+      } else if (lastActivity) {
+        resolvedLoc = {
+          id: lastActivity.id,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          locationName: lastActivity.location,
+          name: lastActivity.location,
+          location: lastActivity.location,
+          area: lastActivity.area,
+          city: 'Lahore',
+          hospitalName: lastActivity.hospitalName || null,
+          companyName: lastActivity.companyName || null,
+          address: lastActivity.notes || null,
+          latitude: lastActivity.latitude,
+          longitude: lastActivity.longitude,
+          radius: 100,
+          isActive: true,
+          updatedAt: lastActivity.createdAt,
+          date: lastActivity.date,
+          time: lastActivity.time,
+        };
+      } else if (configuredLoc) {
+        resolvedLoc = {
+          id: configuredLoc.id,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          locationName: configuredLoc.name,
+          name: configuredLoc.name,
+          location: configuredLoc.name,
+          area: configuredLoc.area,
+          city: configuredLoc.city || 'Lahore',
+          hospitalName: configuredLoc.hospitalName || null,
+          companyName: configuredLoc.companyName || null,
+          address: configuredLoc.address || null,
+          latitude: configuredLoc.latitude,
+          longitude: configuredLoc.longitude,
+          radius: configuredLoc.radius || 100,
+          isActive: configuredLoc.isActive,
+          updatedAt: configuredLoc.updatedAt,
+          date: getPktDateString(configuredLoc.updatedAt),
+          time: getPktTimeString(configuredLoc.updatedAt),
+        };
+      }
+
+      if (resolvedLoc) {
         latestPerEmployee.push({
           employee: emp,
-          latestActivity: last
+          location: resolvedLoc,
+          latestActivity: resolvedLoc
         });
       }
     }
@@ -558,6 +644,10 @@ const getAdminActivities = async (req, res) => {
       select: { companyName: true },
       distinct: ['companyName']
     });
+
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
 
     res.json({
       activities,
@@ -787,6 +877,62 @@ const saveEmployeeConfiguredLocation = async (req, res) => {
           createdById: req.user?.id || null,
           createdByName: req.user?.name || 'Administrator',
         }
+      });
+    }
+
+    // Mirror to MarketingActivity table so activity history logs immediately reflect this update
+    try {
+      const now = new Date();
+      let resolvedUserId = req.user?.id;
+      if (resolvedUserId) {
+        const userExists = await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true } });
+        if (!userExists) resolvedUserId = null;
+      }
+      if (!resolvedUserId) {
+        const mUser = await prisma.user.findFirst({ where: { role: 'MARKETING' }, select: { id: true } });
+        resolvedUserId = mUser?.id;
+      }
+      if (!resolvedUserId) {
+        const aUser = await prisma.user.findFirst({ select: { id: true } });
+        resolvedUserId = aUser?.id;
+      }
+
+      const activity = await prisma.marketingActivity.create({
+        data: {
+          userId: resolvedUserId,
+          employeeName: employee.name,
+          date: getPktDateString(now),
+          time: getPktTimeString(now),
+          area: cleanArea,
+          location: cleanName,
+          hospitalName: hospitalName ? hospitalName.trim() : null,
+          companyName: companyName ? companyName.trim() : null,
+          notes: address ? address.trim() : null,
+          latitude: lat,
+          longitude: lng,
+          status: 'COMPLETED',
+          source: 'CONFIGURED',
+        }
+      });
+
+      const io = req.app?.get ? req.app.get('io') : null;
+      if (io) {
+        io.emit('marketing:new-activity', {
+          activity,
+          employeeName: employee.name
+        });
+      }
+    } catch (actErr) {
+      console.warn('Could not mirror location update to MarketingActivity:', actErr.message);
+    }
+
+    // Real-time synchronization: Broadcast updated location to Admin Profile and active clients
+    const io = req.app?.get ? req.app.get('io') : null;
+    if (io) {
+      io.emit('marketing:location-updated', {
+        employeeId: employee.id,
+        employeeName: employee.name,
+        location: saved
       });
     }
 
