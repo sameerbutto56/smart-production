@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { formatDateTime, formatDateOnly, formatDateTimePKT } from '../utils/dateTime';
 import { exportDailyDepositsToExcel } from '../utils/outletExportExcel';
+import { getErrorMessage } from '../utils/actionFeedback';
 import toast from 'react-hot-toast';
 
 const fmt = (n) => `₨${(Math.round(Number(n || 0))).toLocaleString()}`;
@@ -129,7 +130,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
       fetchData();
     } catch (err) {
       console.error('Submit deposit error:', err);
-      toast.error(err.response?.data?.message || 'Failed to record deposit');
+      toast.error(getErrorMessage(err, 'Failed to record deposit'));
     } finally {
       setSubmitting(false);
     }
@@ -679,7 +680,7 @@ const DailyCashDepositSection = ({ outlet, isOutletRole = false }) => {
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/20 disabled:opacity-50 transition-all flex items-center gap-1.5"
                 >
                   {submitting ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                  Confirm Deposit
+                  {submitting ? 'Recording Deposit...' : 'Confirm Deposit'}
                 </button>
               </div>
             </form>

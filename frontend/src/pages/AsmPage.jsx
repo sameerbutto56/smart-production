@@ -15,6 +15,8 @@ import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printOrderDocument, printThermalReceipt, printDataDocument, printDeliverySheet, printVendorJobSheet } from '../utils/vendorDocumentPrint';
 import AsmFinancialDashboard from '../components/AsmFinancialDashboard';
 import DocumentPreviewEditor from '../components/DocumentPreviewEditor';
+import { getErrorMessage } from '../utils/actionFeedback';
+import { DashboardSkeleton, SectionOverlay, FilterLoadingBadge } from '../components/common/LoadingStates';
 
 const STAGE_LABELS = {
   CREATED: 'Created',
@@ -187,7 +189,7 @@ const AsmPage = () => {
       refresh();
       if (selectedOrder?.id === orderId) viewDetail({ id: orderId });
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Action failed');
+      toast.error(getErrorMessage(err, 'Action failed'));
     } finally {
       toast.dismiss(toastId);
     }
@@ -210,7 +212,7 @@ const AsmPage = () => {
         toast.success(res.data?.message || t('Documents generated'));
         docOrder = { ...docOrder, ...rel, quotationNumber: rel.quotationNumber || docOrder.quotationNumber, invoiceNumber: rel.invoiceNumber || docOrder.invoiceNumber };
       } catch (err) {
-        toast.error(err?.response?.data?.message || t('Failed to generate documents'));
+        toast.error(getErrorMessage(err, t('Failed to generate documents')));
         toast.dismiss(toastId);
         return;
       }
@@ -646,7 +648,17 @@ const AsmPage = () => {
             </div>
 
             {loading ? (
-              <p className="text-slate-400 text-center py-8">{t('Loading...')}</p>
+              <div className="space-y-3 py-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="animate-pulse bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-40 bg-slate-800 rounded" />
+                      <div className="h-3 w-64 bg-slate-800/60 rounded" />
+                    </div>
+                    <div className="h-6 w-24 bg-slate-800/80 rounded-full" />
+                  </div>
+                ))}
+              </div>
             ) : error ? (
               <p className="text-red-400 text-center py-8">{t('Error loading vendor orders')}</p>
             ) : filteredOrders.length === 0 ? (

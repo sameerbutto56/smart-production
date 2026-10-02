@@ -26,6 +26,8 @@ import OutletInvoiceHistory from '../components/OutletInvoiceHistory';
 import OutletRegisters from '../components/OutletRegisters';
 import DailyCashDepositSection from '../components/DailyCashDepositSection';
 import AbbottabadFinancialSection from '../components/AbbottabadFinancialSection';
+import { DashboardSkeleton, SectionOverlay, FilterLoadingBadge } from '../components/common/LoadingStates';
+import { useCancellableRequest } from '../hooks/useCancellableRequest';
 
 const COLORS = { emerald: '#10b981', amber: '#f59e0b', blue: '#3b82f6', red: '#ef4444', purple: '#8b5cf6', cyan: '#06b6d4', pink: '#ec4899' };
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
@@ -221,24 +223,31 @@ const OutletDashboard = () => {
     }
   }, [isAbbottabad, fetchAbbottabadBadge]);
 
-  const fetchAnalytics = useCallback(async (preset) => {
+  const { execute: executeAnalyticsFetch } = useCancellableRequest();
+
+  const fetchAnalytics = useCallback((preset) => {
     setAnalyticsLoading(true);
     setAnalyticsError(null);
-    try {
-      const activePreset = preset || 'today';
-      const { dateFrom, dateTo } = getDateRange(activePreset);
-      const params = { range: activePreset };
-      if (dateFrom) params.dateFrom = dateFrom;
-      if (dateTo) params.dateTo = dateTo;
-      const res = await api.get('/api/outlet-orders/analytics', { params });
-      setAnalytics(res.data);
-    } catch (e) {
-      setAnalyticsError(e.message);
-      console.error('Analytics error:', e);
-    } finally {
-      setAnalyticsLoading(false);
-    }
-  }, []);
+    const activePreset = preset || 'today';
+    const { dateFrom, dateTo } = getDateRange(activePreset);
+    const params = { range: activePreset };
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
+
+    executeAnalyticsFetch(
+      (signal) => api.get('/api/outlet-orders/analytics', { params, signal }),
+      {
+        onSuccess: (res) => {
+          setAnalytics(res.data);
+          setAnalyticsLoading(false);
+        },
+        onError: (e) => {
+          setAnalyticsError(e.message || 'Failed to load analytics');
+          setAnalyticsLoading(false);
+        }
+      }
+    );
+  }, [executeAnalyticsFetch]);
 
   const fetchRecentOrders = useCallback(async () => {
     setRecentOrdersLoading(true);
@@ -534,7 +543,10 @@ const OutletDashboard = () => {
 
       {/* Date & Summary Bar */}
       <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <DatePresetButtons value={datePreset} onChange={setDatePreset} />
+        <div className="flex items-center flex-wrap gap-2.5">
+          <DatePresetButtons value={datePreset} onChange={setDatePreset} />
+          {analyticsLoading && analytics && <FilterLoadingBadge text="Applying date filter..." />}
+        </div>
         <div className="flex items-center gap-2 text-xs">
           <div className="flex items-center gap-2 bg-gray-800/80 px-4 py-2 rounded-xl border border-gray-700/50">
             <Activity size={14} className="text-blue-400" />
@@ -557,16 +569,9 @@ const OutletDashboard = () => {
         </div>
       </motion.div>
 
-      {analyticsLoading ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1,2,3,4].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-28" />)}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {[1,2].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-72" />)}
-          </div>
-        </div>
-      ) : analyticsError ? (
+      {!analytics && analyticsLoading ? (
+        <DashboardSkeleton kpiCount={4} chartCount={2} title="Loading Outlet Dashboard..." />
+      ) : analyticsError && !analytics ? (
         <motion.div variants={itemVariants} className="py-20 flex flex-col items-center justify-center text-center bg-gray-900/60 rounded-2xl border border-red-800/30">
           <AlertTriangle className="text-red-400 mb-3" size={36} />
           <p className="text-red-400 font-black text-sm mb-1">Failed to load analytics</p>
@@ -574,7 +579,7 @@ const OutletDashboard = () => {
           <button onClick={() => fetchAnalytics(datePreset)} className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold rounded-xl text-xs shadow-lg">Retry</button>
         </motion.div>
       ) : analytics ? (
-        <>
+        <SectionOverlay isUpdating={analyticsLoading} updatingText="Updating analytics...">
           {/* KPI Cards Row */}
           <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KpiCard icon={Package} label="Outlet Orders" value={orderStats.totalOrders || 0} sub={`${orderStats.inProgressOrders || 0} in progress`} gradient="from-blue-600 to-cyan-600" />
@@ -772,7 +777,7 @@ const OutletDashboard = () => {
               </div>
             </ChartCard>
           </div>
-        </>
+        </SectionOverlay>
       ) : null}
     </motion.div>
   );

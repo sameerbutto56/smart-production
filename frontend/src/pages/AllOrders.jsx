@@ -38,6 +38,7 @@ import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 import OrderCard from '../components/OrderCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { SectionOverlay } from '../components/common/LoadingStates';
 
 const POS_MAP = { 'LeftChest': 'Left Chest', 'RightChest': 'Right Chest', 'Sleeve': 'Sleeve Cuff', 'Back': 'Upper Back', 'Cuff': 'Cuff' };
 const fmtPos = (v) => POS_MAP[v] || v;
@@ -1009,6 +1010,7 @@ const AllOrders = () => {
           )}
         </div>
 
+      <SectionOverlay isUpdating={refreshing || (loading && orders.length > 0)} updatingText="Refreshing orders...">
       <div className="glass rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -1036,13 +1038,10 @@ const AllOrders = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {loading ? (
+              {loading && orders.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-20 text-center theme-text-muted">
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
-                      Loading production orders...
-                    </div>
+                  <td colSpan="6" className="p-6">
+                    <TableSkeleton rows={8} />
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
@@ -1385,6 +1384,7 @@ const AllOrders = () => {
           </div>
         )}
       </div>
+      </SectionOverlay>
 
       {/* --- JOB SHEET MODAL --- */}
       {showModal && selectedOrder && (() => {

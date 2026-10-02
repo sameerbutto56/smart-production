@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache from '../hooks/useCache';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton, DashboardSkeleton } from '../components/LoadingSpinner';
 import { formatDateOnly } from '../utils/dateTime';
 
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
@@ -176,7 +176,7 @@ const ProductionDashboard = () => {
       </div>
 
       {loading && !dashboard ? (
-        <PageLoader text="Loading Production Data..." />
+        <DashboardSkeleton kpiCount={4} chartCount={2} title="Loading Production Dashboard..." />
       ) : (
         <>
           {/* ============ DASHBOARD TAB ============ */}

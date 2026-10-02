@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import AbbottabadAmountCard from './AbbottabadAmountCard';
+import { DashboardSkeleton, SectionOverlay, FilterLoadingBadge } from './common/LoadingStates';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
@@ -260,6 +261,7 @@ const OutletPOSDashboard = ({ outlet }) => {
           <Printer size={14} />
         </button>
         <div className="ml-auto flex items-center gap-2">
+          {loading && dashboard && <FilterLoadingBadge text="Applying filter..." />}
           <select value={cashier} onChange={e => setCashier(e.target.value)}
             className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-blue-500/50">
             <option value="">All Employees</option>
@@ -271,11 +273,9 @@ const OutletPOSDashboard = ({ outlet }) => {
         </div>
       </div>
 
-      {loading ? (
-        <div className="py-20 flex justify-center items-center">
-          <RefreshCw className="animate-spin text-blue-500" size={32} />
-        </div>
-      ) : error ? (
+      {!dashboard && loading ? (
+        <DashboardSkeleton kpiCount={4} chartCount={2} title="Loading POS Dashboard..." />
+      ) : error && !dashboard ? (
         <div className="py-20 flex flex-col items-center justify-center text-center">
           <AlertTriangle className="text-red-400 mb-2" size={32} />
           <p className="text-red-400 font-black text-sm mb-2">Failed to load dashboard</p>
@@ -283,7 +283,7 @@ const OutletPOSDashboard = ({ outlet }) => {
           <button onClick={refresh} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-xs">Retry</button>
         </div>
       ) : dashboard ? (
-        <>
+        <SectionOverlay isUpdating={loading} updatingText="Updating POS data...">
           {/* Abbottabad Amount Control Card (Single Source of Truth) */}
           {isAbbottabad && (
             <div className="mb-4">
@@ -662,7 +662,7 @@ const OutletPOSDashboard = ({ outlet }) => {
               </div>
             )}
           </div>
-        </>
+        </SectionOverlay>
       ) : null}
     </div>
   );

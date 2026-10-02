@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import OrderCard from '../components/OrderCard';
 import toast from 'react-hot-toast';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton, DashboardSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 import InventoryManagement from './InventoryManagement';
 import StoreDashboardAnalytics from '../components/StoreDashboardAnalytics';
@@ -570,7 +570,7 @@ const WarehouseDashboard = () => {
       </div>
 
       {loading ? (
-        <PageLoader text="Loading Warehouse Data..." />
+        <DashboardSkeleton kpiCount={4} chartCount={2} title="Loading Warehouse Dashboard..." />
       ) : (
         <>
           {/* Dashboard Tab */}

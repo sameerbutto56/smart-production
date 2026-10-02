@@ -64,7 +64,7 @@ import AbbottabadPasswordModal from '../components/AbbottabadPasswordModal';
 import AbbottabadFinancialSection from '../components/AbbottabadFinancialSection';
 import AdminFeedbackDashboard from '../components/AdminFeedbackDashboard';
 import OrderPerformanceCard from '../components/OrderPerformanceCard';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton, DashboardSkeleton, SectionOverlay, FilterLoadingBadge } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -649,7 +649,11 @@ const AdminDashboard = () => {
   }, [allOrders]);
 
   if (loading && !dashboardSummary && allOrders.length === 0) {
-    return <PageLoader text="Syncing Production Hub..." />;
+    return (
+      <div className="max-w-7xl mx-auto py-6">
+        <DashboardSkeleton kpiCount={6} chartCount={2} title="Syncing Admin Production Hub..." />
+      </div>
+    );
   }
 
   if (fetchingError && !dashboardSummary && allOrders.length === 0) {

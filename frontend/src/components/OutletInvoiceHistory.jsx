@@ -5,11 +5,13 @@ import { toUrduName } from '../utils/urduDictionary';
 import { getPrintFooterHTML } from '../utils/printTemplate';
 import { printReceipt, printBalanceReceipt, printBalanceGatePass, printReturnReceipt, printPosFinancialSummary } from '../utils/POSPrint';
 import { formatDateTime, formatDateOnly } from '../utils/dateTime';
-import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw, FileText } from 'lucide-react';
+import { Search, Clock, Printer, RefreshCw, RefreshCcw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw, FileText } from 'lucide-react';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
 import { computePosFinancialSummary } from '../utils/posFinancialSummary';
 import { exportInvoicesToExcel } from '../utils/outletExportExcel';
+import { TableSkeleton, SectionOverlay, FilterLoadingBadge } from './common/LoadingStates';
+import { useCancellableRequest } from '../hooks/useCancellableRequest';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
@@ -63,44 +65,50 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [payHistoryLoading, setPayHistoryLoading] = useState(false);
   const [payHistorySale, setPayHistorySale] = useState(null);
 
-  const fetchSales = useCallback(async () => {
+  const { execute: executeSalesFetch } = useCancellableRequest();
+
+  const fetchSales = useCallback(() => {
     setLoading(true);
     setError(null);
-    try {
-      let url = `/api/pos/sales?outlet=${outlet}&range=${range}&includeTransactions=true`;
-      if (dateFrom) url += `&dateFrom=${dateFrom}`;
-      if (dateTo) url += `&dateTo=${dateTo}`;
-      if (statusFilter !== 'all') url += `&statusFilter=${statusFilter}`;
-      if (cashier) url += `&cashier=${encodeURIComponent(cashier)}`;
+    let url = `/api/pos/sales?outlet=${outlet}&range=${range}&includeTransactions=true`;
+    if (dateFrom) url += `&dateFrom=${dateFrom}`;
+    if (dateTo) url += `&dateTo=${dateTo}`;
+    if (statusFilter !== 'all') url += `&statusFilter=${statusFilter}`;
+    if (cashier) url += `&cashier=${encodeURIComponent(cashier)}`;
 
-      const jParams = { outlet };
-      if (dateFrom) jParams.dateFrom = dateFrom;
-      if (dateTo) jParams.dateTo = dateTo;
-      if (!dateFrom && !dateTo && range !== 'all') jParams.range = range;
+    const jParams = { outlet };
+    if (dateFrom) jParams.dateFrom = dateFrom;
+    if (dateTo) jParams.dateTo = dateTo;
+    if (!dateFrom && !dateTo && range !== 'all') jParams.range = range;
 
-      const [res, jRes] = await Promise.all([
-        api.get(url),
-        api.get('/api/pos/journal-entries', { params: jParams }).catch(() => ({ data: [] }))
-      ]);
-
-      if (res.data && res.data.sales) {
-        setSales(res.data.sales);
-        setReturns(res.data.returns || []);
-        setBalancePayments(res.data.balancePayments || []);
-        setBackendSummary(res.data.summary || null);
-      } else {
-        setSales(Array.isArray(res.data) ? res.data : []);
-        setReturns([]);
-        setBalancePayments([]);
-        setBackendSummary(null);
+    executeSalesFetch(
+      (signal) => Promise.all([
+        api.get(url, { signal }),
+        api.get('/api/pos/journal-entries', { params: jParams, signal }).catch(() => ({ data: [] }))
+      ]),
+      {
+        onSuccess: ([res, jRes]) => {
+          if (res.data && res.data.sales) {
+            setSales(res.data.sales);
+            setReturns(res.data.returns || []);
+            setBalancePayments(res.data.balancePayments || []);
+            setBackendSummary(res.data.summary || null);
+          } else {
+            setSales(Array.isArray(res.data) ? res.data : []);
+            setReturns([]);
+            setBalancePayments([]);
+            setBackendSummary(null);
+          }
+          setJournalEntries(jRes.data || []);
+          setLoading(false);
+        },
+        onError: (err) => {
+          setError(err.response?.data?.message || err.message || 'Failed to load sales');
+          setLoading(false);
+        }
       }
-      setJournalEntries(jRes.data || []);
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load sales');
-    } finally {
-      setLoading(false);
-    }
-  }, [outlet, range, dateFrom, dateTo, statusFilter, cashier]);
+    );
+  }, [outlet, range, dateFrom, dateTo, statusFilter, cashier, executeSalesFetch]);
 
   useEffect(() => { fetchSales(); }, [fetchSales]);
 
@@ -319,6 +327,11 @@ const OutletInvoiceHistory = ({ outlet }) => {
               className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white" />
           </div>
         )}
+        {loading && allTransactions.length > 0 && (
+          <div className="ml-auto">
+            <FilterLoadingBadge text="Applying date filter..." />
+          </div>
+        )}
       </div>
 
       {/* Search + Filter + Actions */}
@@ -357,8 +370,10 @@ const OutletInvoiceHistory = ({ outlet }) => {
         </button>
       </div>
 
-      {/* 4-Tier Simplified Financial Summary Dashboard */}
-      {!loading && !error && (
+      {/* Main Content with SectionOverlay */}
+      <SectionOverlay isUpdating={loading && (allTransactions.length > 0 || sales.length > 0)} updatingText="Updating invoices & summary...">
+        {/* 4-Tier Simplified Financial Summary Dashboard */}
+        {!error && (sales.length > 0 || !loading) && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           {/* Tier 1: Sales Summary */}
           <div className="bg-gray-950 border border-blue-500/20 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
@@ -539,9 +554,11 @@ const OutletInvoiceHistory = ({ outlet }) => {
         </button>
       </div>
 
-      {/* Loading / Error / Empty */}
-      {loading ? (
-        <div className="py-16 flex justify-center"><RefreshCw className="animate-spin text-blue-500" size={28} /></div>
+      {/* Loading / Error / Empty / List */}
+      {loading && allTransactions.length === 0 ? (
+        <div className="mt-4">
+          <TableSkeleton rows={8} />
+        </div>
       ) : error ? (
         <div className="py-16 flex flex-col items-center text-center">
           <AlertTriangle className="text-red-400 mb-2" size={32} />
@@ -555,7 +572,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
         </div>
       ) : (
         /* Unified Transaction List */
-        <div className="space-y-3">
+        <div className="space-y-3 mt-4">
           {allTransactions.map(tx => {
             if (tx.type === 'SALE') {
               const sale = tx.data;
@@ -818,6 +835,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
           })}
         </div>
       )}
+      </SectionOverlay>
 
       {/* ─── Pay Balance Modal ─── */}
       {showPayModal && selectedInvoice && (

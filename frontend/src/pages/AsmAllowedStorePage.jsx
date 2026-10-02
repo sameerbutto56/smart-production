@@ -13,6 +13,8 @@ import toast from 'react-hot-toast';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { printDeliverySheet, printVendorJobSheet } from '../utils/vendorDocumentPrint';
 import DocumentPreviewEditor from '../components/DocumentPreviewEditor';
+import { getErrorMessage } from '../utils/actionFeedback';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 // Status badge sub-component for ASM Handover Requests
 const StatusBadge = ({ status }) => {
@@ -431,7 +433,7 @@ const AsmAllowedStorePage = () => {
       fetchBulkOrders();
       fetchProductionReturns();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to allocate order');
+      toast.error(getErrorMessage(err, 'Failed to allocate order'));
     }
     setActionInProgress(null);
   };
@@ -445,7 +447,7 @@ const AsmAllowedStorePage = () => {
       fetchBulkOrders();
       fetchProductionReturns();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to mark all products available');
+      toast.error(getErrorMessage(err, 'Failed to mark all products available'));
     }
     setActionInProgress(null);
   };
@@ -458,7 +460,7 @@ const AsmAllowedStorePage = () => {
     const orderSelected = selectedForDeduct[orderId] || {};
     const orderAllocs = bulkAllocations[orderId] || {};
 
-    const items = (order.items || []).map(item => {
+    const items = (order.items || []).filter(it => !it.isRemoved).map(item => {
       const isChecked = !!orderSelected[item.id];
       const qty = isChecked ? (parseInt(orderAllocs[item.id]) || 0) : 0;
       return {
@@ -479,7 +481,7 @@ const AsmAllowedStorePage = () => {
       fetchBulkOrders();
       fetchProductionReturns();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to check store availability');
+      toast.error(getErrorMessage(err, 'Failed to check store availability'));
     }
     setActionInProgress(null);
   };
@@ -1654,7 +1656,17 @@ const AsmAllowedStorePage = () => {
                                 disabled={isOrderBusy}
                                 className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition"
                               >
-                                Send to ASM <ArrowRight size={14} />
+                                {isOrderBusy ? (
+                                  <>
+                                    <LoadingSpinner size={13} className="text-black" />
+                                    <span>Allocating & Sending...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Send to ASM</span>
+                                    <ArrowRight size={14} />
+                                  </>
+                                )}
                               </button>
                             </div>
                           </div>
