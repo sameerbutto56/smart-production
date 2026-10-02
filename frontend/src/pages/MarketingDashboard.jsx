@@ -36,6 +36,9 @@ export default function MarketingDashboard() {
   const { t } = useLanguage();
   const { hasPermission } = useSystemControl();
 
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'SOFTWARE_SETTINGS';
+  const [adminSelectedEmployee, setAdminSelectedEmployee] = useState('');
+
   // Active Marketing Employee session state
   const [activeEmployee, setActiveEmployee] = useState(() => {
     try {
@@ -107,7 +110,7 @@ export default function MarketingDashboard() {
     }
   }, []);
 
-  // Fetch marketing activities for active employee
+  // Fetch marketing activities for active employee or admin supervision
   const fetchMyActivities = useCallback(async () => {
     if (!activeEmployee && user?.role === 'MARKETING') return;
     setLoading(true);
@@ -115,7 +118,11 @@ export default function MarketingDashboard() {
       const params = {};
       if (filterDate) params.date = filterDate;
       const headers = {};
-      if (activeEmployee?.id) {
+      if (isAdmin) {
+        if (adminSelectedEmployee) {
+          params.employeeId = adminSelectedEmployee;
+        }
+      } else if (activeEmployee?.id) {
         headers['x-marketing-employee-id'] = activeEmployee.id;
       }
       const res = await api.get('/api/marketing/my-activities', { params, headers });
@@ -128,7 +135,7 @@ export default function MarketingDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeEmployee, filterDate, user?.role]);
+  }, [activeEmployee, filterDate, user?.role, isAdmin, adminSelectedEmployee]);
 
   // Load configured reference locations
   const fetchConfiguredLocations = useCallback(async () => {
@@ -143,10 +150,10 @@ export default function MarketingDashboard() {
   }, []);
 
   useEffect(() => {
-    if (user?.role === 'MARKETING' && !activeEmployee) {
+    if ((user?.role === 'MARKETING' && !activeEmployee) || isAdmin) {
       fetchMarketingEmployees();
     }
-  }, [user?.role, activeEmployee, fetchMarketingEmployees]);
+  }, [user?.role, activeEmployee, isAdmin, fetchMarketingEmployees]);
 
   useEffect(() => {
     if (activeEmployee || user?.role !== 'MARKETING') {
@@ -199,7 +206,7 @@ export default function MarketingDashboard() {
     fetchMarketingEmployees();
   };
 
-  // Capture GPS using HTML5 Geolocation
+  // Capture GPS using HTML5 Geolocation and auto-fill details using reverse-geocoding
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by your browser');
@@ -207,11 +214,32 @@ export default function MarketingDashboard() {
     }
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLatitude(pos.coords.latitude.toFixed(6));
-        setLongitude(pos.coords.longitude.toFixed(6));
-        setGpsLoading(false);
-        toast.success('Live GPS coordinates acquired');
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLatitude(lat.toFixed(6));
+        setLongitude(lng.toFixed(6));
+
+        try {
+          const res = await api.get('/api/marketing/reverse-geocode', {
+            params: { lat, lng }
+          });
+          if (res.data?.success) {
+            const info = res.data;
+            if (info.area) setArea(info.area);
+            if (info.location) setLocationName(info.location);
+            if (info.hospitalName) setHospitalName(info.hospitalName);
+            if (info.companyName) setCompanyName(info.companyName);
+            toast.success(`Live GPS acquired & details auto-filled: ${info.area || 'Location resolved'}`);
+          } else {
+            toast.success('Live GPS coordinates acquired');
+          }
+        } catch (geoErr) {
+          console.warn('Reverse geocode error:', geoErr);
+          toast.success('Live GPS coordinates acquired');
+        } finally {
+          setGpsLoading(false);
+        }
       },
       (err) => {
         setGpsLoading(false);
@@ -459,7 +487,9 @@ export default function MarketingDashboard() {
   // ══════════════════════════════════════════════════════════════════════════
   // VIEW 2: EMPLOYEE-SPECIFIC MARKETING DASHBOARD & SHELL
   // ══════════════════════════════════════════════════════════════════════════
-  const employeeDisplayName = activeEmployee?.name || user?.name || 'Marketing';
+  const employeeDisplayName = isAdmin
+    ? (data.summary?.selectedEmployeeName || (adminSelectedEmployee ? marketingEmployees.find(e => e.id === adminSelectedEmployee)?.name : 'All Staff') || 'All Marketing Staff')
+    : (activeEmployee?.name || user?.name || 'Marketing');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -472,26 +502,48 @@ export default function MarketingDashboard() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
-                {employeeDisplayName}'s Marketing Dashboard
+                {isAdmin ? 'Marketing Operations Supervision' : `${employeeDisplayName}'s Marketing Dashboard`}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                Personal Activity
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                isAdmin
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+              }`}>
+                {isAdmin ? 'Supervisory Oversight (Read Only)' : 'Personal Activity'}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <span className="text-xs font-bold text-gray-400">
-                Active Employee: <span className="text-white font-extrabold">{employeeDisplayName}</span>
-              </span>
-              {activeEmployee && (
-                <button
-                  onClick={handleSwitchEmployee}
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-cyan-400 hover:text-cyan-300 text-[11px] font-bold border border-gray-700 transition-colors"
+            {isAdmin ? (
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                <span className="text-xs font-bold text-gray-400">Viewing Staff:</span>
+                <select
+                  value={adminSelectedEmployee}
+                  onChange={(e) => setAdminSelectedEmployee(e.target.value)}
+                  className="bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1 text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
                 >
-                  <ArrowRightLeft size={11} />
-                  <span>Switch Employee</span>
-                </button>
-              )}
-            </div>
+                  <option value="">All Marketing Personnel</option>
+                  {marketingEmployees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name} ({emp.outletName || 'Marketing'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <span className="text-xs font-bold text-gray-400">
+                  Active Employee: <span className="text-white font-extrabold">{employeeDisplayName}</span>
+                </span>
+                {activeEmployee && (
+                  <button
+                    onClick={handleSwitchEmployee}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-cyan-400 hover:text-cyan-300 text-[11px] font-bold border border-gray-700 transition-colors"
+                  >
+                    <ArrowRightLeft size={11} />
+                    <span>Switch Employee</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -505,15 +557,17 @@ export default function MarketingDashboard() {
             <RefreshCw size={16} className={loading ? 'animate-spin text-cyan-400' : ''} />
           </button>
 
-          <FeatureGate feature="MARKETING_LOCATION_ENTRY">
-            <button
-              onClick={() => setShowLogModal(true)}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-cyan-900/40 active:scale-95"
-            >
-              <Plus size={16} />
-              <span>Log New Visit</span>
-            </button>
-          </FeatureGate>
+          {!isAdmin && (
+            <FeatureGate feature="MARKETING_LOCATION_ENTRY">
+              <button
+                onClick={() => setShowLogModal(true)}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-cyan-900/40 active:scale-95"
+              >
+                <Plus size={16} />
+                <span>Log New Visit</span>
+              </button>
+            </FeatureGate>
+          )}
         </div>
       </div>
 
@@ -522,7 +576,7 @@ export default function MarketingDashboard() {
         {[
           { key: 'dashboard', label: 'Dashboard', icon: Layers },
           { key: 'activities', label: "Today's Activities", icon: Clock },
-          { key: 'add', label: 'Add Activity', icon: Plus },
+          ...(!isAdmin ? [{ key: 'add', label: 'Add Activity', icon: Plus }] : []),
           { key: 'map', label: 'Locations & Map', icon: MapPin },
           { key: 'history', label: 'Activity History', icon: Calendar },
         ].map((tab) => {
@@ -553,7 +607,7 @@ export default function MarketingDashboard() {
 
       <SectionOverlay isUpdating={loading} updatingText="Synchronizing marketing activities...">
         {/* Top Summary KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Card 1: Today Visits */}
           <div className="bg-gray-950 border border-gray-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
             <div className="flex justify-between items-start">
@@ -584,21 +638,7 @@ export default function MarketingDashboard() {
             </div>
           </div>
 
-          {/* Card 3: Visited Hospitals */}
-          <div className="bg-gray-950 border border-gray-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Hospitals Visited</p>
-                <p className="text-2xl md:text-3xl font-black text-emerald-400 mt-1">{summary.visitedHospitalsCount || 0}</p>
-                <p className="text-[11px] font-bold text-gray-500 mt-1">Healthcare institutions</p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <Building2 size={20} />
-              </div>
-            </div>
-          </div>
-
-          {/* Card 4: Total Visits */}
+          {/* Card 3: Total Visits */}
           <div className="bg-gray-950 border border-gray-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
             <div className="flex justify-between items-start">
               <div>
@@ -695,7 +735,9 @@ export default function MarketingDashboard() {
                   <div className="py-12 text-center text-gray-500 space-y-2">
                     <MapPin size={36} className="mx-auto text-gray-600 opacity-60" />
                     <p className="text-xs font-bold">No location recorded yet</p>
-                    <p className="text-[10px] text-gray-600">Click "Log New Visit" to record your first activity today</p>
+                    <p className="text-[10px] text-gray-600">
+                      {isAdmin ? 'Awaiting field visits from marketing staff' : 'Click "Log New Visit" to record your first activity today'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -766,7 +808,9 @@ export default function MarketingDashboard() {
               <div className="py-10 text-center text-gray-500 space-y-1">
                 <Clock size={32} className="mx-auto text-gray-600 mb-2 opacity-50" />
                 <p className="text-xs font-bold">No activities recorded today yet</p>
-                <p className="text-[11px] text-gray-600">Click "Log New Visit" to record your first visit today</p>
+                <p className="text-[11px] text-gray-600">
+                  {isAdmin ? 'Awaiting field visits from marketing staff' : 'Click "Log New Visit" to record your first visit today'}
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -945,8 +989,8 @@ export default function MarketingDashboard() {
         )}
       </SectionOverlay>
 
-      {/* ── Log New Visit Modal ── */}
-      {showLogModal && (
+      {/* ── Log New Visit Modal (Field Marketing Staff Only) ── */}
+      {!isAdmin && showLogModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-gray-900 border-2 border-cyan-500/30 rounded-3xl p-6 w-full max-w-lg shadow-2xl relative">
             <div className="flex justify-between items-center pb-3 mb-4 border-b border-gray-800">
@@ -1055,7 +1099,7 @@ export default function MarketingDashboard() {
                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-600/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-600/30 text-xs font-bold transition-all disabled:opacity-50"
                   >
                     <Crosshair size={13} className={gpsLoading ? 'animate-spin' : ''} />
-                    <span>{gpsLoading ? 'Acquiring GPS...' : 'Acquire Live GPS'}</span>
+                    <span>{gpsLoading ? 'Acquiring & Auto-Filling...' : 'Acquire Current Location'}</span>
                   </button>
                 </div>
 
@@ -1075,6 +1119,12 @@ export default function MarketingDashboard() {
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
+                {latitude && longitude && (
+                  <p className="text-[10px] text-cyan-300 font-bold flex items-center gap-1.5 pt-1">
+                    <CheckCircle2 size={12} className="text-cyan-400 shrink-0" />
+                    <span>Location acquired & details auto-filled above (editable if needed)</span>
+                  </p>
+                )}
               </div>
 
               <div>

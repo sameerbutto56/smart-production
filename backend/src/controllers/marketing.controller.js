@@ -197,20 +197,199 @@ const createActivity = async (req, res) => {
 };
 
 /**
- * Fetch marketing activities for the currently logged-in marketing user.
+/**
+ * Calculate distance between two coordinates in meters.
+ */
+function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // metres
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
+const geocodeCache = new Map();
+
+/**
+ * Reverse geocode latitude and longitude to auto-fill marketing visit details.
+ * 1. Checks matching configured reference locations within operational radius.
+ * 2. Checks in-memory cache.
+ * 3. Queries OpenStreetMap Nominatim with English locale.
+ */
+const reverseGeocodeLocation = async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat || req.query.latitude);
+    const lng = parseFloat(req.query.lng || req.query.longitude);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ message: 'Valid latitude and longitude are required' });
+    }
+
+    // 1. Check if matches any configured reference location within radius
+    try {
+      const configured = await prisma.marketingConfiguredLocation.findMany({
+        where: { isActive: true }
+      });
+
+      let closestLoc = null;
+      let minDistance = Infinity;
+
+      for (const loc of configured) {
+        if (loc.latitude && loc.longitude) {
+          const d = getDistanceFromLatLonInMeters(lat, lng, loc.latitude, loc.longitude);
+          const maxRadius = loc.radius || 300;
+          if (d <= maxRadius && d < minDistance) {
+            minDistance = d;
+            closestLoc = loc;
+          }
+        }
+      }
+
+      if (closestLoc) {
+        return res.json({
+          success: true,
+          source: 'CONFIGURED_MATCH',
+          area: closestLoc.area,
+          location: closestLoc.name,
+          hospitalName: closestLoc.hospitalName || null,
+          companyName: closestLoc.companyName || null,
+          distanceMeters: Math.round(minDistance)
+        });
+      }
+    } catch (confErr) {
+      console.warn('Error checking configured locations:', confErr);
+    }
+
+    // 2. Check in-memory cache
+    const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    const cached = geocodeCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return res.json(cached.data);
+    }
+
+    // 3. Query OpenStreetMap Nominatim with English header
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1`;
+    const response = await fetch(nominatimUrl, {
+      headers: {
+        'User-Agent': 'Enamels-ERP/1.0 (contact@enamel.com)',
+        'Accept-Language': 'en'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Nominatim returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const addr = data.address || {};
+
+    const area = addr.suburb || addr.neighbourhood || addr.city_district || addr.quarter || addr.town || addr.village || addr.city || 'Lahore';
+
+    let location = '';
+    if (addr.road) {
+      location = addr.house_number ? `${addr.house_number}, ${addr.road}` : addr.road;
+      if (addr.neighbourhood && !location.includes(addr.neighbourhood)) {
+        location += `, ${addr.neighbourhood}`;
+      }
+    } else if (data.name) {
+      location = data.name;
+    } else {
+      location = area;
+    }
+
+    // Detect if hospital / clinic / health institution
+    let hospitalName = null;
+    const isHospital = (addr.amenity && (addr.amenity.toLowerCase().includes('hospital') || addr.amenity.toLowerCase().includes('clinic') || addr.amenity.toLowerCase().includes('medical') || addr.amenity.toLowerCase().includes('health'))) ||
+      (data.name && (data.name.toLowerCase().includes('hospital') || data.name.toLowerCase().includes('clinic') || data.name.toLowerCase().includes('medical')));
+    if (isHospital) {
+      hospitalName = data.name || addr.amenity;
+    }
+
+    // Detect if company / office / corporate
+    let companyName = null;
+    const isCompany = addr.office || addr.commercial || (addr.amenity === 'company');
+    if (isCompany) {
+      companyName = data.name || addr.office || addr.commercial;
+    }
+
+    const result = {
+      success: true,
+      source: 'REVERSE_GEOCODE',
+      area,
+      location,
+      hospitalName,
+      companyName,
+      displayName: data.display_name
+    };
+
+    // Cache for 1 hour
+    geocodeCache.set(cacheKey, { data: result, expiresAt: Date.now() + 3600 * 1000 });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error reverse-geocoding location:', error);
+    // Graceful fallback response
+    res.json({
+      success: true,
+      source: 'FALLBACK',
+      area: 'Lahore',
+      location: `Coordinates: ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      hospitalName: null,
+      companyName: null
+    });
+  }
+};
+
+/**
+ * Fetch marketing activities for the currently logged-in marketing user or admin oversight.
  */
 const getMyActivities = async (req, res) => {
   try {
-    const identity = await getEffectiveMarketingIdentity(req);
-    const userId = identity.employeeId;
+    const isAdminUser = ['SUPER_ADMIN', 'ADMIN', 'SOFTWARE_SETTINGS'].includes(req.user?.role);
     const todayStr = getPktDateString(new Date());
-    const { date, limit = 50 } = req.query;
+    const { date, employeeId: queryEmpId, limit = 50 } = req.query;
 
-    const targetDate = date || todayStr;
+    let userId = null;
+    let employeeName = null;
+
+    if (isAdminUser) {
+      // Admin can view specific marketing employee or all
+      const targetEmpId = queryEmpId || req.headers['x-marketing-employee-id'];
+      if (targetEmpId && targetEmpId !== 'all') {
+        userId = targetEmpId;
+        const emp = await prisma.outletEmployee.findUnique({
+          where: { id: targetEmpId },
+          select: { name: true }
+        });
+        employeeName = emp?.name || null;
+      }
+    } else {
+      const identity = await getEffectiveMarketingIdentity(req);
+      userId = identity.employeeId;
+      employeeName = identity.employeeName;
+    }
+
+    // Build today filter
+    const todayWhere = { date: todayStr };
+    if (userId) {
+      todayWhere.userId = userId;
+    }
 
     // Fetch today's activities for summary calculations
     const todayActivities = await prisma.marketingActivity.findMany({
-      where: { userId, date: todayStr },
+      where: todayWhere,
       orderBy: { createdAt: 'desc' }
     });
 
@@ -220,21 +399,22 @@ const getMyActivities = async (req, res) => {
     const visitedCompaniesSet = new Set(todayActivities.map(a => a.companyName).filter(Boolean));
 
     // Latest overall activity
+    const latestWhere = userId ? { userId } : {};
     const latestActivity = todayActivities.length > 0 ? todayActivities[0] : (
       await prisma.marketingActivity.findFirst({
-        where: { userId },
+        where: latestWhere,
         orderBy: { createdAt: 'desc' }
       })
     );
 
     // Filtered historical activities
-    const where = { userId };
+    const histWhere = userId ? { userId } : {};
     if (date && date !== 'all') {
-      where.date = date;
+      histWhere.date = date;
     }
 
     const history = await prisma.marketingActivity.findMany({
-      where,
+      where: histWhere,
       orderBy: { createdAt: 'desc' },
       take: Math.min(parseInt(limit) || 50, 100)
     });
@@ -249,6 +429,7 @@ const getMyActivities = async (req, res) => {
         visitedHospitals: Array.from(visitedHospitalsSet),
         visitedCompaniesCount: visitedCompaniesSet.size,
         visitedCompanies: Array.from(visitedCompaniesSet),
+        selectedEmployeeName: employeeName,
         latestLocation: latestActivity ? {
           area: latestActivity.area,
           location: latestActivity.location,
@@ -260,6 +441,7 @@ const getMyActivities = async (req, res) => {
           longitude: latestActivity.longitude,
           status: latestActivity.status,
           source: latestActivity.source,
+          employeeName: latestActivity.employeeName
         } : null
       },
       todayActivities,
@@ -460,4 +642,5 @@ module.exports = {
   deleteConfiguredLocation,
   getMarketingEmployees,
   loginMarketingEmployee,
+  reverseGeocodeLocation,
 };

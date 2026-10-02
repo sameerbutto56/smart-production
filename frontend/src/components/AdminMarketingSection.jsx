@@ -117,7 +117,7 @@ export default function AdminMarketingSection() {
 
       <SectionOverlay isUpdating={loading} updatingText="Updating marketing activities...">
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800">
             <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Total Activities</p>
             <p className="text-2xl font-black text-white mt-1">{activities.length}</p>
@@ -131,15 +131,9 @@ export default function AdminMarketingSection() {
           </div>
 
           <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800">
-            <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Hospitals Visited</p>
-            <p className="text-2xl font-black text-blue-400 mt-1">{filterOptions.hospitals?.length || 0}</p>
-            <p className="text-[10px] text-gray-500 font-bold mt-1">Distinct medical sites</p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800">
-            <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Companies Covered</p>
-            <p className="text-2xl font-black text-purple-400 mt-1">{filterOptions.companies?.length || 0}</p>
-            <p className="text-[10px] text-gray-500 font-bold mt-1">Corporate clients</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Covered Areas</p>
+            <p className="text-2xl font-black text-purple-400 mt-1">{filterOptions.areas?.length || 0}</p>
+            <p className="text-[10px] text-gray-500 font-bold mt-1">Distinct geographical regions</p>
           </div>
         </div>
 

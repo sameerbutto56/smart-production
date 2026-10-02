@@ -11,9 +11,13 @@ const {
   deleteConfiguredLocation,
   getMarketingEmployees,
   loginMarketingEmployee,
+  reverseGeocodeLocation,
 } = require('../controllers/marketing.controller');
 
 const router = express.Router();
+
+// Reverse geocoding endpoint for auto-filling live visit details
+router.get('/reverse-geocode', authenticate, reverseGeocodeLocation);
 
 // Marketing Employee Selection & Login
 router.get('/employees', authenticate, getMarketingEmployees);

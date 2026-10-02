@@ -144,6 +144,31 @@ async function runVerification() {
     const invalidPass = await bcrypt.compare('wrong-password', junaid.password);
     assert(invalidPass === false, 'Invalid employee password correctly rejected');
 
+    // 8. Reverse Geocoding & Location Auto-Fill Verification
+    const { reverseGeocodeLocation, getMyActivities } = require('../src/controllers/marketing.controller');
+    let geocodeRes = null;
+    await reverseGeocodeLocation(
+      { query: { lat: '31.4697', lng: '74.2728' } },
+      { json: (data) => { geocodeRes = data; }, status: () => ({ json: (d) => { geocodeRes = d; } }) }
+    );
+    assert(geocodeRes && geocodeRes.success === true, 'reverseGeocodeLocation returns success: true');
+    assert(!!geocodeRes.area, `reverseGeocodeLocation extracted area: ${geocodeRes.area}`);
+    assert(!!geocodeRes.location, `reverseGeocodeLocation extracted location: ${geocodeRes.location}`);
+
+    // 9. Admin Read-Only Supervision Querying
+    let adminActivitiesRes = null;
+    await getMyActivities(
+      {
+        user: { role: 'SUPER_ADMIN' },
+        query: { limit: '10' },
+        headers: {}
+      },
+      { json: (data) => { adminActivitiesRes = data; }, status: () => ({ json: (d) => { adminActivitiesRes = d; } }) }
+    );
+    assert(adminActivitiesRes && !!adminActivitiesRes.summary, 'Admin can query activities for oversight');
+    assert(Array.isArray(adminActivitiesRes.todayActivities), 'Admin receives todayActivities array');
+    assert(Array.isArray(adminActivitiesRes.history), 'Admin receives historical activities array');
+
     if (failures === 0) {
       console.log('🎉 ALL MARKETING & SYSTEM CONTROL VERIFICATION TESTS PASSED!');
     } else {
