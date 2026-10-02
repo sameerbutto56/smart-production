@@ -49,6 +49,7 @@ import {
   Settings,
   SearchCheck,
   UserCog,
+  Compass,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDateOnly } from '../utils/dateTime';
@@ -60,10 +61,12 @@ import ProfileEmployeeGate from './ProfileEmployeeGate';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useSystemControl } from '../context/SystemControlContext';
 import { Palette } from 'lucide-react';
 
 const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
+  const { hasPermission } = useSystemControl();
   const { t, isUrdu } = useLanguage();
   const { themeId, currentTheme, changeTheme, THEMES } = useTheme();
   const { unreadCounts, markModuleRead } = useNotifications();
@@ -155,6 +158,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Return & Exchange', path: '/return-exchange', icon: RotateCcw, roles: ['INVENTORY_VIEW'] },
     { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] },
     { name: 'Bank Deposit', path: '/bank-deposit', icon: Landmark, roles: ['OUTLET'] },
+    { name: 'Marketing', path: '/marketing', icon: Compass, roles: ['MARKETING', 'SUPER_ADMIN', 'ADMIN'], featureId: 'MARKETING_DASHBOARD' },
     { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY', 'CEO'] },
     { name: 'Notifications', path: '/notifications', icon: Bell, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY', 'INVENTORY_VIEW', 'CEO'] },
     { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] },
@@ -166,6 +170,9 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
 
   // Strict Role Filtering
   let filteredNavItems = navItems.filter(item => {
+    // 0. System Control Feature check (if featureId defined)
+    if (item.featureId && !hasPermission(item.featureId)) return false;
+
     // 1. Basic role check
     if (!item.roles.includes(userRole)) return false;
     

@@ -5,7 +5,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useSystemPause } from '../context/SystemPauseContext';
-import { Users, UserPlus, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation, Truck, Layers, Hash, Lock } from 'lucide-react';
+import { Users, UserPlus, Plus, KeyRound, ShieldCheck, Loader2, Power, PowerOff, Building2, ArrowLeftRight, Search, RefreshCw, Banknote, Wallet, CreditCard, Clock, Save, PauseCircle, PlayCircle, History, Laptop, Trash2, Ban, Check, X, UserCog, Copy, MoveRight, MapPin, Navigation, Truck, Layers, Hash, Lock, Compass, Shield } from 'lucide-react';
 import OrderTrackPanel from '../components/OrderTrackPanel';
 import OrderControlPanel from '../components/OrderControlPanel';
 import OrderPhaseHistoryPanel from '../components/OrderPhaseHistoryPanel';
@@ -13,6 +13,8 @@ import PostExIntegrationPanel from '../components/PostExIntegrationPanel';
 import OrderRangePanel from '../components/OrderRangePanel';
 import DeleteInvoicePanel from '../components/DeleteInvoicePanel';
 import DepositRecordExceptionPanel from '../components/DepositRecordExceptionPanel';
+import SystemControlPanel from '../components/SystemControlPanel';
+import MarketingLocationsConfigPanel from '../components/MarketingLocationsConfigPanel';
 
 const PROFILE_LABELS = {
   POS: 'POS',
@@ -57,10 +59,11 @@ const ROLE_LABELS = {
   OUTLET: 'Outlet',
   OUTLET_ORDER_ENTRY: 'Outlet Order Entry',
   ASM: 'ASM (Area Sales Manager)',
+  MARKETING: 'Marketing',
 };
 
 // Login roles allowed to be created via the Login Users tab (User model).
-const CREATE_USER_ROLES = ['ASM', 'FAISAL', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN',
+const CREATE_USER_ROLES = ['ASM', 'MARKETING', 'FAISAL', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN',
   'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH',
   'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'INVENTORY_VIEW', 'ORDER_ENTRY', 'OUTLET', 'OUTLET_ORDER_ENTRY'];
 
@@ -610,6 +613,8 @@ const SoftwareSettings = () => {
     { key: 'phase-history', label: 'Phase History', icon: <Layers size={16} /> },
     { key: 'postex', label: 'PostEx Integration', icon: <Truck size={16} /> },
     { key: 'order-range', label: 'Order Range', icon: <Hash size={16} /> },
+    { key: 'system-control', label: 'System Control', icon: <Shield size={16} /> },
+    { key: 'marketing-locations', label: 'Marketing Locations', icon: <Compass size={16} /> },
     { key: 'abbottabad-password', label: 'Abbottabad Password', icon: <Lock size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
@@ -1654,6 +1659,12 @@ const SoftwareSettings = () => {
           </div>
         </div>
       )}
+
+      {/* ═══════════════ SYSTEM CONTROL TAB ═══════════════ */}
+      {activeTab === 'system-control' && <SystemControlPanel />}
+
+      {/* ═══════════════ MARKETING LOCATIONS CONFIG TAB ═══════════════ */}
+      {activeTab === 'marketing-locations' && <MarketingLocationsConfigPanel />}
 
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-16 pb-10 overflow-y-auto" onClick={() => setShowCreate(false)}>

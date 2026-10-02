@@ -62,10 +62,11 @@ const {
 } = require('../controllers/order-delivery.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
+const { requirePermission } = require('../middleware/systemControl.middleware');
 const router = express.Router();
 
 // Order Entry
-router.post('/', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET']), createOrder);
+router.post('/', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET']), requirePermission('ORDER_ENTRY'), createOrder);
 
 // Clear history
 router.delete('/history', authenticate, authorize(['SUPER_ADMIN', 'FAISAL']), clearHistory);
@@ -90,9 +91,9 @@ router.put('/:orderId/stages/:stageId/request', authenticate, requestStageComple
 // Control Center Actions: Approve, Reject, Cancel, Hold
 router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), approveStageCompletion);
 router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), rejectStageCompletion);
-router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'INVENTORY_VIEW', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), cancelOrder);
+router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'INVENTORY_VIEW', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), requirePermission('ORDER_CANCEL'), cancelOrder);
 router.put('/:orderId/hold', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), holdOrder);
-router.delete('/:orderId', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), deleteOrder);
+router.delete('/:orderId', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), requirePermission('ORDER_DELETE'), deleteOrder);
 
 // Deleted orders (admin audit)
 router.get('/deleted-orders', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getDeletedOrders);

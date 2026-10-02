@@ -47,7 +47,8 @@ import {
   ClipboardCheck,
   LogIn,
   Ban,
-  ArrowLeft
+  ArrowLeft,
+  Compass
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -64,7 +65,9 @@ import AbbottabadPasswordModal from '../components/AbbottabadPasswordModal';
 import AbbottabadFinancialSection from '../components/AbbottabadFinancialSection';
 import AdminFeedbackDashboard from '../components/AdminFeedbackDashboard';
 import OrderPerformanceCard from '../components/OrderPerformanceCard';
+import AdminMarketingSection from '../components/AdminMarketingSection';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton, DashboardSkeleton, SectionOverlay, FilterLoadingBadge } from '../components/LoadingSpinner';
+import { useSystemControl } from '../context/SystemControlContext';
 
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -86,6 +89,7 @@ const TOP_TABS = [
   { id: 'outlet_jail', label: 'Jail Road Outlet', icon: Store },
   { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', icon: Building },
   { id: 'customer_feedback', label: 'Customer Feedback', icon: MessageSquare },
+  { id: 'marketing', label: 'Marketing', icon: Compass },
 ];
 
 const PIPELINE_STAGES = [
@@ -977,6 +981,7 @@ const AdminDashboard = () => {
               { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Complete 360° operational dashboard — sales, orders, inventory, transfers & more', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', glow: 'hover:shadow-teal-500/20', outletName: 'Abbottabad' },
               { id: 'online_store', label: 'Online Store', desc: 'Online orders, revenue analytics, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20' },
               { id: 'customer_feedback', label: 'Customer Feedback', desc: 'QR feedback system, customer ratings, satisfaction analytics & feedback management', icon: MessageSquare, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', glow: 'hover:shadow-yellow-500/20' },
+              { id: 'marketing', label: 'Marketing', desc: 'Marketing field activities, hospital visits, staff locations & interactive map', icon: Compass, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20' },
               { id: 'order_performance', label: 'Order Performance', desc: 'Department-wise operational counts — Faisal, Store, Logo, Production, Dispatch & Delivery', icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', glow: 'hover:shadow-blue-500/20' },
               { id: 'audit', label: 'Inventory Audit', desc: 'Approve/reject stock audits — auto-applies physical inventory adjustments & adjustment logs', icon: ClipboardCheck, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', path: '/audit-review' },
               { id: 'asm', label: 'ASM', desc: 'Area Sales Manager orders, approvals, analytics & delivery tracking', icon: Users, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20', path: '/asm' },
@@ -1735,6 +1740,9 @@ const AdminDashboard = () => {
 
       {/* Customer Feedback */}
       {activeTab === 'customer_feedback' && <AdminFeedbackDashboard />}
+
+      {/* Marketing Field Operations & Live Locations */}
+      {activeTab === 'marketing' && <AdminMarketingSection />}
 
       {/* Outlet Detailed Dashboards */}
       {activeTab === 'outlet_johar' && <OutletDetailedCard outlet="Johar Town" />}

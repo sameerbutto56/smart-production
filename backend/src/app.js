@@ -183,6 +183,8 @@ app.use('/api/wrong-attempts', wrongAttemptRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/asm-stock', require('./routes/asmStock.routes'));
 app.use('/api/office-supply', require('./routes/officeSupply.routes'));
+app.use('/api/system-control', require('./routes/systemControl.routes'));
+app.use('/api/marketing', require('./routes/marketing.routes'));
 
 
 // Global error handler (must be last)

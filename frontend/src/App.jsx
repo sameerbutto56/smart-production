@@ -7,12 +7,14 @@ import { LanguageProvider } from './context/LanguageContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { SystemPauseProvider } from './context/SystemPauseContext';
 import { DelayProvider } from './context/DelayContext';
+import { SystemControlProvider } from './context/SystemControlContext';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './context/ThemeContext';
 
 // All pages lazy-loaded — each becomes its own chunk
 const Login = lazy(() => import('./pages/Login'));
+const MarketingDashboard = lazy(() => import('./pages/MarketingDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const MyTasks = lazy(() => import('./pages/MyTasks'));
 const OrderEntry = lazy(() => import('./pages/OrderEntry'));
@@ -154,6 +156,7 @@ const AuthRedirectHandler = () => {
   if (role === 'CEO') return <Navigate to="/ceo-dashboard" replace={true} />;
   if (role === 'SOFTWARE_SETTINGS') return <Navigate to="/software-settings" replace={true} />;
   if (role === 'ASM') return <Navigate to="/asm" replace={true} />;
+  if (role === 'MARKETING') return <Navigate to="/marketing" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;
 };
@@ -161,8 +164,9 @@ const AuthRedirectHandler = () => {
 function App() {
   return (
     <AuthProvider>
-      <ThemeProvider>
-        <LanguageProvider>
+      <SystemControlProvider>
+        <ThemeProvider>
+          <LanguageProvider>
           <SearchProvider>
             <NotificationProvider>
             <SystemPauseProvider>
@@ -261,6 +265,7 @@ function App() {
                   <Route path="asm-allowed" element={<AdminBlockedRoute><AsmAllowedStorePage /></AdminBlockedRoute>} />
                   <Route path="vendors-admin" element={<AdminBlockedRoute><VendorsPage /></AdminBlockedRoute>} />
                   <Route path="office-supply" element={<OfficeSupplyRoute><OfficeSupply /></OfficeSupplyRoute>} />
+                  <Route path="marketing" element={<MarketingDashboard />} />
                 </Route>
               </Routes>
               </ErrorBoundary>
@@ -271,6 +276,7 @@ function App() {
           </SearchProvider>
         </LanguageProvider>
       </ThemeProvider>
+      </SystemControlProvider>
     </AuthProvider>
   );
 }

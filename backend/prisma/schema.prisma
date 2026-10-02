@@ -45,6 +45,7 @@ model User {
   cancellationsDecided  OrderCancellationRequest[] @relation("CancellationDecidedBy")
   loginSessions          LoginSession[]
   vendorOrdersAsm       VendorOrder[]    @relation("VendorOrderAsm")
+  marketingActivities   MarketingActivity[]
 }
 
 model Order {
@@ -2711,5 +2712,79 @@ model AbbottabadAmountLedger {
   @@index([actionType])
   @@index([demandId])
   @@index([createdAt])
+}
+
+model MarketingActivity {
+  id                    String   @id @default(uuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeName          String
+  date                  String   // YYYY-MM-DD
+  time                  String   // e.g. 11:30 AM
+  area                  String
+  location              String
+  hospitalName          String?
+  companyName           String?
+  notes                 String?
+  latitude              Float?
+  longitude             Float?
+  status                String   @default("COMPLETED")
+  source                String   @default("GPS")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([date])
+  @@index([area])
+  @@index([hospitalName])
+  @@index([companyName])
+  @@index([createdAt])
+}
+
+model MarketingConfiguredLocation {
+  id                    String   @id @default(uuid())
+  name                  String
+  area                  String
+  hospitalName          String?
+  companyName           String?
+  address               String?
+  latitude              Float
+  longitude             Float
+  radius                Float?   @default(100)
+  isActive              Boolean  @default(true)
+  createdById           String?
+  createdByName         String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([area])
+  @@index([isActive])
+}
+
+model SystemControlPermission {
+  id                    String   @id @default(uuid())
+  profile               String
+  featureId             String
+  isEnabled             Boolean  @default(true)
+  updatedById           String?
+  updatedByName         String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([profile, featureId])
+  @@index([profile])
+}
+
+model SystemControlAuditLog {
+  id                    String   @id @default(uuid())
+  profile               String
+  featureId             String
+  previousValue         Boolean
+  newValue              Boolean
+  changedById           String?
+  changedByName         String
+  createdAt             DateTime @default(now())
+
+  @@index([profile, createdAt])
 }
 
