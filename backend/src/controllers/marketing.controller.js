@@ -40,7 +40,7 @@ const getEffectiveMarketingIdentity = async (req) => {
       }
     }
   }
-  return { employeeId: req.user.id, employeeName: req.user.name || 'Marketing Employee' };
+  return { employeeId: req.user?.id || 'marketing', employeeName: req.user?.name || 'Marketing Employee' };
 };
 
 /**
@@ -158,13 +158,27 @@ const createActivity = async (req, res) => {
 
     const identity = await getEffectiveMarketingIdentity(req);
 
+    // Ensure valid User foreign key reference
+    let resolvedUserId = req.user?.id;
+    if (resolvedUserId) {
+      const userExists = await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true } });
+      if (!userExists) resolvedUserId = null;
+    }
+    if (!resolvedUserId) {
+      const marketingUser = await prisma.user.findFirst({ where: { role: 'MARKETING' }, select: { id: true } });
+      resolvedUserId = marketingUser?.id;
+    }
+    if (!resolvedUserId) {
+      const anyUser = await prisma.user.findFirst({ select: { id: true } });
+      resolvedUserId = anyUser?.id;
+    }
+
     const activity = await prisma.marketingActivity.create({
       data: {
-        userId: req.user?.id,
+        userId: resolvedUserId,
         employeeName: identity.employeeName,
         date: dateStr,
         time: timeStr,
-        timestamp: now,
         area: cleanArea || cleanLocation,
         location: cleanLocation || cleanArea,
         hospitalName: hospitalName ? hospitalName.toString().trim() : null,
