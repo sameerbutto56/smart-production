@@ -15,4 +15,5 @@ backend/err.log
 backend/out.log
 .env*
 *.zip
+*.log
 README_*.txt
