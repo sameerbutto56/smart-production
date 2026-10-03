@@ -103,30 +103,81 @@ export function extractOrderItems(order) {
   if (!order) return [];
   if (Array.isArray(order.productDetails) && order.productDetails.length > 0) {
     return order.productDetails.map((p, idx) => {
-      const name = p.name || p.productType || p.productName || 'Medical Scrub / Apparel';
-      const size = p.size || (p.productDetails && p.productDetails.size) || '';
-      const color = p.color || (p.productDetails && p.productDetails.color) || '';
-      const fabric = p.fabric || p.fabricType || (p.productDetails && p.productDetails.fabricType) || '';
-      const gender = p.gender || '';
+      const nested = (p.productDetails && typeof p.productDetails === 'object') ? p.productDetails : {};
+      const custom = (p.customization && typeof p.customization === 'object') ? p.customization : {};
+
+      // Accurate Product Name: check top-level, then nested productType/name/productName
+      const name = (p.name || p.productType || p.productName || nested.productType || nested.name || nested.productName || 'Medical Scrub / Apparel').trim();
+
+      // Accurate Size: standard size or nested size or measurement object/string
+      let size = p.size || nested.size || '';
+      if (!size && p.sizeData) {
+        if (typeof p.sizeData === 'string') {
+          // If sizeData is a simple string (e.g. "M", "42"), use it; if JSON measurements, leave size clean
+          if (!p.sizeData.startsWith('{') && !p.sizeData.startsWith('[')) {
+            size = p.sizeData.trim();
+          }
+        }
+      }
+
+      // Accurate Color: top-level or nested
+      const color = (p.color || nested.color || '').trim();
+
+      // Accurate Fabric
+      const fabric = (p.fabric || p.fabricType || nested.fabricType || nested.fabric || '').trim();
+
+      // Accurate Gender
+      const gender = (p.gender || nested.gender || '').trim();
+
       const qty = parseInt(p.quantity, 10) || 1;
       const unitPrice = parseFloat(p.unitPrice || 0);
       const lineTotal = parseFloat(p.totalPrice || (qty * unitPrice) || 0);
 
-      // Engravings / Logos / Notes
+      // Engravings / Logos / Customization Details
       const customizations = [];
-      if (p.engravingRequired) {
-        const engText = p.engravingText || (Array.isArray(p.engravingLines) ? p.engravingLines.map(l => typeof l === 'object' ? l.text : l).filter(Boolean).join(', ') : '');
-        if (engText) customizations.push(`Engraving: ${engText} (${p.engravingType || 'Direct'})`);
+
+      // 1. Engraving text & Doctor name
+      const engText = p.engravingText || custom.nameSpelling || (Array.isArray(custom.articleNames) ? custom.articleNames.filter(Boolean).join(', ') : '') || (Array.isArray(p.engravingLines) ? p.engravingLines.map(l => typeof l === 'object' ? l.text : l).filter(Boolean).join(', ') : '');
+      const engType = p.engravingType || custom.engravingType || '';
+      if (engText && engText.trim()) {
+        customizations.push(`Engraving: ${engText.trim()}${engType ? ` (${engType})` : ''}`);
       }
-      if (p.logoRequired || (Array.isArray(p.logoEntries) && p.logoEntries.length > 0)) {
-        const logos = Array.isArray(p.logoEntries) ? p.logoEntries.map(l => typeof l === 'object' ? l.name : l).filter(Boolean).join(', ') : (p.logoName || 'Logo included');
-        if (logos) customizations.push(`Logo: ${logos}`);
+
+      // 2. Logos
+      let logoInfo = '';
+      if (Array.isArray(custom.logos) && custom.logos.length > 0) {
+        const logoNames = custom.logos.map(l => typeof l === 'object' ? (l.name || l.design) : l).filter(Boolean).join(', ');
+        if (logoNames) logoInfo = logoNames;
       }
-      if (p.matchingCap) {
-        customizations.push(`Cap: ${p.matchingCapQty || 1}x`);
+      if (!logoInfo && Array.isArray(p.logoEntries) && p.logoEntries.length > 0) {
+        logoInfo = p.logoEntries.map(l => typeof l === 'object' ? l.name : l).filter(Boolean).join(', ');
       }
-      if (p.measurementSpecialNote) {
-        customizations.push(`Special: ${p.measurementSpecialNote}`);
+      if (!logoInfo && (p.logoName || p.logoDesign || custom.logoPlacement)) {
+        logoInfo = [p.logoName, p.logoDesign, custom.logoPlacement].filter(Boolean).join(' ');
+      }
+      if (logoInfo && logoInfo.trim()) {
+        customizations.push(`Logo: ${logoInfo.trim()}`);
+      }
+
+      // 3. Matching Cap
+      if (p.matchingCap || nested.matchingCap) {
+        const capQty = p.matchingCapQty || nested.matchingCapQty || 1;
+        customizations.push(`Matching Cap: ${capQty}x`);
+      }
+
+      // 4. Special Notes & Alterations
+      const specNote = p.measurementSpecialNote || custom.designNotes || nested.customSpecifications || '';
+      if (specNote && specNote.trim()) {
+        customizations.push(`Note: ${specNote.trim()}`);
+      }
+
+      // 5. Alteration specifications (shirt, sleeve, trouser length)
+      if (nested.alteration && typeof nested.alteration === 'object') {
+        const alts = Object.entries(nested.alteration)
+          .filter(([, v]) => v && String(v).trim().length > 0)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ');
+        if (alts) customizations.push(`Alteration: ${alts}`);
       }
 
       return {
@@ -151,7 +202,7 @@ export function extractOrderItems(order) {
   return [{
     sr: 1,
     name: order.productType || 'Custom Medical Apparel',
-    size: order.sizeData || '',
+    size: (typeof order.sizeData === 'string' && !order.sizeData.startsWith('{') ? order.sizeData : '') || '',
     color: '',
     fabric: '',
     gender: order.gender || '',

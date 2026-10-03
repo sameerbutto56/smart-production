@@ -230,7 +230,8 @@ const InventoryManagement = () => {
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving inventory item:', error);
-      toast.error('Error saving inventory item');
+      const msg = error.response?.data?.message || error.message || 'Error saving inventory item';
+      toast.error(`Error saving inventory item: ${msg}`);
     }
   };
 

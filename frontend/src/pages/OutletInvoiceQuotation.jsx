@@ -38,7 +38,7 @@ import {
   getLogoSrc
 } from '../utils/outletInvoiceQuotationPrint';
 
-// Helper: Group raw outlet inventory into clean unique products with variants, colors, and sizes
+// Helper: Group raw outlet inventory into clean unique products with variants, colors, sizes, and sizePrices
 function groupOutletProducts(rawItems) {
   if (!Array.isArray(rawItems)) return [];
   const map = new Map();
@@ -62,13 +62,20 @@ function groupOutletProducts(rawItems) {
         colorImages: (it.colorImages && typeof it.colorImages === 'object') ? it.colorImages : {},
         colors: new Set(it.color ? [it.color.trim()] : []),
         sizes: new Set(it.size ? [it.size.trim()] : []),
+        sizePrices: {},
         rawVariants: Array.isArray(rawVariants) ? rawVariants : []
       });
     }
 
     const p = map.get(key);
     if (it.color) p.colors.add(it.color.trim());
-    if (it.size) p.sizes.add(it.size.trim());
+    if (it.size) {
+      const sTrim = it.size.trim();
+      p.sizes.add(sTrim);
+      if (it.price && !p.sizePrices[sTrim]) {
+        p.sizePrices[sTrim] = parseFloat(it.price) || 0;
+      }
+    }
     if (!p.price && it.price) p.price = parseFloat(it.price) || 0;
     if (!p.imageUrl && it.imageUrl) p.imageUrl = it.imageUrl;
 
@@ -84,7 +91,13 @@ function groupOutletProducts(rawItems) {
       if (Array.isArray(vArr)) {
         for (const v of vArr) {
           if (v && v.color) p.colors.add(v.color.trim());
-          if (v && v.size) p.sizes.add(v.size.trim());
+          if (v && v.size) {
+            const vsTrim = v.size.trim();
+            p.sizes.add(vsTrim);
+            if (v.price && !p.sizePrices[vsTrim]) {
+              p.sizePrices[vsTrim] = parseFloat(v.price) || 0;
+            }
+          }
           if (v && v.price && !p.price) p.price = parseFloat(v.price) || 0;
         }
       }
@@ -92,11 +105,19 @@ function groupOutletProducts(rawItems) {
   }
 
   return Array.from(map.values())
-    .map(p => ({
-      ...p,
-      colors: Array.from(p.colors).filter(Boolean),
-      sizes: Array.from(p.sizes).filter(Boolean)
-    }))
+    .map(p => {
+      let basePrice = p.price;
+      if (p.sizePrices['M']) basePrice = p.sizePrices['M'];
+      else if (p.sizePrices['S']) basePrice = p.sizePrices['S'];
+      else if (p.sizePrices['L']) basePrice = p.sizePrices['L'];
+      else if (p.sizePrices['XS']) basePrice = p.sizePrices['XS'];
+      return {
+        ...p,
+        price: basePrice || p.price || 0,
+        colors: Array.from(p.colors).filter(Boolean),
+        sizes: Array.from(p.sizes).filter(Boolean)
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -226,40 +247,52 @@ export default function OutletInvoiceQuotation() {
     }
   }, []);
 
-  // Fetch Full Products List from Johar Town Outlet Inventory
+  // Fetch Full Products List from Johar Town Outlet Inventory and Warehouse
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true);
     try {
-      // Fetch Johar Town products
-      const res = await api.get('/api/pos/products?outlet=Johar Town');
-      const raw = Array.isArray(res.data) ? res.data : [];
-      const grouped = groupOutletProducts(raw);
+      // 1. Fetch Johar Town outlet products
+      let rawOutlet = [];
+      try {
+        const res = await api.get('/api/pos/products?outlet=Johar Town');
+        rawOutlet = Array.isArray(res.data) ? res.data : [];
+      } catch (e) {
+        console.warn('Outlet products fetch error:', e);
+      }
+
+      // 2. Fetch master inventory items for complete master pricing & catalog coverage
+      let rawMaster = [];
+      try {
+        const resMaster = await api.get('/api/inventory?limit=500');
+        rawMaster = Array.isArray(resMaster.data) ? resMaster.data : [];
+      } catch (e) {
+        console.warn('Master inventory fetch error:', e);
+      }
+
+      // Merge and group all items into unified catalog
+      const combined = [...rawOutlet, ...rawMaster];
+      const grouped = groupOutletProducts(combined.length > 0 ? combined : rawOutlet);
       setProducts(grouped);
+
       if (grouped.length > 0 && !selectedProductId) {
         const first = grouped[0];
         setSelectedProductId(first.id);
+        const initSize = first.sizes[0] || 'M';
+        const initPrice = (first.sizePrices && first.sizePrices[initSize]) || first.price || 0;
         setItemForm({
           name: first.name,
           category: first.category,
           color: first.colors[0] || '',
           customColor: '',
-          size: first.sizes[0] || 'M',
+          size: initSize,
           customSize: '',
           quantity: 1,
-          unitPrice: first.price || 0,
+          unitPrice: initPrice,
           customizations: ''
         });
       }
     } catch (err) {
-      console.warn('Could not fetch outlet-specific products, trying general catalog:', err);
-      try {
-        const res2 = await api.get('/api/pos/products');
-        const raw2 = Array.isArray(res2.data) ? res2.data : [];
-        const grouped2 = groupOutletProducts(raw2);
-        setProducts(grouped2);
-      } catch (err2) {
-        console.error('Failed to load products list:', err2);
-      }
+      console.error('Failed to load products list:', err);
     } finally {
       setLoadingProducts(false);
     }
@@ -297,15 +330,17 @@ export default function OutletInvoiceQuotation() {
     setSelectedProductId(prodId);
     const found = products.find(p => p.id === prodId);
     if (found) {
+      const defaultSize = found.sizes[0] || 'M';
+      const sizePrice = (found.sizePrices && found.sizePrices[defaultSize]) || found.price || 0;
       setItemForm({
         name: found.name,
         category: found.category,
         color: found.colors[0] || '',
         customColor: '',
-        size: found.sizes[0] || 'M',
+        size: defaultSize,
         customSize: '',
         quantity: 1,
-        unitPrice: found.price || 0,
+        unitPrice: sizePrice,
         customizations: ''
       });
     }
@@ -350,19 +385,52 @@ export default function OutletInvoiceQuotation() {
 
   // Quick Add from Catalog Modal
   const handleQuickAddFromCatalog = (prod) => {
+    const defaultSize = prod.sizes[0] || 'M';
+    const unitPrice = (prod.sizePrices && prod.sizePrices[defaultSize]) || prod.price || 0;
     const newItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: prod.name,
       category: prod.category || 'SCRUBS',
       color: prod.colors[0] || 'Standard',
-      size: prod.sizes[0] || 'M',
+      size: defaultSize,
       fabric: '',
       quantity: 1,
-      unitPrice: prod.price || 0,
+      unitPrice,
       customizations: ''
     };
     setDocItems(prev => [...prev, newItem]);
     toast.success(`Added ${prod.name}`);
+  };
+
+  // Convert loaded existing order into editable draft
+  const handleImportLoadedOrderToDraft = (order) => {
+    if (!order) return;
+    setMode('CREATE_NEW');
+    if (order.customerName) setCustomerName(order.customerName);
+    if (order.customerPhone) setCustomerPhone(order.customerPhone);
+    if (order.address) setCustomerAddress(order.address);
+    if (order.city) setCustomerCity(order.city);
+    if (order.deliveryMethod) setDeliveryMethod(order.deliveryMethod);
+    setDiscountAmount(parseFloat(order.discountAmount || 0));
+    setDeliveryCharges(parseFloat(order.deliveryCharges || 0));
+    setAdvanceAmount(parseFloat(order.advanceAmount || 0));
+
+    const extracted = extractOrderItems(order);
+    if (extracted.length > 0) {
+      const mappedItems = extracted.map((it, idx) => ({
+        id: `imported-${Date.now()}-${idx}`,
+        name: it.name,
+        category: 'SCRUBS',
+        color: it.color || 'Standard',
+        size: it.size || 'M',
+        fabric: it.fabric || '',
+        quantity: it.qty || 1,
+        unitPrice: it.unitPrice || 0,
+        customizations: it.customizations || ''
+      }));
+      setDocItems(mappedItems);
+      toast.success(`Imported ${mappedItems.length} items into Document Builder`);
+    }
   };
 
   // Remove Item
@@ -1076,7 +1144,16 @@ export default function OutletInvoiceQuotation() {
                       </label>
                       <select
                         value={itemForm.size}
-                        onChange={(e) => setItemForm({ ...itemForm, size: e.target.value })}
+                        onChange={(e) => {
+                          const newSize = e.target.value;
+                          let newPrice = itemForm.unitPrice;
+                          if (activeSelectedProduct?.sizePrices && activeSelectedProduct.sizePrices[newSize]) {
+                            newPrice = activeSelectedProduct.sizePrices[newSize];
+                          } else if (activeSelectedProduct?.price) {
+                            newPrice = activeSelectedProduct.price;
+                          }
+                          setItemForm({ ...itemForm, size: newSize, unitPrice: newPrice });
+                        }}
                         className="w-full px-2.5 py-1.5 bg-slate-950/70 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-teal-500"
                       >
                         <option value="">Standard / Free</option>
@@ -1339,19 +1416,58 @@ export default function OutletInvoiceQuotation() {
               </div>
 
               {loadedOrder && (
-                <div className="p-3 bg-slate-950/50 border border-slate-800 rounded-xl text-xs space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Customer:</span>
-                    <span className="font-bold text-white">{loadedOrder.customerName}</span>
+                <div className="p-3 bg-slate-950/50 border border-slate-800 rounded-xl text-xs space-y-2.5">
+                  <div className="space-y-1 pb-2 border-b border-slate-800/80">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Customer:</span>
+                      <span className="font-bold text-white">{loadedOrder.customerName}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Phone:</span>
+                      <span className="font-mono text-slate-200">{loadedOrder.customerPhone || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Total:</span>
+                      <span className="font-bold text-emerald-400 font-mono">Rs. {parseFloat(loadedOrder.totalPrice || 0).toLocaleString()}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Phone:</span>
-                    <span className="font-mono text-slate-200">{loadedOrder.customerPhone || '—'}</span>
+
+                  {/* Complete Accurate Order Products & Customizations Breakdown */}
+                  <div className="space-y-1.5">
+                    <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                      <span>Order Items ({extractOrderItems(loadedOrder).length})</span>
+                      <span className="text-emerald-400 font-mono font-normal">Accurate Details</span>
+                    </div>
+                    {extractOrderItems(loadedOrder).map((item, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] space-y-1">
+                        <div className="flex justify-between items-start font-bold text-white">
+                          <span className="text-slate-100">{item.name}</span>
+                          <span className="text-emerald-400 font-mono">Rs. {Number(item.lineTotal || (item.unitPrice * item.qty)).toLocaleString()}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 flex flex-wrap gap-2">
+                          {item.color && <span>Color: <strong className="text-slate-200">{item.color}</strong></span>}
+                          {item.size && <span>Size: <strong className="text-slate-200">{item.size}</strong></span>}
+                          {item.fabric && <span>Fabric: <strong className="text-slate-200">{item.fabric}</strong></span>}
+                          <span>Qty: <strong className="text-slate-200">{item.qty}</strong></span>
+                        </div>
+                        {item.customizations && (
+                          <div className="text-[10px] text-teal-400 italic pt-0.5 border-t border-slate-800/50">
+                            {item.customizations}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Total:</span>
-                    <span className="font-bold text-emerald-400">Rs. {parseFloat(loadedOrder.totalPrice || 0).toLocaleString()}</span>
-                  </div>
+
+                  {/* Button to transfer loaded data into Document Builder for customization */}
+                  <button
+                    type="button"
+                    onClick={() => handleImportLoadedOrderToDraft(loadedOrder)}
+                    className="w-full mt-2 py-2 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <PlusCircle size={13} />
+                    Edit &amp; Customize in Document Creator
+                  </button>
                 </div>
               )}
             </div>

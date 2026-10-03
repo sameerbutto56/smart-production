@@ -109,7 +109,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'], featureId: 'OUTLET_DASHBOARD' },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'], featureId: 'OUTLET_POS' },
     { name: 'Orders', path: '/outlet-orders', icon: ClipboardList, roles: ['OUTLET'], featureId: 'OUTLET_ORDER_VIEW' },
-    { name: 'Invoice / Quotation', path: '/outlet-invoice-quotation', icon: FileText, roles: ['OUTLET'], featureId: 'OUTLET_INVOICE_QUOTATION' },
+    { name: 'Invoice / Quotation', path: '/outlet-invoice-quotation', icon: FileText, roles: ['OUTLET', 'INVENTORY_VIEW'], featureId: 'OUTLET_INVOICE_QUOTATION' },
     { name: 'History', path: '/history', icon: History, roles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN', 'CEO'], featureId: 'ORDER_VIEW' },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'], featureId: 'DISPATCH_DASHBOARD' },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'], featureId: 'DISPATCH_TASKS' },

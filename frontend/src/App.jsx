@@ -241,6 +241,7 @@ const AuthRedirectHandler = () => {
     if (hasPermission('ORDER_TRACK')) return <Navigate to="/order-track" replace={true} />;
     if (hasPermission('ORDER_VERIFICATION')) return <Navigate to="/verification" replace={true} />;
     if (hasPermission('RETURN_EXCHANGE')) return <Navigate to="/return-exchange" replace={true} />;
+    if (hasPermission('OUTLET_INVOICE_QUOTATION')) return <Navigate to="/outlet-invoice-quotation" replace={true} />;
     if (hasPermission('ORDER_CANCEL')) return <Navigate to="/order-cancellation" replace={true} />;
     if (hasPermission('WAREHOUSE_VIEW')) return <Navigate to="/pos-inventory" replace={true} />;
     return <Navigate to="/chat" replace={true} />;

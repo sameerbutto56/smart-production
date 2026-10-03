@@ -379,7 +379,7 @@ export const FEATURES = [
     name: 'Invoice / Quotation',
     description: 'Generate and print branded Meezan Bank A4 invoices and quotations.',
     module: 'OUTLET',
-    defaultProfiles: ['OUTLET'],
+    defaultProfiles: ['OUTLET', 'INVENTORY_VIEW', 'SUPER_ADMIN', 'ADMIN'],
   },
   {
     id: 'OUTLET_ORDER_ENTRY',

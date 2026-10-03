@@ -47,6 +47,8 @@ const syncWarehouseItemImagesToOutlets = async (item, colorImages = {}, io = nul
       }
     });
 
+    if (!matchingOutlets || matchingOutlets.length === 0) return;
+
     const activeColorImgs = (colorImages && typeof colorImages === 'object' && Object.keys(colorImages).length > 0)
       ? colorImages
       : (() => {
@@ -56,51 +58,55 @@ const syncWarehouseItemImagesToOutlets = async (item, colorImages = {}, io = nul
           } catch(e) { return {}; }
         })();
 
-    for (const outletItem of matchingOutlets) {
-      let outletMeta = {};
-      if (outletItem.metadata) {
-        try {
-          outletMeta = typeof outletItem.metadata === 'string' ? JSON.parse(outletItem.metadata) : { ...outletItem.metadata };
-        } catch(e) {}
-      }
-      if (Object.keys(activeColorImgs).length > 0) {
-        outletMeta.colorImages = {
-          ...(outletMeta.colorImages || {}),
-          ...activeColorImgs
-        };
-      }
-
-      // Stamp color images on every matching variant in outlet inventory (e.g. S Black, M Black, L Black)
-      let rawVariants = outletItem.variants;
-      if (typeof rawVariants === 'string') {
-        try { rawVariants = JSON.parse(rawVariants); } catch(e) {}
-      }
-      let updatedVariants = rawVariants;
-      if (Array.isArray(rawVariants) && rawVariants.length > 0) {
-        updatedVariants = rawVariants.map(v => {
-          const vColor = (v.color || '').trim();
-          let matchedImg = null;
-          for (const [cName, cUrl] of Object.entries(activeColorImgs)) {
-            if (cName.trim().toLowerCase() === vColor.toLowerCase()) {
-              matchedImg = cUrl;
-              break;
-            }
-          }
-          return {
-            ...v,
-            imageUrl: matchedImg || v.imageUrl || null
-          };
-        });
-      }
-
-      await prisma.outletInventory.update({
-        where: { id: outletItem.id },
-        data: {
-          imageUrl: item.imageUrl || outletItem.imageUrl || null,
-          metadata: Object.keys(outletMeta).length > 0 ? JSON.stringify(outletMeta) : null,
-          variants: updatedVariants || undefined
+    const CHUNK_SIZE = 25;
+    for (let i = 0; i < matchingOutlets.length; i += CHUNK_SIZE) {
+      const chunk = matchingOutlets.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map(async (outletItem) => {
+        let outletMeta = {};
+        if (outletItem.metadata) {
+          try {
+            outletMeta = typeof outletItem.metadata === 'string' ? JSON.parse(outletItem.metadata) : { ...outletItem.metadata };
+          } catch(e) {}
         }
-      });
+        if (Object.keys(activeColorImgs).length > 0) {
+          outletMeta.colorImages = {
+            ...(outletMeta.colorImages || {}),
+            ...activeColorImgs
+          };
+        }
+
+        // Stamp color images on every matching variant in outlet inventory (e.g. S Black, M Black, L Black)
+        let rawVariants = outletItem.variants;
+        if (typeof rawVariants === 'string') {
+          try { rawVariants = JSON.parse(rawVariants); } catch(e) {}
+        }
+        let updatedVariants = rawVariants;
+        if (Array.isArray(rawVariants) && rawVariants.length > 0) {
+          updatedVariants = rawVariants.map(v => {
+            const vColor = (v.color || '').trim();
+            let matchedImg = null;
+            for (const [cName, cUrl] of Object.entries(activeColorImgs)) {
+              if (cName.trim().toLowerCase() === vColor.toLowerCase()) {
+                matchedImg = cUrl;
+                break;
+              }
+            }
+            return {
+              ...v,
+              imageUrl: matchedImg || v.imageUrl || null
+            };
+          });
+        }
+
+        return prisma.outletInventory.update({
+          where: { id: outletItem.id },
+          data: {
+            imageUrl: item.imageUrl || outletItem.imageUrl || null,
+            metadata: Object.keys(outletMeta).length > 0 ? JSON.stringify(outletMeta) : null,
+            variants: updatedVariants || undefined
+          }
+        });
+      }));
     }
 
     // Purge POS cache so all outlet POS clients fetch fresh images immediately
@@ -119,9 +125,19 @@ const syncWarehouseItemImagesToOutlets = async (item, colorImages = {}, io = nul
 const createInventoryItem = async (req, res) => {
   const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable, colorImages, metadata } = req.body;
   try {
-    let computedStock = stock;
-    let computedPrice = price;
-    let primaryColor = color;
+    const cleanName = (name || '').trim();
+    if (!cleanName) {
+      return res.status(400).json({ message: 'Product name is required' });
+    }
+    const cleanCategory = (category || 'SCRUBS').trim().toUpperCase();
+
+    let computedStock = parseInt(stock, 10);
+    if (isNaN(computedStock)) computedStock = 0;
+
+    let computedPrice = parseFloat(price);
+    if (isNaN(computedPrice)) computedPrice = 0;
+
+    let primaryColor = color ? color.trim() : null;
     let primarySize = null;
 
     let mergedMeta = {};
@@ -136,38 +152,38 @@ const createInventoryItem = async (req, res) => {
 
     let processedVariants = variants;
     if (variants && Array.isArray(variants) && variants.length > 0) {
-      computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+      computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock, 10) || 0), 0);
       const firstPrice = parseFloat(variants[0].price);
-      if (!price || price === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
-      primaryColor = variants[0].color || color;
-      primarySize = variants[0].size || null;
+      if (isNaN(computedPrice) || computedPrice === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
+      primaryColor = (variants[0].color || color || '').trim() || null;
+      primarySize = (variants[0].size || '').trim() || null;
 
-      // Stamp color images onto variants if defined
-      if (colorImages && typeof colorImages === 'object') {
-        processedVariants = variants.map(v => {
-          const colImg = v.color ? colorImages[v.color] : null;
-          return {
-            ...v,
-            imageUrl: colImg || null
-          };
-        });
-      }
+      // Stamp color images onto variants if defined and sanitize variant data
+      processedVariants = variants.map(v => {
+        const colImg = v.color && colorImages && typeof colorImages === 'object' ? colorImages[v.color] : null;
+        return {
+          ...v,
+          stock: parseInt(v.stock, 10) || 0,
+          price: parseFloat(v.price) || 0,
+          imageUrl: colImg || v.imageUrl || null
+        };
+      });
     }
 
     const resolvedGenderApplicable = typeof genderApplicable === 'boolean'
       ? genderApplicable
-      : isCategoryGenderApplicable(category);
+      : isCategoryGenderApplicable(cleanCategory);
 
     const item = await prisma.inventoryItem.create({
       data: { 
-        name, 
-        category, 
+        name: cleanName, 
+        category: cleanCategory, 
         stock: computedStock, 
         price: computedPrice, 
         color: primaryColor, 
         size: primarySize, 
-        fabric, 
-        imageUrl,
+        fabric: fabric ? fabric.trim() : null, 
+        imageUrl: imageUrl || null,
         metadata: Object.keys(mergedMeta).length > 0 ? JSON.stringify(mergedMeta) : null,
         genderApplicable: resolvedGenderApplicable,
         variants: processedVariants || null
@@ -176,23 +192,24 @@ const createInventoryItem = async (req, res) => {
     
     const io = req.app.get('io');
 
-    // Central image sync to all outlets (Johar Town, Jail Road, etc.)
-    await syncWarehouseItemImagesToOutlets(item, mergedMeta.colorImages, io);
+    // Central image and price sync to outlets runs without blocking the client response
+    syncWarehouseItemImagesToOutlets(item, mergedMeta.colorImages, io).catch(err => {
+      console.error('IMAGE SYNC ERROR (createInventoryItem):', err.message);
+    });
 
-    try {
-      await syncPricesForWarehouseItem(item.id);
-    } catch (syncErr) {
+    syncPricesForWarehouseItem(item.id).catch(syncErr => {
       console.error('PRICE SYNC ERROR (createInventoryItem):', syncErr.message);
-    }
+    });
     
     if (io) io.emit('inventory-updated', item);
     
-    res.status(201).json({
+    return res.status(201).json({
       ...item,
       colorImages: mergedMeta.colorImages || {}
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error creating inventory item', error: error.message });
+    console.error('[createInventoryItem] Error:', error);
+    return res.status(500).json({ message: error.message || 'Error creating inventory item', error: error.message });
   }
 };
 
@@ -205,8 +222,14 @@ const updateInventoryItem = async (req, res) => {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
-    let computedStock = stock;
-    let computedPrice = price;
+    const cleanName = name ? name.trim() : existing.name;
+    const cleanCategory = category ? category.trim().toUpperCase() : existing.category;
+
+    let computedStock = stock !== undefined ? parseInt(stock, 10) : existing.stock;
+    if (isNaN(computedStock)) computedStock = 0;
+
+    let computedPrice = price !== undefined ? parseFloat(price) : (existing.price || 0);
+    if (isNaN(computedPrice)) computedPrice = 0;
 
     let mergedMeta = {};
     if (existing.metadata) {
@@ -226,38 +249,40 @@ const updateInventoryItem = async (req, res) => {
 
     let processedVariants = variants;
     if (variants && Array.isArray(variants) && variants.length > 0) {
-      computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+      computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock, 10) || 0), 0);
       const firstPrice = parseFloat(variants[0].price);
-      if (!price || price === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
+      if (price === undefined || isNaN(computedPrice) || computedPrice === 0) {
+        computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
+      }
 
       // Stamp color images onto variants
-      if (colorImages && typeof colorImages === 'object') {
-        processedVariants = variants.map(v => {
-          const colImg = v.color ? colorImages[v.color] : null;
-          return {
-            ...v,
-            imageUrl: colImg || null
-          };
-        });
-      }
+      processedVariants = variants.map(v => {
+        const colImg = v.color && colorImages && typeof colorImages === 'object' ? colorImages[v.color] : null;
+        return {
+          ...v,
+          stock: parseInt(v.stock, 10) || 0,
+          price: parseFloat(v.price) || 0,
+          imageUrl: colImg || v.imageUrl || null
+        };
+      });
     }
 
     const updateData = { 
-      name, 
-      category, 
+      name: cleanName, 
+      category: cleanCategory, 
       stock: computedStock, 
       price: computedPrice, 
-      color, 
-      fabric, 
-      imageUrl,
+      color: color !== undefined ? (color ? color.trim() : null) : existing.color, 
+      fabric: fabric !== undefined ? (fabric ? fabric.trim() : null) : existing.fabric, 
+      imageUrl: imageUrl !== undefined ? (imageUrl || null) : existing.imageUrl,
       metadata: Object.keys(mergedMeta).length > 0 ? JSON.stringify(mergedMeta) : null,
-      variants: processedVariants || null
+      variants: processedVariants !== undefined ? (processedVariants || null) : existing.variants
     };
 
     if (genderApplicable !== undefined) {
-      updateData.genderApplicable = typeof genderApplicable === 'boolean' ? genderApplicable : isCategoryGenderApplicable(category);
-    } else if (category) {
-      updateData.genderApplicable = isCategoryGenderApplicable(category);
+      updateData.genderApplicable = typeof genderApplicable === 'boolean' ? genderApplicable : isCategoryGenderApplicable(cleanCategory);
+    } else if (cleanCategory) {
+      updateData.genderApplicable = isCategoryGenderApplicable(cleanCategory);
     }
 
     const item = await prisma.inventoryItem.update({
@@ -268,24 +293,24 @@ const updateInventoryItem = async (req, res) => {
     const io = req.app.get('io');
 
     // Central image sync: Warehouse is the master — propagate imageUrl, colorImages, and variants
-    // to every linked OutletInventory row sharing the same product name across all outlets.
-    await syncWarehouseItemImagesToOutlets(item, mergedMeta.colorImages, io);
+    // to every linked OutletInventory row sharing the same product name across all outlets without blocking response
+    syncWarehouseItemImagesToOutlets(item, mergedMeta.colorImages, io).catch(err => {
+      console.error('IMAGE SYNC ERROR (updateInventoryItem):', err.message);
+    });
 
-    // Central price sync: Warehouse is the master — propagate the price
-    try {
-      await syncPricesForWarehouseItem(id);
-    } catch (syncErr) {
+    syncPricesForWarehouseItem(id).catch(syncErr => {
       console.error('PRICE SYNC ERROR (updateInventoryItem):', syncErr.message);
-    }
+    });
     
     if (io) io.emit('inventory-updated', item);
     
-    res.json({
+    return res.json({
       ...item,
       colorImages: mergedMeta.colorImages || {}
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating inventory item', error: error.message });
+    console.error('[updateInventoryItem] Error:', error);
+    return res.status(500).json({ message: error.message || 'Error updating inventory item', error: error.message });
   }
 };
 
