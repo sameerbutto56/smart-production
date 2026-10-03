@@ -194,7 +194,7 @@ const createActivity = async (req, res) => {
         latitude: isNaN(parsedLat) ? null : parsedLat,
         longitude: isNaN(parsedLng) ? null : parsedLng,
         status: status || 'COMPLETED',
-        source: source === 'CONFIGURED' ? 'CONFIGURED' : 'GPS',
+        source: 'GPS',
       }
     });
 
@@ -465,8 +465,8 @@ const getMyActivities = async (req, res) => {
           employeeName: latestActivity.employeeName
         } : null
       },
-      todayActivities,
-      history,
+      todayActivities: todayActivities.map(a => a.source === 'CONFIGURED' ? { ...a, source: 'GPS' } : a),
+      history: history.map(a => a.source === 'CONFIGURED' ? { ...a, source: 'GPS' } : a),
     });
   } catch (error) {
     console.error('Error fetching marketing activities:', error);
@@ -696,7 +696,7 @@ const getAdminActivities = async (req, res) => {
     res.set('Expires', '0');
 
     res.json({
-      activities,
+      activities: activities.map(a => a.source === 'CONFIGURED' ? { ...a, source: 'GPS' } : a),
       employees: marketingEmployees,
       activeEmployees: latestPerEmployee,
       filterOptions: {
@@ -980,7 +980,7 @@ const saveEmployeeConfiguredLocation = async (req, res) => {
           latitude: lat,
           longitude: lng,
           status: 'COMPLETED',
-          source: 'CONFIGURED',
+          source: 'GPS',
         }
       });
 

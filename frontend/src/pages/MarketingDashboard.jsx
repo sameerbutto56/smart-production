@@ -673,9 +673,9 @@ export default function MarketingDashboard() {
                     <MapPin size={16} className="text-cyan-400" />
                     <h3 className="text-xs font-black uppercase tracking-wider text-white">Current / Latest Location</h3>
                   </div>
-                  {latestLoc?.source === 'GPS' && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      GPS Verified
+                  {latestLoc && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                      Active
                     </span>
                   )}
                 </div>
@@ -856,7 +856,6 @@ export default function MarketingDashboard() {
                     <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
                       <div className="text-right">
                         <span className="text-xs font-bold text-white block">{act.time}</span>
-                        <span className="text-[10px] text-gray-500 font-semibold uppercase">{act.source}</span>
                       </div>
                       {act.latitude && act.longitude && (
                         <a
@@ -931,7 +930,6 @@ export default function MarketingDashboard() {
                       <th className="px-4 py-3">Area & Location</th>
                       <th className="px-4 py-3">Hospital / Company</th>
                       <th className="px-4 py-3">Notes</th>
-                      <th className="px-4 py-3">GPS / Source</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -961,17 +959,6 @@ export default function MarketingDashboard() {
                         </td>
                         <td className="px-4 py-3 max-w-xs truncate text-gray-400" title={item.notes || ''}>
                           {item.notes || <span className="text-gray-600 italic">No notes</span>}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              item.source === 'GPS'
-                                ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
-                                : 'bg-gray-800 text-gray-400'
-                            }`}
-                          >
-                            {item.source}
-                          </span>
                         </td>
                         <td className="px-4 py-3 text-right whitespace-nowrap">
                           {item.latitude && item.longitude ? (

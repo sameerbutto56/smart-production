@@ -526,7 +526,7 @@ export default function AdminMarketingSection() {
                   <th className="pb-3 px-3">Area & Location</th>
                   <th className="pb-3 px-3">Hospital / Company</th>
                   <th className="pb-3 px-3">Notes</th>
-                  <th className="pb-3 px-3">Source & GPS</th>
+                  <th className="pb-3 px-3">Map Pin</th>
                   <th className="pb-3 px-3 text-right">Status</th>
                 </tr>
               </thead>
@@ -562,19 +562,15 @@ export default function AdminMarketingSection() {
                       </td>
                       <td className="py-3 px-3">
                         {a.latitude && a.longitude ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-900/40 text-cyan-300 border border-cyan-700/40">
-                              {a.source}
-                            </span>
-                            <a
-                              href={`https://www.google.com/maps?q=${a.latitude},${a.longitude}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-cyan-400 hover:underline font-mono text-[11px]"
-                            >
-                              Pin <ExternalLink size={10} className="inline ml-0.5" />
-                            </a>
-                          </div>
+                          <a
+                            href={`https://www.google.com/maps?q=${a.latitude},${a.longitude}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-cyan-400 hover:underline font-bold text-xs"
+                          >
+                            <span>Map Pin</span>
+                            <ExternalLink size={10} />
+                          </a>
                         ) : (
                           <span className="text-gray-600">—</span>
                         )}
