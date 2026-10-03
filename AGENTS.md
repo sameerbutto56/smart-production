@@ -1,5 +1,33 @@
 ## Goals
-### Implemented This Session — Eliminated "CONFIGURED" Labels & Source Distinctions from UI (deployed & live-verified)
+### Implemented This Session — Johar Town Outlet: Create New Invoice & Quotation with Full Product Catalog (deployed & live-verified)
+- **Problem & Requirements**:
+  - In **Johar Town Outlet → Invoice & Quotation** (`/outlet-invoice-quotation`), the page previously only offered an option to enter an existing order number to look up and print an existing order.
+  - Users needed the ability to **create a new invoice and quotation from scratch** with a **full catalog of all products** available to select, configure, and print.
+- **Implementation & Fixes**:
+  - **Dynamic Mode Switcher (`frontend/src/pages/OutletInvoiceQuotation.jsx`)**:
+    - Added clean segmented toggle between **"Create New Document"** (default) and **"Load Order #"**.
+    - Retained full backward compatibility for looking up existing orders via `/api/outlet-orders/order-lookup/:orderNumber`.
+  - **Document Type Selection**:
+    - Seamless toggle between **"INVOICE"** and **"QUOTATION"**, dynamically updating document titles, headers, and numbering conventions (`INV-...` vs `QUO-...`).
+  - **Full Product Catalog Integration**:
+    - Automatically fetches all active inventory from `/api/pos/products?outlet=Johar Town`, aggregating 1,741 outlet items into 93 unique product models (Scrubs, Lab-Coats, Clogs, Caps, Accessories, etc.) with their distinct colors and sizes.
+    - Added dedicated **"Browse Product Catalog"** modal with live search by product name/color and quick category filter pills (`ALL`, `SCRUBS`, `LABCOAT`, `CAPS`, `SHOES / CLOGS`, `ACCESSORIES`).
+    - Added product item builder: intuitive dropdowns for Product, Color (pre-filled from inventory or custom), Size, Quantity (`+`/`-`), Unit Price (pre-filled base price, fully editable), and Customization Notes (e.g., Doctor Name embroidery, Chest/Pocket Logo).
+  - **Document Line Items & Financial Computations**:
+    - Configured interactive line items table with inline quantity adjustments (`+`/`-`) and deletion.
+    - Full customer profile entry: Name, Phone, Hospital/Organization, Address, City, Delivery Method, and Document Date.
+    - Financial summary calculations: Subtotal, Delivery Charges, Discount, Grand Total, Advance Paid, and Remaining Balance Due.
+    - Custom remarks, special instructions, and terms & conditions fields.
+  - **Live Synchronized A4 Preview & Standard Printing**:
+    - Embedded real-time A4 iframe preview synchronized instantly with state changes using `buildOutletDocumentHTML`.
+    - Integrated standard A4 printable layout with Enamels branding and Meezan Bank details (`A/C: 02220105077642`, `IBAN: PK78MEZN0002220105077642`).
+    - Integrated local document caching (`enamels_saved_outlet_docs`) so created drafts can be saved and reloaded anytime via "Recent Documents".
+- **Verification**:
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 3,196 modules bundled cleanly into `OutletInvoiceQuotation-DxqVGCV_.js`.
+  - Git commit & push: committed to `main` branch.
+  - Vercel production deployment and live health check verified.
+
+### Implemented Prior Session — Eliminated "CONFIGURED" Labels & Source Distinctions from UI (deployed & live-verified)
 - **Problem & Requirements**:
   - In Admin Profile and Marketing views (`AdminMarketingSection.jsx` and `MarketingDashboard.jsx`), activity logs, visit lists, and table rows previously displayed labels indicating `"CONFIGURED"` (e.g. `1:02 PM CONFIGURED`, column `GPS / Source` showing `CONFIGURED`, and badge `Source & GPS: CONFIGURED`).
   - Requirement: Completely remove all `"CONFIGURED"` labels and source distinctions. The interface must simply present the employee's visits, places, addresses, times, and map pins without showing or telling whether the location came from GPS or configuration.
