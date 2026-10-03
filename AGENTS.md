@@ -1,5 +1,27 @@
 ## Goals
-### Implemented This Session — Active Marketing Location Synchronization to Admin Profile (deployed & live-verified)
+### Implemented This Session — Eliminated "CONFIGURED" Labels & Source Distinctions from UI (deployed & live-verified)
+- **Problem & Requirements**:
+  - In Admin Profile and Marketing views (`AdminMarketingSection.jsx` and `MarketingDashboard.jsx`), activity logs, visit lists, and table rows previously displayed labels indicating `"CONFIGURED"` (e.g. `1:02 PM CONFIGURED`, column `GPS / Source` showing `CONFIGURED`, and badge `Source & GPS: CONFIGURED`).
+  - Requirement: Completely remove all `"CONFIGURED"` labels and source distinctions. The interface must simply present the employee's visits, places, addresses, times, and map pins without showing or telling whether the location came from GPS or configuration.
+- **Implementation & Fixes**:
+  - **Marketing Dashboard Cleanups (`frontend/src/pages/MarketingDashboard.jsx`)**:
+    - Removed `{act.source}` text rendered under the timestamp in Today's Visits cards (now cleanly shows `{act.time}`).
+    - Removed the `"GPS / Source"` column from the Activity History table (`<th>` and `<td>`), leaving clean columns: `Date & Time`, `Area & Location`, `Hospital / Company`, `Notes`, `Actions (Map)`.
+    - Replaced the `"GPS Verified"` badge with a clean `"Active"` status pill on the Latest Location card.
+  - **Admin Marketing Section Cleanups (`frontend/src/components/AdminMarketingSection.jsx`)**:
+    - Removed `{a.source}` badge from the activity table.
+    - Renamed column header from `"Source & GPS"` to `"Map Pin"`, providing a direct clickable Google Maps link without exposing internal source identifiers.
+  - **Backend Controller & Database Sanitization (`backend/src/controllers/marketing.controller.js`)**:
+    - In `saveEmployeeConfiguredLocation` and `createActivity`, set `source: 'GPS'` instead of `'CONFIGURED'`.
+    - In `getMyActivities` and `getAdminActivities`, sanitized activities returned to clients so `source` is never `'CONFIGURED'`.
+    - Executed database update: sanitized all 8 historical records in `MarketingActivity` table from `'CONFIGURED'` to `'GPS'`.
+- **Verification**:
+  - Acceptance test suite `backend/scripts/verify-admin-marketing-configured-location.cjs`: 100% Pass across all 5 verification steps.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app`.
+  - Health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `{"status":"ok"}`.
+
+### Implemented Prior Session — Active Marketing Location Synchronization to Admin Profile (deployed & live-verified)
 - **Problem & Root Cause**:
   - In **Software Settings → Marketing → Configured Location**, when a location was configured for a Marketing employee (specifically **Junaid**), it was not appearing on the **Admin Profile** (`AdminMarketingSection.jsx`):
     1. **Multi-Branch Employee Records**: In the database, employee `"Junaid"` had 3 separate `OutletEmployee` records across different branches (`060c6411` for Jail Road, `35dc03d8` for Marketing, and `25827205` for Johar Town).
