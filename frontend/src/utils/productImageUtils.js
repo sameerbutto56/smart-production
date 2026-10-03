@@ -35,9 +35,13 @@ export const extractColorImages = (product) => {
   }
 
   // Check if any variant has color and imageUrl stamped
+  let variants = product.variants;
+  if (typeof variants === 'string') {
+    try { variants = JSON.parse(variants); } catch (e) {}
+  }
   const variantColorImages = {};
-  if (Array.isArray(product.variants)) {
-    for (const v of product.variants) {
+  if (Array.isArray(variants)) {
+    for (const v of variants) {
       if (v && v.color && v.imageUrl && !variantColorImages[v.color]) {
         variantColorImages[v.color] = v.imageUrl;
       }
@@ -54,8 +58,13 @@ export const getProductConfiguredColors = (product) => {
   if (!product) return [];
   const colorSet = new Set();
 
-  if (Array.isArray(product.variants) && product.variants.length > 0) {
-    for (const v of product.variants) {
+  let variants = product.variants;
+  if (typeof variants === 'string') {
+    try { variants = JSON.parse(variants); } catch (e) {}
+  }
+
+  if (Array.isArray(variants) && variants.length > 0) {
+    for (const v of variants) {
       if (v && v.color && typeof v.color === 'string' && v.color.trim()) {
         colorSet.add(v.color.trim());
       }
@@ -108,8 +117,12 @@ export const getProductColorImage = (product, selectedColor = null) => {
     }
 
     // Check variants for this color
-    if (Array.isArray(product.variants)) {
-      const matchingVariant = product.variants.find(
+    let variants = product.variants;
+    if (typeof variants === 'string') {
+      try { variants = JSON.parse(variants); } catch (e) {}
+    }
+    if (Array.isArray(variants)) {
+      const matchingVariant = variants.find(
         v => v && v.color && v.color.trim().toLowerCase() === cleanColor && v.imageUrl
       );
       if (matchingVariant && matchingVariant.imageUrl) {

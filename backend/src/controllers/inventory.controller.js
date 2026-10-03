@@ -31,6 +31,91 @@ const getInventory = async (req, res) => {
   }
 };
 
+/**
+ * Propagate color-specific and master images from Warehouse InventoryItem (source of truth)
+ * to all matching OutletInventory rows across all branches (Johar Town, Jail Road, etc.).
+ * Stamps imageUrl on every size variant belonging to each color, updates metadata.colorImages,
+ * and purges POS cache so outlet POS immediately displays the updated photos.
+ */
+const syncWarehouseItemImagesToOutlets = async (item, colorImages = {}, io = null) => {
+  if (!item || !item.name) return;
+  try {
+    const trimmedName = item.name.trim();
+    const matchingOutlets = await prisma.outletInventory.findMany({
+      where: {
+        name: { equals: trimmedName, mode: 'insensitive' }
+      }
+    });
+
+    const activeColorImgs = (colorImages && typeof colorImages === 'object' && Object.keys(colorImages).length > 0)
+      ? colorImages
+      : (() => {
+          try {
+            const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+            return meta?.colorImages || {};
+          } catch(e) { return {}; }
+        })();
+
+    for (const outletItem of matchingOutlets) {
+      let outletMeta = {};
+      if (outletItem.metadata) {
+        try {
+          outletMeta = typeof outletItem.metadata === 'string' ? JSON.parse(outletItem.metadata) : { ...outletItem.metadata };
+        } catch(e) {}
+      }
+      if (Object.keys(activeColorImgs).length > 0) {
+        outletMeta.colorImages = {
+          ...(outletMeta.colorImages || {}),
+          ...activeColorImgs
+        };
+      }
+
+      // Stamp color images on every matching variant in outlet inventory (e.g. S Black, M Black, L Black)
+      let rawVariants = outletItem.variants;
+      if (typeof rawVariants === 'string') {
+        try { rawVariants = JSON.parse(rawVariants); } catch(e) {}
+      }
+      let updatedVariants = rawVariants;
+      if (Array.isArray(rawVariants) && rawVariants.length > 0) {
+        updatedVariants = rawVariants.map(v => {
+          const vColor = (v.color || '').trim();
+          let matchedImg = null;
+          for (const [cName, cUrl] of Object.entries(activeColorImgs)) {
+            if (cName.trim().toLowerCase() === vColor.toLowerCase()) {
+              matchedImg = cUrl;
+              break;
+            }
+          }
+          return {
+            ...v,
+            imageUrl: matchedImg || v.imageUrl || null
+          };
+        });
+      }
+
+      await prisma.outletInventory.update({
+        where: { id: outletItem.id },
+        data: {
+          imageUrl: item.imageUrl || outletItem.imageUrl || null,
+          metadata: Object.keys(outletMeta).length > 0 ? JSON.stringify(outletMeta) : null,
+          variants: updatedVariants || undefined
+        }
+      });
+    }
+
+    // Purge POS cache so all outlet POS clients fetch fresh images immediately
+    const cache = require('../utils/cache');
+    cache.delPattern('pos:');
+    cache.delPattern('inventory:');
+
+    if (io) {
+      io.emit('pos:inventory-updated', { name: item.name });
+    }
+  } catch (err) {
+    console.error('IMAGE SYNC ERROR (syncWarehouseItemImagesToOutlets):', err.message);
+  }
+};
+
 const createInventoryItem = async (req, res) => {
   const { name, category, stock, price, color, fabric, imageUrl, variants, genderApplicable, colorImages, metadata } = req.body;
   try {
@@ -89,18 +174,10 @@ const createInventoryItem = async (req, res) => {
       }
     });
     
-    // Central image and price sync to outlets
-    try {
-      await prisma.outletInventory.updateMany({
-        where: { name: item.name },
-        data: {
-          imageUrl: item.imageUrl,
-          metadata: item.metadata
-        }
-      });
-    } catch (syncErr) {
-      console.error('IMAGE SYNC ERROR (createInventoryItem):', syncErr.message);
-    }
+    const io = req.app.get('io');
+
+    // Central image sync to all outlets (Johar Town, Jail Road, etc.)
+    await syncWarehouseItemImagesToOutlets(item, mergedMeta.colorImages, io);
 
     try {
       await syncPricesForWarehouseItem(item.id);
@@ -108,7 +185,6 @@ const createInventoryItem = async (req, res) => {
       console.error('PRICE SYNC ERROR (createInventoryItem):', syncErr.message);
     }
     
-    const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
     
     res.status(201).json({
@@ -189,19 +265,11 @@ const updateInventoryItem = async (req, res) => {
       data: updateData
     });
     
-    // Central image sync: Warehouse is the master — propagate imageUrl and metadata (colorImages)
-    // to every linked OutletInventory row sharing the same product name.
-    try {
-      await prisma.outletInventory.updateMany({
-        where: { name: item.name },
-        data: {
-          imageUrl: item.imageUrl,
-          metadata: item.metadata
-        }
-      });
-    } catch (syncErr) {
-      console.error('IMAGE SYNC ERROR (updateInventoryItem):', syncErr.message);
-    }
+    const io = req.app.get('io');
+
+    // Central image sync: Warehouse is the master — propagate imageUrl, colorImages, and variants
+    // to every linked OutletInventory row sharing the same product name across all outlets.
+    await syncWarehouseItemImagesToOutlets(item, mergedMeta.colorImages, io);
 
     // Central price sync: Warehouse is the master — propagate the price
     try {
@@ -210,7 +278,6 @@ const updateInventoryItem = async (req, res) => {
       console.error('PRICE SYNC ERROR (updateInventoryItem):', syncErr.message);
     }
     
-    const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
     
     res.json({
@@ -225,10 +292,18 @@ const updateInventoryItem = async (req, res) => {
 const deleteInventoryItem = async (req, res) => {
   const { id } = req.params;
   try {
+    const item = await prisma.inventoryItem.findUnique({ where: { id } });
     await prisma.inventoryItem.delete({ where: { id } });
+
+    const cache = require('../utils/cache');
+    cache.delPattern('pos:');
+    cache.delPattern('inventory:');
     
     const io = req.app.get('io');
-    if (io) io.emit('inventory-updated', { deleted: id });
+    if (io) {
+      io.emit('inventory-updated', { deleted: id, name: item?.name });
+      io.emit('pos:inventory-updated', { deleted: id, name: item?.name });
+    }
     
     res.json({ message: 'Item deleted' });
   } catch (error) {

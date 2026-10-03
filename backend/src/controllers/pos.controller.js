@@ -67,6 +67,43 @@ const generateReceiptNumber = async () => {
   return `${datePrefix}-${String(seq.nextValue).padStart(5, '0')}`;
 };
 
+/**
+ * Build a lookup map of Warehouse InventoryItem images (colorImages & master imageUrl).
+ * Warehouse Inventory is the single source of truth for product images.
+ */
+const getWarehouseMasterImageMap = async () => {
+  try {
+    const warehouseMasters = await prisma.inventoryItem.findMany({
+      select: { name: true, imageUrl: true, metadata: true, variants: true }
+    });
+    const map = new Map();
+    for (const wm of warehouseMasters) {
+      if (wm.name) {
+        let meta = {};
+        if (wm.metadata) {
+          try { meta = typeof wm.metadata === 'string' ? JSON.parse(wm.metadata) : wm.metadata; } catch(e) {}
+        }
+        const colorImages = { ...(meta?.colorImages || {}) };
+        if (Array.isArray(wm.variants)) {
+          for (const v of wm.variants) {
+            if (v && v.color && v.imageUrl && !colorImages[v.color]) {
+              colorImages[v.color] = v.imageUrl;
+            }
+          }
+        }
+        map.set(wm.name.toLowerCase().trim(), {
+          imageUrl: wm.imageUrl || null,
+          colorImages
+        });
+      }
+    }
+    return map;
+  } catch (err) {
+    console.error('getWarehouseMasterImageMap error:', err.message);
+    return new Map();
+  }
+};
+
 /* ─── POS Inventory — read-only view of outlet inventory ─── */
 const getPosInventory = async (req, res) => {
   try {
@@ -85,18 +122,25 @@ const getPosInventory = async (req, res) => {
       select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true, createdAt: true, updatedAt: true }
     });
 
+    const masterMap = await getWarehouseMasterImageMap();
+
     const result = items.map(item => {
       let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null }];
       const colors = [...new Set(variantDefs.map(v => v.color).filter(Boolean))];
       const sizes = [...new Set(variantDefs.map(v => v.size).filter(Boolean))];
       
+      const masterInfo = masterMap.get((item.name || '').toLowerCase().trim()) || { colorImages: {}, imageUrl: null };
+
       let colorImages = {};
       try {
         const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
         if (meta && meta.colorImages && typeof meta.colorImages === 'object') {
-          colorImages = meta.colorImages;
+          colorImages = { ...meta.colorImages };
         }
       } catch (e) {}
+
+      // Fallback/enrich from master Warehouse images
+      colorImages = { ...masterInfo.colorImages, ...colorImages };
 
       // If variants had imageUrl stamped, make sure colorImages includes them
       if (Array.isArray(variantDefs)) {
@@ -116,9 +160,9 @@ const getPosInventory = async (req, res) => {
         fabric: item.fabric,
         stock: item.stock,
         price: item.price || 0,
-        imageUrl: item.imageUrl,
+        imageUrl: item.imageUrl || masterInfo.imageUrl || null,
         colorImages,
-        metadata: item.metadata,
+        metadata: item.metadata || (Object.keys(colorImages).length > 0 ? JSON.stringify({ colorImages }) : null),
         barcode: item.barcode,
         colors,
         sizes,
@@ -228,13 +272,60 @@ const getProducts = async (req, res) => {
     const items = await prisma.outletInventory.findMany({
       where,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true }
+      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true }
     });
+
+    const masterMap = await getWarehouseMasterImageMap();
 
     const products = items.map(item => {
       let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null }];
       const colors = [...new Set(variantDefs.map(v => v.color).filter(Boolean))];
       const sizes = [...new Set(variantDefs.map(v => v.size).filter(Boolean))];
+
+      const masterInfo = masterMap.get((item.name || '').toLowerCase().trim()) || { colorImages: {}, imageUrl: null };
+
+      let colorImages = {};
+      try {
+        const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+        if (meta && meta.colorImages && typeof meta.colorImages === 'object') {
+          colorImages = { ...meta.colorImages };
+        }
+      } catch (e) {}
+
+      // Fallback/enrich from master Warehouse images (single source of truth)
+      colorImages = { ...masterInfo.colorImages, ...colorImages };
+
+      // Ensure variant images are also captured
+      if (Array.isArray(variantDefs)) {
+        for (const v of variantDefs) {
+          if (v && v.color && v.imageUrl && !colorImages[v.color]) {
+            colorImages[v.color] = v.imageUrl;
+          }
+        }
+      }
+
+      // Also ensure item variants array has imageUrl stamped for each color
+      let resolvedVariants = item.variants;
+      if (typeof resolvedVariants === 'string') {
+        try { resolvedVariants = JSON.parse(resolvedVariants); } catch(e) {}
+      }
+      if (Array.isArray(resolvedVariants)) {
+        resolvedVariants = resolvedVariants.map(v => {
+          const vColor = (v.color || '').trim();
+          let matchedImg = null;
+          for (const [cName, cUrl] of Object.entries(colorImages)) {
+            if (cName.trim().toLowerCase() === vColor.toLowerCase()) {
+              matchedImg = cUrl;
+              break;
+            }
+          }
+          return {
+            ...v,
+            imageUrl: matchedImg || v.imageUrl || null
+          };
+        });
+      }
+
       return {
         id: item.id,
         name: item.name,
@@ -244,11 +335,13 @@ const getProducts = async (req, res) => {
         fabric: item.fabric,
         stock: item.stock,
         price: item.price || 0,
-        imageUrl: item.imageUrl,
+        imageUrl: item.imageUrl || masterInfo.imageUrl || null,
+        colorImages,
+        metadata: item.metadata || (Object.keys(colorImages).length > 0 ? JSON.stringify({ colorImages }) : null),
         barcode: item.barcode,
         colors,
         sizes,
-        variants: item.variants,
+        variants: resolvedVariants || item.variants,
         outletName: item.outletName
       };
     });

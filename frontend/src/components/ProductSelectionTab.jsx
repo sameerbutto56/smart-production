@@ -243,14 +243,25 @@ const ProductSelectionTab = () => {
                   }}
                   className={`relative p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center justify-between min-h-[10rem] w-full group ${formData.productType === item.name ? 'border-blue-500 bg-blue-500/10 theme-text-primary shadow-xl shadow-blue-900/30' : 'theme-border theme-bg-subtle theme-text-secondary hover:border-gray-600 hover:bg-gray-800/60'}`}>
                   {(() => {
-                    const cardImg = getProductColorImage(item, formData.productType === item.name ? formData.color : null);
-                    return cardImg ? (
-                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-950/80 border border-gray-700/60 flex items-center justify-center mb-2 shadow-inner group-hover:scale-105 transition-transform shrink-0">
-                        <img src={cardImg} alt={item.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
-                      </div>
-                    ) : (
-                      <div className={`p-3 rounded-2xl mb-2 transition-all ${formData.productType === item.name ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-gray-800 text-gray-400 group-hover:text-gray-200'}`}>
-                        <Package size={22} />
+                    const isSelected = formData.productType === item.name;
+                    const cardImg = (isSelected && formData.color ? getProductColorImage(item, formData.color) : null) || getProductColorImage(item, null);
+                    return (
+                      <div className="w-full h-36 sm:h-40 rounded-2xl overflow-hidden bg-gray-950/70 border border-gray-800/80 flex items-center justify-center p-2 mb-3 shadow-inner group-hover:border-gray-700 transition-colors shrink-0">
+                        {cardImg ? (
+                          <img
+                            src={cardImg}
+                            alt={item.name}
+                            className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-gray-600 gap-1.5 py-4">
+                            <div className={`p-3 rounded-2xl transition-all ${isSelected ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-800/80 text-gray-500'}`}>
+                              <Package size={28} />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">No Photo</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -316,13 +327,13 @@ const ProductSelectionTab = () => {
           <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
             {/* Product Image / Color Swatch Showcase */}
             <div className="flex flex-col items-center shrink-0">
-              <div className="relative w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 rounded-2xl md:rounded-[2rem] border-2 border-gray-700/80 bg-gray-950/90 overflow-hidden shadow-2xl flex items-center justify-center group">
+              <div className="relative w-44 h-44 sm:w-52 sm:h-52 md:w-60 md:h-60 rounded-2xl md:rounded-[2rem] border-2 border-gray-700/80 bg-gray-950/90 overflow-hidden shadow-2xl flex items-center justify-center p-2 group">
                 {formData.productImage ? (
                   <>
                     <img
                       src={formData.productImage}
                       alt={formData.productType}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-full object-contain p-2 transition-transform duration-500 group-hover:scale-105"
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
                     <button
@@ -575,7 +586,7 @@ const ProductSelectionTab = () => {
                       <div className="w-full aspect-square flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: bgHex }}>
                         {colorImg ? (
                           <>
-                            <img src={colorImg} alt={c} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" onError={(e) => { e.target.style.display = 'none'; }} />
+                            <img src={colorImg} alt={c} className="absolute inset-0 w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-110 drop-shadow" onError={(e) => { e.target.style.display = 'none'; }} />
                             <div className="absolute top-1.5 left-1.5 z-10 bg-black/60 backdrop-blur-md rounded-md p-1 shadow">
                               <Camera size={11} className="text-emerald-400" />
                             </div>

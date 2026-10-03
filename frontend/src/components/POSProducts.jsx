@@ -56,9 +56,11 @@ const POSProducts = () => {
               {(() => {
                 const imgUrl = getProductColorImage(g);
                 return imgUrl ? (
-                  <img src={imgUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" onError={(e) => { e.target.style.display = 'none'; }} />
+                  <div className="w-full h-20 bg-gray-950/60 rounded-lg mb-1.5 flex items-center justify-center p-1 overflow-hidden border border-gray-800/60">
+                    <img src={imgUrl} alt={g.name} className="w-full h-full object-contain drop-shadow" onError={(e) => { e.target.style.display = 'none'; }} />
+                  </div>
                 ) : (
-                  <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
+                  <div className="w-full h-20 bg-gray-950/40 rounded-lg mb-1.5 flex items-center justify-center border border-gray-800/40">
                     <Package size={24} className="text-gray-600" />
                   </div>
                 );

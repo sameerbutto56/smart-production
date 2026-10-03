@@ -88,9 +88,11 @@ const POSModals = () => {
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               {(() => {
-                const img = getProductColorImage(showConfig, selectedColor);
+                const img = (selectedColor ? getProductColorImage(showConfig, selectedColor) : null) || getProductColorImage(showConfig, null);
                 return img ? (
-                  <img src={img} alt={showConfig.name} className="w-14 h-14 rounded-xl object-cover border border-gray-700 shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
+                  <div className="w-16 h-16 rounded-xl bg-gray-950 border border-gray-700 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                    <img src={img} alt={showConfig.name} className="w-full h-full object-contain drop-shadow" onError={(e) => { e.target.style.display = 'none'; }} />
+                  </div>
                 ) : null;
               })()}
               <div className="min-w-0">
@@ -110,7 +112,7 @@ const POSModals = () => {
                       <button key={c} onClick={() => { setSelectedColor(c); setSelectedSize(''); }}
                         disabled={!hasColorStock}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${!hasColorStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedColor === c ? 'border-blue-500 bg-blue-600/20 text-white shadow-md' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                        {cImg && <img src={cImg} alt={c} className="w-3.5 h-3.5 rounded object-cover" onError={(e) => { e.target.style.display = 'none'; }} />}
+                        {cImg && <img src={cImg} alt={c} className="w-4 h-4 rounded object-contain bg-gray-950 p-0.5" onError={(e) => { e.target.style.display = 'none'; }} />}
                         <span>{c} ({colorStockTotal})</span>
                       </button>
                     );
