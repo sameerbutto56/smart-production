@@ -110,11 +110,11 @@ export default function AdminMarketingSection() {
   // Prioritizes explicitly focused employee, then filter selection, then first active employee with coordinates
   const targetEmployeeItem = useMemo(() => {
     if (focusedEmployeeId) {
-      const match = activeEmployees.find(ae => ae.employee?.id === focusedEmployeeId);
+      const match = activeEmployees.find(ae => ae.employee?.id === focusedEmployeeId || ae.employee?.allIds?.includes(focusedEmployeeId));
       if (match?.location?.latitude && match?.location?.longitude) return match;
     }
     if (selectedEmployee) {
-      const match = activeEmployees.find(ae => ae.employee?.id === selectedEmployee);
+      const match = activeEmployees.find(ae => ae.employee?.id === selectedEmployee || ae.employee?.allIds?.includes(selectedEmployee));
       if (match?.location?.latitude && match?.location?.longitude) return match;
     }
     // Default to first active employee with coordinates (e.g. Junaid)
@@ -249,8 +249,9 @@ export default function AdminMarketingSection() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {activeEmployees.map(({ employee, location, latestActivity }) => {
-                const loc = location || latestActivity;
-                const isFocused = (focusedEmployeeId === employee.id) || (!focusedEmployeeId && targetEmployeeItem?.employee?.id === employee.id);
+                const loc = location || latestActivity || {};
+                const isFocused = (focusedEmployeeId && (employee.id === focusedEmployeeId || employee.allIds?.includes(focusedEmployeeId))) ||
+                  (!focusedEmployeeId && (targetEmployeeItem?.employee?.id === employee.id || targetEmployeeItem?.employee?.allIds?.includes(employee.id)));
                 return (
                   <div
                     key={employee.id}
@@ -339,7 +340,9 @@ export default function AdminMarketingSection() {
               >
                 <option value="">All Marketing Employees</option>
                 {employees.map(e => (
-                  <option key={e.id} value={e.id}>{e.name} ({e.email})</option>
+                  <option key={e.id} value={e.id}>
+                    {e.name} {e.outletName ? `(${e.outletName})` : ''}
+                  </option>
                 ))}
               </select>
             </div>

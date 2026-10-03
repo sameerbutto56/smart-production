@@ -65,15 +65,21 @@ const getMarketingEmployees = async (req, res) => {
     }));
 
     // Deduplicate by name if assigned across multiple outlets
-    const seenNames = new Set();
-    const uniqueEmployees = [];
+    const empMap = new Map();
     for (const emp of filtered) {
       const key = emp.name.toLowerCase().trim();
-      if (!seenNames.has(key)) {
-        seenNames.add(key);
-        uniqueEmployees.push(emp);
+      if (!empMap.has(key)) {
+        empMap.set(key, {
+          id: emp.id,
+          name: emp.name,
+          outletName: emp.outletName,
+          allIds: [emp.id]
+        });
+      } else {
+        empMap.get(key).allIds.push(emp.id);
       }
     }
+    const uniqueEmployees = Array.from(empMap.values());
 
     res.json({ success: true, employees: uniqueEmployees });
   } catch (error) {
@@ -521,24 +527,64 @@ const getAdminActivities = async (req, res) => {
       }
     });
 
-    // Get list of all marketing employees for dropdown
+    // Get list of all marketing employees for dropdown & deduplicate by name
     const outletEmps = await prisma.outletEmployee.findMany({
       where: { isActive: true },
       select: { id: true, name: true, profiles: true, outletName: true }
     });
-    const marketingEmployees = outletEmps.filter(e => Array.isArray(e.profiles) && e.profiles.includes('MARKETING'));
+    const rawMarketingEmps = outletEmps.filter(e => Array.isArray(e.profiles) && e.profiles.includes('MARKETING'));
 
-    // Get latest active location for each marketing employee mapped strictly by employeeId
+    // Group marketing employees by name to handle multiple branch logins (e.g. Junaid in Jail Road & Johar Town)
+    const empMap = new Map();
+    for (const e of rawMarketingEmps) {
+      const key = e.name.toLowerCase().trim();
+      if (!empMap.has(key)) {
+        empMap.set(key, {
+          id: e.id,
+          name: e.name,
+          outletName: e.outletName,
+          allIds: [e.id]
+        });
+      } else {
+        empMap.get(key).allIds.push(e.id);
+      }
+    }
+    const marketingEmployees = Array.from(empMap.values());
+
+    // Get latest active location for each unique marketing employee
     const latestPerEmployee = [];
     for (const emp of marketingEmployees) {
-      // 1. Fetch employee's active configured location (strictly by employeeId)
-      const configuredLoc = await prisma.marketingConfiguredLocation.findFirst({
+      // 1. Fetch employee's active configured location (by any associated employeeId or by employee name)
+      let configuredLoc = await prisma.marketingConfiguredLocation.findFirst({
         where: {
-          employeeId: emp.id,
+          OR: [
+            { employeeId: { in: emp.allIds } },
+            { employeeName: { equals: emp.name, mode: 'insensitive' } }
+          ],
           isActive: true
         },
         orderBy: { updatedAt: 'desc' }
       });
+
+      // If no active record, check if any configured location was created for this employee and auto-heal
+      if (!configuredLoc) {
+        configuredLoc = await prisma.marketingConfiguredLocation.findFirst({
+          where: {
+            OR: [
+              { employeeId: { in: emp.allIds } },
+              { employeeName: { equals: emp.name, mode: 'insensitive' } }
+            ]
+          },
+          orderBy: { updatedAt: 'desc' }
+        });
+        if (configuredLoc) {
+          await prisma.marketingConfiguredLocation.update({
+            where: { id: configuredLoc.id },
+            data: { isActive: true }
+          }).catch(() => {});
+          configuredLoc.isActive = true;
+        }
+      }
 
       // 2. Fetch employee's latest live activity
       const lastActivity = await prisma.marketingActivity.findFirst({
@@ -826,20 +872,31 @@ const saveEmployeeConfiguredLocation = async (req, res) => {
     const cleanName = (locationName || '').trim() || (hospitalName || companyName || area || '').trim() || `${employee.name}'s Configured Location`;
     const cleanArea = (area || '').trim() || (city || '').trim() || 'Lahore';
 
-    // Check if an existing location record exists for this employee
+    // Find all IDs associated with this employee's name across branches (e.g. Jail Road & Johar Town)
+    const sameNameEmps = await prisma.outletEmployee.findMany({
+      where: { name: { equals: employee.name, mode: 'insensitive' } },
+      select: { id: true }
+    });
+    const allEmpIds = Array.from(new Set([employee.id, ...sameNameEmps.map(e => e.id)]));
+
+    // Check if an existing location record exists for this employee (active or inactive)
     const existing = await prisma.marketingConfiguredLocation.findFirst({
       where: {
-        employeeId: employee.id,
-        isActive: true
-      }
+        OR: [
+          { employeeId: { in: allEmpIds } },
+          { employeeName: { equals: employee.name, mode: 'insensitive' } }
+        ]
+      },
+      orderBy: { updatedAt: 'desc' }
     });
 
     let saved = null;
     if (existing) {
-      // Update existing active configured location (Section 11: No duplicate location records)
+      // Update existing configured location in place (Section 11: No duplicate location records)
       saved = await prisma.marketingConfiguredLocation.update({
         where: { id: existing.id },
         data: {
+          employeeId: employee.id,
           employeeName: employee.name,
           name: cleanName,
           area: cleanArea,
@@ -852,7 +909,7 @@ const saveEmployeeConfiguredLocation = async (req, res) => {
           radius: parseFloat(radius) || 100,
           locationMode: locationMode || 'CONFIGURED',
           originalMapUrl: originalMapUrl ? originalMapUrl.trim() : null,
-          isActive: Boolean(isActive),
+          isActive: true,
           createdById: req.user?.id || null,
           createdByName: req.user?.name || 'Administrator',
         }
@@ -873,12 +930,24 @@ const saveEmployeeConfiguredLocation = async (req, res) => {
           radius: parseFloat(radius) || 100,
           locationMode: locationMode || 'CONFIGURED',
           originalMapUrl: originalMapUrl ? originalMapUrl.trim() : null,
-          isActive: Boolean(isActive),
+          isActive: true,
           createdById: req.user?.id || null,
           createdByName: req.user?.name || 'Administrator',
         }
       });
     }
+
+    // Deactivate any other records for this employee to guarantee strictly 1 active configured location
+    await prisma.marketingConfiguredLocation.updateMany({
+      where: {
+        id: { not: saved.id },
+        OR: [
+          { employeeId: { in: allEmpIds } },
+          { employeeName: { equals: employee.name, mode: 'insensitive' } }
+        ]
+      },
+      data: { isActive: false }
+    }).catch(() => {});
 
     // Mirror to MarketingActivity table so activity history logs immediately reflect this update
     try {
@@ -957,13 +1026,52 @@ const getEmployeeConfiguredLocation = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Employee ID is required.' });
     }
 
-    const location = await prisma.marketingConfiguredLocation.findFirst({
+    // Lookup employee to find any associated names/ids across branches
+    const emp = await prisma.outletEmployee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, name: true }
+    });
+
+    let allEmpIds = [employeeId];
+    let empName = null;
+    if (emp) {
+      empName = emp.name;
+      const sameNameEmps = await prisma.outletEmployee.findMany({
+        where: { name: { equals: emp.name, mode: 'insensitive' } },
+        select: { id: true }
+      });
+      allEmpIds = Array.from(new Set([employeeId, ...sameNameEmps.map(e => e.id)]));
+    }
+
+    const whereConditions = [{ employeeId: { in: allEmpIds } }];
+    if (empName) {
+      whereConditions.push({ employeeName: { equals: empName, mode: 'insensitive' } });
+    }
+
+    let location = await prisma.marketingConfiguredLocation.findFirst({
       where: {
-        employeeId,
+        OR: whereConditions,
         isActive: true
       },
       orderBy: { updatedAt: 'desc' }
     });
+
+    // Auto-heal: If an inactive record exists for this employee, activate it
+    if (!location) {
+      location = await prisma.marketingConfiguredLocation.findFirst({
+        where: {
+          OR: whereConditions
+        },
+        orderBy: { updatedAt: 'desc' }
+      });
+      if (location) {
+        await prisma.marketingConfiguredLocation.update({
+          where: { id: location.id },
+          data: { isActive: true }
+        }).catch(() => {});
+        location.isActive = true;
+      }
+    }
 
     res.json({
       success: true,
