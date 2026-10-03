@@ -1,5 +1,37 @@
 ## Goals
-### Implemented This Session — Product Image Display & Outlet POS Synchronization (deployed & live-verified)
+### Implemented This Session — Active Marketing Location Synchronization to Admin Profile (deployed & live-verified)
+- **Problem & Root Cause**:
+  - In **Software Settings → Marketing → Configured Location**, when a location was configured for a Marketing employee (specifically **Junaid**), it was not appearing on the **Admin Profile** (`AdminMarketingSection.jsx`):
+    1. **Multi-Branch Employee Records**: In the database, employee `"Junaid"` had 3 separate `OutletEmployee` records across different branches (`060c6411` for Jail Road, `35dc03d8` for Marketing, and `25827205` for Johar Town).
+    2. In `getMarketingEmployees` and `getAdminActivities`, employees were queried or deduplicated without aggregating branch IDs (`allIds`). When querying `MarketingConfiguredLocation`, looking up solely by a specific `employeeId` missed locations saved under one of the employee's other branch IDs.
+    3. In `saveEmployeeConfiguredLocation`, `findFirst` looked up strictly by `{ employeeId: employee.id, isActive: true }`. If a location was saved under another branch ID for the same employee, or if an older record had `isActive: false`, it failed to update the record in place.
+    4. The database record for `Packages Mall` had `isActive: false` status, preventing `getAdminActivities` from returning it.
+- **Implementation & Fixes**:
+  - **Multi-Branch Employee Deduplication & ID Aggregation (`backend/src/controllers/marketing.controller.js`)**:
+    - Updated `getMarketingEmployees`: groups marketing employees by normalized name (`name.toLowerCase().trim()`) and aggregates all associated IDs (`allIds: [...]`).
+    - Updated `getAdminActivities`: groups marketing employees by name, attaches `allIds`, and looks up configured locations using:
+      `OR: [{ employeeId: { in: emp.allIds } }, { employeeName: { equals: emp.name, mode: 'insensitive' } }], isActive: true`.
+    - Added auto-healing: if a configured location exists for that employee with `isActive: false`, it automatically updates it to `isActive: true`.
+  - **Robust Location Saving & Fetching (`saveEmployeeConfiguredLocation`, `getEmployeeConfiguredLocation`)**:
+    - In `saveEmployeeConfiguredLocation`: finds all employee IDs across branches for the employee (`allEmpIds`). Checks for existing records by `employeeId: { in: allEmpIds }` OR `employeeName: { equals: employee.name, mode: 'insensitive' }` (regardless of active status). Updates in place with `isActive: true`.
+    - Deactivates any duplicate records for the employee to guarantee strictly 1 active configured location per employee.
+    - In `getEmployeeConfiguredLocation`: finds all associated IDs and name for the employee; auto-heals inactive records to active.
+  - **Admin Profile Map & Active Staff Focus (`frontend/src/components/AdminMarketingSection.jsx`)**:
+    - Updated `targetEmployeeItem` resolution: checks `focusedEmployeeId` and `selectedEmployee` against both `ae.employee?.id` and `ae.employee?.allIds`.
+    - Updated active staff cards: checks focus against `employee.id` and `employee.allIds`.
+    - Fixed employee dropdown in filters form: displays `{e.name} {e.outletName ? `(${e.outletName})` : ''}` instead of `undefined` email.
+  - **Database Fix**:
+    - Updated Packages Mall record for Junaid (`id: 4a8f8030-10a9-47e8-b7c7-3fd51a6ac5c5`) to `isActive: true` (`lat: 31.471125, lng: 74.355889`).
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-admin-marketing-configured-location.cjs`:
+    - 100% pass across all 5 steps (found 3 profiles for Junaid, configured Packages Mall, resolved location across all 3 branch profile IDs, verified Admin Profile aggregation with exact coordinates `31.471125, 74.355889`, verified updating to Doctors Hospital `31.4697, 74.2728`, and restored Packages Mall).
+  - Regression test suite `backend/scripts/verify-marketing-location-extraction.cjs`: 100% pass across all 6 test cases.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 3,196 modules bundled cleanly.
+  - Production deployment to Vercel (`smart-production-v2.vercel.app`):
+    - Deployed and aliased to `smart-production-v2.vercel.app`.
+    - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `status: "ok"`.
+
+### Implemented Prior Session — Product Image Display & Outlet POS Synchronization (deployed & live-verified)
 - **Problem & Root Cause**:
   1. In **Outlet → Order Entry → Product Selection** (`ProductSelectionTab.jsx`), product card images were rendered at a tiny 64px (`w-16 h-16`) box using `object-cover`, making garments difficult to visually identify and cropping edges, collars, and hemlines.
   2. Warehouse Inventory was intended as the single source of truth for product and color images. However, when color images were uploaded in Warehouse Inventory (`InventoryItem`), they were not appearing in Outlet POS (`POSProducts.jsx`, `POSModals.jsx`, `OutletPOS.jsx`):
