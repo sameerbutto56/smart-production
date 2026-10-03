@@ -184,7 +184,9 @@ const AuthRedirectHandler = () => {
     if (hasPermission('ORDER_ENTRY')) return <Navigate to="/order-entry" replace={true} />;
     if (hasPermission('ORDER_VIEW')) return <Navigate to="/orders" replace={true} />;
     if (hasPermission('STORE_REPLACEMENTS')) return <Navigate to="/replacements" replace={true} />;
+    if (hasPermission('RETURNED_FROM_VERIFICATION')) return <Navigate to="/returned-from-verification" replace={true} />;
     if (hasPermission('ORDER_CANCEL')) return <Navigate to="/order-cancellation" replace={true} />;
+    if (hasPermission('DEMAND_LEDGER_VIEW')) return <Navigate to="/demand-history" replace={true} />;
     if (hasPermission('DISPATCH_TASKS')) return <Navigate to="/delivery-sheet" replace={true} />;
     return <Navigate to="/notes" replace={true} />;
   }
@@ -231,12 +233,16 @@ const AuthRedirectHandler = () => {
     if (hasPermission('STORE_RETURNS')) return <Navigate to="/returns" replace={true} />;
     if (hasPermission('STORE_REPLACEMENTS')) return <Navigate to="/store-replacements" replace={true} />;
     if (hasPermission('ORDER_VIEW')) return <Navigate to="/store-orders" replace={true} />;
+    if (hasPermission('ORDER_TRACK')) return <Navigate to="/store-order-tracker" replace={true} />;
+    if (hasPermission('DEMAND_LEDGER_VIEW')) return <Navigate to="/demand-history" replace={true} />;
     return <Navigate to="/chat" replace={true} />;
   }
   if (role === 'INVENTORY_VIEW') {
     if (hasPermission('ORDER_TRACK')) return <Navigate to="/order-track" replace={true} />;
-    if (hasPermission('STORE_INVENTORY_AUDIT')) return <Navigate to="/verification" replace={true} />;
-    if (hasPermission('STORE_RETURNS')) return <Navigate to="/return-exchange" replace={true} />;
+    if (hasPermission('ORDER_VERIFICATION')) return <Navigate to="/verification" replace={true} />;
+    if (hasPermission('RETURN_EXCHANGE')) return <Navigate to="/return-exchange" replace={true} />;
+    if (hasPermission('ORDER_CANCEL')) return <Navigate to="/order-cancellation" replace={true} />;
+    if (hasPermission('WAREHOUSE_VIEW')) return <Navigate to="/pos-inventory" replace={true} />;
     return <Navigate to="/chat" replace={true} />;
   }
   if (role === 'CEO') {
@@ -341,9 +347,9 @@ function App() {
                   <Route path="alteration-production" element={<PermittedRoute feature="ALTERATION_PRODUCTION"><AlterationProduction /></PermittedRoute>} />
                   <Route path="engraving-request" element={<PermittedRoute feature="ENGRAVING_QUEUE"><EngravingRequest /></PermittedRoute>} />
                   <Route path="engraving-queue" element={<PermittedRoute feature="ENGRAVING_QUEUE"><EngravingQueue /></PermittedRoute>} />
-                  <Route path="verification" element={<PermittedRoute feature="STORE_INVENTORY_AUDIT"><VerificationPage /></PermittedRoute>} />
-                  <Route path="returned-from-verification" element={<PermittedRoute feature="STORE_RETURNS"><ReturnedFromVerification /></PermittedRoute>} />
-                  <Route path="return-exchange" element={<PermittedRoute feature="STORE_RETURNS"><ReturnExchangePage /></PermittedRoute>} />
+                  <Route path="verification" element={<PermittedRoute feature="ORDER_VERIFICATION"><VerificationPage /></PermittedRoute>} />
+                  <Route path="returned-from-verification" element={<PermittedRoute feature="RETURNED_FROM_VERIFICATION"><ReturnedFromVerification /></PermittedRoute>} />
+                  <Route path="return-exchange" element={<PermittedRoute feature="RETURN_EXCHANGE"><ReturnExchangePage /></PermittedRoute>} />
                   <Route path="notifications" element={<NotificationHistory />} />
                   <Route path="ceo-dashboard" element={<PermittedRoute feature="CEO_DASHBOARD_VIEW"><CEODashboard /></PermittedRoute>} />
                   <Route path="audit" element={<PermittedRoute feature="STORE_INVENTORY_AUDIT"><WarehouseAudit /></PermittedRoute>} />
@@ -357,7 +363,7 @@ function App() {
                   <Route path="order-cancellation" element={<PermittedRoute feature="ORDER_CANCEL"><FaisalOrderCancellation /></PermittedRoute>} />
                   <Route path="software-settings" element={<SoftwareSettings />} />
                   <Route path="postex-dashboard" element={<PermittedRoute feature="POSTEX_DASHBOARD"><AdminBlockedRoute><PostExDashboard /></AdminBlockedRoute></PermittedRoute>} />
-                  <Route path="demand-history" element={<DemandDeliveriesHistory />} />
+                  <Route path="demand-history" element={<PermittedRoute feature="DEMAND_LEDGER_VIEW"><DemandDeliveriesHistory /></PermittedRoute>} />
                   <Route path="asm" element={<PermittedRoute feature="ASM_DASHBOARD"><AsmPage /></PermittedRoute>} />
                   <Route path="asm-allowed" element={<PermittedRoute feature="STORE_ASM_ALLOCATION"><AdminBlockedRoute><AsmAllowedStorePage /></AdminBlockedRoute></PermittedRoute>} />
                   <Route path="vendors-admin" element={<PermittedRoute feature="ASM_VENDORS_ADMIN"><AdminBlockedRoute><VendorsPage /></AdminBlockedRoute></PermittedRoute>} />
