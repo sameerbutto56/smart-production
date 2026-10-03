@@ -175,9 +175,15 @@ async function run() {
 
     // 5. Clean up test records
     console.log('\n[5] Cleaning up test records...');
+    await prisma.posSale.updateMany({ where: { id: testSale.id }, data: { orderId: null } });
     await prisma.posBalancePayment.deleteMany({ where: { posSaleId: testSale.id } });
-    await prisma.posSale.delete({ where: { id: testSale.id } });
-    await prisma.order.delete({ where: { id: testOrder.id } });
+    await prisma.posSaleItem.deleteMany({ where: { saleId: testSale.id } });
+    await prisma.deliveryAttempt.deleteMany({ where: { orderId: testOrder.id } });
+    await prisma.deliveryPayment.deleteMany({ where: { orderId: testOrder.id } });
+    await prisma.orderStage.deleteMany({ where: { orderId: testOrder.id } });
+    await prisma.auditLog.deleteMany({ where: { orderId: testOrder.id } });
+    await prisma.posSale.deleteMany({ where: { id: testSale.id } });
+    await prisma.order.deleteMany({ where: { id: testOrder.id } });
     console.log('✓ Cleaned up test records successfully.');
 
   } catch (err) {
