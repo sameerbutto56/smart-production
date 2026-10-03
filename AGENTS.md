@@ -1,5 +1,39 @@
 ## Goals
-### Implemented This Session — System Control: Disabled Features Remove Option from UI & Eliminate Access Denied Permission Note (deployed & live-verified)
+### Implemented This Session — Product Image Display & Outlet POS Synchronization (deployed & live-verified)
+- **Problem & Root Cause**:
+  1. In **Outlet → Order Entry → Product Selection** (`ProductSelectionTab.jsx`), product card images were rendered at a tiny 64px (`w-16 h-16`) box using `object-cover`, making garments difficult to visually identify and cropping edges, collars, and hemlines.
+  2. Warehouse Inventory was intended as the single source of truth for product and color images. However, when color images were uploaded in Warehouse Inventory (`InventoryItem`), they were not appearing in Outlet POS (`POSProducts.jsx`, `POSModals.jsx`, `OutletPOS.jsx`):
+     - `backend/src/controllers/pos.controller.js` (`getProducts`) omitted `metadata` and `colorImages` from its SQL select and response payload.
+     - `backend/src/controllers/inventory.controller.js` only executed an exact case-sensitive query on `name`, never updated `OutletInventory.variants` with variant-level `imageUrl`, and did not invalidate POS cache (`pos:`).
+     - Outlet POS cached products indefinitely without receiving real-time invalidation.
+  3. Color-specific images must apply to all sizes of that color (e.g. Bilora Men + Black applies to S, M, L, XL, etc.) with strict color isolation (never leaking to unphotographed colors).
+- **Implementation & Fixes**:
+  - **Order Entry Product Selection UI Redesign (`frontend/src/components/ProductSelectionTab.jsx`)**:
+    - Replaced the `w-16 h-16` box with a generous, well-proportioned image container (`w-full h-36 sm:h-40 rounded-2xl bg-gray-950/70 border border-gray-800/80 p-2 shadow-inner`).
+    - Changed `object-cover` to `object-contain drop-shadow` so the complete garment remains 100% visible with aspect ratio preserved (zero cropping).
+    - Preserved layout structure: $\text{Product Image} \longrightarrow \text{Product Name} \longrightarrow \text{Color | Size | Quantity}$.
+    - Added clean fallback `<Package size={28} />` with `"No Photo"` tag when no image is uploaded.
+    - Updated Selected Product Showcase Card and Color Swatch button thumbnails to `object-contain` with clean padding.
+  - **Warehouse $\rightarrow$ Outlet POS Automatic Synchronization Engine (`inventory.controller.js`, `pos.controller.js`)**:
+    - Created `syncWarehouseItemImagesToOutlets`: finds all matching `OutletInventory` items (case-insensitive & trimmed), updates `imageUrl` and `metadata.colorImages`, and stamps `imageUrl` onto every matching variant in `OutletInventory.variants` array so every size of that color receives the image.
+    - Integrated automatic cache invalidation (`cache.delPattern('pos:')`, `cache.delPattern('inventory:')`) and socket broadcast `pos:inventory-updated` on create, update, and delete.
+    - Updated `getProducts` and `getPosInventory` in `backend/src/controllers/pos.controller.js` to select `metadata`, return `colorImages`, and fall back to Warehouse master `InventoryItem` images (`getWarehouseMasterImageMap`) so any outlet item immediately displays the master image.
+  - **POS Modals & Products UI (`POSProducts.jsx`, `POSModals.jsx`)**:
+    - Updated `POSProducts.jsx` and `POSModals.jsx` to render color-specific images with `object-contain` without stretching or cropping.
+  - **Strict Color Isolation (`productImageUtils.js`)**:
+    - Updated `productImageUtils.js` to parse `product.variants` even when stored as JSON strings.
+    - Guaranteed strict color isolation: requesting an unphotographed color returns `null`, displaying its color swatch and never falling back to another color's photo.
+  - **Database Migration & Backfill**:
+    - Created and executed `backend/scripts/sync-warehouse-images-to-outlets.cjs`: retroactively synced all existing warehouse items to 63 matching outlet inventory records.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-product-images-and-pos-sync.cjs`:
+    - 100% pass across all 4 checks (Warehouse item creation, Outlet item sync across all sizes, strict color isolation, and `getProductColorImage` resolution).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly into `index-CyYWG30p.js`.
+  - Production deployment & alias:
+    - Successfully deployed to Vercel production (`smart-production-v2.vercel.app`).
+    - Verified live health check (`https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `status: "ok"`).
+
+### Implemented Prior Session — System Control: Disabled Features Remove Option from UI & Eliminate Access Denied Permission Note (deployed & live-verified)
 - **Problem & Root Cause**:
   - When an administrator disabled a feature or functionality for a user profile in **Software Settings → System Control**:
     1. Users were shown an "Access Denied • Feature Disabled" banner and permission note (`PermittedRoute` displayed `<ShieldAlert />` with *"This functionality has been disabled for your profile in System Control. Please contact your administrator if you require access."*).
