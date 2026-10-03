@@ -776,11 +776,13 @@ model PosBalancePayment {
   cashAmount             Float    @default(0)
   onlineAmount           Float    @default(0)
   cashierName            String?
+  source                 String   @default("BALANCE_CLEARED_OUTLET")
   paidAt                 DateTime @default(now())
 
   @@index([posSaleId])
   @@index([paidAt])
   @@index([paymentMethod])
+  @@index([source])
 }
 
 model PaymentMethodChangeLog {

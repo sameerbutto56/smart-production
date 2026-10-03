@@ -106,6 +106,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
               cashAmount: finalCash,
               onlineAmount: finalOnline,
               cashierName: riderName || req.user?.name || 'Enamels Delivery',
+              source: 'BALANCE_CLEARED_DELIVERY_BOY',
               paidAt: new Date()
             }
           });
@@ -118,8 +119,8 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
           await prisma.auditLog.create({
             data: {
               orderId: order.id,
-              action: 'POS_BALANCE_AUTOCLEARED',
-              details: `Delivery marked & collected ₨${remainingToClear}. Linked POS receipt ${posSale.receiptNumber} balance cleared automatically (${receiptNumber}).`,
+              action: 'BALANCE_CLEARED',
+              details: `Order: ${order.orderNumber || order.id} | Original Balance: Rs. ${remainingToClear.toLocaleString()} | Cleared Via: Enamel Delivery Boy (${riderName || req.user?.name || 'Enamels Delivery'}) | Method: ${paymentMethod || 'CASH'} | Status: Balance Cleared [Receipt: ${receiptNumber}]`,
               performedBy: req.user?.id || 'SYSTEM'
             }
           });

@@ -53,7 +53,10 @@ const computeUnifiedSalesSummary = async (prisma, { outlet, start, end, cashier,
   const returnWhere = { ...(outlet ? { outletName: outlet } : {}) };
   if (Object.keys(dayFilter).length) returnWhere.createdAt = dayFilter;
 
-  const bpWhere = { ...(outlet ? { posSale: { outletName: outlet } } : {}) };
+  const bpWhere = {
+    source: { not: 'BALANCE_CLEARED_DELIVERY_BOY' },
+    ...(outlet ? { posSale: { outletName: outlet } } : {})
+  };
   if (Object.keys(dayFilter).length) bpWhere.paidAt = dayFilter;
 
   const jbWhere = { ...(outlet ? { outletName: outlet } : {}) };

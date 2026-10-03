@@ -543,6 +543,7 @@ const clearBalance = async (req, res) => {
         cashAmount: paymentMethod === 'CASH_ONLINE' ? (cashSplit || 0) : (paymentMethod === 'CASH' ? amountPaidNow : 0),
         onlineAmount: paymentMethod === 'CASH_ONLINE' ? (onlineSplit || 0) : (paymentMethod === 'ONLINE' ? amountPaidNow : 0),
         cashierName: req.user?.name || 'Outlet Staff',
+        source: 'BALANCE_CLEARED_OUTLET',
         paidAt: new Date()
       }
     });

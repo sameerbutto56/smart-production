@@ -1606,6 +1606,7 @@ const payBalance = async (req, res) => {
         cashAmount: paymentMethod === 'CASH_ONLINE' ? (cashSplit || 0) : (paymentMethod === 'CASH' ? amountPaidNow : 0),
         onlineAmount: paymentMethod === 'CASH_ONLINE' ? (onlineSplit || 0) : (paymentMethod === 'ONLINE' ? amountPaidNow : 0),
         cashierName: req.user?.name || 'Cashier',
+        source: 'BALANCE_CLEARED_OUTLET',
         paidAt: new Date()
       }
     });
@@ -1642,7 +1643,9 @@ const getBalanceCollections = async (req, res) => {
       else if (range === 'month') { startLimit = new Date(now.getFullYear(), now.getMonth(), 1); endLimit = new Date(now); endLimit.setHours(23, 59, 59, 999); }
     }
 
-    const where = {};
+    const where = {
+      source: { not: 'BALANCE_CLEARED_DELIVERY_BOY' }
+    };
     if (outlet) {
       where.posSale = { outletName: outlet };
     }

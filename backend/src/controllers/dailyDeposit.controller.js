@@ -88,6 +88,7 @@ const calculateAuthoritativeDailyCash = async (outletName, businessDate) => {
       where: {
         posSale: { outletName },
         paidAt: { gte: start, lt: end },
+        source: { not: 'BALANCE_CLEARED_DELIVERY_BOY' },
       },
       select: {
         id: true,
@@ -230,6 +231,7 @@ const getAuthoritativeRegisterCash = async (outletName, businessDate) => {
       where: {
         posSale: { outletName },
         paidAt: { gte: start, lt: end },
+        source: { not: 'BALANCE_CLEARED_DELIVERY_BOY' },
       },
       select: {
         amountPaidNow: true,
@@ -414,6 +416,7 @@ const syncDailyRequirements = async (outletName, targetDate = getPktDateString()
       where: {
         posSale: { outletName },
         paidAt: { gte: cutoffBounds.start, lt: targetBounds.end },
+        source: { not: 'BALANCE_CLEARED_DELIVERY_BOY' },
       },
       select: {
         amountPaidNow: true,

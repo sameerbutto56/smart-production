@@ -54,10 +54,12 @@ const ENTRY_COLORS = {
   CANCELLATION_APPROVED: { dot: 'bg-red-500 ring-4 ring-red-500/30', border: 'border-red-500', bg: 'bg-red-500/15', text: 'text-red-400', badge: 'bg-red-500/25 text-red-300 border-red-500/50' },
   CANCELLATION_REJECTED: { dot: 'bg-rose-500', border: 'border-rose-500', bg: 'bg-rose-500/10', text: 'text-rose-400', badge: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
   STAGE_INTERRUPTED: { dot: 'bg-orange-500', border: 'border-orange-500', bg: 'bg-orange-500/10', text: 'text-orange-400', badge: 'bg-orange-500/20 text-orange-400 border-orange-500/40' },
+  BALANCE_CLEARED: { dot: 'bg-emerald-500 ring-4 ring-emerald-500/20', border: 'border-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-300', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
   audit: { dot: 'bg-gray-500', border: 'border-gray-500', bg: 'bg-gray-500/10', text: 'text-gray-400', badge: 'bg-gray-500/20 text-gray-400 border-gray-500/40' },
 };
 
 const getEntryColors = (entry) => {
+  if (entry.action === 'BALANCE_CLEARED') return ENTRY_COLORS.BALANCE_CLEARED;
   if (entry.action === 'COMPLETED') return ENTRY_COLORS.COMPLETED;
   if (entry.action === 'ACCEPTED') return ENTRY_COLORS.ACCEPTED;
   if (entry.action === 'ROUTED') return ENTRY_COLORS.ROUTED;
@@ -79,6 +81,7 @@ const getEntryColors = (entry) => {
 
 // Status badge text + styling derived from the entry's action/status
 const getStatusBadge = (entry) => {
+  if (entry.action === 'BALANCE_CLEARED') return { text: 'BALANCE CLEARED', cls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' };
   if (entry.action === 'CANCELLATION_REQUESTED') return { text: 'REQUESTED', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
   if (entry.action === 'CANCELLATION_APPROVED' || entry.action === 'ORDER_CANCELLED') return { text: 'CANCELLED', cls: 'bg-red-500/20 text-red-300 border-red-500/40' };
   if (entry.action === 'CANCELLATION_REJECTED') return { text: 'REJECTED', cls: 'bg-rose-500/20 text-rose-300 border-rose-500/40' };

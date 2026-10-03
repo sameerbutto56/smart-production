@@ -147,6 +147,7 @@ const computeBookSummary = async (session) => {
         where: {
           posSale: { outletName: outlet },
           paidAt: dayFilter,
+          source: { not: 'BALANCE_CLEARED_DELIVERY_BOY' },
         },
         include: {
           posSale: {

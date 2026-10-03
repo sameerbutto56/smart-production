@@ -4353,6 +4353,30 @@ const getOrderTimeline = async (req, res) => {
       });
     });
 
+    // 3.1) Balance Clearance events (Enamel Delivery Boy vs Outlet Direct)
+    auditLogs.forEach(al => {
+      if (al.action === 'BALANCE_CLEARED' || al.action === 'BALANCE_CLEARED_DELIVERY_BOY' || al.action === 'POS_BALANCE_AUTOCLEARED') {
+        const isDeliveryBoy = al.action === 'BALANCE_CLEARED_DELIVERY_BOY' ||
+          (al.details && (al.details.includes('Delivery Boy') || al.details.includes('Rider') || al.details.includes('Enamel Delivery')));
+        flatEntries.push({
+          id: al.id,
+          type: 'balance_cleared',
+          stage: isDeliveryBoy ? 'ENAMELS_DELIVERY' : 'IN_DISPATCH',
+          stageLabel: isDeliveryBoy ? 'Enamels Delivery Boy' : 'In Dispatch',
+          timestamp: al.timestamp,
+          action: 'BALANCE_CLEARED',
+          label: isDeliveryBoy ? 'Balance Cleared via Enamel Delivery Boy' : 'Balance Cleared at Outlet',
+          actor: al.user?.name || al.performedBy || (isDeliveryBoy ? 'Enamels Delivery' : 'Outlet Staff'),
+          status: 'COMPLETED',
+          details: al.details || null,
+          remarks: null,
+          returnReason: null,
+          from: null,
+          to: isDeliveryBoy ? 'ENAMELS_DELIVERY' : 'IN_DISPATCH'
+        });
+      }
+    });
+
     // 4) Dedicated cancellation events (Requested, Approved, Rejected) with separate timestamps & actor profiles
     let hasApprovedCancellation = false;
     (cancellationRequests || []).forEach((cr, cIdx) => {
