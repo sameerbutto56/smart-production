@@ -472,10 +472,25 @@ export default function EmployeeDataPage() {
     }
   };
 
-  const handleExportAttendanceExcel = () => {
-    const url = `/api/employees/attendance/export-excel?monthYear=${attMonthYear}`;
-    window.open(url, '_blank');
-    toast.success('Downloading Attendance Excel Sheet...');
+  const handleExportAttendanceExcel = async () => {
+    try {
+      toast.loading('Preparing Attendance Excel Sheet...', { id: 'exp-att' });
+      const res = await api.get(`/api/employees/attendance/export-excel?monthYear=${attMonthYear}`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `Attendance_${attMonthYear}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Downloaded Attendance Excel Sheet!', { id: 'exp-att' });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to export attendance excel', { id: 'exp-att' });
+    }
   };
 
   // --- Handlers: Excel File Upload & Import ---
@@ -666,10 +681,25 @@ export default function EmployeeDataPage() {
     }
   };
 
-  const handleExportPayrollExcel = () => {
-    const url = `/api/employees/payroll/export-excel?monthYear=${payrollMonthYear}`;
-    window.open(url, '_blank');
-    toast.success('Downloading Payroll Excel Sheet...');
+  const handleExportPayrollExcel = async () => {
+    try {
+      toast.loading('Preparing Payroll Excel Sheet...', { id: 'exp-pay' });
+      const res = await api.get(`/api/employees/payroll/export-excel?monthYear=${payrollMonthYear}`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `Payroll_${payrollMonthYear}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Downloaded Payroll Excel Sheet!', { id: 'exp-pay' });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to export payroll excel', { id: 'exp-pay' });
+    }
   };
 
   const handleOpenPaySlip = (payroll) => {
