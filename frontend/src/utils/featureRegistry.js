@@ -45,6 +45,13 @@ export const FEATURES = [
     module: 'DASHBOARD',
     defaultProfiles: ['CEO', 'SUPER_ADMIN'],
   },
+  {
+    id: 'EMPLOYEE_DATA_VIEW',
+    name: 'Employee Data',
+    description: 'Complete employee management, attendance tracking, and monthly payroll calculation system.',
+    module: 'DASHBOARD',
+    defaultProfiles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'],
+  },
 
   // ── ORDERS ──
   {

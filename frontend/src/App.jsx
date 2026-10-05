@@ -77,6 +77,7 @@ const AsmAllowedStorePage = lazy(() => import('./pages/AsmAllowedStorePage'));
 const ProductDataPage = lazy(() => import('./pages/ProductDataPage'));
 const OutletOrderLookup = lazy(() => import('./pages/OutletOrderLookup'));
 const OutletInvoiceQuotation = lazy(() => import('./pages/OutletInvoiceQuotation'));
+const EmployeeDataPage = lazy(() => import('./pages/EmployeeDataPage'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -311,6 +312,7 @@ function App() {
                   } />
                   <Route path="dashboard" element={<PermittedRoute feature="DASHBOARD_VIEW"><AdminDashboard /></PermittedRoute>} />
                   <Route path="product-data" element={<PermittedRoute feature="PRODUCT_DATA_VIEW"><ProductDataPage /></PermittedRoute>} />
+                  <Route path="employee-data" element={<PermittedRoute feature="EMPLOYEE_DATA_VIEW"><EmployeeDataPage /></PermittedRoute>} />
                   <Route path="inventory" element={<PermittedRoute feature="WAREHOUSE_VIEW"><InventoryManagement /></PermittedRoute>} />
                   <Route path="tasks" element={<MyTasksRoute><MyTasks /></MyTasksRoute>} />
                   <Route path="order-entry" element={<PermittedRoute feature="ORDER_ENTRY"><OrderEntry /></PermittedRoute>} />

@@ -134,7 +134,9 @@ const deliveryTaskRoutes = require('./routes/deliveryTask.routes');
 const vendorRoutes = require('./routes/vendor.routes');
 const productDataRoutes = require('./routes/productData.routes');
 const abbottabadRoutes = require('./routes/abbottabad.routes');
+const employeeRoutes = require('./routes/employee.routes');
 
+app.use('/api/employees', employeeRoutes);
 app.use('/api/abbottabad', abbottabadRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);

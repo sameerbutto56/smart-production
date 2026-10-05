@@ -2796,3 +2796,117 @@ model SystemControlAuditLog {
   @@index([profile, createdAt])
 }
 
+model EmployeeRecord {
+  id                   String               @id @default(uuid())
+  employeeId           String               @unique // Primary unique identifier e.g. "EMP-001"
+  name                 String
+  fatherName           String?
+  dateOfBirth          String?
+  phone                String?
+  email                String?
+  cnic                 String?
+  designation          String?
+  department           String?
+  branch               String?              // Branch / Outlet e.g. "Johar Town", "Railway Road"
+  joiningDate          String?
+  monthlySalary        Float                @default(0)
+  workingHours         Float                @default(8)
+  checkInTime          String               @default("10:00") // Scheduled check-in
+  checkOutTime         String               @default("18:00") // Scheduled check-out
+  fuelAllowance        Float                @default(0)
+  travelAllowance      Float                @default(0)
+  otherAllowances      Float                @default(0)
+  loan                 Float                @default(0)       // Total loan balance
+  advance              Float                @default(0)       // Monthly advance deduction
+  otherDeductions      Float                @default(0)
+  productionPercentage Float                @default(0)       // % commission e.g. 10 for 10%
+  workType             String?              @default("STANDARD") // "ENGRAVING", "PRODUCTION", "STANDARD"
+  status               String               @default("ACTIVE") // "ACTIVE", "INACTIVE"
+  notes                String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  attendanceRecords    EmployeeAttendance[]
+  payrollRecords       MonthlyPayroll[]
+
+  @@index([employeeId])
+  @@index([branch])
+  @@index([department])
+  @@index([status])
+}
+
+model EmployeeAttendance {
+  id                String          @id @default(uuid())
+  employeeId        String
+  employeeName      String
+  date              String          // "YYYY-MM-DD"
+  checkInTime       String?         // Actual e.g. "10:14 AM"
+  checkOutTime      String?         // Actual e.g. "06:20 PM"
+  scheduledCheckIn  String          @default("10:00")
+  scheduledCheckOut String          @default("18:00")
+  lateMinutes       Int             @default(0)
+  earlyMinutes      Int             @default(0)
+  overtimeMinutes   Int             @default(0)
+  status            String          @default("PRESENT") // "PRESENT", "ABSENT", "LATE", "HALF_DAY", "LEAVE"
+  workingHours      Float           @default(8)
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  employee          EmployeeRecord? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+  @@index([status])
+}
+
+model MonthlyPayroll {
+  id                       String          @id @default(uuid())
+  monthYear                String          // "YYYY-MM" e.g. "2026-10"
+  employeeId               String
+  employeeName             String
+  designation              String?
+  department               String?
+  branch                   String?
+  basicSalary              Float           @default(0)
+  workingDays              Int             @default(30)
+  presentDays              Int             @default(0)
+  absentDays               Int             @default(0)
+  lateDays                 Int             @default(0)
+  halfDays                 Int             @default(0)
+  lateDeductions           Float           @default(0) // Three-Late Rule
+  earlyCheckoutDeductions  Float           @default(0)
+  absentDeductions         Float           @default(0)
+  overtimeHours            Float           @default(0)
+  overtimeAmount           Float           @default(0)
+  fuelAllowance            Float           @default(0)
+  travelAllowance          Float           @default(0)
+  otherAllowances          Float           @default(0)
+  loanDeduction            Float           @default(0)
+  advanceDeduction         Float           @default(0)
+  otherDeductions          Float           @default(0)
+  productionPercentage     Float           @default(0)
+  eligibleProductionAmount Float           @default(0)
+  productionEarning        Float           @default(0)
+  manualAdjustment         Float           @default(0)
+  adjustmentNote           String?
+  grossSalary              Float           @default(0)
+  totalDeductions          Float           @default(0)
+  netPayable               Float           @default(0)
+  status                   String          @default("DRAFT") // "DRAFT", "FINALIZED", "PAID"
+  finalizedAt              DateTime?
+  finalizedBy              String?
+  isFinalized              Boolean         @default(false)
+  calculationBreakdown     Json?           // Frozen audit payload
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  employee                 EmployeeRecord? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@unique([employeeId, monthYear])
+  @@index([monthYear])
+  @@index([employeeId])
+  @@index([status])
+}
+
