@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const XLSX = require('xlsx');
+const bcrypt = require('bcryptjs');
 
 // Helper to convert time strings ("10:00", "10:15 AM", "18:00", "06:30 PM") to minutes from midnight
 function parseTimeToMinutes(timeStr) {
@@ -96,13 +97,52 @@ const getEmployees = async (req, res) => {
         { employeeId: { contains: q, mode: 'insensitive' } },
         { name: { contains: q, mode: 'insensitive' } },
         { phone: { contains: q, mode: 'insensitive' } },
-        { designation: { contains: q, mode: 'insensitive' } }
+        { designation: { contains: q, mode: 'insensitive' } },
+        { loginEmail: { contains: q, mode: 'insensitive' } }
       ];
     }
 
     const employees = await prisma.employeeRecord.findMany({
       where,
-      orderBy: { employeeId: 'asc' }
+      orderBy: { employeeId: 'asc' },
+      select: {
+        id: true,
+        employeeId: true,
+        name: true,
+        fatherName: true,
+        dateOfBirth: true,
+        phone: true,
+        email: true,
+        cnic: true,
+        address: true,
+        designation: true,
+        department: true,
+        branch: true,
+        joiningDate: true,
+        monthlySalary: true,
+        workingDays: true,
+        workingHours: true,
+        checkInTime: true,
+        checkOutTime: true,
+        breakTime: true,
+        fuelAllowance: true,
+        travelAllowance: true,
+        otherAllowances: true,
+        loan: true,
+        advance: true,
+        otherDeductions: true,
+        productionEligible: true,
+        productionPercentage: true,
+        workType: true,
+        allowedLeaves: true,
+        status: true,
+        notes: true,
+        loginEmail: true,
+        loginEnabled: true,
+        lastLogin: true,
+        createdAt: true,
+        updatedAt: true
+      }
     });
 
     res.json({ success: true, count: employees.length, employees });
@@ -126,6 +166,14 @@ const getEmployeeById = async (req, res) => {
         payrollRecords: {
           take: 12,
           orderBy: { monthYear: 'desc' }
+        },
+        leaves: {
+          take: 12,
+          orderBy: { startDate: 'desc' }
+        },
+        loansAndAdvances: {
+          take: 12,
+          orderBy: { date: 'desc' }
         }
       }
     });
@@ -134,7 +182,8 @@ const getEmployeeById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
-    res.json({ success: true, employee });
+    const { passwordHash, ...safeEmployee } = employee;
+    res.json({ success: true, employee: safeEmployee });
   } catch (err) {
     console.error('Error fetching employee:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch employee', error: err.message });
@@ -152,24 +201,32 @@ const createEmployee = async (req, res) => {
       phone,
       email,
       cnic,
+      address,
       designation,
       department,
       branch,
       joiningDate,
       monthlySalary,
+      workingDays,
       workingHours,
       checkInTime,
       checkOutTime,
+      breakTime,
       fuelAllowance,
       travelAllowance,
       otherAllowances,
       loan,
       advance,
       otherDeductions,
+      productionEligible,
       productionPercentage,
       workType,
+      allowedLeaves,
       status,
-      notes
+      notes,
+      loginEmail,
+      password,
+      loginEnabled
     } = req.body;
 
     if (!name || !name.trim()) {
@@ -189,6 +246,23 @@ const createEmployee = async (req, res) => {
       return res.status(400).json({ success: false, message: `Employee ID "${finalEmpId}" is already in use` });
     }
 
+    // Check unique loginEmail if provided
+    let finalLoginEmail = loginEmail?.trim() || null;
+    if (finalLoginEmail) {
+      const existingEmail = await prisma.employeeRecord.findUnique({ where: { loginEmail: finalLoginEmail } });
+      if (existingEmail) {
+        return res.status(400).json({ success: false, message: `Login email "${finalLoginEmail}" is already registered to another employee` });
+      }
+    }
+
+    // Password hashing (default 'Enamels1212' if loginEnabled but no password provided)
+    let passwordHash = null;
+    if (password && password.trim()) {
+      passwordHash = await bcrypt.hash(password.trim(), 10);
+    } else if (loginEnabled) {
+      passwordHash = await bcrypt.hash('Enamels1212', 10);
+    }
+
     const employee = await prisma.employeeRecord.create({
       data: {
         employeeId: finalEmpId,
@@ -198,28 +272,37 @@ const createEmployee = async (req, res) => {
         phone: phone?.trim() || null,
         email: email?.trim() || null,
         cnic: cnic?.trim() || null,
+        address: address?.trim() || null,
         designation: designation?.trim() || null,
         department: department?.trim() || null,
         branch: branch?.trim() || null,
         joiningDate: joiningDate || null,
         monthlySalary: parseFloat(monthlySalary) || 0,
+        workingDays: parseInt(workingDays, 10) || 30,
         workingHours: parseFloat(workingHours) || 8,
         checkInTime: checkInTime || '10:00',
         checkOutTime: checkOutTime || '18:00',
+        breakTime: parseInt(breakTime, 10) || 60,
         fuelAllowance: parseFloat(fuelAllowance) || 0,
         travelAllowance: parseFloat(travelAllowance) || 0,
         otherAllowances: parseFloat(otherAllowances) || 0,
         loan: parseFloat(loan) || 0,
         advance: parseFloat(advance) || 0,
         otherDeductions: parseFloat(otherDeductions) || 0,
+        productionEligible: Boolean(productionEligible) || (parseFloat(productionPercentage) > 0),
         productionPercentage: parseFloat(productionPercentage) || 0,
         workType: workType || 'STANDARD',
+        allowedLeaves: parseFloat(allowedLeaves) || 2,
         status: status?.toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
-        notes: notes?.trim() || null
+        notes: notes?.trim() || null,
+        loginEmail: finalLoginEmail,
+        passwordHash,
+        loginEnabled: Boolean(loginEnabled)
       }
     });
 
-    res.status(201).json({ success: true, message: 'Employee created successfully', employee });
+    const { passwordHash: _, ...safeEmployee } = employee;
+    res.status(201).json({ success: true, message: 'Employee created successfully', employee: safeEmployee });
   } catch (err) {
     console.error('Error creating employee:', err);
     res.status(500).json({ success: false, message: 'Failed to create employee', error: err.message });
@@ -236,19 +319,45 @@ const updateEmployee = async (req, res) => {
     }
 
     const data = { ...req.body };
+
     // Numeric fields parsing
     if (data.monthlySalary !== undefined) data.monthlySalary = parseFloat(data.monthlySalary) || 0;
+    if (data.workingDays !== undefined) data.workingDays = parseInt(data.workingDays, 10) || 30;
     if (data.workingHours !== undefined) data.workingHours = parseFloat(data.workingHours) || 8;
+    if (data.breakTime !== undefined) data.breakTime = parseInt(data.breakTime, 10) || 60;
     if (data.fuelAllowance !== undefined) data.fuelAllowance = parseFloat(data.fuelAllowance) || 0;
     if (data.travelAllowance !== undefined) data.travelAllowance = parseFloat(data.travelAllowance) || 0;
     if (data.otherAllowances !== undefined) data.otherAllowances = parseFloat(data.otherAllowances) || 0;
     if (data.loan !== undefined) data.loan = parseFloat(data.loan) || 0;
     if (data.advance !== undefined) data.advance = parseFloat(data.advance) || 0;
     if (data.otherDeductions !== undefined) data.otherDeductions = parseFloat(data.otherDeductions) || 0;
-    if (data.productionPercentage !== undefined) data.productionPercentage = parseFloat(data.productionPercentage) || 0;
+    if (data.productionPercentage !== undefined) {
+      data.productionPercentage = parseFloat(data.productionPercentage) || 0;
+      if (data.productionPercentage > 0) data.productionEligible = true;
+    }
+    if (data.allowedLeaves !== undefined) data.allowedLeaves = parseFloat(data.allowedLeaves) || 2;
     if (data.status) data.status = data.status.toUpperCase();
+    if (data.loginEnabled !== undefined) data.loginEnabled = Boolean(data.loginEnabled);
 
-    // Prevent changing employeeId in update payload
+    // Login email update & uniqueness check
+    if (data.loginEmail !== undefined) {
+      const trimmedEmail = data.loginEmail?.trim() || null;
+      if (trimmedEmail && trimmedEmail !== existing.loginEmail) {
+        const emailCheck = await prisma.employeeRecord.findUnique({ where: { loginEmail: trimmedEmail } });
+        if (emailCheck) {
+          return res.status(400).json({ success: false, message: `Email "${trimmedEmail}" is already in use by another employee` });
+        }
+      }
+      data.loginEmail = trimmedEmail;
+    }
+
+    // Password reset if provided
+    if (data.password && data.password.trim()) {
+      data.passwordHash = await bcrypt.hash(data.password.trim(), 10);
+    }
+    delete data.password;
+
+    // Prevent changing employeeId or internal id in update payload
     delete data.employeeId;
     delete data.id;
 
@@ -257,7 +366,8 @@ const updateEmployee = async (req, res) => {
       data
     });
 
-    res.json({ success: true, message: 'Employee updated successfully', employee: updated });
+    const { passwordHash: _, ...safeEmployee } = updated;
+    res.json({ success: true, message: 'Employee updated successfully', employee: safeEmployee });
   } catch (err) {
     console.error('Error updating employee:', err);
     res.status(500).json({ success: false, message: 'Failed to update employee', error: err.message });
@@ -273,13 +383,13 @@ const deleteEmployee = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
-    // Soft delete: set status to INACTIVE
+    // Soft delete: set status to INACTIVE and loginEnabled to false
     await prisma.employeeRecord.update({
       where: { employeeId },
-      data: { status: 'INACTIVE' }
+      data: { status: 'INACTIVE', loginEnabled: false }
     });
 
-    res.json({ success: true, message: `Employee ${employeeId} marked as INACTIVE` });
+    res.json({ success: true, message: `Employee ${employeeId} marked as INACTIVE and login disabled` });
   } catch (err) {
     console.error('Error deleting employee:', err);
     res.status(500).json({ success: false, message: 'Failed to delete employee', error: err.message });
@@ -313,7 +423,6 @@ const getDailyAttendance = async (req, res) => {
     const attMap = new Map();
     attendances.forEach(a => attMap.set(a.employeeId, a));
 
-    // Combine employees with their attendance for this day
     const records = employees.map(emp => {
       const att = attMap.get(emp.employeeId);
       if (att) {
@@ -386,7 +495,6 @@ const markAttendance = async (req, res) => {
       status
     );
 
-    // Auto-adjust status: if on time with lateMinutes > 0, set status LATE if was marked PRESENT
     let finalStatus = status;
     if (status === 'PRESENT' && lateMinutes > 0) {
       finalStatus = 'LATE';
@@ -505,6 +613,116 @@ const bulkMarkAttendance = async (req, res) => {
   }
 };
 
+// POST /api/employees/attendance/import-excel
+const importAttendanceExcel = async (req, res) => {
+  try {
+    const { rows } = req.body;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'rows array is required' });
+    }
+
+    const errors = [];
+    const importedRecords = [];
+    const seenEmpIdsInDate = new Set();
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2; // considering header as row 1
+
+      const empId = String(row['Employee ID'] || row['employeeId'] || row['EmployeeID'] || row['ID'] || '').trim();
+      const date = String(row['Date'] || row['date'] || '').trim();
+
+      if (!empId) {
+        errors.push(`Row ${rowNum}: Missing Employee ID`);
+        continue;
+      }
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        errors.push(`Row ${rowNum} (${empId}): Invalid or missing date format (expected YYYY-MM-DD, got "${date}")`);
+        continue;
+      }
+
+      // Check duplicates in uploaded batch
+      const key = `${empId}_${date}`;
+      if (seenEmpIdsInDate.has(key)) {
+        errors.push(`Row ${rowNum}: Duplicate attendance record for Employee ID "${empId}" on date "${date}"`);
+        continue;
+      }
+      seenEmpIdsInDate.add(key);
+
+      // Validate Employee ID in database
+      const employee = await prisma.employeeRecord.findUnique({ where: { employeeId: empId } });
+      if (!employee) {
+        errors.push(`Row ${rowNum}: Unknown Employee ID "${empId}". Employee does not exist in directory.`);
+        continue;
+      }
+
+      const checkIn = row['Check-in'] || row['CheckIn'] || row['checkInTime'] || null;
+      const checkOut = row['Check-out'] || row['CheckOut'] || row['checkOutTime'] || null;
+      const statusRaw = String(row['Attendance Status'] || row['Status'] || row['status'] || 'PRESENT').toUpperCase().trim();
+      const status = ['PRESENT', 'LATE', 'HALF_DAY', 'LEAVE', 'ABSENT'].includes(statusRaw) ? statusRaw : 'PRESENT';
+
+      const sIn = employee.checkInTime || '10:00';
+      const sOut = employee.checkOutTime || '18:00';
+
+      const { lateMinutes, earlyMinutes, overtimeMinutes, workingHours } = calculateAttendanceMetrics(
+        sIn,
+        sOut,
+        checkIn,
+        checkOut,
+        status
+      );
+
+      let finalStatus = status;
+      if (status === 'PRESENT' && lateMinutes > 0) finalStatus = 'LATE';
+
+      const rec = await prisma.employeeAttendance.upsert({
+        where: { employeeId_date: { employeeId: empId, date } },
+        update: {
+          employeeName: employee.name,
+          checkInTime: checkIn ? String(checkIn).trim() : null,
+          checkOutTime: checkOut ? String(checkOut).trim() : null,
+          scheduledCheckIn: sIn,
+          scheduledCheckOut: sOut,
+          lateMinutes,
+          earlyMinutes,
+          overtimeMinutes,
+          status: finalStatus,
+          workingHours,
+          notes: row['Notes'] || row['notes'] || null
+        },
+        create: {
+          employeeId: empId,
+          employeeName: employee.name,
+          date,
+          checkInTime: checkIn ? String(checkIn).trim() : null,
+          checkOutTime: checkOut ? String(checkOut).trim() : null,
+          scheduledCheckIn: sIn,
+          scheduledCheckOut: sOut,
+          lateMinutes,
+          earlyMinutes,
+          overtimeMinutes,
+          status: finalStatus,
+          workingHours,
+          notes: row['Notes'] || row['notes'] || null
+        }
+      });
+
+      importedRecords.push(rec);
+    }
+
+    res.json({
+      success: true,
+      message: `Imported ${importedRecords.length} attendance records`,
+      importedCount: importedRecords.length,
+      errorsCount: errors.length,
+      errors
+    });
+  } catch (err) {
+    console.error('Error importing attendance excel:', err);
+    res.status(500).json({ success: false, message: 'Failed to import attendance excel', error: err.message });
+  }
+};
+
 // GET /api/employees/attendance/monthly?monthYear=YYYY-MM
 const getMonthlyAttendance = async (req, res) => {
   try {
@@ -528,7 +746,6 @@ const getMonthlyAttendance = async (req, res) => {
       orderBy: { date: 'asc' }
     });
 
-    // Group by employeeId
     const attByEmp = new Map();
     attendances.forEach(a => {
       if (!attByEmp.has(a.employeeId)) attByEmp.set(a.employeeId, []);
@@ -623,10 +840,190 @@ const exportAttendanceExcel = async (req, res) => {
 };
 
 // ==========================================
-// 3. PRODUCTION & ENGRAVING EARNING LOOKUP
+// 3. LEAVES MANAGEMENT
 // ==========================================
 
-// Helper: Query eligible branch-specific engraving/production work in a month
+// GET /api/employees/leaves
+const getLeaves = async (req, res) => {
+  try {
+    const { employeeId, status, monthYear } = req.query;
+    const where = {};
+    if (employeeId && employeeId !== 'ALL') where.employeeId = employeeId;
+    if (status && status !== 'ALL') where.status = status.toUpperCase();
+    if (monthYear) where.startDate = { startsWith: monthYear };
+
+    const leaves = await prisma.employeeLeave.findMany({
+      where,
+      orderBy: { startDate: 'desc' },
+      include: { employee: true }
+    });
+
+    res.json({ success: true, count: leaves.length, leaves });
+  } catch (err) {
+    console.error('Error fetching leaves:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch leaves', error: err.message });
+  }
+};
+
+// POST /api/employees/leaves
+const createLeave = async (req, res) => {
+  try {
+    const { employeeId, leaveType = 'CASUAL', startDate, endDate, daysCount, reason, status = 'APPROVED' } = req.body;
+    if (!employeeId || !startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'employeeId, startDate, and endDate are required' });
+    }
+
+    const employee = await prisma.employeeRecord.findUnique({ where: { employeeId } });
+    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found' });
+
+    const leave = await prisma.employeeLeave.create({
+      data: {
+        employeeId,
+        employeeName: employee.name,
+        leaveType,
+        startDate,
+        endDate,
+        daysCount: parseFloat(daysCount) || 1,
+        reason: reason?.trim() || null,
+        status: status.toUpperCase(),
+        approvedBy: req.user?.name || 'Admin',
+        approvedAt: status.toUpperCase() === 'APPROVED' ? new Date() : null
+      }
+    });
+
+    res.status(201).json({ success: true, message: 'Leave recorded successfully', leave });
+  } catch (err) {
+    console.error('Error creating leave:', err);
+    res.status(500).json({ success: false, message: 'Failed to create leave', error: err.message });
+  }
+};
+
+// PUT /api/employees/leaves/:id/status
+const updateLeaveStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ success: false, message: 'status is required' });
+
+    const leave = await prisma.employeeLeave.update({
+      where: { id },
+      data: {
+        status: status.toUpperCase(),
+        approvedBy: req.user?.name || 'Admin',
+        approvedAt: status.toUpperCase() === 'APPROVED' ? new Date() : null
+      }
+    });
+
+    res.json({ success: true, message: `Leave status updated to ${status}`, leave });
+  } catch (err) {
+    console.error('Error updating leave status:', err);
+    res.status(500).json({ success: false, message: 'Failed to update leave', error: err.message });
+  }
+};
+
+// ==========================================
+// 4. LOAN & ADVANCE MANAGEMENT
+// ==========================================
+
+// GET /api/employees/loans
+const getLoans = async (req, res) => {
+  try {
+    const { employeeId, status, type } = req.query;
+    const where = {};
+    if (employeeId && employeeId !== 'ALL') where.employeeId = employeeId;
+    if (status && status !== 'ALL') where.status = status.toUpperCase();
+    if (type && type !== 'ALL') where.type = type.toUpperCase();
+
+    const records = await prisma.employeeLoanAdvance.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      include: { employee: true }
+    });
+
+    res.json({ success: true, count: records.length, records });
+  } catch (err) {
+    console.error('Error fetching loans:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch loans', error: err.message });
+  }
+};
+
+// POST /api/employees/loans
+const createLoan = async (req, res) => {
+  try {
+    const { employeeId, type = 'LOAN', amount, monthlyDeduction, date, notes } = req.body;
+    if (!employeeId || !amount) {
+      return res.status(400).json({ success: false, message: 'employeeId and amount are required' });
+    }
+
+    const employee = await prisma.employeeRecord.findUnique({ where: { employeeId } });
+    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found' });
+
+    const amt = parseFloat(amount) || 0;
+    const mDed = parseFloat(monthlyDeduction) || 0;
+    const recDate = date || new Date().toISOString().slice(0, 10);
+
+    const record = await prisma.employeeLoanAdvance.create({
+      data: {
+        employeeId,
+        employeeName: employee.name,
+        type: type.toUpperCase(),
+        amount: amt,
+        monthlyDeduction: mDed,
+        remainingBalance: amt,
+        date: recDate,
+        status: 'ACTIVE',
+        notes: notes?.trim() || null
+      }
+    });
+
+    // Update employee profile summary balance
+    if (type.toUpperCase() === 'LOAN') {
+      await prisma.employeeRecord.update({
+        where: { employeeId },
+        data: { loan: { increment: amt } }
+      });
+    } else {
+      await prisma.employeeRecord.update({
+        where: { employeeId },
+        data: { advance: { increment: amt } }
+      });
+    }
+
+    res.status(201).json({ success: true, message: `${type} record created`, record });
+  } catch (err) {
+    console.error('Error creating loan:', err);
+    res.status(500).json({ success: false, message: 'Failed to create loan', error: err.message });
+  }
+};
+
+// PUT /api/employees/loans/:id
+const updateLoan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, monthlyDeduction, remainingBalance, notes } = req.body;
+
+    const data = {};
+    if (status) data.status = status.toUpperCase();
+    if (monthlyDeduction !== undefined) data.monthlyDeduction = parseFloat(monthlyDeduction) || 0;
+    if (remainingBalance !== undefined) data.remainingBalance = parseFloat(remainingBalance) || 0;
+    if (notes !== undefined) data.notes = notes;
+
+    const record = await prisma.employeeLoanAdvance.update({
+      where: { id },
+      data
+    });
+
+    res.json({ success: true, message: 'Loan record updated', record });
+  } catch (err) {
+    console.error('Error updating loan:', err);
+    res.status(500).json({ success: false, message: 'Failed to update loan', error: err.message });
+  }
+};
+
+// ==========================================
+// 5. PRODUCTION & ENGRAVING EARNING LOOKUP
+// ==========================================
+
 async function getEligibleProductionAmount(branch, monthYear, workType = 'ENGRAVING') {
   if (!branch) return { amount: 0, count: 0, orders: [] };
 
@@ -637,7 +1034,6 @@ async function getEligibleProductionAmount(branch, monthYear, workType = 'ENGRAV
   const endDate = new Date(year, month, 1);
 
   try {
-    // Orders matching branch in month with engraving
     const orders = await prisma.order.findMany({
       where: {
         createdAt: { gte: startDate, lt: endDate },
@@ -663,7 +1059,7 @@ async function getEligibleProductionAmount(branch, monthYear, workType = 'ENGRAV
 
     let totalAmount = 0;
     const contributingOrders = orders.map(o => {
-      // Per spec 7: Count actual engraving work (logoCharges + namePrintingCharges).
+      // Per spec 25: Count actual engraving work (logoCharges + namePrintingCharges).
       // Do not count unrelated customization / custom-size charges.
       const engAmount = (o.logoCharges || 0) + (o.namePrintingCharges || 0);
       totalAmount += engAmount;
@@ -687,11 +1083,50 @@ async function getEligibleProductionAmount(branch, monthYear, workType = 'ENGRAV
   }
 }
 
+// GET /api/employees/production/summary?monthYear=YYYY-MM
+const getProductionSummary = async (req, res) => {
+  try {
+    const monthYear = req.query.monthYear || new Date().toISOString().slice(0, 7);
+
+    const eligibleEmployees = await prisma.employeeRecord.findMany({
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          { productionEligible: true },
+          { productionPercentage: { gt: 0 } }
+        ]
+      }
+    });
+
+    const results = [];
+    for (const emp of eligibleEmployees) {
+      const prodData = await getEligibleProductionAmount(emp.branch, monthYear, emp.workType);
+      const incentive = Math.round((prodData.amount * (emp.productionPercentage || 0)) / 100);
+      results.push({
+        employeeId: emp.employeeId,
+        name: emp.name,
+        branch: emp.branch,
+        workType: emp.workType,
+        percentage: emp.productionPercentage,
+        ordersCount: prodData.count,
+        totalEligibleAmount: prodData.amount,
+        incentiveAmount: incentive,
+        orders: prodData.orders
+      });
+    }
+
+    res.json({ success: true, monthYear, count: results.length, employees: results });
+  } catch (err) {
+    console.error('Error fetching production summary:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch production summary', error: err.message });
+  }
+};
+
 // ==========================================
-// 4. PAYROLL CALCULATION & LIFECYCLE
+// 6. PAYROLL CALCULATION & LIFECYCLE
 // ==========================================
 
-// GET /api/employees/payroll?monthYear=YYYY-MM
+// GET /api/employees/payroll/list?monthYear=YYYY-MM
 const getMonthlyPayrollList = async (req, res) => {
   try {
     const monthYear = req.query.monthYear || new Date().toISOString().slice(0, 7);
@@ -739,6 +1174,16 @@ const calculateMonthlyPayroll = async (req, res) => {
       attByEmp.get(a.employeeId).push(a);
     });
 
+    // Query active loans and advances
+    const activeLoansAndAdvances = await prisma.employeeLoanAdvance.findMany({
+      where: { status: 'ACTIVE' }
+    });
+    const loansByEmp = new Map();
+    activeLoansAndAdvances.forEach(r => {
+      if (!loansByEmp.has(r.employeeId)) loansByEmp.set(r.employeeId, []);
+      loansByEmp.get(r.employeeId).push(r);
+    });
+
     const calculatedPayrolls = [];
 
     for (const emp of employees) {
@@ -758,81 +1203,94 @@ const calculateMonthlyPayroll = async (req, res) => {
       const lateDays = records.filter(r => r.lateMinutes > 0).length;
       const halfDays = records.filter(r => r.status === 'HALF_DAY').length;
 
-      const totalLateMinutes = records.reduce((s, r) => s + (r.lateMinutes || 0), 0);
-      const totalEarlyMinutes = records.reduce((s, r) => s + (r.earlyMinutes || 0), 0);
-      const totalOvertimeMinutes = records.reduce((s, r) => s + (r.overtimeMinutes || 0), 0);
+      // Three-Late Rule
+      const lateDeductionDays = Math.floor(lateDays / 3);
+      const perDaySalary = Math.round((emp.monthlySalary || 0) / 30);
+      const lateDeductions = lateDeductionDays * perDaySalary;
+
+      // Absent deductions
+      const absentDeductions = absentDays * perDaySalary;
+
+      // Early checkout deductions
+      const totalEarlyMinutes = records.reduce((sum, r) => sum + (r.earlyMinutes || 0), 0);
+      const perMinuteSalary = perDaySalary / ((emp.workingHours || 8) * 60);
+      const earlyCheckoutDeductions = Math.round(totalEarlyMinutes * perMinuteSalary);
+
+      // Overtime
+      const totalOvertimeMinutes = records.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
       const overtimeHours = Math.round((totalOvertimeMinutes / 60) * 10) / 10;
-
-      const basicSalary = emp.monthlySalary || 0;
-      const workingDays = 30; // standard 30-day denominator
-      const perDaySalary = workingDays > 0 ? (basicSalary / workingDays) : 0;
-      const hourlyRate = (emp.workingHours && emp.workingHours > 0) ? (perDaySalary / emp.workingHours) : (perDaySalary / 8);
-
-      // Three-Late Rule: Every 3 lates = 1 day salary deduction
-      const threeLatePenaltyDays = Math.floor(lateDays / 3);
-      const lateDeductions = Math.round(threeLatePenaltyDays * perDaySalary);
-
-      // Absent & Half day deduction
-      const absentDeductions = Math.round((absentDays * perDaySalary) + (halfDays * 0.5 * perDaySalary));
-
-      // Early checkout deduction
-      const earlyCheckoutDeductions = Math.round((totalEarlyMinutes / 60) * hourlyRate);
-
-      // Overtime amount (1.0x rate)
+      const hourlyRate = (emp.monthlySalary || 0) / (30 * (emp.workingHours || 8));
       const overtimeAmount = Math.round(overtimeHours * hourlyRate);
+
+      // Loan & Advance Deductions from active records
+      const empLoanRecs = loansByEmp.get(emp.employeeId) || [];
+      const loanDeduction = empLoanRecs
+        .filter(r => r.type === 'LOAN')
+        .reduce((sum, r) => sum + Math.min(r.monthlyDeduction || 0, r.remainingBalance || 0), 0) || (emp.loan ? Math.min(emp.loan, 2000) : 0);
+
+      const advanceDeduction = empLoanRecs
+        .filter(r => r.type === 'ADVANCE')
+        .reduce((sum, r) => sum + Math.min(r.monthlyDeduction || 0, r.remainingBalance || 0), 0) || (emp.advance || 0);
 
       // Allowances
       const fuelAllowance = emp.fuelAllowance || 0;
       const travelAllowance = emp.travelAllowance || 0;
       const otherAllowances = emp.otherAllowances || 0;
-      const totalAllowances = fuelAllowance + travelAllowance + otherAllowances;
-
-      // Loans & Deductions
-      const loanDeduction = existing?.loanDeduction ?? (emp.advance || 0); // monthly deduction
-      const advanceDeduction = existing?.advanceDeduction ?? 0;
+      const fullAttendanceBonus = existing?.fullAttendanceBonus || 0;
+      const reimbursement = existing?.reimbursement || 0;
       const otherDeductions = emp.otherDeductions || 0;
 
-      // Production / Engraving calculation
+      // Production / Engraving Incentive
       let eligibleProductionAmount = 0;
       let productionEarning = 0;
-      let productionOrders = [];
-
-      if ((emp.productionPercentage || 0) > 0) {
+      if (emp.productionEligible || emp.productionPercentage > 0) {
         const prodData = await getEligibleProductionAmount(emp.branch, monthYear, emp.workType);
-        eligibleProductionAmount = existing?.eligibleProductionAmount ?? prodData.amount;
-        productionEarning = Math.round(eligibleProductionAmount * (emp.productionPercentage / 100));
-        productionOrders = prodData.orders;
+        eligibleProductionAmount = prodData.amount;
+        productionEarning = Math.round((eligibleProductionAmount * (emp.productionPercentage || 0)) / 100);
       }
 
-      // Manual adjustment
       const manualAdjustment = existing?.manualAdjustment || 0;
       const adjustmentNote = existing?.adjustmentNote || null;
 
-      // Formula: Gross Salary + Allowances + Overtime - Deductions = Net Payable Salary
-      const grossSalary = Math.round(basicSalary + totalAllowances + overtimeAmount + productionEarning);
-      const totalDeductions = Math.round(absentDeductions + lateDeductions + earlyCheckoutDeductions + loanDeduction + advanceDeduction + otherDeductions);
+      // Final calculations
+      const grossSalary = Math.round(
+        (emp.monthlySalary || 0) +
+        overtimeAmount +
+        fuelAllowance +
+        travelAllowance +
+        otherAllowances +
+        fullAttendanceBonus +
+        reimbursement +
+        productionEarning
+      );
+
+      const totalDeductions = Math.round(
+        lateDeductions +
+        absentDeductions +
+        earlyCheckoutDeductions +
+        loanDeduction +
+        advanceDeduction +
+        otherDeductions
+      );
+
       const netPayable = Math.max(0, Math.round(grossSalary - totalDeductions + manualAdjustment));
 
       const breakdown = {
-        calculatedAt: new Date().toISOString(),
-        perDaySalary: Math.round(perDaySalary),
-        hourlyRate: Math.round(hourlyRate),
         attendanceSummary: {
-          totalRecords: records.length,
           presentDays,
           absentDays,
           lateDays,
           halfDays,
-          totalLateMinutes,
+          lateDeductionDays,
           totalEarlyMinutes,
-          totalOvertimeMinutes
+          totalOvertimeMinutes,
+          overtimeHours
         },
-        productionBreakdown: {
-          branch: emp.branch,
-          percentage: emp.productionPercentage,
-          eligibleProductionAmount,
-          ordersCount: productionOrders.length,
-          orders: productionOrders
+        formula: {
+          perDaySalary,
+          hourlyRate: Math.round(hourlyRate),
+          threeLatePenaltyDays: lateDeductionDays,
+          threeLateDeduction: lateDeductions
         }
       };
 
@@ -845,8 +1303,8 @@ const calculateMonthlyPayroll = async (req, res) => {
           designation: emp.designation,
           department: emp.department,
           branch: emp.branch,
-          basicSalary,
-          workingDays,
+          basicSalary: emp.monthlySalary,
+          workingDays: emp.workingDays || 30,
           presentDays,
           absentDays,
           lateDays,
@@ -859,10 +1317,12 @@ const calculateMonthlyPayroll = async (req, res) => {
           fuelAllowance,
           travelAllowance,
           otherAllowances,
+          fullAttendanceBonus,
+          reimbursement,
           loanDeduction,
           advanceDeduction,
           otherDeductions,
-          productionPercentage: emp.productionPercentage || 0,
+          productionPercentage: emp.productionPercentage,
           eligibleProductionAmount,
           productionEarning,
           manualAdjustment,
@@ -879,8 +1339,8 @@ const calculateMonthlyPayroll = async (req, res) => {
           designation: emp.designation,
           department: emp.department,
           branch: emp.branch,
-          basicSalary,
-          workingDays,
+          basicSalary: emp.monthlySalary,
+          workingDays: emp.workingDays || 30,
           presentDays,
           absentDays,
           lateDays,
@@ -893,10 +1353,12 @@ const calculateMonthlyPayroll = async (req, res) => {
           fuelAllowance,
           travelAllowance,
           otherAllowances,
+          fullAttendanceBonus,
+          reimbursement,
           loanDeduction,
           advanceDeduction,
           otherDeductions,
-          productionPercentage: emp.productionPercentage || 0,
+          productionPercentage: emp.productionPercentage,
           eligibleProductionAmount,
           productionEarning,
           manualAdjustment,
@@ -946,13 +1408,16 @@ const adjustPayroll = async (req, res) => {
       fuelAllowance,
       travelAllowance,
       otherAllowances,
+      fullAttendanceBonus,
+      reimbursement,
       loanDeduction,
       advanceDeduction,
       otherDeductions,
       eligibleProductionAmount,
       productionEarning,
       manualAdjustment,
-      adjustmentNote
+      adjustmentNote,
+      status
     } = req.body;
 
     const bSalary = basicSalary !== undefined ? parseFloat(basicSalary) : existing.basicSalary;
@@ -963,13 +1428,15 @@ const adjustPayroll = async (req, res) => {
     const fAllow = fuelAllowance !== undefined ? parseFloat(fuelAllowance) : existing.fuelAllowance;
     const tAllow = travelAllowance !== undefined ? parseFloat(travelAllowance) : existing.travelAllowance;
     const oAllow = otherAllowances !== undefined ? parseFloat(otherAllowances) : existing.otherAllowances;
+    const fullAttBonus = fullAttendanceBonus !== undefined ? parseFloat(fullAttendanceBonus) : (existing.fullAttendanceBonus || 0);
+    const reimb = reimbursement !== undefined ? parseFloat(reimbursement) : (existing.reimbursement || 0);
     const loanDed = loanDeduction !== undefined ? parseFloat(loanDeduction) : existing.loanDeduction;
     const advDed = advanceDeduction !== undefined ? parseFloat(advanceDeduction) : existing.advanceDeduction;
     const othDed = otherDeductions !== undefined ? parseFloat(otherDeductions) : existing.otherDeductions;
     const prodEarn = productionEarning !== undefined ? parseFloat(productionEarning) : existing.productionEarning;
     const manAdj = manualAdjustment !== undefined ? parseFloat(manualAdjustment) : existing.manualAdjustment;
 
-    const grossSalary = Math.round(bSalary + fAllow + tAllow + oAllow + otAmt + prodEarn);
+    const grossSalary = Math.round(bSalary + fAllow + tAllow + oAllow + otAmt + fullAttBonus + reimb + prodEarn);
     const totalDeductions = Math.round(lDed + eDed + aDed + loanDed + advDed + othDed);
     const netPayable = Math.max(0, Math.round(grossSalary - totalDeductions + manAdj));
 
@@ -984,6 +1451,8 @@ const adjustPayroll = async (req, res) => {
         fuelAllowance: fAllow,
         travelAllowance: tAllow,
         otherAllowances: oAllow,
+        fullAttendanceBonus: fullAttBonus,
+        reimbursement: reimb,
         loanDeduction: loanDed,
         advanceDeduction: advDed,
         otherDeductions: othDed,
@@ -993,7 +1462,8 @@ const adjustPayroll = async (req, res) => {
         adjustmentNote: adjustmentNote !== undefined ? adjustmentNote : existing.adjustmentNote,
         grossSalary,
         totalDeductions,
-        netPayable
+        netPayable,
+        status: status ? status.toUpperCase() : existing.status
       }
     });
 
@@ -1012,6 +1482,7 @@ const finalizeMonthlyPayroll = async (req, res) => {
       return res.status(400).json({ success: false, message: 'monthYear is required' });
     }
 
+    // 1. Freeze all payroll records for monthYear
     const updated = await prisma.monthlyPayroll.updateMany({
       where: {
         monthYear,
@@ -1024,6 +1495,45 @@ const finalizeMonthlyPayroll = async (req, res) => {
         finalizedBy: req.user?.name || 'Admin'
       }
     });
+
+    // 2. Automatically update remaining balance of active loans/advances
+    const payrolls = await prisma.monthlyPayroll.findMany({
+      where: { monthYear }
+    });
+
+    for (const p of payrolls) {
+      if (p.loanDeduction > 0) {
+        const activeLoans = await prisma.employeeLoanAdvance.findMany({
+          where: { employeeId: p.employeeId, type: 'LOAN', status: 'ACTIVE' }
+        });
+        for (const al of activeLoans) {
+          const newBal = Math.max(0, al.remainingBalance - p.loanDeduction);
+          await prisma.employeeLoanAdvance.update({
+            where: { id: al.id },
+            data: {
+              remainingBalance: newBal,
+              status: newBal === 0 ? 'COMPLETED' : 'ACTIVE'
+            }
+          });
+        }
+      }
+
+      if (p.advanceDeduction > 0) {
+        const activeAdvances = await prisma.employeeLoanAdvance.findMany({
+          where: { employeeId: p.employeeId, type: 'ADVANCE', status: 'ACTIVE' }
+        });
+        for (const aa of activeAdvances) {
+          const newBal = Math.max(0, aa.remainingBalance - p.advanceDeduction);
+          await prisma.employeeLoanAdvance.update({
+            where: { id: aa.id },
+            data: {
+              remainingBalance: newBal,
+              status: newBal === 0 ? 'COMPLETED' : 'ACTIVE'
+            }
+          });
+        }
+      }
+    }
 
     res.json({
       success: true,
@@ -1047,36 +1557,32 @@ const exportPayrollExcel = async (req, res) => {
       orderBy: { employeeId: 'asc' }
     });
 
-    const summaryRows = payrolls.map(p => ({
+    const summaryRows = payrolls.map((p, idx) => ({
+      'Sr': idx + 1,
       'Employee ID': p.employeeId,
-      'Employee Name': p.employeeName,
-      'Department': p.department || 'N/A',
-      'Branch': p.branch || 'N/A',
-      'Basic Salary (PKR)': p.basicSalary,
-      'Present Days': p.presentDays,
-      'Absent Days': p.absentDays,
-      'Late Days': p.lateDays,
-      'Overtime Amount (PKR)': p.overtimeAmount,
-      'Fuel Allowance (PKR)': p.fuelAllowance,
-      'Travel Allowance (PKR)': p.travelAllowance,
-      'Other Allowances (PKR)': p.otherAllowances,
-      'Production Earning (PKR)': p.productionEarning,
-      'Late Deduction (PKR)': p.lateDeductions,
-      'Early Checkout Deduction (PKR)': p.earlyCheckoutDeductions,
-      'Absent Deduction (PKR)': p.absentDeductions,
-      'Loan/Advance Deduction (PKR)': p.loanDeduction + p.advanceDeduction,
-      'Other Deductions (PKR)': p.otherDeductions,
-      'Gross Salary (PKR)': p.grossSalary,
-      'Total Deductions (PKR)': p.totalDeductions,
-      'Manual Adjustment (PKR)': p.manualAdjustment,
-      'Net Payable (PKR)': p.netPayable,
-      'Status': p.status,
-      'Adjustment Note': p.adjustmentNote || ''
+      'Employee': p.employeeName,
+      'Designation': p.designation || 'Staff',
+      'Department': p.department || 'General',
+      'Location': p.branch || 'Head Office',
+      'Worked Days': p.presentDays,
+      'Gross Pay': p.grossSalary,
+      'Fuel Allowance': p.fuelAllowance,
+      'Absent Deduction': p.absentDeductions,
+      'Late Deduction': p.lateDeductions,
+      'Advance Deduction': p.advanceDeduction,
+      'Loan Deduction': p.loanDeduction,
+      'Overtime': p.overtimeAmount,
+      'Full Attendance': p.fullAttendanceBonus || 0,
+      'Incentive': p.productionEarning,
+      'Reimbursement': p.reimbursement || 0,
+      'Other Deductions': p.otherDeductions,
+      'Net Pay': p.netPayable,
+      'Status': p.status
     }));
 
     const wb = XLSX.utils.book_new();
-    const wsSummary = XLSX.utils.json_to_sheet(summaryRows.length ? summaryRows : [{ Message: `No payroll records for ${monthYear}` }]);
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Payroll_Summary');
+    const ws = XLSX.utils.json_to_sheet(summaryRows.length ? summaryRows : [{ 'Message': `No payroll found for ${monthYear}` }]);
+    XLSX.utils.book_append_sheet(wb, ws, `Payroll_${monthYear}`);
 
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Disposition', `attachment; filename="Payroll_${monthYear}.xlsx"`);
@@ -1097,8 +1603,16 @@ module.exports = {
   getDailyAttendance,
   markAttendance,
   bulkMarkAttendance,
+  importAttendanceExcel,
   getMonthlyAttendance,
   exportAttendanceExcel,
+  getLeaves,
+  createLeave,
+  updateLeaveStatus,
+  getLoans,
+  createLoan,
+  updateLoan,
+  getProductionSummary,
   getMonthlyPayrollList,
   calculateMonthlyPayroll,
   adjustPayroll,

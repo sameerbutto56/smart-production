@@ -2803,36 +2803,51 @@ model EmployeeRecord {
   fatherName           String?
   dateOfBirth          String?
   phone                String?
-  email                String?
+  email                String?              // Personal contact email
   cnic                 String?
+  address              String?              // Residential address
   designation          String?
   department           String?
   branch               String?              // Branch / Outlet e.g. "Johar Town", "Railway Road"
   joiningDate          String?
   monthlySalary        Float                @default(0)
+  workingDays          Int                  @default(30)
   workingHours         Float                @default(8)
   checkInTime          String               @default("10:00") // Scheduled check-in
   checkOutTime         String               @default("18:00") // Scheduled check-out
+  breakTime            Int                  @default(60)      // Break time in minutes
   fuelAllowance        Float                @default(0)
   travelAllowance      Float                @default(0)
   otherAllowances      Float                @default(0)
   loan                 Float                @default(0)       // Total loan balance
   advance              Float                @default(0)       // Monthly advance deduction
   otherDeductions      Float                @default(0)
+  productionEligible   Boolean              @default(false)   // Production / Incentive Eligibility: Yes/No
   productionPercentage Float                @default(0)       // % commission e.g. 10 for 10%
   workType             String?              @default("STANDARD") // "ENGRAVING", "PRODUCTION", "STANDARD"
+  allowedLeaves        Float                @default(2)       // Monthly allowed leaves
   status               String               @default("ACTIVE") // "ACTIVE", "INACTIVE"
   notes                String?
+
+  // Employee Login / Self-Service Credentials
+  loginEmail           String?              @unique           // e.g. employee@enamels.com
+  passwordHash         String?                                // Bcrypt hashed password
+  loginEnabled         Boolean              @default(false)   // Account status: Enabled / Disabled
+  lastLogin            DateTime?
+
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
   attendanceRecords    EmployeeAttendance[]
   payrollRecords       MonthlyPayroll[]
+  leaves               EmployeeLeave[]
+  loansAndAdvances     EmployeeLoanAdvance[]
 
   @@index([employeeId])
   @@index([branch])
   @@index([department])
   @@index([status])
+  @@index([loginEmail])
 }
 
 model EmployeeAttendance {
@@ -2849,6 +2864,7 @@ model EmployeeAttendance {
   overtimeMinutes   Int             @default(0)
   status            String          @default("PRESENT") // "PRESENT", "ABSENT", "LATE", "HALF_DAY", "LEAVE"
   workingHours      Float           @default(8)
+  breakDuration     Int             @default(0)         // Break minutes
   notes             String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -2858,6 +2874,49 @@ model EmployeeAttendance {
   @@unique([employeeId, date])
   @@index([employeeId])
   @@index([date])
+  @@index([status])
+}
+
+model EmployeeLeave {
+  id           String          @id @default(uuid())
+  employeeId   String
+  employeeName String
+  leaveType    String          @default("CASUAL") // "CASUAL", "SICK", "ANNUAL", "UNPAID"
+  startDate    String          // "YYYY-MM-DD"
+  endDate      String          // "YYYY-MM-DD"
+  daysCount    Float           @default(1)
+  reason       String?
+  status       String          @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  employee     EmployeeRecord? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model EmployeeLoanAdvance {
+  id               String          @id @default(uuid())
+  employeeId       String
+  employeeName     String
+  type             String          @default("LOAN") // "LOAN" or "ADVANCE"
+  amount           Float           @default(0)
+  monthlyDeduction Float           @default(0)
+  remainingBalance Float           @default(0)
+  date             String          // "YYYY-MM-DD"
+  status           String          @default("ACTIVE") // "ACTIVE", "COMPLETED"
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  employee         EmployeeRecord? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([type])
   @@index([status])
 }
 
@@ -2883,6 +2942,8 @@ model MonthlyPayroll {
   fuelAllowance            Float           @default(0)
   travelAllowance          Float           @default(0)
   otherAllowances          Float           @default(0)
+  fullAttendanceBonus      Float           @default(0) // Full attendance bonus
+  reimbursement            Float           @default(0) // Reimbursements
   loanDeduction            Float           @default(0)
   advanceDeduction         Float           @default(0)
   otherDeductions          Float           @default(0)
@@ -2894,7 +2955,7 @@ model MonthlyPayroll {
   grossSalary              Float           @default(0)
   totalDeductions          Float           @default(0)
   netPayable               Float           @default(0)
-  status                   String          @default("DRAFT") // "DRAFT", "FINALIZED", "PAID"
+  status                   String          @default("DRAFT") // "DRAFT", "UNDER_REVIEW", "APPROVED", "FINALIZED", "PAID"
   finalizedAt              DateTime?
   finalizedBy              String?
   isFinalized              Boolean         @default(false)
@@ -2909,4 +2970,5 @@ model MonthlyPayroll {
   @@index([employeeId])
   @@index([status])
 }
+
 

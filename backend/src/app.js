@@ -135,8 +135,10 @@ const vendorRoutes = require('./routes/vendor.routes');
 const productDataRoutes = require('./routes/productData.routes');
 const abbottabadRoutes = require('./routes/abbottabad.routes');
 const employeeRoutes = require('./routes/employee.routes');
+const employeePortalRoutes = require('./routes/employeePortal.routes');
 
 app.use('/api/employees', employeeRoutes);
+app.use('/api/employee-portal', employeePortalRoutes);
 app.use('/api/abbottabad', abbottabadRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);

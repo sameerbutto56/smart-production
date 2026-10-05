@@ -216,6 +216,35 @@ const SoftwareSettings = () => {
     }
   };
 
+  // ── Employee Portal Master Switch state ──
+  const [employeePortalEnabled, setEmployeePortalEnabled] = useState(false);
+  const [portalSettingLoading, setPortalSettingLoading] = useState(false);
+
+  const fetchEmployeePortalSetting = useCallback(async () => {
+    try {
+      const res = await api.get('/api/settings');
+      const val = res.data?.['EMPLOYEE_PORTAL_ACCESS'];
+      const isOn = String(val).replace(/"/g, '').trim().toUpperCase() === 'ON';
+      setEmployeePortalEnabled(isOn);
+    } catch (err) {
+      console.error('Failed to load employee portal setting:', err);
+    }
+  }, []);
+
+  const handleToggleEmployeePortal = async () => {
+    try {
+      setPortalSettingLoading(true);
+      const newStatus = employeePortalEnabled ? 'OFF' : 'ON';
+      await api.post('/api/settings', { key: 'EMPLOYEE_PORTAL_ACCESS', value: newStatus });
+      setEmployeePortalEnabled(newStatus === 'ON');
+      toast.success(`Employee Portal Access is now ${newStatus}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update setting');
+    } finally {
+      setPortalSettingLoading(false);
+    }
+  };
+
   const fetchLoginUsers = useCallback(async () => {
     setLoginUsersLoading(true);
     try {
@@ -259,6 +288,12 @@ const SoftwareSettings = () => {
       setCreatingLoginUser(false);
     }
   };
+
+  useEffect(() => {
+    if (activeTab === 'employee-portal-settings') {
+      fetchEmployeePortalSetting();
+    }
+  }, [activeTab, fetchEmployeePortalSetting]);
 
 
   const fetchSessions = useCallback(async () => {
@@ -617,6 +652,7 @@ const SoftwareSettings = () => {
     { key: 'system-control', label: 'System Control', icon: <Shield size={16} /> },
     { key: 'marketing-locations', label: 'Marketing Location Management', icon: <Compass size={16} /> },
     { key: 'abbottabad-password', label: 'Abbottabad Password', icon: <Lock size={16} /> },
+    { key: 'employee-portal-settings', label: 'Employee Portal / Self-Service', icon: <Users size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
 
@@ -1666,6 +1702,86 @@ const SoftwareSettings = () => {
 
       {/* ═══════════════ MARKETING LOCATIONS CONFIG TAB ═══════════════ */}
       {activeTab === 'marketing-locations' && <MarketingLocationsConfigPanel />}
+
+      {/* ═══════════════ EMPLOYEE PORTAL / SELF-SERVICE MASTER SWITCH TAB ═══════════════ */}
+      {activeTab === 'employee-portal-settings' && (
+        <div className="flex-1 space-y-6">
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 shadow-xl max-w-2xl">
+            <div className="flex items-center gap-3 mb-5 border-b border-gray-800 pb-4">
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
+                <Users size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-white">Employee Self-Service / Employee Portal</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Global master switch controlling staff access to the Employee Self-Service login portal.
+                </p>
+              </div>
+            </div>
+
+            {/* Current Status Banner */}
+            <div className={`p-4 rounded-xl border mb-6 flex items-start gap-3 ${
+              employeePortalEnabled
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+            }`}>
+              <div className="mt-0.5">
+                {employeePortalEnabled ? <CheckCircle2 size={20} className="text-emerald-400" /> : <AlertTriangle size={20} className="text-rose-400" />}
+              </div>
+              <div>
+                <div className="font-bold text-sm">
+                  {employeePortalEnabled ? 'Employee Portal is ACTIVE (ON)' : 'Employee Portal is DISABLED (OFF)'}
+                </div>
+                <div className="text-xs mt-1 text-gray-300 leading-relaxed">
+                  {employeePortalEnabled
+                    ? 'Staff can log in with their company email/ID and view their own attendance, leaves, loans, and payroll statements.'
+                    : 'All employee logins are completely blocked at authentication level. Even with valid credentials, employee accounts cannot sign in.'}
+                </div>
+              </div>
+            </div>
+
+            {/* Master Switch Control */}
+            <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-5 mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">Employee Login Access</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Master toggle switch for all employee self-service accounts</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleEmployeePortal}
+                disabled={portalSettingLoading}
+                className={`relative px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${
+                  employeePortalEnabled
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                    : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30'
+                }`}
+              >
+                {portalSettingLoading ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <>
+                    <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                    {employeePortalEnabled ? 'ENABLED (ON)' : 'DISABLED (OFF)'}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Operational Guard Rules */}
+            <div className="bg-gray-950/70 border border-gray-800 rounded-xl p-4 text-xs space-y-2 text-gray-400">
+              <div className="font-bold text-gray-300 uppercase tracking-wider text-[11px] mb-1">
+                Security & Data Isolation Policy:
+              </div>
+              <ul className="list-disc pl-4 space-y-1">
+                <li><strong className="text-gray-300">Default setting is OFF:</strong> Employee portal cannot be accessed until explicitly turned ON here.</li>
+                <li><strong className="text-gray-300">Admin management unaffected:</strong> Admin can create, edit, calculate payroll, and mark attendance at all times regardless of this setting.</li>
+                <li><strong className="text-gray-300">Strict Backend Isolation:</strong> Authenticated employees can only query their own records using the server-validated Employee ID.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-16 pb-10 overflow-y-auto" onClick={() => setShowCreate(false)}>

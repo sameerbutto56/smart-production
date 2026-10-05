@@ -78,6 +78,8 @@ const ProductDataPage = lazy(() => import('./pages/ProductDataPage'));
 const OutletOrderLookup = lazy(() => import('./pages/OutletOrderLookup'));
 const OutletInvoiceQuotation = lazy(() => import('./pages/OutletInvoiceQuotation'));
 const EmployeeDataPage = lazy(() => import('./pages/EmployeeDataPage'));
+const EmployeePortalLogin = lazy(() => import('./pages/EmployeePortalLogin'));
+const EmployeePortalLayout = lazy(() => import('./pages/EmployeePortalLayout'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -283,6 +285,18 @@ function App() {
                 <Route path="/login" element={
                   <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
                     <Login />
+                  </Suspense>
+                } />
+
+                <Route path="/employee-portal/login" element={
+                  <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+                    <EmployeePortalLogin />
+                  </Suspense>
+                } />
+
+                <Route path="/employee-portal/*" element={
+                  <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+                    <EmployeePortalLayout />
                   </Suspense>
                 } />
                 

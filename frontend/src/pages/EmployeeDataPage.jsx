@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 import {
   Users,
   UserPlus,
@@ -9,6 +10,7 @@ import {
   DollarSign,
   Calculator,
   Download,
+  Upload,
   Printer,
   Edit2,
   CheckCircle2,
@@ -26,12 +28,17 @@ import {
   Phone,
   Briefcase,
   Lock,
-  ChevronDown
+  ChevronDown,
+  CreditCard,
+  PlusCircle,
+  Check,
+  FileText,
+  Key
 } from 'lucide-react';
 import { formatDateTime } from '../utils/dateTime';
 
 export default function EmployeeDataPage() {
-  const [activeTab, setActiveTab] = useState('employees'); // 'employees' | 'attendance' | 'payroll'
+  const [activeTab, setActiveTab] = useState('employees'); // 'employees' | 'attendance' | 'leaves' | 'loans' | 'production' | 'payroll'
   const [loading, setLoading] = useState(false);
 
   // --- Employees Tab State ---
@@ -42,6 +49,7 @@ export default function EmployeeDataPage() {
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [viewingEmployeeProfile, setViewingEmployeeProfile] = useState(null);
 
   // Employee Form State
   const initialEmployeeForm = {
@@ -52,24 +60,32 @@ export default function EmployeeDataPage() {
     phone: '',
     email: '',
     cnic: '',
+    address: '',
     designation: '',
     department: '',
     branch: 'Johar Town',
     joiningDate: '',
     monthlySalary: '',
+    workingDays: '30',
     workingHours: '8',
     checkInTime: '10:00',
     checkOutTime: '18:00',
+    breakTime: '60',
     fuelAllowance: '0',
     travelAllowance: '0',
     otherAllowances: '0',
     loan: '0',
     advance: '0',
     otherDeductions: '0',
+    productionEligible: false,
     productionPercentage: '0',
     workType: 'STANDARD', // 'STANDARD' | 'ENGRAVING' | 'CUSTOM'
+    allowedLeaves: '2',
     status: 'ACTIVE',
-    notes: ''
+    notes: '',
+    loginEmail: '',
+    password: '',
+    loginEnabled: false
   };
   const [employeeFormData, setEmployeeFormData] = useState(initialEmployeeForm);
 
@@ -83,15 +99,54 @@ export default function EmployeeDataPage() {
   const [attFormStatus, setAttFormStatus] = useState('PRESENT');
   const [attFormNotes, setAttFormNotes] = useState('');
 
-  // --- Monthly Attendance View State ---
+  // Attendance Excel Import Modal State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importedRows, setImportedRows] = useState([]);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importingFile, setImportingFile] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Monthly Attendance View State
   const [attMonthYear, setAttMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
   const [monthlyAttSummary, setMonthlyAttSummary] = useState([]);
+
+  // --- Leaves Tab State ---
+  const [leavesList, setLeavesList] = useState([]);
+  const [filterLeaveStatus, setFilterLeaveStatus] = useState('ALL');
+  const [isAddLeaveOpen, setIsAddLeaveOpen] = useState(false);
+  const [leaveFormData, setLeaveFormData] = useState({
+    employeeId: '',
+    leaveType: 'CASUAL',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
+    daysCount: '1',
+    reason: '',
+    status: 'APPROVED'
+  });
+
+  // --- Loans & Advances Tab State ---
+  const [loansList, setLoansList] = useState([]);
+  const [filterLoanType, setFilterLoanType] = useState('ALL');
+  const [isAddLoanOpen, setIsAddLoanOpen] = useState(false);
+  const [loanFormData, setLoanFormData] = useState({
+    employeeId: '',
+    type: 'LOAN',
+    amount: '',
+    monthlyDeduction: '',
+    date: new Date().toISOString().slice(0, 10),
+    notes: ''
+  });
+
+  // --- Production & Incentive Tab State ---
+  const [prodMonthYear, setProdMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
+  const [productionSummary, setProductionSummary] = useState([]);
 
   // --- Payroll Tab State ---
   const [payrollMonthYear, setPayrollMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
   const [payrolls, setPayrolls] = useState([]);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [isSlipOpen, setIsSlipOpen] = useState(false);
+  const [isFullPayrollPrintOpen, setIsFullPayrollPrintOpen] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [adjustFormData, setAdjustFormData] = useState({});
 
@@ -151,6 +206,57 @@ export default function EmployeeDataPage() {
     }
   };
 
+  // Fetch Leaves
+  const fetchLeaves = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/employees/leaves/list', {
+        params: { status: filterLeaveStatus }
+      });
+      if (res.data?.success) {
+        setLeavesList(res.data.leaves || []);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load leaves');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch Loans
+  const fetchLoans = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/employees/loans/list', {
+        params: { type: filterLoanType }
+      });
+      if (res.data?.success) {
+        setLoansList(res.data.records || []);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load loans');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch Production Summary
+  const fetchProductionSummary = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/employees/production/summary', {
+        params: { monthYear: prodMonthYear }
+      });
+      if (res.data?.success) {
+        setProductionSummary(res.data.employees || []);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load production summary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch Payroll List
   const fetchPayrolls = async () => {
     try {
@@ -168,17 +274,28 @@ export default function EmployeeDataPage() {
     }
   };
 
-  // Initial tab loading
+  // Tab change effect
   useEffect(() => {
-    if (activeTab === 'employees') {
-      fetchEmployees();
-    } else if (activeTab === 'attendance') {
+    if (activeTab === 'employees') fetchEmployees();
+    else if (activeTab === 'attendance') {
       fetchDailyAttendance();
       fetchMonthlyAttendance();
-    } else if (activeTab === 'payroll') {
-      fetchPayrolls();
-    }
-  }, [activeTab, filterStatus, filterBranch, filterDepartment, attendanceDate, attMonthYear, payrollMonthYear]);
+    } else if (activeTab === 'leaves') fetchLeaves();
+    else if (activeTab === 'loans') fetchLoans();
+    else if (activeTab === 'production') fetchProductionSummary();
+    else if (activeTab === 'payroll') fetchPayrolls();
+  }, [
+    activeTab,
+    filterStatus,
+    filterBranch,
+    filterDepartment,
+    attendanceDate,
+    attMonthYear,
+    filterLeaveStatus,
+    filterLoanType,
+    prodMonthYear,
+    payrollMonthYear
+  ]);
 
   // Debounced search for employees
   useEffect(() => {
@@ -207,26 +324,45 @@ export default function EmployeeDataPage() {
       phone: emp.phone || '',
       email: emp.email || '',
       cnic: emp.cnic || '',
+      address: emp.address || '',
       designation: emp.designation || '',
       department: emp.department || '',
       branch: emp.branch || 'Johar Town',
       joiningDate: emp.joiningDate || '',
       monthlySalary: String(emp.monthlySalary || 0),
+      workingDays: String(emp.workingDays || 30),
       workingHours: String(emp.workingHours || 8),
       checkInTime: emp.checkInTime || '10:00',
       checkOutTime: emp.checkOutTime || '18:00',
+      breakTime: String(emp.breakTime || 60),
       fuelAllowance: String(emp.fuelAllowance || 0),
       travelAllowance: String(emp.travelAllowance || 0),
       otherAllowances: String(emp.otherAllowances || 0),
       loan: String(emp.loan || 0),
       advance: String(emp.advance || 0),
       otherDeductions: String(emp.otherDeductions || 0),
+      productionEligible: Boolean(emp.productionEligible),
       productionPercentage: String(emp.productionPercentage || 0),
       workType: emp.workType || 'STANDARD',
+      allowedLeaves: String(emp.allowedLeaves || 2),
       status: emp.status || 'ACTIVE',
-      notes: emp.notes || ''
+      notes: emp.notes || '',
+      loginEmail: emp.loginEmail || '',
+      password: '',
+      loginEnabled: Boolean(emp.loginEnabled)
     });
     setIsAddEmployeeOpen(true);
+  };
+
+  const handleOpenProfileView = async (emp) => {
+    try {
+      const res = await api.get(`/employees/${emp.employeeId}`);
+      if (res.data?.success) {
+        setViewingEmployeeProfile(res.data.employee);
+      }
+    } catch (err) {
+      toast.error('Failed to load employee details');
+    }
   };
 
   const handleSaveEmployee = async (e) => {
@@ -258,6 +394,17 @@ export default function EmployeeDataPage() {
       fetchEmployees();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to toggle status');
+    }
+  };
+
+  const handleToggleLogin = async (emp) => {
+    const newEnabled = !emp.loginEnabled;
+    try {
+      await api.put(`/employees/${emp.employeeId}`, { loginEnabled: newEnabled });
+      toast.success(`Portal login ${newEnabled ? 'enabled' : 'disabled'} for ${emp.employeeId}`);
+      fetchEmployees();
+    } catch (err) {
+      toast.error('Failed to update login status');
     }
   };
 
@@ -320,10 +467,110 @@ export default function EmployeeDataPage() {
   };
 
   const handleExportAttendanceExcel = () => {
-    const token = localStorage.getItem('token');
     const url = `/api/employees/attendance/export-excel?monthYear=${attMonthYear}`;
     window.open(url, '_blank');
     toast.success('Downloading Attendance Excel Sheet...');
+  };
+
+  // --- Handlers: Excel File Upload & Import ---
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingFile(true);
+    setImportErrors([]);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        if (!data || data.length === 0) {
+          toast.error('The selected Excel sheet contains no rows');
+          setImportedRows([]);
+          return;
+        }
+
+        setImportedRows(data);
+        setIsImportModalOpen(true);
+      } catch (err) {
+        toast.error('Failed to parse Excel file: ' + err.message);
+      } finally {
+        setImportingFile(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleConfirmImport = async () => {
+    if (importedRows.length === 0) return;
+    try {
+      setLoading(true);
+      const res = await api.post('/employees/attendance/import-excel', { rows: importedRows });
+      if (res.data?.success) {
+        toast.success(`Successfully imported ${res.data.importedCount} attendance records!`);
+        if (res.data.errorsCount > 0) {
+          setImportErrors(res.data.errors);
+          toast.error(`${res.data.errorsCount} rows had validation errors.`);
+        } else {
+          setIsImportModalOpen(false);
+          setImportedRows([]);
+        }
+        fetchDailyAttendance();
+        fetchMonthlyAttendance();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to import attendance');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Handlers: Leaves ---
+  const handleSaveLeave = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      await api.post('/employees/leaves', leaveFormData);
+      toast.success('Leave recorded successfully');
+      setIsAddLeaveOpen(false);
+      fetchLeaves();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to record leave');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateLeaveStatus = async (leaveId, status) => {
+    try {
+      await api.put(`/employees/leaves/${leaveId}/status`, { status });
+      toast.success(`Leave status set to ${status}`);
+      fetchLeaves();
+    } catch (err) {
+      toast.error('Failed to update leave status');
+    }
+  };
+
+  // --- Handlers: Loans & Advances ---
+  const handleSaveLoan = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      await api.post('/employees/loans', loanFormData);
+      toast.success(`${loanFormData.type} record created successfully`);
+      setIsAddLoanOpen(false);
+      fetchLoans();
+      fetchEmployees();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save loan');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // --- Handlers: Payroll ---
@@ -353,13 +600,16 @@ export default function EmployeeDataPage() {
       fuelAllowance: payroll.fuelAllowance,
       travelAllowance: payroll.travelAllowance,
       otherAllowances: payroll.otherAllowances,
+      fullAttendanceBonus: payroll.fullAttendanceBonus || 0,
+      reimbursement: payroll.reimbursement || 0,
       loanDeduction: payroll.loanDeduction,
       advanceDeduction: payroll.advanceDeduction,
       otherDeductions: payroll.otherDeductions,
       eligibleProductionAmount: payroll.eligibleProductionAmount,
       productionEarning: payroll.productionEarning,
       manualAdjustment: payroll.manualAdjustment,
-      adjustmentNote: payroll.adjustmentNote || ''
+      adjustmentNote: payroll.adjustmentNote || '',
+      status: payroll.status
     });
     setIsAdjustModalOpen(true);
   };
@@ -381,7 +631,7 @@ export default function EmployeeDataPage() {
   };
 
   const handleFinalizePayroll = async () => {
-    if (!window.confirm(`Are you sure you want to FINALIZE and FREEZE payroll for ${payrollMonthYear}? Once finalized, records cannot be edited.`)) return;
+    if (!window.confirm(`Are you sure you want to FINALIZE and FREEZE payroll for ${payrollMonthYear}? Once finalized, all records and balances are frozen.`)) return;
     try {
       setLoading(true);
       const res = await api.post('/employees/payroll/finalize', { monthYear: payrollMonthYear });
@@ -403,10 +653,6 @@ export default function EmployeeDataPage() {
   const handleOpenPaySlip = (payroll) => {
     setSelectedPayroll(payroll);
     setIsSlipOpen(true);
-  };
-
-  const handlePrintSlip = () => {
-    window.print();
   };
 
   // Unique lists for filtering
@@ -436,49 +682,91 @@ export default function EmployeeDataPage() {
                 Employee Data & Payroll System
               </h1>
               <p className="text-xs sm:text-sm text-slate-400 font-medium">
-                Complete staff profiles, attendance tracking, 3-late penalty rules, engraving earnings & monthly payroll
+                Comprehensive staff directory, attendance tracking, leaves, loans, engraving incentives & monthly payroll
               </p>
             </div>
           </div>
         </div>
 
         {/* Action Tabs Navigation */}
-        <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 p-1.5 rounded-2xl shadow-inner">
+        <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-2xl shadow-inner overflow-x-auto">
           <button
             onClick={() => setActiveTab('employees')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === 'employees'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            <Users size={16} />
+            <Users size={15} />
             Staff Directory ({employees.length})
           </button>
           <button
             onClick={() => setActiveTab('attendance')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === 'attendance'
                 ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            <Clock size={16} />
-            Attendance & Late Rules
+            <Clock size={15} />
+            Attendance & Import
           </button>
           <button
-            onClick={() => setActiveTab('payroll')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              activeTab === 'payroll'
+            onClick={() => setActiveTab('leaves')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+              activeTab === 'leaves'
+                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Calendar size={15} />
+            Leaves ({leavesList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('loans')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+              activeTab === 'loans'
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            <DollarSign size={16} />
+            <CreditCard size={15} />
+            Loans & Advances ({loansList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('production')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+              activeTab === 'production'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Award size={15} />
+            Production Incentives
+          </button>
+          <button
+            onClick={() => setActiveTab('payroll')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+              activeTab === 'payroll'
+                ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <DollarSign size={15} />
             Monthly Payroll ({payrolls.length})
           </button>
         </div>
       </div>
+
+      {/* Hidden File Input for Excel Import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept=".xlsx, .xls, .csv"
+        className="hidden"
+      />
 
       {/* ========================================================================= */}
       {/* TAB 1: EMPLOYEES DIRECTORY */}
@@ -491,7 +779,7 @@ export default function EmployeeDataPage() {
               <div>
                 <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Employees</p>
                 <h3 className="text-2xl font-black text-white mt-1">{employees.length}</h3>
-                <span className="text-[11px] text-slate-500">Registered in company</span>
+                <span className="text-[11px] text-slate-500">Registered staff profiles</span>
               </div>
               <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
                 <Users size={22} />
@@ -511,22 +799,24 @@ export default function EmployeeDataPage() {
 
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Inactive Staff</p>
-                <h3 className="text-2xl font-black text-amber-400 mt-1">{employees.length - activeCount}</h3>
-                <span className="text-[11px] text-amber-500/70">Deactivated / Left</span>
+                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Portal Enabled</p>
+                <h3 className="text-2xl font-black text-purple-400 mt-1">
+                  {employees.filter(e => e.loginEnabled).length}
+                </h3>
+                <span className="text-[11px] text-purple-500/70">Self-service logins</span>
               </div>
-              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
-                <AlertTriangle size={22} />
+              <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl">
+                <Key size={22} />
               </div>
             </div>
 
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Base Salary Budget</p>
-                <h3 className="text-2xl font-black text-purple-400 mt-1">₨ {totalSalaryBudget.toLocaleString()}</h3>
-                <span className="text-[11px] text-purple-500/70">Active base commitment</span>
+                <h3 className="text-2xl font-black text-teal-400 mt-1">₨ {totalSalaryBudget.toLocaleString()}</h3>
+                <span className="text-[11px] text-teal-500/70">Active monthly base commitment</span>
               </div>
-              <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl">
+              <div className="p-3 bg-teal-500/10 text-teal-400 rounded-xl">
                 <DollarSign size={22} />
               </div>
             </div>
@@ -539,7 +829,7 @@ export default function EmployeeDataPage() {
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by ID, Name, Phone, Designation..."
+                  placeholder="Search by ID, Name, Phone, Designation, Login Email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
@@ -594,11 +884,12 @@ export default function EmployeeDataPage() {
                 <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
                   <tr>
                     <th className="py-3 px-4">Employee ID</th>
-                    <th className="py-3 px-4">Name & Personal</th>
+                    <th className="py-3 px-4">Name & Designation</th>
                     <th className="py-3 px-4">Branch & Dept</th>
                     <th className="py-3 px-4">Shift & Hours</th>
-                    <th className="py-3 px-4">Monthly Salary</th>
-                    <th className="py-3 px-4">Allowances / Deductions</th>
+                    <th className="py-3 px-4">Basic Salary</th>
+                    <th className="py-3 px-4">Portal Login</th>
+                    <th className="py-3 px-4">Loan / Adv Balance</th>
                     <th className="py-3 px-4">Production %</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
@@ -607,7 +898,7 @@ export default function EmployeeDataPage() {
                 <tbody className="divide-y divide-slate-800/60 font-medium">
                   {employees.length === 0 ? (
                     <tr>
-                      <td colSpan="9" className="py-12 text-center text-slate-500">
+                      <td colSpan="10" className="py-12 text-center text-slate-500">
                         {loading ? 'Loading staff records...' : 'No employees found matching the filters.'}
                       </td>
                     </tr>
@@ -615,9 +906,12 @@ export default function EmployeeDataPage() {
                     employees.map((emp) => (
                       <tr key={emp.employeeId} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-mono font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20">
+                          <button
+                            onClick={() => handleOpenProfileView(emp)}
+                            className="font-mono font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20"
+                          >
                             {emp.employeeId}
-                          </span>
+                          </button>
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-bold text-white text-sm">{emp.name}</div>
@@ -625,9 +919,6 @@ export default function EmployeeDataPage() {
                             {emp.designation && <span>{emp.designation}</span>}
                             {emp.phone && <span className="text-slate-500 font-mono">• {emp.phone}</span>}
                           </div>
-                          {emp.fatherName && (
-                            <div className="text-[11px] text-slate-500">S/O: {emp.fatherName}</div>
-                          )}
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-semibold text-slate-200">{emp.branch || '—'}</div>
@@ -639,30 +930,42 @@ export default function EmployeeDataPage() {
                             {emp.checkInTime || '10:00'} - {emp.checkOutTime || '18:00'}
                           </div>
                           <div className="text-[11px] text-slate-400 mt-0.5">
-                            {emp.workingHours || 8} hrs/day
+                            {emp.workingHours || 8} hrs ({emp.breakTime || 60}m break)
                           </div>
                         </td>
                         <td className="py-3 px-4 font-mono font-bold text-emerald-400">
                           ₨ {(emp.monthlySalary || 0).toLocaleString()}
                         </td>
                         <td className="py-3 px-4 text-xs">
-                          <div className="text-slate-300">
-                            Fuel: <span className="font-mono text-purple-400">₨ {emp.fuelAllowance || 0}</span>
-                          </div>
-                          <div className="text-slate-400 text-[11px]">
-                            Loan: <span className="font-mono text-rose-400">₨ {emp.loan || 0}</span>
-                            {emp.advance > 0 && <span className="ml-1">| Adv: ₨ {emp.advance}</span>}
-                          </div>
+                          {emp.loginEmail ? (
+                            <div>
+                              <div className="font-mono text-blue-400 text-[11px]">{emp.loginEmail}</div>
+                              <button
+                                onClick={() => handleToggleLogin(emp)}
+                                className={`text-[10px] font-bold uppercase mt-0.5 px-1.5 py-0.2 rounded ${
+                                  emp.loginEnabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                                }`}
+                              >
+                                {emp.loginEnabled ? 'Login Enabled' : 'Login Disabled'}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-600 text-xs">No email set</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-xs font-mono">
+                          <div className="text-rose-400">Loan: ₨ {(emp.loan || 0).toLocaleString()}</div>
+                          {emp.advance > 0 && <div className="text-amber-400 text-[11px]">Adv: ₨ {emp.advance.toLocaleString()}</div>}
                         </td>
                         <td className="py-3 px-4">
-                          {emp.productionPercentage > 0 ? (
+                          {emp.productionPercentage > 0 || emp.productionEligible ? (
                             <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-lg text-xs font-bold font-mono">
                               <Percent size={12} />
                               {emp.productionPercentage}%
                               <span className="text-[10px] text-amber-300/70">({emp.workType})</span>
                             </span>
                           ) : (
-                            <span className="text-slate-600 text-xs">None (0%)</span>
+                            <span className="text-slate-600 text-xs">0%</span>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -679,9 +982,16 @@ export default function EmployeeDataPage() {
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
+                              onClick={() => handleOpenProfileView(emp)}
+                              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg transition-all"
+                              title="View Full Profile & History"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
                               onClick={() => handleOpenEdit(emp)}
                               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg transition-all"
-                              title="Edit Employee"
+                              title="Edit Employee & Credentials"
                             >
                               <Edit2 size={14} />
                             </button>
@@ -709,11 +1019,11 @@ export default function EmployeeDataPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: ATTENDANCE & TIME MANAGEMENT */}
+      {/* TAB 2: ATTENDANCE & TIME MANAGEMENT + EXCEL IMPORT */}
       {/* ========================================================================= */}
       {activeTab === 'attendance' && (
         <div className="space-y-6 print:hidden">
-          {/* Top Controls: Date Selector, Bulk Mark, Excel Export */}
+          {/* Top Controls: Date Selector, Bulk Mark, Excel Import, Excel Export */}
           <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
@@ -748,6 +1058,14 @@ export default function EmployeeDataPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importingFile}
+                className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all"
+              >
+                <Upload size={16} />
+                Import Attendance Excel
+              </button>
               <button
                 onClick={handleBulkMarkPresent}
                 className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/30 transition-all"
@@ -991,7 +1309,289 @@ export default function EmployeeDataPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: MONTHLY PAYROLL SYSTEM */}
+      {/* TAB 3: LEAVES MANAGEMENT */}
+      {/* ========================================================================= */}
+      {activeTab === 'leaves' && (
+        <div className="space-y-6 print:hidden">
+          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <h3 className="font-black text-white text-base">Leaves Management</h3>
+                <p className="text-xs text-slate-400">Review staff leave requests, approve or reject applications</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                value={filterLeaveStatus}
+                onChange={(e) => setFilterLeaveStatus(e.target.value)}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-300 focus:outline-none"
+              >
+                <option value="ALL">All Status</option>
+                <option value="PENDING">Pending Only</option>
+                <option value="APPROVED">Approved Only</option>
+                <option value="REJECTED">Rejected Only</option>
+              </select>
+
+              <button
+                onClick={() => setIsAddLeaveOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all"
+              >
+                <PlusCircle size={16} />
+                Record Leave
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-300">
+                <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  <tr>
+                    <th className="py-3 px-4">Employee ID</th>
+                    <th className="py-3 px-4">Employee Name</th>
+                    <th className="py-3 px-4">Leave Type</th>
+                    <th className="py-3 px-4">Start Date</th>
+                    <th className="py-3 px-4">End Date</th>
+                    <th className="py-3 px-4">Days</th>
+                    <th className="py-3 px-4">Reason</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Approval Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-medium">
+                  {leavesList.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" className="py-8 text-center text-slate-500">
+                        {loading ? 'Loading leaves...' : 'No leave records found.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    leavesList.map((l) => (
+                      <tr key={l.id} className="hover:bg-slate-800/40">
+                        <td className="py-3 px-4 font-mono font-bold text-blue-400">{l.employeeId}</td>
+                        <td className="py-3 px-4 font-bold text-white">{l.employeeName}</td>
+                        <td className="py-3 px-4">{l.leaveType}</td>
+                        <td className="py-3 px-4 font-mono">{l.startDate}</td>
+                        <td className="py-3 px-4 font-mono">{l.endDate}</td>
+                        <td className="py-3 px-4 font-mono text-emerald-400 font-bold">{l.daysCount}</td>
+                        <td className="py-3 px-4 text-slate-400">{l.reason || '—'}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                              l.status === 'APPROVED'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                : l.status === 'REJECTED'
+                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                            }`}
+                          >
+                            {l.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {l.status === 'PENDING' ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleUpdateLeaveStatus(l.id, 'APPROVED')}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleUpdateLeaveStatus(l.id, 'REJECTED')}
+                                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">By {l.approvedBy || 'Admin'}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: LOANS & ADVANCES MANAGEMENT */}
+      {/* ========================================================================= */}
+      {activeTab === 'loans' && (
+        <div className="space-y-6 print:hidden">
+          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl">
+                <CreditCard size={20} />
+              </div>
+              <div>
+                <h3 className="font-black text-white text-base">Loan & Advance Management</h3>
+                <p className="text-xs text-slate-400">Track loans, monthly deduction schedules, and remaining carry-forward balances</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                value={filterLoanType}
+                onChange={(e) => setFilterLoanType(e.target.value)}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-300 focus:outline-none"
+              >
+                <option value="ALL">All Types</option>
+                <option value="LOAN">Loan Only</option>
+                <option value="ADVANCE">Advance Only</option>
+              </select>
+
+              <button
+                onClick={() => setIsAddLoanOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all"
+              >
+                <PlusCircle size={16} />
+                Issue Loan / Advance
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-300">
+                <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  <tr>
+                    <th className="py-3 px-4">Employee ID</th>
+                    <th className="py-3 px-4">Employee Name</th>
+                    <th className="py-3 px-4">Type</th>
+                    <th className="py-3 px-4">Issued Date</th>
+                    <th className="py-3 px-4">Total Amount</th>
+                    <th className="py-3 px-4">Monthly Deduction</th>
+                    <th className="py-3 px-4">Remaining Balance</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-medium">
+                  {loansList.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" className="py-8 text-center text-slate-500">
+                        {loading ? 'Loading loans...' : 'No loans or advance records found.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    loansList.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-slate-800/40">
+                        <td className="py-3 px-4 font-mono font-bold text-blue-400">{rec.employeeId}</td>
+                        <td className="py-3 px-4 font-bold text-white">{rec.employeeName}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            rec.type === 'LOAN' ? 'bg-purple-500/20 text-purple-300' : 'bg-amber-500/20 text-amber-300'
+                          }`}>
+                            {rec.type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono">{rec.date}</td>
+                        <td className="py-3 px-4 font-mono">₨ {rec.amount?.toLocaleString()}</td>
+                        <td className="py-3 px-4 font-mono text-purple-400">₨ {rec.monthlyDeduction?.toLocaleString()}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-rose-400">₨ {rec.remainingBalance?.toLocaleString()}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            rec.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                          }`}>
+                            {rec.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-400">{rec.notes || '—'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: PRODUCTION & ENGRAVING INCENTIVE */}
+      {/* ========================================================================= */}
+      {activeTab === 'production' && (
+        <div className="space-y-6 print:hidden">
+          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl">
+                <Award size={20} />
+              </div>
+              <div>
+                <h3 className="font-black text-white text-base">Production & Engraving Incentives</h3>
+                <p className="text-xs text-slate-400">
+                  Calculated strictly on actual eligible engraving work (logoCharges + namePrintingCharges) per branch
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-bold">Month:</span>
+              <input
+                type="month"
+                value={prodMonthYear}
+                onChange={(e) => setProdMonthYear(e.target.value)}
+                className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {productionSummary.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-slate-500 bg-slate-900/40 rounded-2xl border border-slate-800">
+                {loading ? 'Calculating production incentives...' : 'No production-eligible employees found.'}
+              </div>
+            ) : (
+              productionSummary.map((emp) => (
+                <div key={emp.employeeId} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-mono text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded">
+                        {emp.employeeId}
+                      </span>
+                      <h4 className="font-black text-white text-base mt-1">{emp.name}</h4>
+                      <p className="text-xs text-slate-400">Branch: {emp.branch || 'Railway Road'} • {emp.workType}</p>
+                    </div>
+                    <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2.5 py-1 rounded-xl text-xs font-mono font-bold">
+                      {emp.percentage}% Share
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Eligible Orders</span>
+                      <span className="font-mono font-bold text-white text-sm">{emp.ordersCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Total Engraving Work</span>
+                      <span className="font-mono font-bold text-white text-sm">₨ {emp.totalEligibleAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                    <span className="text-xs uppercase font-bold text-slate-400">Calculated Incentive:</span>
+                    <span className="text-base font-black font-mono text-emerald-400">
+                      ₨ {emp.incentiveAmount.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 6: MONTHLY PAYROLL SYSTEM */}
       {/* ========================================================================= */}
       {activeTab === 'payroll' && (
         <div className="space-y-6 print:hidden">
@@ -1052,6 +1652,15 @@ export default function EmployeeDataPage() {
               </button>
 
               <button
+                onClick={() => setIsFullPayrollPrintOpen(true)}
+                disabled={payrolls.length === 0}
+                className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-600/30 transition-all"
+              >
+                <Printer size={16} />
+                Print Monthly Sheet
+              </button>
+
+              <button
                 onClick={handleExportPayrollExcel}
                 className="flex items-center gap-2 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-purple-600/30 transition-all"
               >
@@ -1089,7 +1698,7 @@ export default function EmployeeDataPage() {
               <div>
                 <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Net Payable Amount</p>
                 <h3 className="text-2xl font-black text-emerald-400 mt-1">₨ {totalPayrollNet.toLocaleString()}</h3>
-                <span className="text-[11px] text-emerald-500/70">Disbursement for {payrollMonthYear}</span>
+                <span className="text-[11px] text-emerald-500/70">Total net payroll for {payrollMonthYear}</span>
               </div>
               <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
                 <CheckCircle2 size={22} />
@@ -1112,107 +1721,200 @@ export default function EmployeeDataPage() {
             </div>
           </div>
 
-          {/* Payroll List Table */}
+          {/* Full Excel-Compatible Payroll List Table */}
           <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm text-slate-300">
                 <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
                   <tr>
-                    <th className="py-3 px-4">Employee ID</th>
-                    <th className="py-3 px-4">Employee Name</th>
-                    <th className="py-3 px-4">Branch</th>
-                    <th className="py-3 px-4">Basic Salary</th>
-                    <th className="py-3 px-4">Allowances</th>
-                    <th className="py-3 px-4">Overtime Pay</th>
-                    <th className="py-3 px-4">Production % Earning</th>
-                    <th className="py-3 px-4">Total Deductions</th>
-                    <th className="py-3 px-4">Net Payable</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-3">Sr</th>
+                    <th className="py-3 px-3">Employee ID</th>
+                    <th className="py-3 px-3">Employee</th>
+                    <th className="py-3 px-3">Location</th>
+                    <th className="py-3 px-3">Worked</th>
+                    <th className="py-3 px-3">Gross Pay</th>
+                    <th className="py-3 px-3">Fuel</th>
+                    <th className="py-3 px-3">Absent Ded</th>
+                    <th className="py-3 px-3">Late Ded</th>
+                    <th className="py-3 px-3">Adv Ded</th>
+                    <th className="py-3 px-3">Loan Ded</th>
+                    <th className="py-3 px-3">Overtime</th>
+                    <th className="py-3 px-3">Incentive</th>
+                    <th className="py-3 px-3">Net Pay</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-medium">
                   {payrolls.length === 0 ? (
                     <tr>
-                      <td colSpan="11" className="py-12 text-center text-slate-500">
+                      <td colSpan="16" className="py-12 text-center text-slate-500">
                         {loading ? 'Loading payroll records...' : 'No payroll generated yet for this month. Click "Calculate Monthly Payroll" to compute.'}
                       </td>
                     </tr>
                   ) : (
-                    payrolls.map((p) => {
-                      const totalAllow = (p.fuelAllowance || 0) + (p.travelAllowance || 0) + (p.otherAllowances || 0);
-                      return (
-                        <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3 px-4 font-mono font-bold text-blue-400">
-                            {p.employeeId}
-                          </td>
-                          <td className="py-3 px-4 font-bold text-white">
-                            {p.employeeName}
-                          </td>
-                          <td className="py-3 px-4 text-slate-400">
-                            {p.branch || '—'}
-                          </td>
-                          <td className="py-3 px-4 font-mono">
-                            ₨ {(p.basicSalary || 0).toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-purple-400">
-                            ₨ {totalAllow.toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-amber-400">
-                            ₨ {(p.overtimeAmount || 0).toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4">
-                            {p.productionEarning > 0 ? (
-                              <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                                ₨ {p.productionEarning.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="text-slate-600 font-mono">₨ 0</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-rose-400 font-bold">
-                            -₨ {(p.totalDeductions || 0).toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4 font-mono font-black text-emerald-400 text-sm">
-                            ₨ {(p.netPayable || 0).toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                p.isFinalized
-                                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                                  : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
-                              }`}
+                    payrolls.map((p, idx) => (
+                      <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-3 text-slate-500 font-mono">{idx + 1}</td>
+                        <td className="py-3 px-3 font-mono font-bold text-blue-400">
+                          {p.employeeId}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-white">{p.employeeName}</div>
+                          <div className="text-[10px] text-slate-500">{p.designation || 'Staff'}</div>
+                        </td>
+                        <td className="py-3 px-3 text-slate-400 text-xs">
+                          {p.branch || '—'}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-emerald-400">
+                          {p.presentDays}d
+                        </td>
+                        <td className="py-3 px-3 font-mono text-white">
+                          ₨ {(p.grossSalary || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-purple-400 text-xs">
+                          ₨ {(p.fuelAllowance || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-rose-400 text-xs">
+                          {p.absentDeductions > 0 ? `-₨ ${p.absentDeductions.toLocaleString()}` : '—'}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-rose-400 text-xs">
+                          {p.lateDeductions > 0 ? `-₨ ${p.lateDeductions.toLocaleString()}` : '—'}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-rose-400 text-xs">
+                          {p.advanceDeduction > 0 ? `-₨ ${p.advanceDeduction.toLocaleString()}` : '—'}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-rose-400 text-xs">
+                          {p.loanDeduction > 0 ? `-₨ ${p.loanDeduction.toLocaleString()}` : '—'}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-purple-400 text-xs">
+                          {p.overtimeAmount > 0 ? `+₨ ${p.overtimeAmount.toLocaleString()}` : '—'}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-emerald-400 text-xs">
+                          {p.productionEarning > 0 ? `+₨ ${p.productionEarning.toLocaleString()}` : '—'}
+                        </td>
+                        <td className="py-3 px-3 font-mono font-black text-emerald-400 text-sm">
+                          ₨ {(p.netPayable || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              p.isFinalized
+                                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                                : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                            }`}
+                          >
+                            {p.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenPaySlip(p)}
+                              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg transition-all"
+                              title="View Pay Slip & Full Breakdown"
                             >
-                              {p.isFinalized ? 'FINAL' : 'DRAFT'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                              <Eye size={14} />
+                            </button>
+                            {!p.isFinalized && (
                               <button
-                                onClick={() => handleOpenPaySlip(p)}
-                                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg transition-all"
-                                title="View Pay Slip & Full Breakdown"
+                                onClick={() => handleOpenAdjustModal(p)}
+                                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg transition-all"
+                                title="Edit / Adjust Payroll"
                               >
-                                <Eye size={14} />
+                                <Edit2 size={14} />
                               </button>
-                              {!p.isFinalized && (
-                                <button
-                                  onClick={() => handleOpenAdjustModal(p)}
-                                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg transition-all"
-                                  title="Edit / Adjust Payroll"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EXCEL ATTENDANCE IMPORT PREVIEW */}
+      {/* ========================================================================= */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <Upload size={20} className="text-blue-400" />
+                Attendance Excel Import Preview ({importedRows.length} rows)
+              </h3>
+              <button onClick={() => setIsImportModalOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                <X size={16} />
+              </button>
+            </div>
+
+            {importErrors.length > 0 && (
+              <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl mb-4 text-xs text-rose-300 space-y-1">
+                <span className="font-bold block text-rose-200">Validation Notice:</span>
+                {importErrors.map((err, i) => (
+                  <div key={i}>• {err}</div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-slate-400 mb-3">
+              Matches rows strictly by <strong>Employee ID</strong>. 15-minute check-in grace period, 10-minute early checkout tolerance, and 15-minute overtime thresholds will be calculated automatically.
+            </p>
+
+            <div className="overflow-x-auto max-h-[50vh] border border-slate-800 rounded-2xl mb-4">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 sticky top-0">
+                  <tr>
+                    <th className="py-2.5 px-3">#</th>
+                    <th className="py-2.5 px-3">Employee ID</th>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Check-in</th>
+                    <th className="py-2.5 px-3">Check-out</th>
+                    <th className="py-2.5 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono">
+                  {importedRows.slice(0, 100).map((r, i) => (
+                    <tr key={i} className="hover:bg-slate-850/40">
+                      <td className="py-2 px-3 text-slate-500">{i + 1}</td>
+                      <td className="py-2 px-3 font-bold text-blue-400">
+                        {r['Employee ID'] || r['employeeId'] || r['EmployeeID'] || '—'}
+                      </td>
+                      <td className="py-2 px-3 text-white">{r['Date'] || r['date'] || '—'}</td>
+                      <td className="py-2 px-3 text-emerald-400">{r['Check-in'] || r['CheckIn'] || '--:--'}</td>
+                      <td className="py-2 px-3 text-blue-400">{r['Check-out'] || r['CheckOut'] || '--:--'}</td>
+                      <td className="py-2 px-3 text-purple-400">{r['Attendance Status'] || r['Status'] || 'PRESENT'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <span className="text-xs text-slate-400">Showing first 100 of {importedRows.length} rows</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmImport}
+                  disabled={loading}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 flex items-center gap-2"
+                >
+                  <CheckCircle2 size={16} />
+                  Confirm & Sync Attendance
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1233,7 +1935,7 @@ export default function EmployeeDataPage() {
                   <h3 className="text-xl font-black text-white">
                     {editingEmployee ? `Edit Employee (${editingEmployee.employeeId})` : 'Create New Employee'}
                   </h3>
-                  <p className="text-xs text-slate-400">Complete staff profile, shift timings, allowances & production percentage</p>
+                  <p className="text-xs text-slate-400">Complete staff profile, shift timings, allowances, production & login credentials</p>
                 </div>
               </div>
               <button
@@ -1312,6 +2014,16 @@ export default function EmployeeDataPage() {
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
+                  <div className="sm:col-span-3">
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Residential Address</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. House # 12, Street 4, Lahore"
+                      value={employeeFormData.address}
+                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, address: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1379,22 +2091,21 @@ export default function EmployeeDataPage() {
                     <span className="text-[10px] text-slate-500 mt-0.5 block">10m early grace, 15m OT start</span>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Working Hours / Day</label>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Break Time (Minutes)</label>
                     <input
                       type="number"
-                      step="0.5"
-                      value={employeeFormData.workingHours}
-                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, workingHours: e.target.value })}
+                      value={employeeFormData.breakTime}
+                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, breakTime: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Section 3: Salary, Allowances, Loans, Production % */}
+              {/* Section 3: Salary, Allowances, Production % */}
               <div>
                 <h4 className="text-xs font-black uppercase tracking-wider text-purple-400 mb-3 flex items-center gap-1.5">
-                  <DollarSign size={14} /> Salary, Allowances, Loans & Production Incentive
+                  <DollarSign size={14} /> Salary, Allowances & Production Incentive
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
@@ -1429,32 +2140,11 @@ export default function EmployeeDataPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Loan Balance (₨)</label>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Allowed Monthly Leaves</label>
                     <input
                       type="number"
-                      placeholder="0"
-                      value={employeeFormData.loan}
-                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, loan: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Salary Advance (₨)</label>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={employeeFormData.advance}
-                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, advance: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Other Monthly Deductions (₨)</label>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={employeeFormData.otherDeductions}
-                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, otherDeductions: e.target.value })}
+                      value={employeeFormData.allowedLeaves}
+                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, allowedLeaves: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"
                     />
                   </div>
@@ -1471,7 +2161,6 @@ export default function EmployeeDataPage() {
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-0.5 block">e.g. Engraving share</span>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">Work Type</label>
@@ -1484,6 +2173,49 @@ export default function EmployeeDataPage() {
                       <option value="ENGRAVING">Engraving / Logo Production</option>
                       <option value="CUSTOM">Custom Tailoring</option>
                     </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Employee Portal Login Credentials */}
+              <div className="bg-slate-950/60 p-4 rounded-2xl border border-blue-500/30">
+                <h4 className="text-xs font-black uppercase tracking-wider text-blue-400 mb-3 flex items-center gap-1.5">
+                  <Key size={14} /> Employee Self-Service Login Credentials
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Portal Login Email</label>
+                    <input
+                      type="email"
+                      placeholder="e.g. employee@enamels.com"
+                      value={employeeFormData.loginEmail}
+                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, loginEmail: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">
+                      {editingEmployee ? 'Reset Password (optional)' : 'Initial Password'}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={editingEmployee ? 'Leave empty to keep unchanged' : 'Default: Enamels1212'}
+                      value={employeeFormData.password}
+                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, password: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <label className="flex items-center gap-2 cursor-pointer mt-4">
+                      <input
+                        type="checkbox"
+                        checked={employeeFormData.loginEnabled}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, loginEnabled: e.target.checked })}
+                        className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-800 focus:ring-0"
+                      />
+                      <span className="text-xs font-bold text-slate-200">Enable Employee Self-Service Login</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 mt-1">Requires Software Settings master switch ON</span>
                   </div>
                 </div>
               </div>
@@ -1507,6 +2239,86 @@ export default function EmployeeDataPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: VIEW COMPLETE EMPLOYEE PROFILE */}
+      {/* ========================================================================= */}
+      {viewingEmployeeProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <Users size={20} className="text-blue-400" />
+                  {viewingEmployeeProfile.name} ({viewingEmployeeProfile.employeeId})
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {viewingEmployeeProfile.designation} • {viewingEmployeeProfile.department} ({viewingEmployeeProfile.branch})
+                </p>
+              </div>
+              <button onClick={() => setViewingEmployeeProfile(null)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs mb-6">
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase font-bold block">Monthly Salary</span>
+                <span className="font-mono font-bold text-emerald-400 text-sm">
+                  ₨ {(viewingEmployeeProfile.monthlySalary || 0).toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase font-bold block">Fuel Allowance</span>
+                <span className="font-mono font-bold text-purple-400 text-sm">
+                  ₨ {(viewingEmployeeProfile.fuelAllowance || 0).toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase font-bold block">Portal Login Email</span>
+                <span className="font-mono font-bold text-blue-400 text-sm">
+                  {viewingEmployeeProfile.loginEmail || 'Not configured'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase font-bold block">Portal Status</span>
+                <span className={`font-bold text-xs ${viewingEmployeeProfile.loginEnabled ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {viewingEmployeeProfile.loginEnabled ? 'Active / Enabled' : 'Disabled'}
+                </span>
+              </div>
+            </div>
+
+            {/* Attendance Snapshot */}
+            <div className="mb-6">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 mb-2">Recent Attendance Records (Last 10)</h4>
+              <div className="border border-slate-800 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-400 font-bold">
+                    <tr>
+                      <th className="p-2">Date</th>
+                      <th className="p-2">Check-in</th>
+                      <th className="p-2">Check-out</th>
+                      <th className="p-2">Late Mins</th>
+                      <th className="p-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                    {viewingEmployeeProfile.attendanceRecords?.slice(0, 10).map((a) => (
+                      <tr key={a.id}>
+                        <td className="p-2">{a.date}</td>
+                        <td className="p-2 text-emerald-400">{a.checkInTime || '--:--'}</td>
+                        <td className="p-2 text-blue-400">{a.checkOutTime || '--:--'}</td>
+                        <td className="p-2 text-rose-400">{a.lateMinutes > 0 ? `+${a.lateMinutes}m` : '0'}</td>
+                        <td className="p-2 text-white">{a.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1610,6 +2422,231 @@ export default function EmployeeDataPage() {
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL: ADD / RECORD LEAVE */}
+      {/* ========================================================================= */}
+      {isAddLeaveOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <Calendar size={18} className="text-amber-400" />
+                Record Employee Leave
+              </h3>
+              <button onClick={() => setIsAddLeaveOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLeave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Select Employee *</label>
+                <select
+                  required
+                  value={leaveFormData.employeeId}
+                  onChange={(e) => setLeaveFormData({ ...leaveFormData, employeeId: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                >
+                  <option value="">-- Choose Employee --</option>
+                  {employees.map(e => (
+                    <option key={e.employeeId} value={e.employeeId}>
+                      {e.employeeId} - {e.name} ({e.branch})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Leave Type</label>
+                <select
+                  value={leaveFormData.leaveType}
+                  onChange={(e) => setLeaveFormData({ ...leaveFormData, leaveType: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                >
+                  <option value="CASUAL">Casual Leave</option>
+                  <option value="SICK">Medical / Sick Leave</option>
+                  <option value="ANNUAL">Annual Leave</option>
+                  <option value="UNPAID">Unpaid Leave</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={leaveFormData.startDate}
+                    onChange={(e) => setLeaveFormData({ ...leaveFormData, startDate: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={leaveFormData.endDate}
+                    onChange={(e) => setLeaveFormData({ ...leaveFormData, endDate: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Days Count</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  required
+                  value={leaveFormData.daysCount}
+                  onChange={(e) => setLeaveFormData({ ...leaveFormData, daysCount: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Reason / Notes</label>
+                <textarea
+                  rows="2"
+                  value={leaveFormData.reason}
+                  onChange={(e) => setLeaveFormData({ ...leaveFormData, reason: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddLeaveOpen(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30"
+                >
+                  Save Leave
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD LOAN / ADVANCE */}
+      {/* ========================================================================= */}
+      {isAddLoanOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <CreditCard size={18} className="text-purple-400" />
+                Issue Loan / Advance
+              </h3>
+              <button onClick={() => setIsAddLoanOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLoan} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Select Employee *</label>
+                <select
+                  required
+                  value={loanFormData.employeeId}
+                  onChange={(e) => setLoanFormData({ ...loanFormData, employeeId: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                >
+                  <option value="">-- Choose Employee --</option>
+                  {employees.map(e => (
+                    <option key={e.employeeId} value={e.employeeId}>
+                      {e.employeeId} - {e.name} ({e.branch})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Disbursement Type</label>
+                <select
+                  value={loanFormData.type}
+                  onChange={(e) => setLoanFormData({ ...loanFormData, type: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                >
+                  <option value="LOAN">LOAN (Deducted monthly in installments)</option>
+                  <option value="ADVANCE">SALARY ADVANCE (Recovered on next payroll)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Total Amount (₨) *</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="e.g. 40000"
+                    value={loanFormData.amount}
+                    onChange={(e) => setLoanFormData({ ...loanFormData, amount: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Monthly Deduction (₨)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 10000"
+                    value={loanFormData.monthlyDeduction}
+                    onChange={(e) => setLoanFormData({ ...loanFormData, monthlyDeduction: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={loanFormData.date}
+                  onChange={(e) => setLoanFormData({ ...loanFormData, date: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Notes / Reason</label>
+                <textarea
+                  rows="2"
+                  value={loanFormData.notes}
+                  onChange={(e) => setLoanFormData({ ...loanFormData, notes: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddLoanOpen(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30"
+                >
+                  Save Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: ADJUST / EDIT PAYROLL */}
       {/* ========================================================================= */}
       {isAdjustModalOpen && selectedPayroll && (
@@ -1681,6 +2718,24 @@ export default function EmployeeDataPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Full Attendance Bonus (₨)</label>
+                  <input
+                    type="number"
+                    value={adjustFormData.fullAttendanceBonus}
+                    onChange={(e) => setAdjustFormData({ ...adjustFormData, fullAttendanceBonus: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-mono focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Reimbursements (₨)</label>
+                  <input
+                    type="number"
+                    value={adjustFormData.reimbursement}
+                    onChange={(e) => setAdjustFormData({ ...adjustFormData, reimbursement: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-mono focus:outline-none"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">Three-Late Deductions (₨)</label>
                   <input
                     type="number"
@@ -1717,15 +2772,6 @@ export default function EmployeeDataPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Other Deductions (₨)</label>
-                  <input
-                    type="number"
-                    value={adjustFormData.otherDeductions}
-                    onChange={(e) => setAdjustFormData({ ...adjustFormData, otherDeductions: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-mono focus:outline-none"
-                  />
-                </div>
-                <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">Manual Adjust (+/- ₨)</label>
                   <input
                     type="number"
@@ -1734,13 +2780,26 @@ export default function EmployeeDataPage() {
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-mono focus:outline-none"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Workflow Status</label>
+                  <select
+                    value={adjustFormData.status}
+                    onChange={(e) => setAdjustFormData({ ...adjustFormData, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                  >
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="UNDER_REVIEW">UNDER REVIEW</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="PAID">PAID</option>
+                  </select>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">Adjustment Note / Reason</label>
                 <input
                   type="text"
-                  placeholder="e.g. Special festival bonus or advance override"
+                  placeholder="e.g. Advance override or festival bonus"
                   value={adjustFormData.adjustmentNote}
                   onChange={(e) => setAdjustFormData({ ...adjustFormData, adjustmentNote: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
@@ -1770,12 +2829,11 @@ export default function EmployeeDataPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: PAY SLIP & BREAKDOWN VIEW (PRINTABLE A4) */}
+      {/* MODAL: PAY SLIP VIEW (PRINTABLE A4 VOUCHER) */}
       {/* ========================================================================= */}
       {isSlipOpen && selectedPayroll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm print:p-0 print:bg-white print:static">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-3xl max-h-[95vh] overflow-y-auto shadow-2xl p-6 text-slate-200 print:bg-white print:text-black print:border-none print:shadow-none print:max-w-full print:p-8">
-            {/* Modal Controls (Hidden in Print) */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6 print:hidden">
               <h3 className="text-lg font-black text-white flex items-center gap-2">
                 <FileText size={20} className="text-emerald-400" />
@@ -1783,7 +2841,7 @@ export default function EmployeeDataPage() {
               </h3>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handlePrintSlip}
+                  onClick={() => window.print()}
                   className="flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 transition-all"
                 >
                   <Printer size={16} />
@@ -1798,9 +2856,7 @@ export default function EmployeeDataPage() {
               </div>
             </div>
 
-            {/* Printable Document Area */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 print:bg-white print:border print:border-black/30 print:text-black print:p-6 font-sans">
-              {/* Company Header */}
               <div className="flex items-center justify-between border-b-2 border-slate-800 print:border-black pb-4 mb-4">
                 <div>
                   <h1 className="text-2xl font-black tracking-tight text-white print:text-black">
@@ -1820,7 +2876,6 @@ export default function EmployeeDataPage() {
                 </div>
               </div>
 
-              {/* Employee Bio Table */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/60 print:bg-gray-100 p-3 rounded-xl border border-slate-800/80 print:border-gray-300 text-xs mb-6">
                 <div>
                   <span className="text-slate-400 print:text-gray-600 block text-[10px] uppercase font-bold">Employee ID</span>
@@ -1840,40 +2895,7 @@ export default function EmployeeDataPage() {
                 </div>
               </div>
 
-              {/* Attendance Breakdown */}
-              <div className="mb-6">
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 print:text-black mb-2 flex items-center gap-1.5">
-                  <Clock size={14} /> Attendance & Lates Summary
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                  <div className="p-2.5 bg-slate-900 print:bg-gray-50 border border-slate-800 print:border-gray-300 rounded-xl">
-                    <span className="text-slate-400 print:text-gray-600 block text-[10px]">Present Days</span>
-                    <span className="font-bold text-emerald-400 print:text-black text-sm">{selectedPayroll.presentDays || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-900 print:bg-gray-50 border border-slate-800 print:border-gray-300 rounded-xl">
-                    <span className="text-slate-400 print:text-gray-600 block text-[10px]">Absent Days</span>
-                    <span className="font-bold text-rose-400 print:text-black text-sm">{selectedPayroll.absentDays || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-900 print:bg-gray-50 border border-slate-800 print:border-gray-300 rounded-xl">
-                    <span className="text-slate-400 print:text-gray-600 block text-[10px]">Late Days</span>
-                    <span className="font-bold text-amber-400 print:text-black text-sm">{selectedPayroll.lateDays || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-900 print:bg-gray-50 border border-slate-800 print:border-gray-300 rounded-xl">
-                    <span className="text-slate-400 print:text-gray-600 block text-[10px]">3-Late Deductions</span>
-                    <span className="font-bold text-rose-400 print:text-black text-sm">
-                      {selectedPayroll.calculationBreakdown?.attendanceSummary?.threeLatePenaltyDays || 0} Day(s)
-                    </span>
-                  </div>
-                  <div className="p-2.5 bg-slate-900 print:bg-gray-50 border border-slate-800 print:border-gray-300 rounded-xl">
-                    <span className="text-slate-400 print:text-gray-600 block text-[10px]">Overtime Hours</span>
-                    <span className="font-bold text-purple-400 print:text-black text-sm">{selectedPayroll.overtimeHours || 0} hrs</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Earnings & Deductions Tables */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                {/* Earnings Table */}
                 <div className="border border-slate-800 print:border-gray-300 rounded-xl overflow-hidden">
                   <div className="bg-emerald-950/40 print:bg-gray-200 px-3 py-2 border-b border-slate-800 print:border-gray-300 font-bold text-xs text-emerald-400 print:text-black">
                     EARNINGS & ALLOWANCES
@@ -1892,26 +2914,10 @@ export default function EmployeeDataPage() {
                         <td className="py-2 px-3 text-slate-300 print:text-black">Fuel Allowance</td>
                         <td className="py-2 px-3 text-right font-mono text-purple-400 print:text-black">₨ {selectedPayroll.fuelAllowance?.toLocaleString()}</td>
                       </tr>
-                      {selectedPayroll.travelAllowance > 0 && (
-                        <tr>
-                          <td className="py-2 px-3 text-slate-300 print:text-black">Travel Allowance</td>
-                          <td className="py-2 px-3 text-right font-mono text-purple-400 print:text-black">₨ {selectedPayroll.travelAllowance?.toLocaleString()}</td>
-                        </tr>
-                      )}
-                      {selectedPayroll.otherAllowances > 0 && (
-                        <tr>
-                          <td className="py-2 px-3 text-slate-300 print:text-black">Other Allowances</td>
-                          <td className="py-2 px-3 text-right font-mono text-purple-400 print:text-black">₨ {selectedPayroll.otherAllowances?.toLocaleString()}</td>
-                        </tr>
-                      )}
                       {selectedPayroll.productionEarning > 0 && (
                         <tr>
-                          <td className="py-2 px-3 text-slate-300 print:text-black">
-                            Production Incentive ({selectedPayroll.productionPercentage}%)
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-emerald-400 print:text-black font-bold">
-                            ₨ {selectedPayroll.productionEarning?.toLocaleString()}
-                          </td>
+                          <td className="py-2 px-3 text-slate-300 print:text-black">Production Incentive ({selectedPayroll.productionPercentage}%)</td>
+                          <td className="py-2 px-3 text-right font-mono text-emerald-400 print:text-black font-bold">₨ {selectedPayroll.productionEarning?.toLocaleString()}</td>
                         </tr>
                       )}
                       <tr className="bg-slate-900/60 print:bg-gray-100 font-bold">
@@ -1922,7 +2928,6 @@ export default function EmployeeDataPage() {
                   </table>
                 </div>
 
-                {/* Deductions Table */}
                 <div className="border border-slate-800 print:border-gray-300 rounded-xl overflow-hidden">
                   <div className="bg-rose-950/40 print:bg-gray-200 px-3 py-2 border-b border-slate-800 print:border-gray-300 font-bold text-xs text-rose-400 print:text-black">
                     DEDUCTIONS & RECOVERIES
@@ -1939,12 +2944,6 @@ export default function EmployeeDataPage() {
                           <td className="py-2 px-3 text-right font-mono text-rose-400 print:text-black">₨ {selectedPayroll.absentDeductions?.toLocaleString()}</td>
                         </tr>
                       )}
-                      {selectedPayroll.earlyCheckoutDeductions > 0 && (
-                        <tr>
-                          <td className="py-2 px-3 text-slate-300 print:text-black">Early Checkout Penalty</td>
-                          <td className="py-2 px-3 text-right font-mono text-rose-400 print:text-black">₨ {selectedPayroll.earlyCheckoutDeductions?.toLocaleString()}</td>
-                        </tr>
-                      )}
                       {selectedPayroll.loanDeduction > 0 && (
                         <tr>
                           <td className="py-2 px-3 text-slate-300 print:text-black">Loan Recovery</td>
@@ -1957,12 +2956,6 @@ export default function EmployeeDataPage() {
                           <td className="py-2 px-3 text-right font-mono text-rose-400 print:text-black">₨ {selectedPayroll.advanceDeduction?.toLocaleString()}</td>
                         </tr>
                       )}
-                      {selectedPayroll.otherDeductions > 0 && (
-                        <tr>
-                          <td className="py-2 px-3 text-slate-300 print:text-black">Other Deductions</td>
-                          <td className="py-2 px-3 text-right font-mono text-rose-400 print:text-black">₨ {selectedPayroll.otherDeductions?.toLocaleString()}</td>
-                        </tr>
-                      )}
                       <tr className="bg-slate-900/60 print:bg-gray-100 font-bold">
                         <td className="py-2 px-3 text-white print:text-black">Total Deductions</td>
                         <td className="py-2 px-3 text-right font-mono text-rose-400 print:text-black">₨ {selectedPayroll.totalDeductions?.toLocaleString()}</td>
@@ -1972,14 +2965,13 @@ export default function EmployeeDataPage() {
                 </div>
               </div>
 
-              {/* Net Payable Highlight */}
               <div className="bg-emerald-950/30 print:bg-gray-100 border-2 border-emerald-500/40 print:border-black p-4 rounded-2xl flex items-center justify-between mb-8">
                 <div>
                   <span className="text-xs uppercase font-black text-emerald-400 print:text-black tracking-wider block">
                     NET PAYABLE SALARY
                   </span>
                   <span className="text-[11px] text-slate-400 print:text-gray-600">
-                    Gross Earnings - Total Deductions {selectedPayroll.manualAdjustment !== 0 && `(Manual Adjust: ₨ ${selectedPayroll.manualAdjustment})`}
+                    Gross Earnings - Total Deductions
                   </span>
                 </div>
                 <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 print:text-black">
@@ -1987,7 +2979,6 @@ export default function EmployeeDataPage() {
                 </div>
               </div>
 
-              {/* Signatures & Bank Transfer Note */}
               <div className="pt-8 border-t border-slate-800 print:border-black grid grid-cols-2 gap-8 text-xs text-center text-slate-400 print:text-black">
                 <div>
                   <div className="border-b border-slate-700 print:border-black pb-8 mb-2"></div>
@@ -1996,6 +2987,109 @@ export default function EmployeeDataPage() {
                 <div>
                   <div className="border-b border-slate-700 print:border-black pb-8 mb-2"></div>
                   <span className="font-bold">Authorized Signatory / Accounts Manager</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: FULL MONTHLY PAYROLL PRINTABLE SHEET (A4 LANDSCAPE REPORT) */}
+      {/* ========================================================================= */}
+      {isFullPayrollPrintOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm print:p-0 print:bg-white print:static">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-y-auto shadow-2xl p-6 text-slate-200 print:bg-white print:text-black print:border-none print:shadow-none print:max-w-full print:p-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4 print:hidden">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <Printer size={20} className="text-indigo-400" />
+                Monthly Company Payroll Sheet — {payrollMonthYear}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md"
+                >
+                  <Printer size={16} />
+                  Print Sheet
+                </button>
+                <button onClick={() => setIsFullPayrollPrintOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="font-sans print:text-black">
+              <div className="text-center pb-4 border-b-2 border-slate-800 print:border-black mb-4">
+                <h1 className="text-2xl font-black uppercase text-white print:text-black">ENAMELS PRODUCTION</h1>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400 print:text-black">
+                  Monthly Payroll Disbursement Sheet — Month: {payrollMonthYear}
+                </p>
+              </div>
+
+              <div className="overflow-x-auto mb-6">
+                <table className="w-full text-left text-xs border border-slate-800 print:border-black">
+                  <thead className="bg-slate-950 print:bg-gray-200 border-b border-slate-800 print:border-black text-[10px] uppercase font-bold text-slate-300 print:text-black">
+                    <tr>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Sr</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Emp ID</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Employee</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Location</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Gross Pay</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Late Ded</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Absent Ded</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Loan Ded</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Adv Ded</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Incentive</th>
+                      <th className="p-2 border-r border-slate-800 print:border-black">Net Pay</th>
+                      <th className="p-2">Signature</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 print:divide-gray-300 font-mono text-[11px]">
+                    {payrolls.map((p, idx) => (
+                      <tr key={p.id} className="print:text-black">
+                        <td className="p-2 border-r border-slate-800 print:border-black">{idx + 1}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black font-bold">{p.employeeId}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black font-sans font-bold">{p.employeeName}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black font-sans">{p.branch || '—'}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black">₨ {p.grossSalary?.toLocaleString()}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black text-rose-400 print:text-black">₨ {p.lateDeductions?.toLocaleString()}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black text-rose-400 print:text-black">₨ {p.absentDeductions?.toLocaleString()}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black text-rose-400 print:text-black">₨ {p.loanDeduction?.toLocaleString()}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black text-rose-400 print:text-black">₨ {p.advanceDeduction?.toLocaleString()}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black text-emerald-400 print:text-black">₨ {p.productionEarning?.toLocaleString()}</td>
+                        <td className="p-2 border-r border-slate-800 print:border-black font-bold text-emerald-400 print:text-black">₨ {p.netPayable?.toLocaleString()}</td>
+                        <td className="p-2 border-slate-800 print:border-black">_________________</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-950/80 print:bg-gray-100 font-bold font-mono">
+                      <td colSpan="4" className="p-2 border-r border-slate-800 print:border-black font-sans uppercase">Total Summary:</td>
+                      <td className="p-2 border-r border-slate-800 print:border-black">₨ {totalPayrollGross.toLocaleString()}</td>
+                      <td colSpan="4" className="p-2 border-r border-slate-800 print:border-black text-rose-400 print:text-black">
+                        Total Ded: ₨ {totalPayrollDeductions.toLocaleString()}
+                      </td>
+                      <td className="p-2 border-r border-slate-800 print:border-black"></td>
+                      <td className="p-2 border-r border-slate-800 print:border-black text-emerald-400 print:text-black font-bold">
+                        ₨ {totalPayrollNet.toLocaleString()}
+                      </td>
+                      <td className="p-2"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="pt-8 border-t border-slate-800 print:border-black grid grid-cols-3 gap-8 text-xs text-center text-slate-400 print:text-black">
+                <div>
+                  <div className="border-b border-slate-700 print:border-black pb-8 mb-2"></div>
+                  <span className="font-bold">Prepared By (Accounts)</span>
+                </div>
+                <div>
+                  <div className="border-b border-slate-700 print:border-black pb-8 mb-2"></div>
+                  <span className="font-bold">Audited & Verified</span>
+                </div>
+                <div>
+                  <div className="border-b border-slate-700 print:border-black pb-8 mb-2"></div>
+                  <span className="font-bold">CEO / Authorized Signatory</span>
                 </div>
               </div>
             </div>

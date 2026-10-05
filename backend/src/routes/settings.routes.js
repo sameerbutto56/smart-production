@@ -4,6 +4,6 @@ const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
 router.get('/', authenticate, getSettings);
-router.post('/', authenticate, authorize(['SUPER_ADMIN']), updateSetting);
+router.post('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'SOFTWARE_SETTINGS']), updateSetting);
 
 module.exports = router;

@@ -16,8 +16,22 @@ router.delete('/:employeeId', ...adminOnly, employeeController.deleteEmployee);
 router.get('/attendance/daily', ...adminOnly, employeeController.getDailyAttendance);
 router.post('/attendance/mark', ...adminOnly, employeeController.markAttendance);
 router.post('/attendance/bulk-mark', ...adminOnly, employeeController.bulkMarkAttendance);
+router.post('/attendance/import-excel', ...adminOnly, employeeController.importAttendanceExcel);
 router.get('/attendance/monthly', ...adminOnly, employeeController.getMonthlyAttendance);
 router.get('/attendance/export-excel', ...adminOnly, employeeController.exportAttendanceExcel);
+
+// --- Leaves Management ---
+router.get('/leaves/list', ...adminOnly, employeeController.getLeaves);
+router.post('/leaves', ...adminOnly, employeeController.createLeave);
+router.put('/leaves/:id/status', ...adminOnly, employeeController.updateLeaveStatus);
+
+// --- Loans & Advances Management ---
+router.get('/loans/list', ...adminOnly, employeeController.getLoans);
+router.post('/loans', ...adminOnly, employeeController.createLoan);
+router.put('/loans/:id', ...adminOnly, employeeController.updateLoan);
+
+// --- Production & Incentives Summary ---
+router.get('/production/summary', ...adminOnly, employeeController.getProductionSummary);
 
 // --- Payroll Management ---
 router.get('/payroll/list', ...adminOnly, employeeController.getMonthlyPayrollList);
