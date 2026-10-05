@@ -2971,4 +2971,22 @@ model MonthlyPayroll {
   @@index([status])
 }
 
+model AttendanceImportHistory {
+  id              String   @id @default(uuid())
+  fileName        String
+  monthYear       String
+  uploadedBy      String?
+  totalRows       Int      @default(0)
+  successfulRows  Int      @default(0)
+  failedRows      Int      @default(0)
+  absentCount     Int      @default(0)
+  status          String   @default("COMPLETED")
+  errorsList      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([monthYear])
+  @@index([createdAt])
+}
+
 

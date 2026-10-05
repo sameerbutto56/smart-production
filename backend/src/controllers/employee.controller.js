@@ -25,9 +25,29 @@ function parseTimeToMinutes(timeStr) {
   }
 }
 
+// Helper to normalize various date formats (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, Excel serial)
+function normalizeDateStr(raw) {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const dmyMatch = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  const num = Number(str);
+  if (!isNaN(num) && num > 30000 && num < 60000) {
+    const dateObj = new Date((num - 25569) * 86400 * 1000);
+    return dateObj.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
 // Compute Late, Early Checkout, and Overtime minutes according to rules
 function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualOut, status = 'PRESENT') {
-  if (status === 'ABSENT' || status === 'LEAVE') {
+  if (status === 'ABSENT' || status === 'LEAVE' || status === 'WEEKLY_OFF') {
     return { lateMinutes: 0, earlyMinutes: 0, overtimeMinutes: 0, workingHours: 0 };
   }
 
@@ -41,29 +61,29 @@ function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualO
   let overtimeMinutes = 0;
 
   // 1. Check-in grace period: 15 minutes allowed
-  // 10:00 - 10:15 -> On Time. After 10:15 -> Late (difference from scheduled)
+  // 10:00 - 10:15 -> On Time. After 10:15 -> Late (e.g. 10:20 -> Late = 5 minutes)
   if (aIn !== null) {
     if (aIn > sIn + 15) {
-      lateMinutes = aIn - sIn;
+      lateMinutes = aIn - (sIn + 15);
     }
   }
 
   // 2. Check-out early check: Up to 10 minutes early allowed (5:50 PM).
-  // More than 10 minutes early -> early checkout minutes apply
+  // Before 5:50 PM -> early checkout minutes apply (e.g. 5:40 -> 20 minutes)
   if (aOut !== null) {
     if (aOut < sOut - 10) {
       earlyMinutes = sOut - aOut;
     }
     // 3. Overtime: Up to 15 min after checkout (6:15 PM) -> no overtime.
-    // After 15 minutes -> overtime starts
+    // After 6:15 PM -> overtime begins (e.g. 6:30 -> Overtime = 15 minutes)
     if (aOut > sOut + 15) {
-      overtimeMinutes = aOut - sOut;
+      overtimeMinutes = aOut - (sOut + 15);
     }
   }
 
   // Working hours
   let workingHours = 8;
-  if (status === 'HALF_DAY') {
+  if (status === 'HALF_DAY' || status === 'INCOMPLETE') {
     workingHours = 4;
   } else if (aIn !== null && aOut !== null && aOut > aIn) {
     workingHours = Math.round(((aOut - aIn) / 60) * 10) / 10;
@@ -616,28 +636,35 @@ const bulkMarkAttendance = async (req, res) => {
 // POST /api/employees/attendance/import-excel
 const importAttendanceExcel = async (req, res) => {
   try {
-    const { rows } = req.body;
+    const { rows, monthYear, mode = 'update', fileName = 'attendance.xlsx', validateOnly = false } = req.body;
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(400).json({ success: false, message: 'rows array is required' });
     }
 
     const errors = [];
-    const importedRecords = [];
+    const validRowsToProcess = [];
     const seenEmpIdsInDate = new Set();
+    const datesInUpload = new Set();
 
+    // 1. Fetch active employees dictionary for fast lookup
+    const allEmployees = await prisma.employeeRecord.findMany();
+    const employeeMap = new Map(allEmployees.map(e => [e.employeeId, e]));
+
+    // 2. Validate row by row
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNum = i + 2; // considering header as row 1
 
       const empId = String(row['Employee ID'] || row['employeeId'] || row['EmployeeID'] || row['ID'] || '').trim();
-      const date = String(row['Date'] || row['date'] || '').trim();
+      const rawDate = row['Date'] || row['date'] || null;
+      const date = normalizeDateStr(rawDate);
 
       if (!empId) {
         errors.push(`Row ${rowNum}: Missing Employee ID`);
         continue;
       }
-      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        errors.push(`Row ${rowNum} (${empId}): Invalid or missing date format (expected YYYY-MM-DD, got "${date}")`);
+      if (!date) {
+        errors.push(`Row ${rowNum} (${empId}): Invalid or missing date format (got "${rawDate}")`);
         continue;
       }
 
@@ -650,7 +677,7 @@ const importAttendanceExcel = async (req, res) => {
       seenEmpIdsInDate.add(key);
 
       // Validate Employee ID in database
-      const employee = await prisma.employeeRecord.findUnique({ where: { employeeId: empId } });
+      const employee = employeeMap.get(empId);
       if (!employee) {
         errors.push(`Row ${rowNum}: Unknown Employee ID "${empId}". Employee does not exist in directory.`);
         continue;
@@ -658,8 +685,52 @@ const importAttendanceExcel = async (req, res) => {
 
       const checkIn = row['Check-in'] || row['CheckIn'] || row['checkInTime'] || null;
       const checkOut = row['Check-out'] || row['CheckOut'] || row['checkOutTime'] || null;
-      const statusRaw = String(row['Attendance Status'] || row['Status'] || row['status'] || 'PRESENT').toUpperCase().trim();
-      const status = ['PRESENT', 'LATE', 'HALF_DAY', 'LEAVE', 'ABSENT'].includes(statusRaw) ? statusRaw : 'PRESENT';
+
+      // Check-out earlier than check-in validation
+      const aInMin = parseTimeToMinutes(checkIn);
+      const aOutMin = parseTimeToMinutes(checkOut);
+      if (aInMin !== null && aOutMin !== null && aOutMin < aInMin) {
+        errors.push(`Row ${rowNum} (${empId}): Invalid times: Check-out (${checkOut}) cannot be earlier than Check-in (${checkIn}) on ${date}`);
+        continue;
+      }
+
+      datesInUpload.add(date);
+      validRowsToProcess.push({ rowNum, empId, date, checkIn, checkOut, row, employee });
+    }
+
+    // If validation-only preview requested
+    if (validateOnly) {
+      return res.json({
+        success: errors.length === 0,
+        totalRows: rows.length,
+        validRows: validRowsToProcess.length,
+        errorsCount: errors.length,
+        errors,
+        previewDates: Array.from(datesInUpload).sort()
+      });
+    }
+
+    // 3. If mode === 'replace', clean existing records for the month or dates
+    if (mode === 'replace' && monthYear) {
+      await prisma.employeeAttendance.deleteMany({
+        where: { date: { startsWith: monthYear } }
+      });
+    }
+
+    const importedRecords = [];
+
+    // 4. Process all valid rows from Excel
+    for (const item of validRowsToProcess) {
+      const { empId, date, checkIn, checkOut, row, employee } = item;
+      const statusRaw = String(row['Attendance Status'] || row['Status'] || row['status'] || '').toUpperCase().trim();
+
+      // Check incomplete attendance case (Point 18): one time missing
+      let status = 'PRESENT';
+      if (['PRESENT', 'LATE', 'HALF_DAY', 'LEAVE', 'ABSENT'].includes(statusRaw)) {
+        status = statusRaw;
+      } else if ((checkIn && !checkOut) || (!checkIn && checkOut)) {
+        status = 'INCOMPLETE';
+      }
 
       const sIn = employee.checkInTime || '10:00';
       const sOut = employee.checkOutTime || '18:00';
@@ -675,6 +746,11 @@ const importAttendanceExcel = async (req, res) => {
       let finalStatus = status;
       if (status === 'PRESENT' && lateMinutes > 0) finalStatus = 'LATE';
 
+      let note = row['Notes'] || row['notes'] || null;
+      if (status === 'INCOMPLETE' && !note) {
+        note = 'Incomplete Attendance — Missing check-in or check-out (Review Required)';
+      }
+
       const rec = await prisma.employeeAttendance.upsert({
         where: { employeeId_date: { employeeId: empId, date } },
         update: {
@@ -688,7 +764,7 @@ const importAttendanceExcel = async (req, res) => {
           overtimeMinutes,
           status: finalStatus,
           workingHours,
-          notes: row['Notes'] || row['notes'] || null
+          notes: note
         },
         create: {
           employeeId: empId,
@@ -703,17 +779,126 @@ const importAttendanceExcel = async (req, res) => {
           overtimeMinutes,
           status: finalStatus,
           workingHours,
-          notes: row['Notes'] || row['notes'] || null
+          notes: note
         }
       });
 
       importedRecords.push(rec);
     }
 
+    // 5. AUTOMATIC ABSENCE DETECTION (Points 15-17, 50-51)
+    // Reconcile All Active Employees against Excel uploaded dates
+    let autoAbsentCount = 0;
+    const activeEmployees = allEmployees.filter(e => e.status === 'ACTIVE');
+    const uploadDates = Array.from(datesInUpload);
+
+    if (uploadDates.length > 0) {
+      const minDate = uploadDates.reduce((min, d) => d < min ? d : min, uploadDates[0]);
+      const maxDate = uploadDates.reduce((max, d) => d > max ? d : max, uploadDates[0]);
+
+      // Fetch approved leaves covering this date range
+      const approvedLeaves = await prisma.employeeLeave.findMany({
+        where: {
+          status: 'APPROVED',
+          startDate: { lte: maxDate },
+          endDate: { gte: minDate }
+        }
+      });
+
+      for (const emp of activeEmployees) {
+        for (const date of uploadDates) {
+          const key = `${emp.employeeId}_${date}`;
+          if (!seenEmpIdsInDate.has(key)) {
+            // Check Priority 1: Weekly Off / Sunday
+            const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
+            if (dayOfWeek === 0) {
+              await prisma.employeeAttendance.upsert({
+                where: { employeeId_date: { employeeId: emp.employeeId, date } },
+                update: {},
+                create: {
+                  employeeId: emp.employeeId,
+                  employeeName: emp.name,
+                  date,
+                  scheduledCheckIn: emp.checkInTime || '10:00',
+                  scheduledCheckOut: emp.checkOutTime || '18:00',
+                  status: 'WEEKLY_OFF',
+                  workingHours: 0,
+                  notes: 'Weekly Off / Non-Working Day'
+                }
+              });
+              continue;
+            }
+
+            // Check Priority 2: Approved Leave
+            const onLeave = approvedLeaves.find(l => l.employeeId === emp.employeeId && l.startDate <= date && l.endDate >= date);
+            if (onLeave) {
+              await prisma.employeeAttendance.upsert({
+                where: { employeeId_date: { employeeId: emp.employeeId, date } },
+                update: {},
+                create: {
+                  employeeId: emp.employeeId,
+                  employeeName: emp.name,
+                  date,
+                  scheduledCheckIn: emp.checkInTime || '10:00',
+                  scheduledCheckOut: emp.checkOutTime || '18:00',
+                  status: 'LEAVE',
+                  workingHours: 0,
+                  notes: `Approved ${onLeave.leaveType} Leave`
+                }
+              });
+              continue;
+            }
+
+            // Priority 3: Mark ABSENT
+            await prisma.employeeAttendance.upsert({
+              where: { employeeId_date: { employeeId: emp.employeeId, date } },
+              update: {},
+              create: {
+                employeeId: emp.employeeId,
+                employeeName: emp.name,
+                date,
+                scheduledCheckIn: emp.checkInTime || '10:00',
+                scheduledCheckOut: emp.checkOutTime || '18:00',
+                lateMinutes: 0,
+                earlyMinutes: 0,
+                overtimeMinutes: 0,
+                status: 'ABSENT',
+                workingHours: 0,
+                notes: 'Automatically marked Absent (Missing from Attendance Excel)'
+              }
+            });
+            autoAbsentCount++;
+          }
+        }
+      }
+    }
+
+    // 6. Record in AttendanceImportHistory (Point 41)
+    try {
+      const derivedMonth = monthYear || (uploadDates[0] ? uploadDates[0].slice(0, 7) : new Date().toISOString().slice(0, 7));
+      await prisma.attendanceImportHistory.create({
+        data: {
+          fileName: String(fileName || 'attendance.xlsx'),
+          monthYear: derivedMonth,
+          uploadedBy: req.user?.name || 'Admin',
+          totalRows: rows.length,
+          successfulRows: importedRecords.length,
+          failedRows: errors.length,
+          absentCount: autoAbsentCount,
+          status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+          errorsList: errors.length > 0 ? JSON.stringify(errors.slice(0, 50)) : null
+        }
+      });
+    } catch (histErr) {
+      console.warn('Could not save import history record:', histErr.message);
+    }
+
     res.json({
       success: true,
-      message: `Imported ${importedRecords.length} attendance records`,
+      message: `Successfully imported ${importedRecords.length} records. Auto-reconciled ${autoAbsentCount} absent records for active staff.`,
+      totalRows: rows.length,
       importedCount: importedRecords.length,
+      autoAbsentCount,
       errorsCount: errors.length,
       errors
     });
@@ -836,6 +1021,20 @@ const exportAttendanceExcel = async (req, res) => {
   } catch (err) {
     console.error('Error exporting attendance excel:', err);
     res.status(500).json({ success: false, message: 'Failed to export excel', error: err.message });
+  }
+};
+
+// GET /api/employees/attendance/import-history
+const getAttendanceImportHistory = async (req, res) => {
+  try {
+    const history = await prisma.attendanceImportHistory.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    res.json({ success: true, count: history.length, history });
+  } catch (err) {
+    console.error('Error fetching attendance import history:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch import history', error: err.message });
   }
 };
 
@@ -1167,6 +1366,13 @@ const calculateMonthlyPayroll = async (req, res) => {
     const attendances = await prisma.employeeAttendance.findMany({
       where: { date: { startsWith: monthYear } }
     });
+
+    if (attendances.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Please import and process ${monthYear} Attendance Excel before generating payroll.`
+      });
+    }
 
     const attByEmp = new Map();
     attendances.forEach(a => {
@@ -1604,6 +1810,7 @@ module.exports = {
   markAttendance,
   bulkMarkAttendance,
   importAttendanceExcel,
+  getAttendanceImportHistory,
   getMonthlyAttendance,
   exportAttendanceExcel,
   getLeaves,

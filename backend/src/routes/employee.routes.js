@@ -17,6 +17,7 @@ router.get('/attendance/daily', ...adminOnly, employeeController.getDailyAttenda
 router.post('/attendance/mark', ...adminOnly, employeeController.markAttendance);
 router.post('/attendance/bulk-mark', ...adminOnly, employeeController.bulkMarkAttendance);
 router.post('/attendance/import-excel', ...adminOnly, employeeController.importAttendanceExcel);
+router.get('/attendance/import-history', ...adminOnly, employeeController.getAttendanceImportHistory);
 router.get('/attendance/monthly', ...adminOnly, employeeController.getMonthlyAttendance);
 router.get('/attendance/export-excel', ...adminOnly, employeeController.exportAttendanceExcel);
 

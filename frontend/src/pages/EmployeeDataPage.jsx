@@ -33,7 +33,9 @@ import {
   PlusCircle,
   Check,
   FileText,
-  Key
+  Key,
+  History,
+  AlertCircle
 } from 'lucide-react';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -104,6 +106,10 @@ export default function EmployeeDataPage() {
   const [importedRows, setImportedRows] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
   const [importingFile, setImportingFile] = useState(false);
+  const [importMode, setImportMode] = useState('update'); // 'update' | 'replace'
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [isImportHistoryOpen, setIsImportHistoryOpen] = useState(false);
+  const [importHistoryList, setImportHistoryList] = useState([]);
   const fileInputRef = useRef(null);
 
   // Monthly Attendance View State
@@ -477,6 +483,7 @@ export default function EmployeeDataPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadedFileName(file.name);
     setImportingFile(true);
     setImportErrors([]);
 
@@ -506,13 +513,27 @@ export default function EmployeeDataPage() {
     reader.readAsBinaryString(file);
   };
 
+  const fetchImportHistory = async () => {
+    try {
+      const res = await api.get('/employees/attendance/import-history');
+      if (res.data?.success) setImportHistoryList(res.data.history || []);
+    } catch (err) {
+      console.warn('Failed to fetch import history:', err.message);
+    }
+  };
+
   const handleConfirmImport = async () => {
     if (importedRows.length === 0) return;
     try {
       setLoading(true);
-      const res = await api.post('/employees/attendance/import-excel', { rows: importedRows });
+      const res = await api.post('/employees/attendance/import-excel', {
+        rows: importedRows,
+        monthYear: attMonthYear,
+        mode: importMode,
+        fileName: uploadedFileName
+      });
       if (res.data?.success) {
-        toast.success(`Successfully imported ${res.data.importedCount} attendance records!`);
+        toast.success(res.data.message || `Successfully imported ${res.data.importedCount} attendance records!`);
         if (res.data.errorsCount > 0) {
           setImportErrors(res.data.errors);
           toast.error(`${res.data.errorsCount} rows had validation errors.`);
@@ -522,6 +543,7 @@ export default function EmployeeDataPage() {
         }
         fetchDailyAttendance();
         fetchMonthlyAttendance();
+        fetchImportHistory();
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to import attendance');
@@ -1065,6 +1087,17 @@ export default function EmployeeDataPage() {
               >
                 <Upload size={16} />
                 Import Attendance Excel
+              </button>
+              <button
+                onClick={() => {
+                  fetchImportHistory();
+                  setIsImportHistoryOpen(true);
+                }}
+                className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs sm:text-sm font-bold border border-slate-700/60 transition-all"
+                title="View Attendance Import History & Audit"
+              >
+                <History size={16} className="text-amber-400" />
+                Import History
               </button>
               <button
                 onClick={handleBulkMarkPresent}
@@ -1862,6 +1895,43 @@ export default function EmployeeDataPage() {
               </div>
             )}
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 p-3 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs">
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">Import Mode (Point 42)</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setImportMode('update')}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs ${
+                      importMode === 'update'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                        : 'bg-slate-850 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Update Existing Records
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImportMode('replace')}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs ${
+                      importMode === 'replace'
+                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                        : 'bg-slate-850 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Replace Selected Month
+                  </button>
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-400 flex flex-col justify-center">
+                <span className="font-bold text-white flex items-center gap-1">
+                  <AlertCircle size={13} className="text-emerald-400" />
+                  Auto-Absence Reconciliation Active
+                </span>
+                <span>Active staff missing from uploaded dates will be automatically marked ABSENT (exempting weekly off / approved leave).</span>
+              </div>
+            </div>
+
             <p className="text-xs text-slate-400 mb-3">
               Matches rows strictly by <strong>Employee ID</strong>. 15-minute check-in grace period, 10-minute early checkout tolerance, and 15-minute overtime thresholds will be calculated automatically.
             </p>
@@ -1915,6 +1985,87 @@ export default function EmployeeDataPage() {
                   Confirm & Sync Attendance
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ATTENDANCE IMPORT HISTORY (Point 41) */}
+      {/* ========================================================================= */}
+      {isImportHistoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <History size={20} className="text-amber-400" />
+                Attendance Excel Import History & Audit
+              </h3>
+              <button onClick={() => setIsImportHistoryOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                <X size={16} />
+              </button>
+            </div>
+
+            {importHistoryList.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 text-sm">
+                No past attendance Excel imports recorded yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-800 rounded-2xl">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400">
+                    <tr>
+                      <th className="py-2.5 px-3">File Name</th>
+                      <th className="py-2.5 px-3">Month</th>
+                      <th className="py-2.5 px-3">Uploaded By</th>
+                      <th className="py-2.5 px-3">Uploaded At</th>
+                      <th className="py-2.5 px-3">Total Rows</th>
+                      <th className="py-2.5 px-3">Imported</th>
+                      <th className="py-2.5 px-3">Auto-Absent</th>
+                      <th className="py-2.5 px-3">Errors</th>
+                      <th className="py-2.5 px-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                    {importHistoryList.map((h, i) => (
+                      <tr key={h.id || i} className="hover:bg-slate-850/40">
+                        <td className="py-2.5 px-3 font-sans font-bold text-white flex items-center gap-1.5">
+                          <FileSpreadsheet size={14} className="text-blue-400" />
+                          {h.fileName}
+                        </td>
+                        <td className="py-2.5 px-3 text-purple-400 font-bold">{h.monthYear}</td>
+                        <td className="py-2.5 px-3 text-slate-300">{h.uploadedBy || 'Admin'}</td>
+                        <td className="py-2.5 px-3 text-slate-400 text-[11px] font-sans">
+                          {formatDateTime(h.createdAt)}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-300">{h.totalRows}</td>
+                        <td className="py-2.5 px-3 text-emerald-400 font-bold">{h.successfulRows}</td>
+                        <td className="py-2.5 px-3 text-amber-400 font-bold">{h.absentCount || 0}</td>
+                        <td className="py-2.5 px-3 text-rose-400 font-bold">{h.failedRows}</td>
+                        <td className="py-2.5 px-3 font-sans">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            h.status === 'COMPLETED'
+                              ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                              : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                          }`}>
+                            {h.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-4 mt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsImportHistoryOpen(false)}
+                className="px-5 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
