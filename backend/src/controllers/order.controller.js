@@ -79,8 +79,8 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
     'STORE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'LOGO_DESIGN': { 'STANDARD': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
     'PRODUCTION_ACCEPTANCE': { 'STANDARD': ['WORKERS', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION'] },
-    'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'] },
-    'WORKERS': { 'STANDARD': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE'], 'READY_LOGO': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE'], 'FULL_CUSTOM': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE'] },
+    'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE', 'LOGO_DESIGN'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE', 'LOGO_DESIGN'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE', 'LOGO_DESIGN'] },
+    'WORKERS': { 'STANDARD': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE', 'LOGO_DESIGN'], 'READY_LOGO': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE', 'LOGO_DESIGN'], 'FULL_CUSTOM': ['PRODUCTION', 'STORE_RECEIVE', 'STORE', 'OUTLET_RECEIVE', 'LOGO_DESIGN'] },
     'STORE_RECEIVE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
     'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] },
@@ -4810,6 +4810,164 @@ const returnToOutlet = async (req, res) => {
   }
 };
 
+const sendToLogo = async (req, res) => {
+  const { orderId } = req.params;
+  const { remarks } = req.body || {};
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!['PRODUCTION', 'WORKERS', 'PRODUCTION_ACCEPTANCE'].includes(order.currentStage)) {
+      return res.status(400).json({ message: 'Order must be in Production stage to send to Logo' });
+    }
+
+    const activeStages = order.stages.filter(s =>
+      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+    );
+    const activeStage = activeStages.find(s => s.stageName === order.currentStage) || activeStages[0];
+
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations?.['LOGO_DESIGN'] || 24);
+
+    const logoUsers = await prisma.user.findMany({
+      where: { role: { in: getRolesForStage('LOGO_DESIGN') } },
+      select: { id: true }
+    });
+
+    const routeRemarks = remarks || `Sent to Logo from Production Out by ${req.user.name || 'Worker'}`;
+
+    await prisma.$transaction(async (tx) => {
+      if (activeStage) {
+        await tx.orderStage.updateMany({
+          where: {
+            orderId,
+            stageName: activeStage.stageName,
+            status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] }
+          },
+          data: {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+            rejectionReason: `Sent to Logo by ${req.user.name}`
+          }
+        });
+      }
+
+      // Complete any prior uncompleted LOGO_DESIGN stages to maintain a single active stage
+      await tx.orderStage.updateMany({
+        where: {
+          orderId,
+          stageName: 'LOGO_DESIGN',
+          status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] }
+        },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date()
+        }
+      });
+
+      await tx.orderStage.create({
+        data: {
+          orderId,
+          stageName: 'LOGO_DESIGN',
+          status: 'PENDING',
+          deadlineAt: deadline
+        }
+      });
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          currentStage: 'LOGO_DESIGN',
+          status: 'PENDING'
+        }
+      });
+
+      await tx.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user.id,
+          sentToStage: 'LOGO_DESIGN',
+          sentToUserIds: JSON.stringify(logoUsers.map(u => u.id)),
+          previousStage: activeStage?.stageName || 'PRODUCTION',
+          newStage: 'LOGO_DESIGN',
+          remarks: routeRemarks,
+          createdAt: new Date()
+        }
+      });
+    }, {
+      timeout: 25000,
+      maxWait: 10000
+    });
+
+    // Non-blocking seenTask updates: clear seenTask for Logo users so it shows in their unseen tasks
+    (async () => {
+      try {
+        if (logoUsers.length > 0) {
+          await prisma.seenTask.deleteMany({
+            where: {
+              userId: { in: logoUsers.map(u => u.id) },
+              orderId,
+              stageName: 'LOGO_DESIGN'
+            }
+          });
+        }
+        if (req.user?.id) {
+          await prisma.seenTask.upsert({
+            where: { userId_orderId_stageName: { userId: req.user.id, orderId, stageName: 'LOGO_DESIGN' } },
+            update: {},
+            create: { userId: req.user.id, orderId, stageName: 'LOGO_DESIGN', seenAt: new Date() }
+          });
+        }
+      } catch (seenErr) {
+        console.warn('Non-blocking seenTask update warning in sendToLogo:', seenErr.message);
+      }
+    })();
+
+    createAuditLog(
+      orderId,
+      'SEND_TO_LOGO',
+      `Sent to Logo from Production Out by ${req.user.name}${remarks ? ' - ' + remarks : ''}`,
+      req.user.id
+    ).catch(() => {});
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('order-updated', { orderId, createdById: order.createdById });
+      io.emit('task-routed', { orderId, targetStage: 'LOGO_DESIGN' });
+    }
+
+    notify.create(req, {
+      type: 'logo_task',
+      moduleName: 'My Tasks',
+      path: '/tasks',
+      role: 'LOGO_DESIGN',
+      title: 'New Logo Task from Production',
+      message: `Order #${order.orderNumber} sent to Logo from Production Out`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      action: 'Production Out → Logo',
+      employeeName: req.user?.name
+    }).catch(() => {});
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    res.json({
+      success: true,
+      message: `Order #${order.orderNumber} sent to Logo Profile`,
+      order: updated
+    });
+  } catch (error) {
+    console.error('Error in sendToLogo:', error);
+    res.status(500).json({ message: 'Error sending order to Logo', error: error.message });
+  }
+};
+
 const getStoreDashboardOrders = async (req, res) => {
   const userId = req.user.id;
   const limit = parseInt(req.query.limit) || 250;
@@ -5729,6 +5887,7 @@ module.exports = {
   storeRouteOrder,
   returnToStore,
   returnToOutlet,
+  sendToLogo,
   getStoreDashboardOrders,
   bulkRouteOrders,
   dispatchOrder,

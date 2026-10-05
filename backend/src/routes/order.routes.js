@@ -32,6 +32,7 @@ const {
   storeRouteOrder,
   returnToStore,
   returnToOutlet,
+  sendToLogo,
   getStoreDashboardOrders,
   bulkRouteOrders,
   dispatchOrder,
@@ -185,6 +186,7 @@ router.post('/:orderId/accept-store', authenticate, authorize(['STORE', 'STORE_E
 router.post('/:orderId/store-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), storeRouteOrder);
 router.post('/:orderId/return-to-store', authenticate, authorize(['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), returnToStore);
 router.post('/:orderId/return-to-outlet', authenticate, authorize(['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), returnToOutlet);
+router.post('/:orderId/send-to-logo', authenticate, authorize(['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), sendToLogo);
 router.get('/store-dashboard', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL']), getStoreDashboardOrders);
 
 // Seen/Unseen

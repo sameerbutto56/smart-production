@@ -1779,7 +1779,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </button>
                   </div>
                 ) : ['PRODUCTION', 'WORKERS'].includes(currentStage?.stageName) ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {order.source === 'OUTLET' ? (
                       <button
                         onClick={() => withActionLoading('prod-send-outlet', async () => {
@@ -1828,6 +1828,31 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         )}
                       </button>
                     )}
+                    <button
+                      onClick={() => withActionLoading('prod-send-logo', async () => {
+                        if (window.confirm(`Send Order #${order.orderNumber} to Logo Profile?`)) {
+                          try {
+                            await api.post(`/api/orders/${order.id}/send-to-logo`, {});
+                            toast.success(`Order #${order.orderNumber} routed to Logo Profile`);
+                            if (onMarkSeen) onMarkSeen();
+                          } catch (err) {
+                            toast.error('Failed to send to logo: ' + (err.response?.data?.message || err.message));
+                          }
+                        }
+                      })}
+                      disabled={!!actionLoading}
+                      className={`bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-purple-900/20 ${actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
+                    >
+                      {actionLoading === 'prod-send-logo' ? (
+                        <LoadingSpinner size={14} text="Routing..." />
+                      ) : (
+                        <>
+                          <Palette size={14} />
+                          <span>Send to Logo</span>
+                          <span className="text-[6px] md:text-[9px] text-purple-200 tracking-widest">→ LOGO PROFILE</span>
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
                       className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
