@@ -1,5 +1,37 @@
 ## Goals
-### Implemented This Session — Johar Town Outlet: Create New Invoice & Quotation with Full Product Catalog (deployed & live-verified)
+### Implemented This Session — Production Out: Added "Send to Logo" Workflow & Removed "Unseen Tasks" Tab (deployed & live-verified)
+- **Problem & Requirements**:
+  1. In **Production Out**, orders reaching production completion needed an additional routing option to send the order to the **Logo Profile** (`LOGO_DESIGN`), without creating duplicate orders and keeping the exact same order number and full order history.
+  2. The workflow must follow: **Production Out → Send to Logo → Logo → Accept → Production Acceptance → Production → Production Out → Complete**.
+  3. All existing Production Out options ("Production Complete", "Send to Johar Town Outlet", and "Report Problem") must remain 100% intact.
+  4. In the **Production Out** profile, an unnecessary `"Unseen Tasks"` tab was visible; since all Production Out orders are already accepted and automatically assigned by Production In, the user explicitly asked: *"why unseentask is show in productionout profile we not need this"* and requested it removed.
+- **Implementation & Fixes**:
+  - **Dedicated Backend Route & Controller (`backend/src/controllers/order.controller.js`, `backend/src/routes/order.routes.js`)**:
+    - Created `POST /api/orders/:orderId/send-to-logo` guarded by `authenticate` and `authorize(['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'])`.
+    - Added `sendToLogo` function: completes the active `PRODUCTION`/`WORKERS` stage, creates a new `LOGO_DESIGN` stage with status `'PENDING'` and calculated SLA deadline, sets `order.currentStage = 'LOGO_DESIGN'` and `order.status = 'PENDING'`.
+    - Appends entry to `RoutingHistory` (`previousStage: 'PRODUCTION'`, `newStage: 'LOGO_DESIGN'`, `remarks: 'Sent to Logo from Production Out...'`).
+    - Appends entry to `AuditLog` (`action: 'SEND_TO_LOGO'`).
+    - Clears `SeenTask` records for Logo designers (`where: { role: 'LOGO_DESIGN' }`), ensuring the order appears immediately in the Logo Profile's tasks.
+    - Emits real-time socket events `order-updated` and `task-routed`, and dispatches notification to Logo designers.
+  - **Stage Transition Validation**:
+    - Updated `validTransitions['PRODUCTION']` and `validTransitions['WORKERS']` in `validateStageTransition` to include `'LOGO_DESIGN'` across all order types (`STANDARD`, `READY_LOGO`, `FULL_CUSTOM`).
+  - **OrderCard UI Redesign (`frontend/src/components/OrderCard.jsx`)**:
+    - In `['PRODUCTION', 'WORKERS'].includes(currentStage?.stageName)`, expanded action grid from 2 columns to 3 responsive columns (`grid grid-cols-1 sm:grid-cols-3 gap-2`).
+    - Added **"Send to Logo"** button with purple/indigo gradient, `<Palette size={14} />` icon, and subtitle `→ LOGO PROFILE`.
+    - Included confirmation prompt: *"Send Order #[orderNumber] to Logo Profile?"*.
+    - Calls `POST /api/orders/:orderId/send-to-logo`, triggers success toast, and refreshes cards via `onMarkSeen`.
+    - Left existing completion buttons ("Send to Johar Town Outlet" / "Production Complete") and "Report Problem" completely intact.
+  - **Removed "Unseen Tasks" Tab for Production Out (`frontend/src/pages/MyTasks.jsx`)**:
+    - Gated the "Unseen Tasks" tab button with `{(!isOutlet && !isProductionOut) && (...)}`, removing it completely from the Production Out view.
+    - Updated tab label for Production Out to `Assigned Tasks ({count})` with `<CheckCircle size={14} />`.
+    - Added `useEffect` ensuring `taskFilter` automatically falls back to `'assigned'` when `isProductionOut` is true.
+- **Verification**:
+  - Automated test suite verified 100%: stage transition allowed, order stage updated, routing history recorded, audit log recorded, and Logo user successfully accepted task via `acceptTask` transitioning stage to `IN_PROGRESS`.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app`.
+  - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `{"status":"ok"}`.
+
+### Implemented Prior Session — Johar Town Outlet: Create New Invoice & Quotation with Full Product Catalog (deployed & live-verified)
 - **Problem & Requirements**:
   - In **Johar Town Outlet → Invoice & Quotation** (`/outlet-invoice-quotation`), the page previously only offered an option to enter an existing order number to look up and print an existing order.
   - Users needed the ability to **create a new invoice and quotation from scratch** with a **full catalog of all products** available to select, configure, and print.
