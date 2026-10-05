@@ -281,7 +281,7 @@ const createStockRequest = async (req, res) => {
       });
 
       return created;
-    });
+    }, { timeout: 60000, maxWait: 20000 });
 
     notify.create({
       role: ['ASM', 'SUPER_ADMIN', 'ADMIN'],
@@ -686,7 +686,7 @@ const acceptStockReturn = async (req, res) => {
       });
 
       return updatedReturn;
-    });
+    }, { timeout: 60000, maxWait: 20000 });
 
     notify.create({
       role: ['ASM', 'SUPER_ADMIN', 'ADMIN'],

@@ -630,7 +630,7 @@ const updateAllocationStatus = async (req, res) => {
           where: { id },
           data: { status }
         });
-      });
+      }, { timeout: 60000, maxWait: 20000 });
     } else {
       if (status === 'REJECTED') {
         await prisma.auditLog.create({
