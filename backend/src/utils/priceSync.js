@@ -124,25 +124,50 @@ const syncPricesForWarehouseItem = async (inventoryItemId, tx) => {
     return true;
   });
 
-  // Compute every target price up front (pure JS, no extra queries).
-  const targets = rows.map(row => ({
-    ...row,
-    target: resolveMasterPrice(master, row.color, row.size)
-  }));
+  // Compute every target price and barcode up front (pure JS, no extra queries).
+  const targets = rows.map(row => {
+    const targetPrice = resolveMasterPrice(master, row.color, row.size);
+    let targetBarcode = null;
+    if (master.variants) {
+      try {
+        const vars = typeof master.variants === 'string' ? JSON.parse(master.variants) : master.variants;
+        if (Array.isArray(vars)) {
+          const vMatch = vars.find(v => 
+            (v.color || '').trim().toLowerCase() === (row.color || '').trim().toLowerCase() &&
+            (v.size || '').trim().toLowerCase() === (row.size || '').trim().toLowerCase()
+          );
+          if (vMatch && vMatch.barcode) targetBarcode = vMatch.barcode;
+        }
+      } catch(e) {}
+    }
+    return {
+      ...row,
+      targetPrice,
+      targetBarcode
+    };
+  });
 
   let changed = 0;
   const CHUNK = 50;
   for (let i = 0; i < targets.length; i += CHUNK) {
     const chunk = targets.slice(i, i + CHUNK);
     await Promise.all(chunk.map(async (row) => {
-      if (row.target == null) return; // no trustworthy master price — leave row alone
-      const current = parseFloat(row.price);
-      if (current === row.target) return; // unchanged
-      await db.outletInventory.update({
-        where: { id: row.id },
-        data: { price: row.target, updatedAt: new Date() }
-      });
-      changed++;
+      const upd = {};
+      if (row.targetPrice != null) {
+        const current = parseFloat(row.price);
+        if (current !== row.targetPrice) upd.price = row.targetPrice;
+      }
+      if (row.targetBarcode && row.barcode !== row.targetBarcode) {
+        upd.barcode = row.targetBarcode;
+      }
+      if (Object.keys(upd).length > 0) {
+        upd.updatedAt = new Date();
+        await db.outletInventory.update({
+          where: { id: row.id },
+          data: upd
+        });
+        changed++;
+      }
     }));
   }
   return { matched: rows.length, changed };

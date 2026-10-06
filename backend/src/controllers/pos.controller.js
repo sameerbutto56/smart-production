@@ -411,40 +411,87 @@ const updateVariantPrice = async (req, res) => {
 const createVariant = async (req, res) => {
   try {
     const { productId } = req.params;
-    const outlet = getOutletName(req);
+    const outlet = getOutletName(req) || 'Johar Town';
     const { color, size, stock, price } = req.body;
     const storeItem = await prisma.inventoryItem.findUnique({ where: { id: productId } });
     if (!storeItem) return res.status(404).json({ message: 'Store product not found' });
 
-    let attempt = 0;
-    while (true) {
-      const barcode = generateBarcode(productId, size, color, attempt);
+    const cColor = color ? color.trim() : null;
+    const cSize = size ? size.trim() : null;
+
+    // Check if variant exists in Master variants array
+    let variants = [];
+    if (storeItem.variants) {
       try {
-        const item = await prisma.outletInventory.create({
-          data: {
-            outletName: outlet || 'Johar Town',
-            name: storeItem.name,
-            category: storeItem.category,
-            color: color || null,
-            size: size || null,
-            fabric: storeItem.fabric,
-            barcode,
-            stock: parseInt(stock || 0),
-            price: price !== null && price !== '' ? parseFloat(price) : null,
-            imageUrl: storeItem.imageUrl,
-            metadata: JSON.stringify({ sourceStoreItemId: storeItem.id })
-          }
-        });
-        cache.delPattern(CACHE_KEY_PREFIX);
-        return res.json(item);
-      } catch (createErr) {
-        if (createErr.code === 'P2002' && attempt < 100) {
-          attempt++;
-          continue;
-        }
-        throw createErr;
-      }
+        variants = typeof storeItem.variants === 'string' ? JSON.parse(storeItem.variants) : storeItem.variants;
+      } catch(e) {}
     }
+    if (!Array.isArray(variants)) variants = [];
+
+    let canonicalBarcode = null;
+    const matchedMasterVariant = variants.find(v => 
+      (v.color || '').trim().toLowerCase() === (cColor || '').toLowerCase() &&
+      (v.size || '').trim().toLowerCase() === (cSize || '').toLowerCase()
+    );
+
+    if (matchedMasterVariant && matchedMasterVariant.barcode) {
+      canonicalBarcode = matchedMasterVariant.barcode;
+    } else {
+      canonicalBarcode = generateBarcode(productId, cSize, cColor);
+      variants.push({
+        color: cColor || '',
+        size: cSize || '',
+        price: price !== null && price !== '' ? parseFloat(price) : (storeItem.price || 0),
+        stock: 0,
+        barcode: canonicalBarcode,
+        imageUrl: storeItem.imageUrl || null
+      });
+      await prisma.inventoryItem.update({
+        where: { id: storeItem.id },
+        data: { variants }
+      });
+    }
+
+    // Check if already exists in this outlet
+    const existing = await prisma.outletInventory.findFirst({
+      where: {
+        outletName: outlet,
+        name: storeItem.name,
+        color: cColor,
+        size: cSize
+      }
+    });
+
+    if (existing) {
+      const updated = await prisma.outletInventory.update({
+        where: { id: existing.id },
+        data: {
+          stock: parseInt(stock || 0),
+          price: price !== null && price !== '' ? parseFloat(price) : existing.price,
+          barcode: canonicalBarcode
+        }
+      });
+      cache.delPattern(CACHE_KEY_PREFIX);
+      return res.json(updated);
+    }
+
+    const item = await prisma.outletInventory.create({
+      data: {
+        outletName: outlet,
+        name: storeItem.name,
+        category: storeItem.category,
+        color: cColor,
+        size: cSize,
+        fabric: storeItem.fabric,
+        barcode: canonicalBarcode,
+        stock: parseInt(stock || 0),
+        price: price !== null && price !== '' ? parseFloat(price) : (storeItem.price || null),
+        imageUrl: storeItem.imageUrl,
+        metadata: JSON.stringify({ sourceStoreItemId: storeItem.id })
+      }
+    });
+    cache.delPattern(CACHE_KEY_PREFIX);
+    return res.json(item);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create inventory item', error: error.message });
   }
@@ -1336,6 +1383,9 @@ const createPosProduct = async (req, res) => {
       return res.status(400).json({ message: 'Product name and category are required' });
     }
 
+    const cleanName = name.trim();
+    const cleanCat = category.trim().toUpperCase();
+
     let computedPrice = price;
     if ((!price || price === 0) && variants && Array.isArray(variants) && variants.length > 0) {
       const firstPrice = parseFloat(variants[0].price);
@@ -1344,15 +1394,28 @@ const createPosProduct = async (req, res) => {
       computedPrice = 0;
     }
 
+    // Ensure each variant has a barcode
+    let processedVariants = variants;
+    if (Array.isArray(variants)) {
+      processedVariants = variants.map(v => ({
+        ...v,
+        color: v.color ? v.color.trim() : '',
+        size: v.size ? v.size.trim() : '',
+        price: parseFloat(v.price) || parseFloat(computedPrice) || 0,
+        stock: parseInt(v.stock || 0),
+        barcode: v.barcode || generateBarcode(cleanName, v.size, v.color)
+      }));
+    }
+
     const item = await prisma.inventoryItem.create({
       data: {
-        name,
-        category,
-        fabric: fabric || null,
+        name: cleanName,
+        category: cleanCat,
+        fabric: fabric ? fabric.trim() : null,
         imageUrl: imageUrl || null,
         stock: 0,
         price: parseFloat(computedPrice) || 0,
-        variants: variants || null
+        variants: processedVariants || null
       }
     });
 
@@ -1369,6 +1432,37 @@ const lookupBarcode = async (req, res) => {
     const barcode = req.params.barcode.toUpperCase();
     const outlet = getOutletName(req);
     if (!outlet) return res.status(400).json({ message: 'Outlet required' });
+
+    // Special case: warehouse barcode lookup
+    if (outlet === 'Warehouse') {
+      const stores = await prisma.inventoryItem.findMany();
+      for (const store of stores) {
+        let vars = store.variants;
+        if (typeof vars === 'string') {
+          try { vars = JSON.parse(vars); } catch(e) { vars = null; }
+        }
+        if (Array.isArray(vars)) {
+          for (const v of vars) {
+            if (v && v.barcode && v.barcode.toUpperCase() === barcode) {
+              return res.json({
+                id: store.id,
+                productName: store.name,
+                category: store.category,
+                imageUrl: v.imageUrl || store.imageUrl || null,
+                color: v.color || null,
+                size: v.size || null,
+                barcode: v.barcode,
+                stock: v.stock || 0,
+                price: v.price || store.price || 0,
+                outletName: 'Warehouse'
+              });
+            }
+          }
+        }
+      }
+      return res.status(404).json({ message: 'Barcode not found in Warehouse' });
+    }
+
     // Barcode lookups skip cache to always return real-time stock
     let inv = await prisma.outletInventory.findFirst({
       where: { barcode: { equals: barcode, mode: 'insensitive' }, outletName: outlet }
@@ -1389,7 +1483,8 @@ const lookupBarcode = async (req, res) => {
       size: inv.size,
       barcode: inv.barcode,
       stock: inv.stock,
-      price: inv.price || 0
+      price: inv.price || 0,
+      outletName: inv.outletName
     };
 
     res.json(result);
@@ -1399,31 +1494,39 @@ const lookupBarcode = async (req, res) => {
 };
 
 const createOutletVariantFromBarcode = async (barcode, outlet) => {
-  const stores = await prisma.inventoryItem.findMany({ where: { isActive: true } });
+  // 1. Search in Central Product Master (InventoryItem)
+  const stores = await prisma.inventoryItem.findMany();
   for (const store of stores) {
-    const baseBarcode = generateBarcode(store.id, null, null);
-    if (baseBarcode.toUpperCase() === barcode) {
-      return prisma.outletInventory.create({
-        data: {
-          outletName: outlet, name: store.name, category: store.category,
-          color: null, size: null, fabric: store.fabric, barcode: baseBarcode,
-          stock: 0, price: store.price || 0, imageUrl: store.imageUrl,
-          variants: store.variants,
-          metadata: JSON.stringify({ sourceStoreItemId: store.id, autoCreated: true })
-        }
-      });
-    }
-    const variants = typeof store.variants === 'string' ? JSON.parse(store.variants) : store.variants;
+    let variants = typeof store.variants === 'string' ? JSON.parse(store.variants) : store.variants;
     if (Array.isArray(variants)) {
       for (const v of variants) {
-        const vb = generateBarcode(store.id, v.size || null, v.color || null);
-        if (vb.toUpperCase() === barcode) {
+        if (v && v.barcode && v.barcode.toUpperCase() === barcode) {
+          const existing = await prisma.outletInventory.findFirst({
+            where: {
+              outletName: outlet,
+              name: store.name,
+              color: v.color || null,
+              size: v.size || null
+            }
+          });
+          if (existing) {
+            return prisma.outletInventory.update({
+              where: { id: existing.id },
+              data: { barcode: v.barcode, price: v.price || store.price || 0 }
+            });
+          }
           return prisma.outletInventory.create({
             data: {
-              outletName: outlet, name: store.name, category: store.category,
-              color: v.color || null, size: v.size || null, fabric: store.fabric, barcode: vb,
-              stock: 0, price: v.price || store.price || 0, imageUrl: store.imageUrl,
-              variants: store.variants,
+              outletName: outlet,
+              name: store.name,
+              category: store.category,
+              color: v.color || null,
+              size: v.size || null,
+              fabric: store.fabric,
+              barcode: v.barcode,
+              stock: 0,
+              price: v.price || store.price || 0,
+              imageUrl: v.imageUrl || store.imageUrl || null,
               metadata: JSON.stringify({ sourceStoreItemId: store.id, autoCreated: true })
             }
           });
@@ -1431,6 +1534,43 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
       }
     }
   }
+
+  // 2. Fallback: Search in any other outlet's OutletInventory
+  const otherOutletItem = await prisma.outletInventory.findFirst({
+    where: { barcode: { equals: barcode, mode: 'insensitive' } }
+  });
+  if (otherOutletItem) {
+    const existing = await prisma.outletInventory.findFirst({
+      where: {
+        outletName: outlet,
+        name: otherOutletItem.name,
+        color: otherOutletItem.color || null,
+        size: otherOutletItem.size || null
+      }
+    });
+    if (existing) {
+      return prisma.outletInventory.update({
+        where: { id: existing.id },
+        data: { barcode: otherOutletItem.barcode, price: otherOutletItem.price || 0 }
+      });
+    }
+    return prisma.outletInventory.create({
+      data: {
+        outletName: outlet,
+        name: otherOutletItem.name,
+        category: otherOutletItem.category,
+        color: otherOutletItem.color,
+        size: otherOutletItem.size,
+        fabric: otherOutletItem.fabric,
+        barcode: otherOutletItem.barcode,
+        stock: 0,
+        price: otherOutletItem.price || 0,
+        imageUrl: otherOutletItem.imageUrl,
+        metadata: JSON.stringify({ autoCreated: true })
+      }
+    });
+  }
+
   return null;
 };
 

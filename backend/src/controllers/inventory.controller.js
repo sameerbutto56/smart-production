@@ -98,10 +98,32 @@ const syncWarehouseItemImagesToOutlets = async (item, colorImages = {}, io = nul
           });
         }
 
+        let variantBarcode = undefined;
+        let variantPrice = undefined;
+        let masterVariants = item.variants;
+        if (typeof masterVariants === 'string') {
+          try { masterVariants = JSON.parse(masterVariants); } catch(e) {}
+        }
+        if (Array.isArray(masterVariants)) {
+          const vMatch = masterVariants.find(v =>
+            (v.color || '').trim().toLowerCase() === (outletItem.color || '').trim().toLowerCase() &&
+            (v.size || '').trim().toLowerCase() === (outletItem.size || '').trim().toLowerCase()
+          );
+          if (vMatch) {
+            if (vMatch.barcode) variantBarcode = vMatch.barcode;
+            if (vMatch.price != null && parseFloat(vMatch.price) > 0) variantPrice = parseFloat(vMatch.price);
+          }
+        }
+
         return prisma.outletInventory.update({
           where: { id: outletItem.id },
           data: {
+            name: item.name,
+            category: item.category,
+            fabric: item.fabric || outletItem.fabric,
             imageUrl: item.imageUrl || outletItem.imageUrl || null,
+            barcode: variantBarcode || undefined,
+            price: variantPrice || undefined,
             metadata: Object.keys(outletMeta).length > 0 ? JSON.stringify(outletMeta) : null,
             variants: updatedVariants || undefined
           }
