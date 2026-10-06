@@ -4,6 +4,7 @@ const { getPendingAudit } = require('../utils/auditLock');
 const errorLogger = require('../utils/errorLogger');
 const { computeUnifiedSalesSummary } = require('../utils/posUnified');
 const { pktDayStart, pktDayEnd, dateBoundToMs, resolvePktDateRange } = require('../utils/workingHours');
+const { recordInventoryMovement } = require('../utils/inventoryMovement');
 const CACHE_KEY_PREFIX = 'pos:';
 
 const getOutletName = (req) => {
@@ -115,11 +116,16 @@ const getPosInventory = async (req, res) => {
       if (cached) return res.json(cached);
     }
 
-    const where = outlet ? { outletName: outlet } : {};
+    const showArchivedOnly = req.query.archived === 'true';
+    const includeArchived = req.query.includeArchived === 'true';
+    const where = {
+      ...(outlet ? { outletName: outlet } : {}),
+      ...(showArchivedOnly ? { isActive: false } : (!includeArchived ? { isActive: { not: false } } : {}))
+    };
     const items = await prisma.outletInventory.findMany({
       where,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true, createdAt: true, updatedAt: true }
+      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true, isActive: true, deletedAt: true, createdAt: true, updatedAt: true }
     });
 
     const masterMap = await getWarehouseMasterImageMap();
@@ -168,6 +174,8 @@ const getPosInventory = async (req, res) => {
         sizes,
         variants: item.variants,
         outletName: item.outletName,
+        isActive: item.isActive !== false,
+        deletedAt: item.deletedAt,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt
       };
@@ -268,7 +276,10 @@ const getProducts = async (req, res) => {
       if (cached) return res.json(cached);
     }
 
-    const where = outlet ? { outletName: outlet } : {};
+    const where = {
+      ...(outlet ? { outletName: outlet } : {}),
+      isActive: { not: false }
+    };
     const items = await prisma.outletInventory.findMany({
       where,
       orderBy: { name: 'asc' },
@@ -368,11 +379,36 @@ const getVariant = async (req, res) => {
 
 const updateVariantStock = async (req, res) => {
   try {
-    const { stock } = req.body;
+    const { stock, reason } = req.body;
+    const existing = await prisma.outletInventory.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ message: 'Inventory item not found' });
+    const prevStock = existing.stock || 0;
+    const newStock = parseInt(stock || 0);
+    const diff = newStock - prevStock;
+
     const item = await prisma.outletInventory.update({
       where: { id: req.params.id },
-      data: { stock: parseInt(stock || 0) }
+      data: { stock: newStock }
     });
+
+    if (diff !== 0) {
+      recordInventoryMovement({
+        movementType: 'ADJUSTMENT',
+        location: existing.outletName,
+        productId: existing.id,
+        productName: existing.name,
+        color: existing.color,
+        size: existing.size,
+        barcode: existing.barcode,
+        previousQty: prevStock,
+        newQty: newStock,
+        difference: diff,
+        referenceId: req.params.id,
+        notes: reason || 'Manual stock adjustment',
+        performedBy: req.user?.name || 'Staff'
+      }).catch(e => console.error('Failed to log inventory movement:', e.message));
+    }
+
     cache.delPattern(CACHE_KEY_PREFIX);
     res.json(item);
   } catch (error) {
@@ -501,19 +537,53 @@ const deleteVariant = async (req, res) => {
   try {
     const item = await prisma.outletInventory.findUnique({ where: { id: req.params.id } });
     if (!item) return res.status(404).json({ message: 'Inventory item not found' });
-    const saleCount = await prisma.posSaleItem.count({ where: { outletVariantId: req.params.id } });
-    const returnCount = await prisma.posReturn.count({ where: { outletVariantId: req.params.id } });
-    if (saleCount > 0 || returnCount > 0) {
+
+    // Check all historical dependencies
+    const [saleCount, returnCount, transferCount, movementCount] = await Promise.all([
+      prisma.posSaleItem.count({ where: { outletVariantId: req.params.id } }),
+      prisma.posReturn.count({ where: { outletVariantId: req.params.id } }),
+      prisma.outletTransferItem.count({ where: { OR: [{ outletVariantId: req.params.id }, { outletInventoryId: req.params.id }] } }),
+      prisma.inventoryMovementLog.count({ where: { productId: req.params.id } })
+    ]);
+    const hasHistory = (saleCount + returnCount + transferCount + movementCount) > 0;
+
+    if (hasHistory) {
+      // Deactivate / Archive: strictly removes from active POS inventory while preserving historical transactions
       await prisma.outletInventory.update({
         where: { id: req.params.id },
-        data: { stock: 0 }
+        data: { isActive: false, deletedAt: new Date(), stock: 0 }
       });
-      cache.delPattern(CACHE_KEY_PREFIX);
-      return res.json({ message: 'Item has transaction history, stock set to 0' });
+      await recordInventoryMovement({
+        movementType: 'DEACTIVATE',
+        location: item.outletName,
+        productId: item.id,
+        productName: item.name,
+        color: item.color,
+        size: item.size,
+        barcode: item.barcode,
+        previousQty: item.stock || 0,
+        newQty: 0,
+        difference: -(item.stock || 0),
+        referenceId: item.id,
+        notes: `Variant deactivated/archived from ${item.outletName} inventory (historical records preserved)`,
+        performedBy: req.user?.name || 'Admin'
+      }).catch(() => {});
+    } else {
+      // Safe physical deletion if no historical records exist
+      await prisma.outletInventory.delete({ where: { id: req.params.id } });
     }
-    await prisma.outletInventory.delete({ where: { id: req.params.id } });
+
     cache.delPattern(CACHE_KEY_PREFIX);
-    res.json({ message: 'Inventory item deleted' });
+    cache.delPattern('products:');
+
+    const io = req.app.get('io');
+    if (io) io.emit('pos:inventory-updated', { action: 'DELETE_VARIANT', variantId: item.id, outlet: item.outletName });
+
+    res.json({
+      message: `Variant "${item.name}" (${[item.color, item.size].filter(Boolean).join(' • ') || 'Default'}) removed from active inventory`,
+      status: hasHistory ? 'DEACTIVATED' : 'DELETED',
+      variantId: item.id
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete inventory item', error: error.message });
   }
@@ -527,35 +597,101 @@ const deleteProductVariants = async (req, res) => {
     const decodedName = decodeURIComponent(productName);
 
     const items = await prisma.outletInventory.findMany({
-      where: { name: decodedName, outletName: outlet },
-      select: { id: true }
+      where: { name: { equals: decodedName, mode: 'insensitive' }, outletName: outlet }
     });
     if (items.length === 0) return res.status(404).json({ message: 'Product not found in this outlet' });
 
     const itemIds = items.map(i => i.id);
-    const [saleItems, returnItems] = await Promise.all([
+    const [saleItems, returnItems, transferItems, movementItems] = await Promise.all([
       prisma.posSaleItem.findMany({ where: { outletVariantId: { in: itemIds } }, select: { outletVariantId: true } }),
-      prisma.posReturn.findMany({ where: { outletVariantId: { in: itemIds } }, select: { outletVariantId: true } })
+      prisma.posReturn.findMany({ where: { outletVariantId: { in: itemIds } }, select: { outletVariantId: true } }),
+      prisma.outletTransferItem.findMany({ where: { OR: [{ outletVariantId: { in: itemIds } }, { outletInventoryId: { in: itemIds } }] }, select: { outletVariantId: true, outletInventoryId: true } }),
+      prisma.inventoryMovementLog.findMany({ where: { productId: { in: itemIds } }, select: { productId: true } })
     ]);
     const hasHistoryIds = new Set([
       ...saleItems.map(s => s.outletVariantId),
-      ...returnItems.map(r => r.outletVariantId)
+      ...returnItems.map(r => r.outletVariantId),
+      ...transferItems.map(t => t.outletVariantId || t.outletInventoryId),
+      ...movementItems.map(m => m.productId)
     ]);
 
-    let deleted = 0, zeroed = 0;
+    let deleted = 0, deactivated = 0;
     for (const item of items) {
       if (hasHistoryIds.has(item.id)) {
-        await prisma.outletInventory.update({ where: { id: item.id }, data: { stock: 0 } });
-        zeroed++;
+        await prisma.outletInventory.update({
+          where: { id: item.id },
+          data: { isActive: false, deletedAt: new Date(), stock: 0 }
+        });
+        deactivated++;
       } else {
         await prisma.outletInventory.delete({ where: { id: item.id } });
         deleted++;
       }
     }
     cache.delPattern(CACHE_KEY_PREFIX);
-    res.json({ message: `Product removed. Deleted: ${deleted}, Zeroed (has history): ${zeroed}` });
+    cache.delPattern('products:');
+
+    const io = req.app.get('io');
+    if (io) io.emit('pos:inventory-updated', { action: 'DELETE_PRODUCT', productName: decodedName, outlet });
+
+    res.json({
+      message: `Product "${decodedName}" removed from ${outlet} active inventory (${deleted} deleted, ${deactivated} archived)`,
+      deleted,
+      deactivated
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete product variants', error: error.message });
+  }
+};
+
+const reactivateVariant = async (req, res) => {
+  try {
+    const item = await prisma.outletInventory.findUnique({ where: { id: req.params.id } });
+    if (!item) return res.status(404).json({ message: 'Inventory item not found' });
+
+    const updated = await prisma.outletInventory.update({
+      where: { id: req.params.id },
+      data: { isActive: true, deletedAt: null }
+    });
+
+    cache.delPattern(CACHE_KEY_PREFIX);
+    cache.delPattern('products:');
+
+    const io = req.app.get('io');
+    if (io) io.emit('pos:inventory-updated', { action: 'REACTIVATE_VARIANT', variantId: item.id, outlet: item.outletName });
+
+    res.json({
+      message: `Variant "${item.name}" (${[item.color, item.size].filter(Boolean).join(' • ') || 'Default'}) reactivated in ${item.outletName}`,
+      item: updated
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to reactivate variant', error: error.message });
+  }
+};
+
+const reactivateProductVariants = async (req, res) => {
+  try {
+    const { productName } = req.params;
+    const outlet = getOutletName(req);
+    if (!outlet) return res.status(400).json({ message: 'Outlet is required' });
+    const decodedName = decodeURIComponent(productName);
+
+    const updated = await prisma.outletInventory.updateMany({
+      where: { name: { equals: decodedName, mode: 'insensitive' }, outletName: outlet },
+      data: { isActive: true, deletedAt: null }
+    });
+
+    cache.delPattern(CACHE_KEY_PREFIX);
+    cache.delPattern('products:');
+
+    const io = req.app.get('io');
+    if (io) io.emit('pos:inventory-updated', { action: 'REACTIVATE_PRODUCT', productName: decodedName, outlet });
+
+    res.json({
+      message: `Product "${decodedName}" reactivated in ${outlet} (${updated.count} variants restored)`
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to reactivate product variants', error: error.message });
   }
 };
 
@@ -697,7 +833,8 @@ const createSale = async (req, res) => {
         discountPct: dpct,
         discountFixed: dfixed,
         lineTotal: itemNet,
-        isExchange: isEx
+        isExchange: isEx,
+        barcode: inv.barcode || null
       });
     }
 
@@ -731,24 +868,60 @@ const createSale = async (req, res) => {
       // Non-exchange items: DECREMENT stock (sell)
       const exchangeItems = saleItems.filter(si => si.isExchange);
       const nonExchangeItems = saleItems.filter(si => !si.isExchange);
-      await Promise.all([
-        ...exchangeItems.map(si =>
-          tx.outletInventory.updateMany({
-            where: { id: si.outletVariantId },
-            data: { stock: { increment: si.quantity } }
-          }).then(result => {
-            if (result.count === 0) throw new Error(`Exchange stock update failed for ${si.productName}`);
-          })
-        ),
-        ...nonExchangeItems.map(si =>
-          tx.outletInventory.updateMany({
-            where: { id: si.outletVariantId, stock: { gte: si.quantity } },
-            data: { stock: { decrement: si.quantity } }
-          }).then(result => {
-            if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
-          })
-        )
-      ]);
+
+      for (const si of exchangeItems) {
+        const oi = await tx.outletInventory.findUnique({ where: { id: si.outletVariantId } });
+        const prevStock = oi?.stock || 0;
+        const newStock = prevStock + si.quantity;
+        const res = await tx.outletInventory.updateMany({
+          where: { id: si.outletVariantId },
+          data: { stock: { increment: si.quantity } }
+        });
+        if (res.count === 0) throw new Error(`Exchange stock update failed for ${si.productName}`);
+        await recordInventoryMovement({
+          movementType: 'EXCHANGE',
+          location: outletName,
+          productId: si.outletVariantId,
+          productName: si.productName,
+          color: si.color,
+          size: si.size,
+          barcode: si.barcode || oi?.barcode,
+          previousQty: prevStock,
+          newQty: newStock,
+          difference: si.quantity,
+          referenceId: receiptNumber,
+          notes: `POS Exchange item returned on receipt #${receiptNumber}`,
+          performedBy: cashierName || req.user?.name || 'Cashier',
+          tx
+        }).catch(() => {});
+      }
+
+      for (const si of nonExchangeItems) {
+        const oi = await tx.outletInventory.findUnique({ where: { id: si.outletVariantId } });
+        const prevStock = oi?.stock || 0;
+        const newStock = Math.max(0, prevStock - si.quantity);
+        const res = await tx.outletInventory.updateMany({
+          where: { id: si.outletVariantId, stock: { gte: si.quantity } },
+          data: { stock: { decrement: si.quantity } }
+        });
+        if (res.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
+        await recordInventoryMovement({
+          movementType: 'SALE',
+          location: outletName,
+          productId: si.outletVariantId,
+          productName: si.productName,
+          color: si.color,
+          size: si.size,
+          barcode: si.barcode || oi?.barcode,
+          previousQty: prevStock,
+          newQty: newStock,
+          difference: -si.quantity,
+          referenceId: receiptNumber,
+          notes: `POS Sale #${receiptNumber}`,
+          performedBy: cashierName || req.user?.name || 'Cashier',
+          tx
+        }).catch(() => {});
+      }
       if (orderId) {
         await tx.order.update({
           where: { id: orderId },
@@ -1331,10 +1504,31 @@ const refundInvoice = async (req, res) => {
 
       for (const item of sale.items) {
         if (item.outletVariantId) {
+          const oi = await tx.outletInventory.findUnique({ where: { id: item.outletVariantId } });
+          const prevStock = oi?.stock || 0;
+          const newStock = prevStock + item.quantity;
           await tx.outletInventory.update({
             where: { id: item.outletVariantId },
             data: { stock: { increment: item.quantity } }
           });
+          if (oi) {
+            await recordInventoryMovement({
+              movementType: 'RETURN',
+              location: outlet || sale.outletName || oi.outletName,
+              productId: oi.id,
+              productName: oi.name,
+              color: oi.color,
+              size: oi.size,
+              barcode: oi.barcode,
+              previousQty: prevStock,
+              newQty: newStock,
+              difference: item.quantity,
+              referenceId: sale.receiptNumber,
+              notes: `POS return for receipt #${sale.receiptNumber}`,
+              performedBy: req.user?.name || 'Cashier',
+              tx
+            });
+          }
         }
         const refundAmount = item.lineTotal;
         await tx.posReturn.create({
@@ -1385,6 +1579,16 @@ const createPosProduct = async (req, res) => {
 
     const cleanName = name.trim();
     const cleanCat = category.trim().toUpperCase();
+
+    // Rule 31 & 32: Single Product Master — prevent duplicate product creation
+    const existingMaster = await prisma.inventoryItem.findFirst({
+      where: { name: { equals: cleanName, mode: 'insensitive' } }
+    });
+    if (existingMaster) {
+      return res.status(400).json({
+        message: `Product "${existingMaster.name}" already exists in the central Product Master (ID: ${existingMaster.id}). Cannot create a duplicate product.`
+      });
+    }
 
     let computedPrice = price;
     if ((!price || price === 0) && variants && Array.isArray(variants) && variants.length > 0) {
@@ -1468,6 +1672,14 @@ const lookupBarcode = async (req, res) => {
       where: { barcode: { equals: barcode, mode: 'insensitive' }, outletName: outlet }
     });
 
+    if (inv && inv.isActive === false) {
+      return res.status(400).json({
+        message: `This product/variant (${inv.name}) is inactive or deleted.`,
+        inactive: true,
+        item: inv
+      });
+    }
+
     if (!inv) {
       inv = await createOutletVariantFromBarcode(barcode, outlet);
     }
@@ -1494,13 +1706,15 @@ const lookupBarcode = async (req, res) => {
 };
 
 const createOutletVariantFromBarcode = async (barcode, outlet) => {
-  // 1. Search in Central Product Master (InventoryItem)
-  const stores = await prisma.inventoryItem.findMany();
+  // 1. Search in Central Product Master (InventoryItem) - only active products
+  const stores = await prisma.inventoryItem.findMany({
+    where: { isActive: { not: false } }
+  });
   for (const store of stores) {
     let variants = typeof store.variants === 'string' ? JSON.parse(store.variants) : store.variants;
     if (Array.isArray(variants)) {
       for (const v of variants) {
-        if (v && v.barcode && v.barcode.toUpperCase() === barcode) {
+        if (v && v.barcode && v.barcode.toUpperCase() === barcode && v.isActive !== false) {
           const existing = await prisma.outletInventory.findFirst({
             where: {
               outletName: outlet,
@@ -1510,6 +1724,7 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
             }
           });
           if (existing) {
+            if (existing.isActive === false) return null; // Inactive in this outlet, do not recreate!
             return prisma.outletInventory.update({
               where: { id: existing.id },
               data: { barcode: v.barcode, price: v.price || store.price || 0 }
@@ -1527,6 +1742,7 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
               stock: 0,
               price: v.price || store.price || 0,
               imageUrl: v.imageUrl || store.imageUrl || null,
+              isActive: true,
               metadata: JSON.stringify({ sourceStoreItemId: store.id, autoCreated: true })
             }
           });
@@ -1535,9 +1751,9 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
     }
   }
 
-  // 2. Fallback: Search in any other outlet's OutletInventory
+  // 2. Fallback: Search in any other outlet's OutletInventory - only active items
   const otherOutletItem = await prisma.outletInventory.findFirst({
-    where: { barcode: { equals: barcode, mode: 'insensitive' } }
+    where: { barcode: { equals: barcode, mode: 'insensitive' }, isActive: { not: false } }
   });
   if (otherOutletItem) {
     const existing = await prisma.outletInventory.findFirst({
@@ -1549,6 +1765,7 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
       }
     });
     if (existing) {
+      if (existing.isActive === false) return null; // Inactive in this outlet, do not recreate!
       return prisma.outletInventory.update({
         where: { id: existing.id },
         data: { barcode: otherOutletItem.barcode, price: otherOutletItem.price || 0 }
@@ -1559,14 +1776,15 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
         outletName: outlet,
         name: otherOutletItem.name,
         category: otherOutletItem.category,
-        color: otherOutletItem.color,
-        size: otherOutletItem.size,
+        color: otherOutletItem.color || null,
+        size: otherOutletItem.size || null,
         fabric: otherOutletItem.fabric,
         barcode: otherOutletItem.barcode,
         stock: 0,
         price: otherOutletItem.price || 0,
-        imageUrl: otherOutletItem.imageUrl,
-        metadata: JSON.stringify({ autoCreated: true })
+        imageUrl: otherOutletItem.imageUrl || null,
+        isActive: true,
+        metadata: JSON.stringify({ autoCreatedFromOutlet: otherOutletItem.outletName })
       }
     });
   }
@@ -2135,6 +2353,7 @@ module.exports = {
   getVariant,
   updateVariantStock, updateVariantPrice,
   createVariant, deleteVariant, deleteProductVariants, updateVariant,
+  reactivateVariant, reactivateProductVariants,
   createSale, getSales, getSalesDashboard, getSalesSummary,
   computeSalesSummary,
   createReturn, getReturns,

@@ -1,11 +1,12 @@
 const express = require('express');
-const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus, createCartAllocation, getCarts, updateCartStatus, exportBackup, importBackup, exportBackupExcel, importBackupExcel } = require('../controllers/inventory.controller');
+const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, reactivateInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus, createCartAllocation, getCarts, updateCartStatus, exportBackup, importBackup, exportBackupExcel, importBackupExcel, getInventoryMovements } = require('../controllers/inventory.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', authenticate, getInventory);
+router.get('/movements', authenticate, getInventoryMovements);
 router.get('/backup/export', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STORE']), exportBackup);
 router.post('/backup/import', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STORE']), upload.single('file'), importBackup);
 router.get('/backup/export-excel', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STORE']), exportBackupExcel);
@@ -22,6 +23,7 @@ router.get('/carts', authenticate, getCarts);
 router.patch('/carts/:id/status', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), updateCartStatus);
 router.get('/search', authenticate, searchInventory);
 router.put('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), updateInventoryItem);
+router.post('/:id/reactivate', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), reactivateInventoryItem);
 router.delete('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), deleteInventoryItem);
 router.delete('/', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), clearAllInventory);
 

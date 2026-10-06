@@ -4,6 +4,7 @@ const notify = require('../utils/notify');
 const errorLogger = require('../utils/errorLogger');
 const { generateBarcode } = require('./pos.controller');
 const { resolveMasterPrice } = require('../utils/priceSync');
+const { recordInventoryMovement } = require('../utils/inventoryMovement');
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 
@@ -127,6 +128,65 @@ const createTransferRequest = async (req, res) => {
         include: { items: true }
       });
       await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'STORE', title: 'New Transfer Request', message: `Transfer #${transfer.transferNumber} from ${fromOutlet}`, action: 'Transfer Created', employeeName: req.user?.name }).catch(() => {});
+      cache.delPattern('pos:');
+      return res.status(201).json(transfer);
+
+    } else if (type === 'WAREHOUSE_OUTLET') {
+      let totalItems = 0;
+      for (const item of items) {
+        if (!item.quantity) return res.status(400).json({ message: 'Each item must have quantity' });
+        let invItem = null;
+        if (item.inventoryItemId) {
+          invItem = await prisma.inventoryItem.findUnique({ where: { id: item.inventoryItemId } });
+        } else if (item.barcode) {
+          invItem = await findWarehouseItem(prisma, item.productName || '', item.color, item.size, item.barcode);
+        } else if (item.productName) {
+          invItem = await findWarehouseItem(prisma, item.productName, item.color, item.size);
+        }
+        if (!invItem) return res.status(400).json({ message: `Product ${item.productName || item.barcode} not found in Warehouse` });
+
+        let itemBarcode = item.barcode;
+        let itemPrice = Number(item.unitPrice) || parseFloat(invItem.price) || 0;
+        let availableStock = invItem.stock || 0;
+
+        if (Array.isArray(invItem.variants) && invItem.variants.length > 0) {
+          const matchedVar = invItem.variants.find(v => (item.barcode && v.barcode === item.barcode) || (eqField(v.color, item.color) && eqField(v.size, item.size)));
+          if (matchedVar) {
+            itemBarcode = matchedVar.barcode || itemBarcode;
+            if (matchedVar.price) itemPrice = parseFloat(matchedVar.price);
+            availableStock = matchedVar.stock || 0;
+          }
+        }
+
+        if (availableStock < item.quantity) {
+          return res.status(400).json({ message: `Insufficient warehouse stock for ${invItem.name}. Available: ${availableStock}, requested: ${item.quantity}` });
+        }
+
+        totalItems += item.quantity;
+        transferItems.push({
+          productName: invItem.name,
+          color: item.color || invItem.color || null,
+          size: item.size || invItem.size || null,
+          barcode: itemBarcode || invItem.barcode || null,
+          quantity: item.quantity,
+          unitPrice: itemPrice
+        });
+      }
+
+      const transferNumber = generateTransferNumber();
+      const transfer = await prisma.outletTransfer.create({
+        data: {
+          transferNumber, type, fromOutlet: 'Warehouse', toOutlet,
+          totalItems, dispatchMethod: dispatchMethod || null,
+          notes: notes || null,
+          requestedById: req.user?.id || null,
+          requestedByName: req.user?.name || null,
+          status: 'PENDING',
+          items: { create: transferItems }
+        },
+        include: { items: true }
+      });
+      await notify.create(req, { type: 'transfer', moduleName: 'Transfers', path: '/transfers', role: 'STORE', title: 'New Warehouse Transfer Request', message: `Transfer #${transfer.transferNumber} to ${toOutlet}`, action: 'Transfer Created', employeeName: req.user?.name }).catch(() => {});
       cache.delPattern('pos:');
       return res.status(201).json(transfer);
 
@@ -286,14 +346,30 @@ const dispatchTransfer = async (req, res) => {
       for (const item of recheck.items) {
         const qty = item.approvedQty || item.quantity;
         if (recheck.type === 'WAREHOUSE_OUTLET') {
-          // Match warehouse InventoryItem by name only, then validate variant stock
-          const invItem = await findWarehouseItem(tx, item.productName, item.color, item.size);
+          // Match warehouse InventoryItem by barcode or name
+          const invItem = await findWarehouseItem(tx, item.productName, item.color, item.size, item.barcode);
           if (!invItem || (invItem.stock || 0) < qty) {
             const err = new Error(`Insufficient warehouse stock for ${item.productName}. Available: ${invItem?.stock || 0}`);
             err.validation = true;
             throw err;
           }
-          await deductSourceWarehouse(tx, invItem.id, item.color, item.size, qty);
+          const deduction = await deductSourceWarehouse(tx, invItem.id, item.color, item.size, qty, item.barcode);
+          await recordInventoryMovement({
+            movementType: 'TRANSFER_OUT',
+            location: 'Warehouse',
+            productId: invItem.id,
+            productName: invItem.name,
+            color: item.color,
+            size: item.size,
+            barcode: deduction?.barcode || item.barcode || invItem.barcode,
+            previousQty: deduction?.prevStock ?? invItem.stock,
+            newQty: deduction?.newStock ?? (invItem.stock - qty),
+            difference: -qty,
+            referenceId: recheck.transferNumber,
+            notes: `Transfer dispatched to ${recheck.toOutlet}`,
+            performedBy: req.user?.name || 'Staff',
+            tx
+          });
         } else if (item.outletInventoryId || item.outletVariantId) {
           const srcId = item.outletInventoryId || item.outletVariantId;
           const ov = await tx.outletInventory.findUnique({ where: { id: srcId } });
@@ -302,7 +378,25 @@ const dispatchTransfer = async (req, res) => {
             err.validation = true;
             throw err;
           }
+          const prevStock = ov.stock || 0;
+          const newStock = Math.max(0, prevStock - qty);
           await tx.outletInventory.update({ where: { id: srcId }, data: { stock: { decrement: qty } } });
+          await recordInventoryMovement({
+            movementType: 'TRANSFER_OUT',
+            location: recheck.fromOutlet,
+            productId: ov.id,
+            productName: ov.name,
+            color: ov.color,
+            size: ov.size,
+            barcode: ov.barcode || item.barcode,
+            previousQty: prevStock,
+            newQty: newStock,
+            difference: -qty,
+            referenceId: recheck.transferNumber,
+            notes: `Transfer dispatched to ${recheck.toOutlet}`,
+            performedBy: req.user?.name || 'Staff',
+            tx
+          });
         }
       }
 
@@ -340,19 +434,32 @@ const eqField = (a, b) => {
   return na === nb;
 };
 
-// Find a warehouse InventoryItem by name, searching BOTH top-level fields AND the
-// variants JSON array. Warehouse products typically store color: null, size: null at
-// the top level with all variants inside the JSON array.
-const findWarehouseItem = async (tx, productName, color, size) => {
-  // 1. Try exact top-level match first (handles simple single-variant items)
+// Find a warehouse InventoryItem by barcode first (inside variants JSON), then by name (case-insensitive).
+const findWarehouseItem = async (tx, productName, color, size, barcode) => {
+  // 1. Barcode match first across all Warehouse items by searching variants JSON array
+  if (barcode) {
+    const candidateVariants = await tx.inventoryItem.findMany();
+    for (const c of candidateVariants) {
+      const variants = typeof c.variants === 'string' ? JSON.parse(c.variants) : (Array.isArray(c.variants) ? c.variants : []);
+      if (variants.some(v => v.barcode === String(barcode).trim())) {
+        return c;
+      }
+    }
+  }
+
+  // 2. Try exact top-level match (handles simple single-variant items)
   let item = await tx.inventoryItem.findFirst({
-    where: { name: productName, color: color || undefined, size: size || undefined }
+    where: {
+      name: { equals: productName, mode: 'insensitive' },
+      color: color || undefined,
+      size: size || undefined
+    }
   });
   if (item) return item;
 
-  // 2. Search by name only, then check inside the variants JSON array
+  // 3. Search by name (case-insensitive), then check inside the variants JSON array
   const candidates = await tx.inventoryItem.findMany({
-    where: { name: productName }
+    where: { name: { equals: productName, mode: 'insensitive' } }
   });
   if (candidates.length === 0) return null;
 
@@ -360,7 +467,6 @@ const findWarehouseItem = async (tx, productName, color, size) => {
   for (const c of candidates) {
     const variants = typeof c.variants === 'string' ? JSON.parse(c.variants) : (Array.isArray(c.variants) ? c.variants : []);
     if (variants.length === 0) {
-      // No variants array — match if top-level color/size are compatible
       if (eqField(c.color, color) && eqField(c.size, size)) return c;
       continue;
     }
@@ -368,34 +474,45 @@ const findWarehouseItem = async (tx, productName, color, size) => {
     if (hasVariant) return c;
   }
 
-  // 3. Fallback: return the first candidate with the same name (the variant will be added)
+  // 4. Fallback: return the first candidate with the same name
   return candidates[0];
 };
 
-// Increment warehouse InventoryItem stock for a specific variant (or add new variant).
-// Recomputes top-level stock as sum of all variant stocks.
-const incrementWarehouseStock = async (tx, destItem, color, size, qty, price) => {
+// Increment warehouse InventoryItem stock for a specific variant (or add variant to existing product).
+// Never creates a new InventoryItem. Recomputes top-level stock as sum of all variant stocks.
+const incrementWarehouseStock = async (tx, destItem, color, size, qty, price, barcode) => {
   let variants = typeof destItem.variants === 'string'
     ? JSON.parse(destItem.variants)
     : (Array.isArray(destItem.variants) ? [...destItem.variants] : []);
 
   let matched = false;
+  let prevStock = 0;
+  let newStock = qty;
+  let finalBarcode = barcode || destItem.barcode;
+
   variants = variants.map(v => {
     if (matched) return v;
-    if (eqField(v.color, color) && eqField(v.size, size)) {
+    const matchBarcode = barcode && v.barcode === barcode;
+    const matchIdentity = eqField(v.color, color) && eqField(v.size, size);
+    if (matchBarcode || matchIdentity) {
       matched = true;
-      return { ...v, stock: (v.stock || 0) + qty };
+      prevStock = v.stock || 0;
+      newStock = prevStock + qty;
+      finalBarcode = v.barcode || finalBarcode || generateBarcode(destItem.name, size, color);
+      return { ...v, stock: newStock, barcode: finalBarcode };
     }
     return v;
   });
 
   if (!matched) {
-    // Variant doesn't exist yet — add it
+    // Variant doesn't exist yet on this existing Product Master — append it to the product's variants
+    finalBarcode = barcode || generateBarcode(destItem.name, size, color);
     variants.push({
       color: color || null,
       size: size || null,
       stock: qty,
-      price: price || destItem.price || 0
+      price: price || destItem.price || 0,
+      barcode: finalBarcode
     });
   }
 
@@ -404,27 +521,40 @@ const incrementWarehouseStock = async (tx, destItem, color, size, qty, price) =>
     where: { id: destItem.id },
     data: { stock: newTotal, variants }
   });
+
+  return { prevStock, newStock, barcode: finalBarcode };
 };
 
 // Deduct a warehouse InventoryItem at dispatch (variant-aware), recomputing top-level stock.
-const deductSourceWarehouse = async (tx, inventoryItemId, color, size, qty) => {
+const deductSourceWarehouse = async (tx, inventoryItemId, color, size, qty, barcode) => {
   const inv = await tx.inventoryItem.findUnique({ where: { id: inventoryItemId } });
-  if (!inv) return;
+  if (!inv) return null;
+  let prevStock = 0;
+  let newStock = 0;
+  let finalBarcode = barcode || inv.barcode;
+
   if (Array.isArray(inv.variants) && inv.variants.length > 0) {
     let done = false;
     const variants = inv.variants.map(v => {
       if (done) return v;
-      const matchColor = !color || (v.color || '').toString().toLowerCase() === String(color).toLowerCase();
-      const matchSize = !size || (v.size || '').toString().toLowerCase() === String(size).toLowerCase();
-      if (!matchColor || !matchSize) return v;
+      const matchBarcode = barcode && v.barcode === barcode;
+      const matchIdentity = (!color || eqField(v.color, color)) && (!size || eqField(v.size, size));
+      if (!matchBarcode && !matchIdentity) return v;
       done = true;
-      return { ...v, stock: Math.max(0, (v.stock || 0) - qty) };
+      prevStock = v.stock || 0;
+      newStock = Math.max(0, prevStock - qty);
+      finalBarcode = v.barcode || finalBarcode;
+      return { ...v, stock: newStock };
     });
     const newTotal = variants.reduce((s, v) => s + (v.stock || 0), 0);
     await tx.inventoryItem.update({ where: { id: inv.id }, data: { variants, stock: newTotal } });
   } else {
-    await tx.inventoryItem.update({ where: { id: inv.id }, data: { stock: { decrement: Math.min(qty, inv.stock || 0) } } });
+    prevStock = inv.stock || 0;
+    newStock = Math.max(0, prevStock - qty);
+    await tx.inventoryItem.update({ where: { id: inv.id }, data: { stock: newStock } });
   }
+
+  return { prevStock, newStock, barcode: finalBarcode, inv };
 };
 
 const acceptTransfer = async (req, res) => {
@@ -460,54 +590,126 @@ const acceptTransfer = async (req, res) => {
         const price = item.unitPrice != null ? item.unitPrice : (sourceOv?.price || null);
 
         if (transfer.type === 'OUTLET_WAREHOUSE') {
-          // ── FIXED: Match warehouse InventoryItem by name, then search variants JSON ──
-          const destItem = await findWarehouseItem(tx, prodName, col, sz);
-          if (destItem) {
-            await incrementWarehouseStock(tx, destItem, col, sz, qty, price);
-          } else {
-            // Genuinely new product — create InventoryItem
-            await tx.inventoryItem.create({
-              data: {
-                name: prodName, category: cat,
-                color: null, size: null,
-                fabric: fab, stock: qty,
-                price: price || null,
-                variants: [{ color: col || null, size: sz || null, stock: qty, price: price || 0 }]
-              }
-            });
+          // Rule 31 & 32: Match existing Warehouse Master item (barcode first, then name/variants)
+          const destItem = await findWarehouseItem(tx, prodName, col, sz, item.barcode);
+          if (!destItem) {
+            throw vErr(`Product "${prodName}" does not exist in Warehouse Master. Transfers cannot create new products.`);
           }
-        } else {
-          // ── OUTLET_OUTLET: Identity-based matching first, barcode fallback ──
-          let destOv = null;
-
-          // 1. Match by identity (outletName + name + color + size)
-          const candidates = await tx.outletInventory.findMany({
-            where: { outletName: transfer.toOutlet, name: prodName }
+          const inc = await incrementWarehouseStock(tx, destItem, col, sz, qty, price, item.barcode);
+          await recordInventoryMovement({
+            movementType: 'TRANSFER_IN',
+            location: 'Warehouse',
+            productId: destItem.id,
+            productName: destItem.name,
+            color: col,
+            size: sz,
+            barcode: inc.barcode || item.barcode || destItem.barcode,
+            previousQty: inc.prevStock,
+            newQty: inc.newStock,
+            difference: qty,
+            referenceId: transfer.transferNumber,
+            notes: `Transfer received from ${transfer.fromOutlet}`,
+            performedBy: req.user?.name || 'Staff',
+            tx
           });
-          destOv = candidates.find(r =>
-            eqField(r.color, col) && eqField(r.size, sz)
-          );
-
-          // 2. Fallback: barcode match
-          if (!destOv && item.barcode) {
+        } else {
+          // ── OUTLET_OUTLET: Barcode-first matching, identity fallback ──
+          let destOv = null;
+          if (item.barcode) {
             destOv = await tx.outletInventory.findFirst({
               where: { barcode: item.barcode, outletName: transfer.toOutlet }
             });
           }
+          if (!destOv) {
+            const candidates = await tx.outletInventory.findMany({
+              where: { outletName: transfer.toOutlet, name: { equals: prodName, mode: 'insensitive' } }
+            });
+            destOv = candidates.find(r =>
+              eqField(r.color, col) && eqField(r.size, sz)
+            );
+          }
 
           if (destOv) {
+            const prevStock = destOv.stock || 0;
+            const newStock = prevStock + qty;
             await tx.outletInventory.update({ where: { id: destOv.id }, data: { stock: { increment: qty } } });
-          } else {
-            await tx.outletInventory.create({
-              data: {
-                name: prodName, category: cat,
-                outletName: transfer.toOutlet,
-                color: col || null, size: sz || null,
-                fabric: fab, barcode: item.barcode,
-                stock: qty, price,
-                metadata: JSON.stringify({ sourceStoreItemId: sourceOv?.id || null })
-              }
+            await recordInventoryMovement({
+              movementType: 'TRANSFER_IN',
+              location: transfer.toOutlet,
+              productId: destOv.id,
+              productName: destOv.name,
+              color: destOv.color,
+              size: destOv.size,
+              barcode: destOv.barcode || item.barcode,
+              previousQty: prevStock,
+              newQty: newStock,
+              difference: qty,
+              referenceId: transfer.transferNumber,
+              notes: `Transfer received from ${transfer.fromOutlet}`,
+              performedBy: req.user?.name || 'Staff',
+              tx
             });
+          } else {
+            const finalBarcode = item.barcode || sourceOv?.barcode || generateBarcode(prodName, sz, col);
+            try {
+              const created = await tx.outletInventory.create({
+                data: {
+                  name: prodName, category: cat,
+                  outletName: transfer.toOutlet,
+                  color: col || null, size: sz || null,
+                  fabric: fab, barcode: finalBarcode,
+                  stock: qty, price,
+                  metadata: JSON.stringify({ sourceStoreItemId: sourceOv?.id || null })
+                }
+              });
+              await recordInventoryMovement({
+                movementType: 'TRANSFER_IN',
+                location: transfer.toOutlet,
+                productId: created.id,
+                productName: created.name,
+                color: created.color,
+                size: created.size,
+                barcode: finalBarcode,
+                previousQty: 0,
+                newQty: qty,
+                difference: qty,
+                referenceId: transfer.transferNumber,
+                notes: `Transfer received from ${transfer.fromOutlet}`,
+                performedBy: req.user?.name || 'Staff',
+                tx
+              });
+            } catch (err) {
+              if (err.code === 'P2002') {
+                const existing = await tx.outletInventory.findFirst({
+                  where: { outletName: transfer.toOutlet, barcode: finalBarcode }
+                });
+                if (existing) {
+                  const prevStock = existing.stock || 0;
+                  const newStock = prevStock + qty;
+                  await tx.outletInventory.update({ where: { id: existing.id }, data: { stock: { increment: qty } } });
+                  await recordInventoryMovement({
+                    movementType: 'TRANSFER_IN',
+                    location: transfer.toOutlet,
+                    productId: existing.id,
+                    productName: existing.name,
+                    color: existing.color,
+                    size: existing.size,
+                    barcode: finalBarcode,
+                    previousQty: prevStock,
+                    newQty: newStock,
+                    difference: qty,
+                    referenceId: transfer.transferNumber,
+                    notes: `Transfer received from ${transfer.fromOutlet}`,
+                    performedBy: req.user?.name || 'Staff',
+                    tx
+                  });
+                } else {
+                  throw err;
+                }
+              } else {
+                throw err;
+              }
+            }
           }
         }
       }
@@ -517,31 +719,50 @@ const acceptTransfer = async (req, res) => {
 
         // Source warehouse stock was already deducted atomically at dispatch.
         // Acceptance only ADDS to the destination outlet inventory.
+        const srcItem = await findWarehouseItem(tx, item.productName, item.color, item.size, item.barcode);
 
-        // ── FIXED: Use name-only + variant-aware matching for srcItem ──
-        const srcItem = await findWarehouseItem(tx, item.productName, item.color, item.size);
-
-        // ── Identity-based matching first, barcode fallback ──
+        // ── Barcode-first matching, identity fallback ──
         let destOv = null;
-        const candidates = await tx.outletInventory.findMany({
-          where: { outletName: transfer.toOutlet, name: item.productName }
-        });
-        destOv = candidates.find(r =>
-          eqField(r.color, item.color) && eqField(r.size, item.size)
-        );
-        if (!destOv && item.barcode) {
+        if (item.barcode) {
           destOv = await tx.outletInventory.findFirst({
             where: { barcode: item.barcode, outletName: transfer.toOutlet }
           });
         }
+        if (!destOv) {
+          const candidates = await tx.outletInventory.findMany({
+            where: { outletName: transfer.toOutlet, name: { equals: item.productName, mode: 'insensitive' } }
+          });
+          destOv = candidates.find(r =>
+            eqField(r.color, item.color) && eqField(r.size, item.size)
+          );
+        }
 
         if (destOv) {
+          const prevStock = destOv.stock || 0;
+          const newStock = prevStock + qty;
           const updData = { stock: { increment: qty } };
           const masterPrice = resolveMasterPrice(srcItem, item.color, item.size);
           const curP = parseFloat(destOv.price);
           const hasValid = !Number.isNaN(curP) && curP > 0;
           if (!hasValid && masterPrice != null) updData.price = masterPrice;
+          if (!destOv.barcode && item.barcode) updData.barcode = item.barcode;
           await tx.outletInventory.update({ where: { id: destOv.id }, data: updData });
+          await recordInventoryMovement({
+            movementType: 'TRANSFER_IN',
+            location: transfer.toOutlet,
+            productId: destOv.id,
+            productName: destOv.name,
+            color: destOv.color,
+            size: destOv.size,
+            barcode: destOv.barcode || item.barcode,
+            previousQty: prevStock,
+            newQty: newStock,
+            difference: qty,
+            referenceId: transfer.transferNumber,
+            notes: `Transfer received from Warehouse`,
+            performedBy: req.user?.name || 'Staff',
+            tx
+          });
         } else {
           const masterPrice = resolveMasterPrice(srcItem, item.color, item.size);
           const unitPrice = Number(item.unitPrice);
@@ -550,16 +771,72 @@ const acceptTransfer = async (req, res) => {
           else if (masterPrice != null) price = masterPrice;
           else if (srcItem && parseFloat(srcItem.price) > 0) price = parseFloat(srcItem.price);
 
-          await tx.outletInventory.create({
-            data: {
-              name: item.productName, category: srcItem?.category || null,
-              outletName: transfer.toOutlet,
-              color: item.color || null, size: item.size || null,
-              fabric: srcItem?.fabric || null, barcode: item.barcode,
-              stock: qty, price,
-              metadata: JSON.stringify({ sourceInventoryItemId: srcItem?.id, sourceStoreItemId: srcItem?.id })
+          let finalBarcode = item.barcode;
+          if (!finalBarcode && srcItem && Array.isArray(srcItem.variants)) {
+            const matchedVar = srcItem.variants.find(v => eqField(v.color, item.color) && eqField(v.size, item.size));
+            if (matchedVar?.barcode) finalBarcode = matchedVar.barcode;
+          }
+          if (!finalBarcode) finalBarcode = generateBarcode(item.productName, item.size, item.color);
+
+          try {
+            const created = await tx.outletInventory.create({
+              data: {
+                name: item.productName, category: srcItem?.category || null,
+                outletName: transfer.toOutlet,
+                color: item.color || null, size: item.size || null,
+                fabric: srcItem?.fabric || null, barcode: finalBarcode,
+                stock: qty, price,
+                metadata: JSON.stringify({ sourceInventoryItemId: srcItem?.id, sourceStoreItemId: srcItem?.id })
+              }
+            });
+            await recordInventoryMovement({
+              movementType: 'TRANSFER_IN',
+              location: transfer.toOutlet,
+              productId: created.id,
+              productName: created.name,
+              color: created.color,
+              size: created.size,
+              barcode: finalBarcode,
+              previousQty: 0,
+              newQty: qty,
+              difference: qty,
+              referenceId: transfer.transferNumber,
+              notes: `Transfer received from Warehouse`,
+              performedBy: req.user?.name || 'Staff',
+              tx
+            });
+          } catch (err) {
+            if (err.code === 'P2002') {
+              const existing = await tx.outletInventory.findFirst({
+                where: { outletName: transfer.toOutlet, barcode: finalBarcode }
+              });
+              if (existing) {
+                const prevStock = existing.stock || 0;
+                const newStock = prevStock + qty;
+                await tx.outletInventory.update({ where: { id: existing.id }, data: { stock: { increment: qty } } });
+                await recordInventoryMovement({
+                  movementType: 'TRANSFER_IN',
+                  location: transfer.toOutlet,
+                  productId: existing.id,
+                  productName: existing.name,
+                  color: existing.color,
+                  size: existing.size,
+                  barcode: finalBarcode,
+                  previousQty: prevStock,
+                  newQty: newStock,
+                  difference: qty,
+                  referenceId: transfer.transferNumber,
+                  notes: `Transfer received from Warehouse`,
+                  performedBy: req.user?.name || 'Staff',
+                  tx
+                });
+              } else {
+                throw err;
+              }
+            } else {
+              throw err;
             }
-          });
+          }
         }
       }
     }

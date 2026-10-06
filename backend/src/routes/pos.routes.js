@@ -5,6 +5,7 @@ const {
   getVariant,
   updateVariantStock, updateVariantPrice,
   createVariant,   deleteVariant, deleteProductVariants, updateVariant,
+  reactivateVariant, reactivateProductVariants,
   createSale, getSales, getSalesDashboard, getSalesSummary,
   createReturn, getReturns,
   lookupBarcode, orderLookup, getAllOutletsView,
@@ -44,7 +45,9 @@ router.put('/variants/:id/price', authenticate, updateVariantPrice);
 router.put('/variants/:id', authenticate, updateVariant);
 router.post('/products/:productId/variants', authenticate, createVariant);
 router.delete('/variants/:id', authenticate, deleteVariant);
+router.post('/variants/:id/reactivate', authenticate, reactivateVariant);
 router.delete('/products/:productName/variants', authenticate, deleteProductVariants);
+router.post('/products/:productName/reactivate', authenticate, reactivateProductVariants);
 
 // Sales
 router.post('/sales', authenticate, createSale);

@@ -2,11 +2,24 @@ const prisma = require('../prisma');
 const xlsx = require('xlsx');
 const { syncPricesForWarehouseItem } = require('../utils/priceSync');
 const { isCategoryGenderApplicable } = require('../utils/productConfig');
+const { recordInventoryMovement } = require('../utils/inventoryMovement');
+const { generateBarcode } = require('./pos.controller');
 
 const getInventory = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 500;
-    const items = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' }, take: limit });
+    const includeArchived = req.query.includeArchived === 'true' || req.query.includeArchived === true;
+    const showArchivedOnly = req.query.showArchivedOnly === 'true' || req.query.showArchivedOnly === true;
+
+    const where = showArchivedOnly
+      ? { isActive: false }
+      : (!includeArchived ? { isActive: { not: false } } : {});
+
+    const items = await prisma.inventoryItem.findMany({ 
+      where,
+      orderBy: { name: 'asc' }, 
+      take: limit 
+    });
     
     const formatted = items.map(item => {
       let colorImages = {};
@@ -151,6 +164,17 @@ const createInventoryItem = async (req, res) => {
     if (!cleanName) {
       return res.status(400).json({ message: 'Product name is required' });
     }
+
+    // Rule 31 & 32: Single Product Master — prevent duplicate product creation
+    const existingMaster = await prisma.inventoryItem.findFirst({
+      where: { name: { equals: cleanName, mode: 'insensitive' } }
+    });
+    if (existingMaster) {
+      return res.status(400).json({
+        message: `Product "${existingMaster.name}" already exists in the central Product Master (ID: ${existingMaster.id}). Please update the existing product instead of creating a duplicate.`
+      });
+    }
+
     const cleanCategory = (category || 'SCRUBS').trim().toUpperCase();
 
     let computedStock = parseInt(stock, 10);
@@ -180,14 +204,15 @@ const createInventoryItem = async (req, res) => {
       primaryColor = (variants[0].color || color || '').trim() || null;
       primarySize = (variants[0].size || '').trim() || null;
 
-      // Stamp color images onto variants if defined and sanitize variant data
+      // Stamp color images and canonical barcodes onto variants
       processedVariants = variants.map(v => {
         const colImg = v.color && colorImages && typeof colorImages === 'object' ? colorImages[v.color] : null;
         return {
           ...v,
           stock: parseInt(v.stock, 10) || 0,
           price: parseFloat(v.price) || 0,
-          imageUrl: colImg || v.imageUrl || null
+          imageUrl: colImg || v.imageUrl || null,
+          barcode: v.barcode || generateBarcode(cleanName, v.size, v.color)
         };
       });
     }
@@ -211,6 +236,28 @@ const createInventoryItem = async (req, res) => {
         variants: processedVariants || null
       }
     });
+
+    if (computedStock > 0 && Array.isArray(processedVariants)) {
+      for (const v of processedVariants) {
+        if ((v.stock || 0) > 0) {
+          recordInventoryMovement({
+            movementType: 'INITIAL_STOCK',
+            location: 'Warehouse',
+            productId: item.id,
+            productName: item.name,
+            color: v.color,
+            size: v.size,
+            barcode: v.barcode,
+            previousQty: 0,
+            newQty: v.stock,
+            difference: v.stock,
+            referenceId: item.id,
+            notes: 'Initial warehouse master stock',
+            performedBy: req.user?.name || 'Admin'
+          }).catch(() => {});
+        }
+      }
+    }
     
     const io = req.app.get('io');
 
@@ -340,7 +387,69 @@ const deleteInventoryItem = async (req, res) => {
   const { id } = req.params;
   try {
     const item = await prisma.inventoryItem.findUnique({ where: { id } });
-    await prisma.inventoryItem.delete({ where: { id } });
+    if (!item) {
+      return res.status(404).json({ message: 'Inventory item not found' });
+    }
+
+    // Check if this item is referenced in any transactions, movements, or outlet sales
+    const [movementCount, matchingOutletSales] = await Promise.all([
+      prisma.inventoryMovementLog.count({ where: { productId: id } }),
+      prisma.outletInventory.findMany({
+        where: { name: { equals: item.name.trim(), mode: 'insensitive' } },
+        select: { id: true }
+      })
+    ]);
+
+    let outletSalesCount = 0;
+    if (matchingOutletSales.length > 0) {
+      const outletIds = matchingOutletSales.map(o => o.id);
+      outletSalesCount = await prisma.pOSSaleItem.count({
+        where: { outletInventoryId: { in: outletIds } }
+      });
+    }
+
+    const hasHistory = movementCount > 0 || outletSalesCount > 0;
+
+    if (hasHistory) {
+      // Soft-delete / Deactivate to preserve historical integrity
+      await prisma.inventoryItem.update({
+        where: { id },
+        data: {
+          isActive: false,
+          deletedAt: new Date(),
+          stock: 0
+        }
+      });
+
+      // Also deactivate matching outlet inventory items
+      if (matchingOutletSales.length > 0) {
+        const outletIds = matchingOutletSales.map(o => o.id);
+        await prisma.outletInventory.updateMany({
+          where: { id: { in: outletIds } },
+          data: {
+            isActive: false,
+            deletedAt: new Date(),
+            stock: 0
+          }
+        });
+      }
+
+      await recordInventoryMovement({
+        movementType: 'DEACTIVATE',
+        location: 'Warehouse',
+        productId: item.id,
+        productName: item.name,
+        previousQty: item.stock || 0,
+        newQty: 0,
+        difference: -(item.stock || 0),
+        referenceId: item.id,
+        notes: `Product deactivated by ${req.user?.name || 'Admin'} (has transaction history)`,
+        performedBy: req.user?.name || 'Admin'
+      }).catch(() => {});
+    } else {
+      // Clean delete if no historical transactions
+      await prisma.inventoryItem.delete({ where: { id } });
+    }
 
     const cache = require('../utils/cache');
     cache.delPattern('pos:');
@@ -352,9 +461,68 @@ const deleteInventoryItem = async (req, res) => {
       io.emit('pos:inventory-updated', { deleted: id, name: item?.name });
     }
     
-    res.json({ message: 'Item deleted' });
+    res.json({ 
+      message: hasHistory 
+        ? 'Product and associated variants deactivated and removed from active inventory (history preserved)' 
+        : 'Product completely deleted',
+      archived: hasHistory
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting inventory item', error: error.message });
+  }
+};
+
+const reactivateInventoryItem = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const item = await prisma.inventoryItem.findUnique({ where: { id } });
+    if (!item) {
+      return res.status(404).json({ message: 'Inventory item not found' });
+    }
+
+    const reactivatedItem = await prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        isActive: true,
+        deletedAt: null
+      }
+    });
+
+    // Also reactivate corresponding outlet inventory
+    await prisma.outletInventory.updateMany({
+      where: { name: { equals: item.name.trim(), mode: 'insensitive' } },
+      data: {
+        isActive: true,
+        deletedAt: null
+      }
+    });
+
+    await recordInventoryMovement({
+      movementType: 'REACTIVATE',
+      location: 'Warehouse',
+      productId: reactivatedItem.id,
+      productName: reactivatedItem.name,
+      previousQty: 0,
+      newQty: reactivatedItem.stock || 0,
+      difference: reactivatedItem.stock || 0,
+      referenceId: reactivatedItem.id,
+      notes: `Product reactivated by ${req.user?.name || 'Admin'}`,
+      performedBy: req.user?.name || 'Admin'
+    }).catch(() => {});
+
+    const cache = require('../utils/cache');
+    cache.delPattern('pos:');
+    cache.delPattern('inventory:');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('inventory-updated', reactivatedItem);
+      io.emit('pos:inventory-updated', reactivatedItem);
+    }
+
+    res.json({ message: 'Product reactivated successfully', item: reactivatedItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error reactivating inventory item', error: error.message });
   }
 };
 
@@ -1572,11 +1740,61 @@ const importBackupExcel = async (req, res) => {
   }
 };
 
+const getInventoryMovements = async (req, res) => {
+  try {
+    const { location, movementType, barcode, productId, search, page = 1, limit = 50 } = req.query;
+    const skip = (Math.max(1, parseInt(page, 10)) - 1) * parseInt(limit, 10);
+    const take = parseInt(limit, 10);
+
+    const where = {};
+    if (location) {
+      where.location = { contains: location, mode: 'insensitive' };
+    }
+    if (movementType) {
+      where.movementType = movementType;
+    }
+    if (barcode) {
+      where.barcode = barcode;
+    }
+    if (productId) {
+      where.productId = productId;
+    }
+    if (search) {
+      where.OR = [
+        { productName: { contains: search, mode: 'insensitive' } },
+        { barcode: { contains: search, mode: 'insensitive' } },
+        { referenceId: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const [total, movements] = await Promise.all([
+      prisma.inventoryMovementLog.count({ where }),
+      prisma.inventoryMovementLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take
+      })
+    ]);
+
+    res.json({
+      total,
+      page: parseInt(page, 10),
+      totalPages: Math.ceil(total / take),
+      movements
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch inventory movements', error: error.message });
+  }
+};
+
 module.exports = {
   getInventory,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  reactivateInventoryItem,
   clearAllInventory,
   bulkUploadInventory,
   allocateInventory,
@@ -1590,5 +1808,6 @@ module.exports = {
   exportBackup,
   importBackup,
   exportBackupExcel,
-  importBackupExcel
+  importBackupExcel,
+  getInventoryMovements
 };

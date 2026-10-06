@@ -634,11 +634,14 @@ const ManagementInventory = () => {
     }
   };
 
+  const [viewFilter, setViewFilter] = useState('active'); // 'active' | 'archived'
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { type: 'variant'|'product', item|group, targetName, targetOutlet }
+
   const isWarehouseTab = selectedOutlet === 'Warehouse';
 
-  const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}`, {
+  const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}:${viewFilter}`, {
     fetcher: () => isWarehouseTab
-      ? api.get('/api/inventory').then(r => r.data.map(item => {
+      ? api.get(`/api/inventory?${viewFilter === 'archived' ? 'showArchivedOnly=true' : ''}`).then(r => r.data.map(item => {
           let variantDefs = [];
           if (item.variants) {
             const parsed = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
@@ -650,6 +653,7 @@ const ManagementInventory = () => {
               color: v.color || '', size: v.size || '',
               fabric: item.fabric || '', stock: v.stock || 0, price: v.price || item.price || 0,
               imageUrl: item.imageUrl || '', barcode: null, outletName: 'Warehouse',
+              isActive: item.isActive, deletedAt: item.deletedAt
             }));
           }
           return [{
@@ -657,9 +661,10 @@ const ManagementInventory = () => {
             color: item.color || '', size: item.size || '',
             fabric: item.fabric || '', stock: item.stock || 0, price: item.price || 0,
             imageUrl: item.imageUrl || '', barcode: null, outletName: 'Warehouse',
+            isActive: item.isActive, deletedAt: item.deletedAt
           }];
         }).flat())
-      : api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),
+      : api.get(`/api/pos/inventory?outlet=${selectedOutlet}${viewFilter === 'archived' ? '&showArchivedOnly=true' : ''}`).then(r => r.data),
     ttl: 2 * 60 * 1000,
   });
 
@@ -808,25 +813,92 @@ const ManagementInventory = () => {
     setSubmitting(false);
   };
 
-  const handleDeleteVariant = async (item) => {
-    if (!window.confirm(`Delete variant "${item.name}" (${[item.color, item.size].filter(Boolean).join(' • ') || 'Default'})?`)) return;
+  const handleDeleteVariant = (item) => {
+    setDeleteConfirmModal({
+      type: 'variant',
+      item,
+      title: `Delete Variant: ${item.name}`,
+      details: [item.color, item.size].filter(Boolean).join(' • ') || 'Default',
+      outletName: item.outletName || selectedOutlet,
+      barcode: item.barcode,
+      stock: item.stock || 0
+    });
+  };
+
+  const confirmDeleteVariant = async () => {
+    if (!deleteConfirmModal?.item) return;
+    const { item } = deleteConfirmModal;
     try {
-      await api.delete(`/api/pos/variants/${item.id}`);
-      toast.success('Variant deleted');
+      if (isWarehouseTab) {
+        const res = await api.delete(`/api/inventory/${item.id}`);
+        toast.success(res.data?.message || 'Variant removed from Warehouse');
+      } else {
+        const res = await api.delete(`/api/pos/variants/${item.id}`);
+        toast.success(res.data?.message || 'Variant deleted and removed from active inventory');
+      }
+      setDeleteConfirmModal(null);
       refresh();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete variant');
     }
   };
 
-  const handleDeleteProduct = async (group) => {
-    if (!window.confirm(`Delete ALL variants of "${group.name}" from ${group.outletName}?`)) return;
+  const handleDeleteProduct = (group) => {
+    setDeleteConfirmModal({
+      type: 'product',
+      group,
+      title: `Delete Entire Product: ${group.name}`,
+      details: `All ${group.variants.length} variant(s) in ${group.outletName || selectedOutlet}`,
+      outletName: group.outletName || selectedOutlet,
+      stock: group.variants.reduce((s, v) => s + (v.stock || 0), 0)
+    });
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteConfirmModal?.group) return;
+    const { group } = deleteConfirmModal;
     try {
-      const res = await api.delete(`/api/pos/products/${encodeURIComponent(group.name)}/variants?outlet=${encodeURIComponent(group.outletName)}`);
-      toast.success(res.data.message);
+      if (isWarehouseTab) {
+        const res = await api.delete(`/api/inventory/${group.variants[0]?.id || ''}`);
+        toast.success(res.data?.message || 'Product removed from Warehouse');
+      } else {
+        const res = await api.delete(`/api/pos/products/${encodeURIComponent(group.name)}/variants?outlet=${encodeURIComponent(group.outletName || selectedOutlet)}`);
+        toast.success(res.data?.message || 'Product deleted and removed from active inventory');
+      }
+      setDeleteConfirmModal(null);
       refresh();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete product');
+    }
+  };
+
+  const handleReactivateVariant = async (item) => {
+    try {
+      if (isWarehouseTab) {
+        const res = await api.post(`/api/inventory/${item.id}/reactivate`);
+        toast.success(res.data?.message || 'Product reactivated');
+      } else {
+        const res = await api.post(`/api/pos/variants/${item.id}/reactivate`);
+        toast.success(res.data?.message || 'Variant reactivated');
+      }
+      refresh();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to reactivate variant');
+    }
+  };
+
+  const handleReactivateProduct = async (group) => {
+    try {
+      if (isWarehouseTab) {
+        const res = await api.post(`/api/inventory/${group.variants[0]?.id}/reactivate`);
+        toast.success(res.data?.message || 'Product reactivated');
+      } else {
+        const res = await api.post(`/api/pos/products/${encodeURIComponent(group.name)}/reactivate?outlet=${encodeURIComponent(group.outletName || selectedOutlet)}`);
+        toast.success(res.data?.message || 'Product reactivated');
+      }
+      refresh();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to reactivate product');
     }
   };
 
@@ -995,10 +1067,38 @@ const ManagementInventory = () => {
         ))}
       </div>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name..."
-          className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+      {/* Active vs Archived Filter & Search */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div className="flex bg-gray-900 p-1 rounded-xl border border-gray-700 shrink-0">
+          <button
+            onClick={() => setViewFilter('active')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewFilter === 'active'
+                ? 'bg-blue-600 text-white shadow'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <CheckCircle2 size={13} />
+            <span>Active Products</span>
+          </button>
+          <button
+            onClick={() => setViewFilter('archived')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewFilter === 'archived'
+                ? 'bg-red-600/90 text-white shadow'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Trash2 size={13} />
+            <span>Deleted / Archived</span>
+          </button>
+        </div>
+
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${viewFilter === 'archived' ? 'deleted/archived' : 'active'} products by name...`}
+            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+        </div>
       </div>
 
       {loading ? (
@@ -1037,18 +1137,30 @@ const ManagementInventory = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {group.variants.length === 1 ? (
-                      <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(group.variants[0]); }}
-                        className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
-                        <Pencil size={12} className="text-white" />
-                        <span className="text-[10px] font-bold text-white">Edit</span>
+                    {viewFilter === 'archived' ? (
+                      <button onClick={(e) => { e.stopPropagation(); handleReactivateProduct(group); }}
+                        className="flex items-center gap-1 px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg transition-colors text-white"
+                        title="Reactivate this product and restore to active inventory">
+                        <RotateCcw size={12} />
+                        <span className="text-[10px] font-bold">Reactivate Product</span>
                       </button>
-                    ) : null}
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteProduct(group); }}
-                      className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors">
-                      <Trash2 size={12} className="text-white" />
-                      <span className="text-[10px] font-bold text-white">Delete</span>
-                    </button>
+                    ) : (
+                      <>
+                        {group.variants.length === 1 ? (
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(group.variants[0]); }}
+                            className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
+                            <Pencil size={12} className="text-white" />
+                            <span className="text-[10px] font-bold text-white">Edit</span>
+                          </button>
+                        ) : null}
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteProduct(group); }}
+                          className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors"
+                          title="Delete all variants of this product">
+                          <Trash2 size={12} className="text-white" />
+                          <span className="text-[10px] font-bold text-white">Delete</span>
+                        </button>
+                      </>
+                    )}
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${totalStock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
                       Stock: {totalStock}
                     </span>
@@ -1074,14 +1186,26 @@ const ManagementInventory = () => {
                         <span className="font-bold text-emerald-400">{v.price ? formatCurrency(v.price) : '-'}</span>
                         <span className={`font-bold ml-2 ${v.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{v.stock}</span>
                         <>
-                          <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(v); }}
-                            className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors">
-                            <Pencil size={11} className="text-white" />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteVariant(v); }}
-                            className="p-1.5 bg-gray-700 hover:bg-red-600 rounded-lg transition-colors">
-                            <Trash2 size={11} className="text-white" />
-                          </button>
+                          {viewFilter === 'archived' ? (
+                            <button onClick={(e) => { e.stopPropagation(); handleReactivateVariant(v); }}
+                              className="p-1.5 bg-emerald-700 hover:bg-emerald-600 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-bold text-white px-2"
+                              title="Reactivate this variant">
+                              <RotateCcw size={11} />
+                              <span>Reactivate</span>
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(v); }}
+                                className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors">
+                                <Pencil size={11} className="text-white" />
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDeleteVariant(v); }}
+                                className="p-1.5 bg-gray-700 hover:bg-red-600 rounded-lg transition-colors"
+                                title="Delete variant">
+                                <Trash2 size={11} className="text-white" />
+                              </button>
+                            </>
+                          )}
                         </>
                       </div>
                     ))}
@@ -1357,6 +1481,61 @@ const ManagementInventory = () => {
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
                 {editSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
                 <span>{editSubmitting ? 'Saving...' : 'Save Changes'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
+          <div className="bg-gray-900 max-w-md w-full p-6 rounded-3xl border-2 border-red-500/40 shadow-[0_25px_60px_rgba(239,68,68,0.2)] space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black text-white">{deleteConfirmModal.title}</h3>
+                <p className="text-xs text-gray-400 font-bold mt-0.5">{deleteConfirmModal.details}</p>
+                <div className="mt-2 text-[11px] text-gray-400 bg-gray-800/80 p-2.5 rounded-xl border border-gray-700/60 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Location:</span>
+                    <span className="font-bold text-white">{deleteConfirmModal.outletName}</span>
+                  </div>
+                  {deleteConfirmModal.barcode && (
+                    <div className="flex justify-between font-mono">
+                      <span className="text-gray-500">Barcode:</span>
+                      <span className="text-blue-400">{deleteConfirmModal.barcode}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Current Stock:</span>
+                    <span className={`font-bold ${deleteConfirmModal.stock > 0 ? 'text-amber-400' : 'text-gray-400'}`}>{deleteConfirmModal.stock}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-red-950/30 border border-red-500/20 rounded-xl p-3 text-[11px] text-red-300 leading-relaxed">
+              <span className="font-bold">Notice:</span> This product/variant will be removed from active inventory and POS searches. If this item has previous sales receipts, historical reports and receipts will remain intact.
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmModal(null)}
+                className="flex-1 py-3 px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-black text-xs rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={deleteConfirmModal.type === 'variant' ? confirmDeleteVariant : confirmDeleteProduct}
+                className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl shadow-lg shadow-red-600/30 transition-all flex items-center justify-center gap-2"
+              >
+                <Trash2 size={14} />
+                <span>Confirm Delete</span>
               </button>
             </div>
           </div>

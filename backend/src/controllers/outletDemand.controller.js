@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const { resolveMasterPrice } = require('../utils/priceSync');
+const { recordInventoryMovement } = require('../utils/inventoryMovement');
 
 const generateTransferNumber = async () => {
   const d = new Date();
@@ -385,6 +386,22 @@ const dispatchDemandRequest = async (req, res) => {
         if (deducted > 0) {
           deductedCount++;
           deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
+          await recordInventoryMovement({
+            movementType: 'TRANSFER_OUT',
+            location: 'Warehouse',
+            productId: item.inventoryItemId || null,
+            productName: item.productName,
+            color: item.color,
+            size: item.size,
+            barcode: item.barcode || null,
+            previousQty: 0,
+            newQty: 0,
+            difference: -deducted,
+            referenceId: recheck.transferNumber,
+            notes: `Demand dispatched to ${recheck.outletName}`,
+            performedBy: req.user?.name || 'Staff',
+            tx
+          }).catch(() => {});
         }
 
         if (isAbbottabad) {
@@ -635,50 +652,129 @@ const acceptDemandRequest = async (req, res) => {
             continue;
           }
 
-          let oi = await tx.outletInventory.findFirst({
-            where: {
-              outletName: existing.outletName,
-              name: inv.name,
-              category: inv.category,
-              color: it.color || null,
-              size: it.size || null
-            }
-          });
+          let variantBarcode = it.barcode;
+          if (!variantBarcode && Array.isArray(inv.variants)) {
+            const mv = inv.variants.find(v => (v.color || '').trim().toLowerCase() === (it.color || '').trim().toLowerCase() && (v.size || '').trim().toLowerCase() === (it.size || '').trim().toLowerCase());
+            if (mv?.barcode) variantBarcode = mv.barcode;
+          }
 
-          const masterPrice = resolveMasterPrice(inv, it.color, it.size);
-
-          if (!oi) {
-            let bc = generateBarcode(inv.id, it.size, it.color);
-            let a = 0;
-            while (await tx.outletInventory.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
-              a++;
-              bc = generateBarcode(inv.id, it.size, it.color, a);
-            }
-            await tx.outletInventory.create({
-              data: {
+          let oi = null;
+          if (variantBarcode) {
+            oi = await tx.outletInventory.findFirst({
+              where: {
                 outletName: existing.outletName,
-                name: inv.name,
-                category: inv.category || '',
-                color: it.color || null,
-                size: it.size || null,
-                fabric: inv.fabric || null,
-                barcode: bc,
-                stock: parseInt(it.approvedQty) || 0,
-                price: masterPrice != null ? masterPrice : parseFloat(inv.price),
-                metadata: JSON.stringify({ sourceStoreItemId: inv.id })
+                barcode: variantBarcode
               }
             });
+          }
+          if (!oi) {
+            oi = await tx.outletInventory.findFirst({
+              where: {
+                outletName: existing.outletName,
+                name: { equals: inv.name, mode: 'insensitive' },
+                color: it.color || null,
+                size: it.size || null
+              }
+            });
+          }
+
+          const masterPrice = resolveMasterPrice(inv, it.color, it.size);
+          const approvedQtyInt = parseInt(it.approvedQty) || 0;
+
+          if (!oi) {
+            const bc = variantBarcode || generateBarcode(inv.id, it.size, it.color);
+            try {
+              const created = await tx.outletInventory.create({
+                data: {
+                  outletName: existing.outletName,
+                  name: inv.name,
+                  category: inv.category || '',
+                  color: it.color || null,
+                  size: it.size || null,
+                  fabric: inv.fabric || null,
+                  barcode: bc,
+                  stock: approvedQtyInt,
+                  price: masterPrice != null ? masterPrice : parseFloat(inv.price),
+                  metadata: JSON.stringify({ sourceStoreItemId: inv.id })
+                }
+              });
+              await recordInventoryMovement({
+                movementType: 'TRANSFER_IN',
+                location: existing.outletName,
+                productId: created.id,
+                productName: created.name,
+                color: created.color,
+                size: created.size,
+                barcode: bc,
+                previousQty: 0,
+                newQty: approvedQtyInt,
+                difference: approvedQtyInt,
+                referenceId: transferNumber,
+                notes: `Outlet demand received from Warehouse`,
+                performedBy: req.user?.name || 'Staff',
+                tx
+              });
+            } catch (createErr) {
+              if (createErr.code === 'P2002') {
+                const existingRec = await tx.outletInventory.findFirst({
+                  where: { outletName: existing.outletName, barcode: bc }
+                });
+                if (existingRec) {
+                  const prevStock = existingRec.stock || 0;
+                  const newStock = prevStock + approvedQtyInt;
+                  await tx.outletInventory.update({
+                    where: { id: existingRec.id },
+                    data: { stock: { increment: approvedQtyInt } }
+                  });
+                  await recordInventoryMovement({
+                    movementType: 'TRANSFER_IN',
+                    location: existing.outletName,
+                    productId: existingRec.id,
+                    productName: existingRec.name,
+                    color: existingRec.color,
+                    size: existingRec.size,
+                    barcode: bc,
+                    previousQty: prevStock,
+                    newQty: newStock,
+                    difference: approvedQtyInt,
+                    referenceId: transferNumber,
+                    notes: `Outlet demand received from Warehouse`,
+                    performedBy: req.user?.name || 'Staff',
+                    tx
+                  });
+                }
+              }
+            }
           } else {
-            const updateData = { stock: { increment: parseInt(it.approvedQty) || 0 } };
-            // Backfill a broken/zero price from the warehouse master, never
-            // overwrite an already-valid price.
+            const prevStock = oi.stock || 0;
+            const newStock = prevStock + approvedQtyInt;
+            const updateData = { stock: { increment: approvedQtyInt } };
             const currentPrice = parseFloat(oi.price);
             if ((!Number.isNaN(currentPrice) && currentPrice > 0) === false && masterPrice != null) {
               updateData.price = masterPrice;
             }
+            if (!oi.barcode && variantBarcode) {
+              updateData.barcode = variantBarcode;
+            }
             await tx.outletInventory.update({
               where: { id: oi.id },
               data: updateData
+            });
+            await recordInventoryMovement({
+              movementType: 'TRANSFER_IN',
+              location: existing.outletName,
+              productId: oi.id,
+              productName: oi.name,
+              color: oi.color,
+              size: oi.size,
+              barcode: oi.barcode || variantBarcode,
+              previousQty: prevStock,
+              newQty: newStock,
+              difference: approvedQtyInt,
+              referenceId: transferNumber,
+              notes: `Outlet demand received from Warehouse`,
+              performedBy: req.user?.name || 'Staff',
+              tx
             });
           }
 

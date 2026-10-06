@@ -303,12 +303,15 @@ model InventoryItem {
   metadata         String?
   genderApplicable Boolean? @default(true)
   variants         Json?    // Array of {color, size, stock, price}
+  isActive         Boolean? @default(true)
+  deletedAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([category])
   @@index([name, category])
   @@index([color, size, category])
+  @@index([isActive])
 }
 
 model OutletInventory {
@@ -326,6 +329,8 @@ model OutletInventory {
   genderApplicable Boolean? @default(true)
   variants         Json?     // Array of {color, size, stock, price}
   barcode          String?
+  isActive         Boolean? @default(true)
+  deletedAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -333,6 +338,7 @@ model OutletInventory {
   @@index([outletName, category])
   @@index([outletName, name])
   @@index([barcode])
+  @@index([outletName, isActive])
 }
 
 model ProductCategoryConfig {
@@ -1278,6 +1284,30 @@ model SystemLog {
 
   @@index([module, createdAt])
   @@index([level])
+}
+
+model InventoryMovementLog {
+  id           String   @id @default(uuid())
+  movementType String   // TRANSFER_IN, TRANSFER_OUT, SALE, RETURN, STOCK_IN, STOCK_OUT, ADJUSTMENT, DISPATCH, RECEIVE
+  location     String   // Warehouse, Johar Town, Jail Road, etc.
+  productId    String?  // Master InventoryItem.id or OutletInventory.id
+  productName  String
+  color        String?
+  size         String?
+  barcode      String?
+  previousQty  Int
+  newQty       Int
+  difference   Int
+  referenceId  String?  // Transfer ID, Sale Receipt, Return ID, etc.
+  notes        String?
+  performedBy  String?
+  createdAt    DateTime @default(now())
+
+  @@index([location, createdAt])
+  @@index([barcode])
+  @@index([productName])
+  @@index([movementType])
+  @@index([createdAt])
 }
 
 model AlterationSequence {
