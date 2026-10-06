@@ -767,7 +767,7 @@ const createSale = async (req, res) => {
     if (variantIds.some(id => !id)) return res.status(400).json({ message: 'Each item must have a variantId' });
     const inventoryVariants = await prisma.outletInventory.findMany({
       where: { id: { in: variantIds } },
-      select: { id: true, stock: true, name: true, color: true, size: true, price: true }
+      select: { id: true, stock: true, name: true, color: true, size: true, price: true, barcode: true }
     });
     const invMap = new Map(inventoryVariants.map(i => [i.id, i]));
 
@@ -863,65 +863,30 @@ const createSale = async (req, res) => {
       }
     }
 
-    const sale = await prisma.$transaction(async (tx) => {
-      // Exchange items: INCREMENT stock (return to inventory)
-      // Non-exchange items: DECREMENT stock (sell)
-      const exchangeItems = saleItems.filter(si => si.isExchange);
-      const nonExchangeItems = saleItems.filter(si => !si.isExchange);
+    // Exchange items: INCREMENT stock (return to inventory)
+    // Non-exchange items: DECREMENT stock (sell)
+    const exchangeItems = saleItems.filter(si => si.isExchange);
+    const nonExchangeItems = saleItems.filter(si => !si.isExchange);
 
+    const sale = await prisma.$transaction(async (tx) => {
       for (const si of exchangeItems) {
-        const oi = await tx.outletInventory.findUnique({ where: { id: si.outletVariantId } });
-        const prevStock = oi?.stock || 0;
-        const newStock = prevStock + si.quantity;
+        const inv = invMap.get(si.outletVariantId);
         const res = await tx.outletInventory.updateMany({
           where: { id: si.outletVariantId },
           data: { stock: { increment: si.quantity } }
         });
         if (res.count === 0) throw new Error(`Exchange stock update failed for ${si.productName}`);
-        await recordInventoryMovement({
-          movementType: 'EXCHANGE',
-          location: outletName,
-          productId: si.outletVariantId,
-          productName: si.productName,
-          color: si.color,
-          size: si.size,
-          barcode: si.barcode || oi?.barcode,
-          previousQty: prevStock,
-          newQty: newStock,
-          difference: si.quantity,
-          referenceId: receiptNumber,
-          notes: `POS Exchange item returned on receipt #${receiptNumber}`,
-          performedBy: cashierName || req.user?.name || 'Cashier',
-          tx
-        }).catch(() => {});
       }
 
       for (const si of nonExchangeItems) {
-        const oi = await tx.outletInventory.findUnique({ where: { id: si.outletVariantId } });
-        const prevStock = oi?.stock || 0;
-        const newStock = Math.max(0, prevStock - si.quantity);
+        const inv = invMap.get(si.outletVariantId);
         const res = await tx.outletInventory.updateMany({
           where: { id: si.outletVariantId, stock: { gte: si.quantity } },
           data: { stock: { decrement: si.quantity } }
         });
         if (res.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
-        await recordInventoryMovement({
-          movementType: 'SALE',
-          location: outletName,
-          productId: si.outletVariantId,
-          productName: si.productName,
-          color: si.color,
-          size: si.size,
-          barcode: si.barcode || oi?.barcode,
-          previousQty: prevStock,
-          newQty: newStock,
-          difference: -si.quantity,
-          referenceId: receiptNumber,
-          notes: `POS Sale #${receiptNumber}`,
-          performedBy: cashierName || req.user?.name || 'Cashier',
-          tx
-        }).catch(() => {});
       }
+
       if (orderId) {
         await tx.order.update({
           where: { id: orderId },
@@ -952,15 +917,61 @@ const createSale = async (req, res) => {
           additionalNote: isFaisalTake ? null : (additionalNote || null),
           faisalTake: isFaisalTake,
           faisalTakenAt: isFaisalTake ? new Date() : null,
-          items: { create: saleItems.map(si => ({ ...si, lineTotal: isFaisalTake ? 0 : si.lineTotal })) }
+          items: {
+            create: saleItems.map(si => {
+              const { barcode, ...itemData } = si;
+              return {
+                ...itemData,
+                lineTotal: isFaisalTake ? 0 : itemData.lineTotal
+              };
+            })
+          }
         },
         include: { items: true }
       });
     }, { timeout: 30000 });
 
-    // Respond immediately, invalidate caches asynchronously
+    // Respond immediately, invalidate caches and record movement logs asynchronously
     res.status(201).json(sale);
     setImmediate(() => {
+      // Async inventory movement logging
+      for (const si of exchangeItems) {
+        const inv = invMap.get(si.outletVariantId);
+        recordInventoryMovement({
+          movementType: 'EXCHANGE',
+          location: outletName,
+          productId: si.outletVariantId,
+          productName: si.productName,
+          color: si.color,
+          size: si.size,
+          barcode: si.barcode || inv?.barcode,
+          previousQty: inv?.stock || 0,
+          newQty: (inv?.stock || 0) + si.quantity,
+          difference: si.quantity,
+          referenceId: receiptNumber,
+          notes: `POS Exchange item returned on receipt #${receiptNumber}`,
+          performedBy: cashierName || req.user?.name || 'Cashier'
+        }).catch(() => {});
+      }
+      for (const si of nonExchangeItems) {
+        const inv = invMap.get(si.outletVariantId);
+        recordInventoryMovement({
+          movementType: 'SALE',
+          location: outletName,
+          productId: si.outletVariantId,
+          productName: si.productName,
+          color: si.color,
+          size: si.size,
+          barcode: si.barcode || inv?.barcode,
+          previousQty: inv?.stock || 0,
+          newQty: Math.max(0, (inv?.stock || 0) - si.quantity),
+          difference: -si.quantity,
+          referenceId: receiptNumber,
+          notes: `POS Sale #${receiptNumber}`,
+          performedBy: cashierName || req.user?.name || 'Cashier'
+        }).catch(() => {});
+      }
+
       cache.delKeys(`${CACHE_KEY_PREFIX}products:${outletName}`, `${CACHE_KEY_PREFIX}inventory:${outletName}`, `${CACHE_KEY_PREFIX}inventory:all-outlets-view`);
       cache.delPattern(`${CACHE_KEY_PREFIX}dashboard:${outletName || 'all'}`);
       cache.delPattern(`${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
