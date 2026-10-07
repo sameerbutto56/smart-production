@@ -159,14 +159,7 @@ const login = async (req, res) => {
       success: true,
       message: 'Login successful',
       token,
-      employee: {
-        employeeId: employee.employeeId,
-        name: employee.name,
-        designation: employee.designation,
-        department: employee.department,
-        branch: employee.branch,
-        loginEmail: employee.loginEmail
-      }
+      employee: (({ passwordHash, ...rest }) => rest)(employee)
     });
   } catch (err) {
     console.error('Error in employee login:', err);
@@ -294,14 +287,7 @@ const getMyDashboard = async (req, res) => {
     res.json({
       success: true,
       currentMonth,
-      employee: {
-        employeeId: employee.employeeId,
-        name: employee.name,
-        designation: employee.designation,
-        department: employee.department,
-        branch: employee.branch,
-        monthlySalary: employee.monthlySalary
-      },
+      employee: (({ passwordHash, ...rest }) => rest)(employee),
       stats: {
         workedDays: presentDays,
         presentDays,

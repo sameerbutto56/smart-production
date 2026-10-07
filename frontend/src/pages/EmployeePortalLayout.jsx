@@ -208,13 +208,14 @@ export default function EmployeePortalLayout() {
 
   // Tab switch fetch
   useEffect(() => {
-    if (activeTab === 'attendance') fetchAttendance();
+    if (activeTab === 'profile') fetchDashboard();
+    else if (activeTab === 'attendance') fetchAttendance();
     else if (activeTab === 'leaves') fetchLeaves();
     else if (activeTab === 'loans') fetchLoans();
     else if (activeTab === 'production') fetchProduction();
     else if (activeTab === 'payroll') fetchPayrolls();
     else if (activeTab === 'work-records') fetchWorkRecords();
-  }, [activeTab, fetchAttendance, fetchLeaves, fetchLoans, fetchProduction, fetchPayrolls, fetchWorkRecords]);
+  }, [activeTab, fetchDashboard, fetchAttendance, fetchLeaves, fetchLoans, fetchProduction, fetchPayrolls, fetchWorkRecords]);
 
   // Submit Leave Request
   const handleSubmitLeave = async (e) => {
@@ -552,6 +553,14 @@ export default function EmployeePortalLayout() {
                 <div>
                   <label className="text-[11px] font-bold text-slate-400 uppercase">CNIC</label>
                   <p className="font-mono text-slate-200 text-sm mt-0.5">{employee.cnic || '—'}</p>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Date of Birth</label>
+                  <p className="font-mono text-slate-200 text-sm mt-0.5">{employee.dateOfBirth || '—'}</p>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Joining Date</label>
+                  <p className="font-mono text-slate-200 text-sm mt-0.5">{employee.joiningDate || '—'}</p>
                 </div>
                 <div className="sm:col-span-3">
                   <label className="text-[11px] font-bold text-slate-400 uppercase">Residential Address</label>
