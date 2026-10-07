@@ -25,6 +25,7 @@ const PROFILE_LABELS = {
   STORE: 'Store',
   PRODUCTION: 'Production',
   MARKETING: 'Marketing',
+  EMPLOYEE: 'Employee',
 };
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Dispatch', 'Marketing'];
@@ -61,12 +62,13 @@ const ROLE_LABELS = {
   OUTLET_ORDER_ENTRY: 'Outlet Order Entry',
   ASM: 'ASM (Area Sales Manager)',
   MARKETING: 'Marketing',
+  EMPLOYEE: 'Employee',
 };
 
 // Login roles allowed to be created via the Login Users tab (User model).
 const CREATE_USER_ROLES = ['ASM', 'MARKETING', 'FAISAL', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN',
   'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH',
-  'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'INVENTORY_VIEW', 'ORDER_ENTRY', 'OUTLET', 'OUTLET_ORDER_ENTRY'];
+  'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'INVENTORY_VIEW', 'ORDER_ENTRY', 'OUTLET', 'OUTLET_ORDER_ENTRY', 'EMPLOYEE'];
 
 const DEVICE_STATUS_LABELS = {
   PENDING: { label: 'Pending', cls: 'bg-amber-600/20 border-amber-600/50 text-amber-400' },

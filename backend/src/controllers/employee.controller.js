@@ -275,12 +275,12 @@ const createEmployee = async (req, res) => {
       }
     }
 
-    // Password hashing (default 'Enamels1212' if loginEnabled but no password provided)
+    // Password hashing (default 'Enamel12312' if loginEnabled but no password provided)
     let passwordHash = null;
     if (password && password.trim()) {
       passwordHash = await bcrypt.hash(password.trim(), 10);
     } else if (loginEnabled) {
-      passwordHash = await bcrypt.hash('Enamels1212', 10);
+      passwordHash = await bcrypt.hash('Enamel12312', 10);
     }
 
     const employee = await prisma.employeeRecord.create({

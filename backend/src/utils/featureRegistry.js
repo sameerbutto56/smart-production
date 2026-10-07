@@ -487,6 +487,7 @@ const ALL_PROFILES = [
   'INVENTORY_VIEW',
   'ORDER_ENTRY',
   'FAISAL',
+  'EMPLOYEE',
 ];
 
 module.exports = {

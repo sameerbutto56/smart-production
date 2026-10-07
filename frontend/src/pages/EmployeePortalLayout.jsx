@@ -65,6 +65,9 @@ export default function EmployeePortalLayout() {
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [isSlipOpen, setIsSlipOpen] = useState(false);
 
+  // Work Records Tab State
+  const [workRecordsData, setWorkRecordsData] = useState(null);
+
   // Helper for authenticated requests
   const getAuthHeaders = () => {
     const token = localStorage.getItem('employee_portal_token');
@@ -178,6 +181,21 @@ export default function EmployeePortalLayout() {
     }
   }, []);
 
+  // Fetch Work & Sales Records
+  const fetchWorkRecords = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get('/api/employee-portal/work-records', getAuthHeaders());
+      if (res.data?.success) {
+        setWorkRecordsData(res.data);
+      }
+    } catch (err) {
+      toast.error('Failed to load work/sales records');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Initial check & data fetch
   useEffect(() => {
     const token = localStorage.getItem('employee_portal_token');
@@ -195,7 +213,8 @@ export default function EmployeePortalLayout() {
     else if (activeTab === 'loans') fetchLoans();
     else if (activeTab === 'production') fetchProduction();
     else if (activeTab === 'payroll') fetchPayrolls();
-  }, [activeTab, fetchAttendance, fetchLeaves, fetchLoans, fetchProduction, fetchPayrolls]);
+    else if (activeTab === 'work-records') fetchWorkRecords();
+  }, [activeTab, fetchAttendance, fetchLeaves, fetchLoans, fetchProduction, fetchPayrolls, fetchWorkRecords]);
 
   // Submit Leave Request
   const handleSubmitLeave = async (e) => {
@@ -365,6 +384,17 @@ export default function EmployeePortalLayout() {
           >
             <DollarSign size={15} />
             My Salary & Pay Slips
+          </button>
+          <button
+            onClick={() => setActiveTab('work-records')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'work-records'
+                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <FileText size={15} />
+            Work / Sales Records
           </button>
           <button
             onClick={() => setActiveTab('profile')}
@@ -996,6 +1026,142 @@ export default function EmployeePortalLayout() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW 8: WORK & SALES RECORDS */}
+        {/* ========================================================================= */}
+        {activeTab === 'work-records' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  <FileText className="text-cyan-400" size={20} />
+                  Work & Sales Records
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Operational records and sales transactions registered for Employee ID{' '}
+                  <span className="font-mono text-cyan-400 font-bold">{employee?.employeeId}</span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchWorkRecords}
+                  disabled={loading}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                >
+                  <Filter size={13} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                <span className="text-[11px] uppercase font-bold text-slate-400 block">Total Work Entries</span>
+                <span className="text-2xl font-black font-mono text-white mt-1 block">
+                  {workRecordsData?.totalCount || 0}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Logged operational activities</span>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                <span className="text-[11px] uppercase font-bold text-slate-400 block">POS Sales Count</span>
+                <span className="text-2xl font-black font-mono text-cyan-400 mt-1 block">
+                  {workRecordsData?.totalSalesCount || 0}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Completed checkout bills</span>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                <span className="text-[11px] uppercase font-bold text-slate-400 block">Total Sales Value</span>
+                <span className="text-2xl font-black font-mono text-emerald-400 mt-1 block">
+                  ₨ {(workRecordsData?.totalSalesVolume || 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Gross sales billed</span>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                <span className="text-[11px] uppercase font-bold text-slate-400 block">Assigned Location</span>
+                <span className="text-lg font-black text-white mt-1 block truncate">
+                  {employee?.branch || 'Head Office'}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">{employee?.designation || 'Staff'}</span>
+              </div>
+            </div>
+
+            {/* Records Table */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Activity & Transaction Ledger
+                </h3>
+                <span className="text-xs text-slate-400 font-mono">
+                  {workRecordsData?.records?.length || 0} record(s)
+                </span>
+              </div>
+
+              {workRecordsData?.records && workRecordsData.records.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Date & Time</th>
+                        <th className="py-3 px-4">Reference / Receipt #</th>
+                        <th className="py-3 px-4">Type</th>
+                        <th className="py-3 px-4">Description</th>
+                        <th className="py-3 px-4">Branch</th>
+                        <th className="py-3 px-4 text-right">Amount (₨)</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {workRecordsData.records.map((r) => (
+                        <tr key={r.id} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3 px-4 font-mono text-slate-300 whitespace-nowrap">
+                            {r.date ? new Date(r.date).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
+                          <td className="py-3 px-4 font-mono font-bold text-cyan-400 whitespace-nowrap">
+                            {r.reference || '—'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                              {r.recordType?.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-200">
+                            <div className="font-medium">{r.title}</div>
+                            {r.description && <div className="text-[11px] text-slate-400 mt-0.5">{r.description}</div>}
+                          </td>
+                          <td className="py-3 px-4 text-slate-300 whitespace-nowrap">
+                            {r.branch}
+                          </td>
+                          <td className="py-3 px-4 font-mono font-bold text-right text-emerald-400 whitespace-nowrap">
+                            {r.amount != null ? `₨ ${Number(r.amount).toLocaleString()}` : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                              {r.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-12 text-center text-slate-500 space-y-2">
+                  <FileText size={36} className="mx-auto text-slate-600" />
+                  <p className="text-sm font-bold text-slate-400">No work or sales records registered yet</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Transactions and activities tagged with your Employee ID ({employee?.employeeId}) will be cataloged here automatically.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

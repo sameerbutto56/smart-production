@@ -2380,7 +2380,7 @@ export default function EmployeeDataPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder={editingEmployee ? 'Leave empty to keep unchanged' : 'Default: Enamels1212'}
+                      placeholder={editingEmployee ? 'Leave empty to keep unchanged' : 'Default: Enamel12312'}
                       value={employeeFormData.password}
                       onChange={(e) => setEmployeeFormData({ ...employeeFormData, password: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"

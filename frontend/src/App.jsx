@@ -264,6 +264,9 @@ const AuthRedirectHandler = () => {
     if (hasPermission('MARKETING_DASHBOARD')) return <Navigate to="/marketing" replace={true} />;
     return <Navigate to="/chat" replace={true} />;
   }
+  if (role === 'EMPLOYEE') {
+    return <Navigate to="/employee-portal/dashboard" replace={true} />;
+  }
   
   return <Navigate to="/chat" replace={true} />;
 };
@@ -299,6 +302,9 @@ function App() {
                     <EmployeePortalLayout />
                   </Suspense>
                 } />
+                <Route path="/employee" element={<Navigate to="/employee-portal/dashboard" replace />} />
+                <Route path="/employee/dashboard" element={<Navigate to="/employee-portal/dashboard" replace />} />
+                <Route path="/employee-profile" element={<Navigate to="/employee-portal/dashboard" replace />} />
                 
                 <Route path="/feedback" element={
                   <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, Mail, Loader2, Sparkles, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, Loader2, Sparkles, ShieldCheck, Eye, EyeOff, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -186,6 +186,18 @@ const Login = () => {
                 </p>
               </div>
             )}
+          </div>
+
+          {/* Employee Profile / Portal Access */}
+          <div className="mt-4 pt-4 border-t theme-border text-center">
+            <button
+              type="button"
+              onClick={() => navigate('/employee-portal/login')}
+              className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600/20 via-indigo-600/20 to-blue-600/20 hover:from-blue-600/30 hover:via-indigo-600/30 hover:to-blue-600/30 border border-blue-500/40 rounded-xl text-xs font-black text-blue-300 hover:text-white transition-all flex items-center justify-center gap-2 shadow-sm group/emp"
+            >
+              <Users size={15} className="text-blue-400 group-hover/emp:scale-110 transition-transform" />
+              <span>Employee Profile / Employee Login Portal →</span>
+            </button>
           </div>
         </div>
 

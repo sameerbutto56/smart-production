@@ -20,6 +20,7 @@ router.get('/loans', portalCtrl.getMyLoans);
 router.get('/production', portalCtrl.getMyProduction);
 router.get('/payroll', portalCtrl.getMyPayrolls);
 router.get('/payroll/:monthYear', portalCtrl.getMyPayrollDetail);
+router.get('/work-records', portalCtrl.getMyWorkRecords);
 router.post('/change-password', portalCtrl.changeMyPassword);
 
 module.exports = router;

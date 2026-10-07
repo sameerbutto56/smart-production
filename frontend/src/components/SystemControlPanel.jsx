@@ -40,6 +40,7 @@ const PROFILE_LABELS = {
   INVENTORY_VIEW: 'Inventory View',
   ORDER_ENTRY: 'Order Entry',
   FAISAL: 'Faisal',
+  EMPLOYEE: 'Employee',
 };
 
 export default function SystemControlPanel() {

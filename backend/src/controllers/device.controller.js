@@ -42,6 +42,11 @@ const devicePublic = (d) => ({
 const deviceGate = async (user, { deviceId, deviceName, registrationCode, ip, userAgent }) => {
   const role = String(user?.role || '').toUpperCase().trim();
 
+  // Employee self-service accounts are personal staff profiles accessible without fixed station hardware lock
+  if (role === 'EMPLOYEE') {
+    return { allowed: true };
+  }
+
   // Only SUPER_ADMIN/ADMIN self-register so the system stays reachable on the
   // very first login (bootstrap). Every other profile - including Software
   // Settings - is strictly gated to pre-authorized devices.
