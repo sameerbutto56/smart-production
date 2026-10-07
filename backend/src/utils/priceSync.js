@@ -10,9 +10,12 @@ const resolveMasterPrice = (invItem, color, size) => {
   if (!invItem) return null;
   const variants = Array.isArray(invItem.variants) ? invItem.variants : [];
   if (variants.length > 0) {
+    const norm = (s) => (s || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+    const colorNorm = norm(color);
+    const sizeNorm = norm(size);
     const match = variants.find(v => {
-      const mc = !color || !v.color || String(v.color).toLowerCase() === String(color).toLowerCase();
-      const ms = !size || !v.size || String(v.size).toLowerCase() === String(size).toLowerCase();
+      const mc = !colorNorm || !v.color || norm(v.color) === colorNorm;
+      const ms = !sizeNorm || !v.size || norm(v.size) === sizeNorm;
       return mc && ms;
     });
     const price = match ? parseFloat(match.price) : NaN;

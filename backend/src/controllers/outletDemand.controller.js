@@ -652,13 +652,27 @@ const acceptDemandRequest = async (req, res) => {
             continue;
           }
 
-          let variantBarcode = it.barcode;
-          if (!variantBarcode && Array.isArray(inv.variants)) {
-            const mv = inv.variants.find(v => (v.color || '').trim().toLowerCase() === (it.color || '').trim().toLowerCase() && (v.size || '').trim().toLowerCase() === (it.size || '').trim().toLowerCase());
-            if (mv?.barcode) variantBarcode = mv.barcode;
+          // Normalize colors and sizes for matching (collapses multiple spaces, trims, lowercases)
+          const normStr = (s) => (s || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+          const itemColorNorm = normStr(it.color);
+          const itemSizeNorm = normStr(it.size);
+
+          let matchedVariant = null;
+          if (Array.isArray(inv.variants)) {
+            matchedVariant = inv.variants.find(v =>
+              normStr(v.color) === itemColorNorm &&
+              normStr(v.size) === itemSizeNorm
+            );
           }
 
+          const variantBarcode = it.barcode || matchedVariant?.barcode || null;
+          const canonicalColor = matchedVariant?.color ? matchedVariant.color.trim() : (it.color ? it.color.trim().replace(/\s+/g, ' ') : null);
+          const canonicalSize = matchedVariant?.size ? matchedVariant.size.trim() : (it.size ? it.size.trim().replace(/\s+/g, ' ') : null);
+
+          // Find existing outlet inventory item:
           let oi = null;
+
+          // 1. By variantBarcode if known
           if (variantBarcode) {
             oi = await tx.outletInventory.findFirst({
               where: {
@@ -667,84 +681,77 @@ const acceptDemandRequest = async (req, res) => {
               }
             });
           }
+
+          // 2. By matching product name + normalized color + normalized size in this outlet
           if (!oi) {
+            const existingOutletItems = await tx.outletInventory.findMany({
+              where: {
+                outletName: existing.outletName,
+                name: { equals: inv.name, mode: 'insensitive' }
+              }
+            });
+            oi = existingOutletItems.find(o =>
+              normStr(o.color) === itemColorNorm &&
+              normStr(o.size) === itemSizeNorm
+            ) || null;
+          }
+
+          // 3. By candidate generated barcode
+          const generatedBc = generateBarcode(inv.id, canonicalSize, canonicalColor);
+          const candidateBc = variantBarcode || generatedBc;
+          if (!oi && candidateBc) {
             oi = await tx.outletInventory.findFirst({
               where: {
                 outletName: existing.outletName,
-                name: { equals: inv.name, mode: 'insensitive' },
-                color: it.color || null,
-                size: it.size || null
+                barcode: candidateBc
               }
             });
           }
 
-          const masterPrice = resolveMasterPrice(inv, it.color, it.size);
+          const masterPrice = resolveMasterPrice(inv, canonicalColor, canonicalSize);
           const approvedQtyInt = parseInt(it.approvedQty) || 0;
 
           if (!oi) {
-            const bc = variantBarcode || generateBarcode(inv.id, it.size, it.color);
-            try {
-              const created = await tx.outletInventory.create({
-                data: {
-                  outletName: existing.outletName,
-                  name: inv.name,
-                  category: inv.category || '',
-                  color: it.color || null,
-                  size: it.size || null,
-                  fabric: inv.fabric || null,
-                  barcode: bc,
-                  stock: approvedQtyInt,
-                  price: masterPrice != null ? masterPrice : parseFloat(inv.price),
-                  metadata: JSON.stringify({ sourceStoreItemId: inv.id })
-                }
-              });
-              await recordInventoryMovement({
-                movementType: 'TRANSFER_IN',
-                location: existing.outletName,
-                productId: created.id,
-                productName: created.name,
-                color: created.color,
-                size: created.size,
-                barcode: bc,
-                previousQty: 0,
-                newQty: approvedQtyInt,
-                difference: approvedQtyInt,
-                referenceId: transferNumber,
-                notes: `Outlet demand received from Warehouse`,
-                performedBy: req.user?.name || 'Staff',
-                tx
-              });
-            } catch (createErr) {
-              if (createErr.code === 'P2002') {
-                const existingRec = await tx.outletInventory.findFirst({
-                  where: { outletName: existing.outletName, barcode: bc }
-                });
-                if (existingRec) {
-                  const prevStock = existingRec.stock || 0;
-                  const newStock = prevStock + approvedQtyInt;
-                  await tx.outletInventory.update({
-                    where: { id: existingRec.id },
-                    data: { stock: { increment: approvedQtyInt } }
-                  });
-                  await recordInventoryMovement({
-                    movementType: 'TRANSFER_IN',
-                    location: existing.outletName,
-                    productId: existingRec.id,
-                    productName: existingRec.name,
-                    color: existingRec.color,
-                    size: existingRec.size,
-                    barcode: bc,
-                    previousQty: prevStock,
-                    newQty: newStock,
-                    difference: approvedQtyInt,
-                    referenceId: transferNumber,
-                    notes: `Outlet demand received from Warehouse`,
-                    performedBy: req.user?.name || 'Staff',
-                    tx
-                  });
-                }
-              }
+            // Guarantee barcode does not collide with ANY existing record in this outlet
+            let bc = candidateBc;
+            let attempt = 0;
+            while (await tx.outletInventory.findFirst({ where: { outletName: existing.outletName, barcode: bc } })) {
+              attempt++;
+              bc = generateBarcode(inv.id, canonicalSize, canonicalColor, attempt);
+              if (attempt > 25) break;
             }
+
+            const created = await tx.outletInventory.create({
+              data: {
+                outletName: existing.outletName,
+                name: inv.name,
+                category: inv.category || '',
+                color: canonicalColor,
+                size: canonicalSize,
+                fabric: inv.fabric || null,
+                barcode: bc,
+                stock: approvedQtyInt,
+                price: masterPrice != null ? masterPrice : parseFloat(inv.price) || 0,
+                metadata: JSON.stringify({ sourceStoreItemId: inv.id })
+              }
+            });
+
+            await recordInventoryMovement({
+              movementType: 'TRANSFER_IN',
+              location: existing.outletName,
+              productId: created.id,
+              productName: created.name,
+              color: created.color,
+              size: created.size,
+              barcode: bc,
+              previousQty: 0,
+              newQty: approvedQtyInt,
+              difference: approvedQtyInt,
+              referenceId: transferNumber,
+              notes: `Outlet demand received from Warehouse`,
+              performedBy: req.user?.name || 'Staff',
+              tx
+            });
           } else {
             const prevStock = oi.stock || 0;
             const newStock = prevStock + approvedQtyInt;
@@ -753,13 +760,21 @@ const acceptDemandRequest = async (req, res) => {
             if ((!Number.isNaN(currentPrice) && currentPrice > 0) === false && masterPrice != null) {
               updateData.price = masterPrice;
             }
-            if (!oi.barcode && variantBarcode) {
-              updateData.barcode = variantBarcode;
+            if (!oi.barcode && candidateBc) {
+              updateData.barcode = candidateBc;
             }
+            if (canonicalColor && (!oi.color || normStr(oi.color) !== normStr(canonicalColor))) {
+              updateData.color = canonicalColor;
+            }
+            if (canonicalSize && (!oi.size || normStr(oi.size) !== normStr(canonicalSize))) {
+              updateData.size = canonicalSize;
+            }
+
             await tx.outletInventory.update({
               where: { id: oi.id },
               data: updateData
             });
+
             await recordInventoryMovement({
               movementType: 'TRANSFER_IN',
               location: existing.outletName,
@@ -767,7 +782,7 @@ const acceptDemandRequest = async (req, res) => {
               productName: oi.name,
               color: oi.color,
               size: oi.size,
-              barcode: oi.barcode || variantBarcode,
+              barcode: oi.barcode || candidateBc,
               previousQty: prevStock,
               newQty: newStock,
               difference: approvedQtyInt,
@@ -786,25 +801,27 @@ const acceptDemandRequest = async (req, res) => {
             qty: it.approvedQty
           });
         }
-
-        try {
-          await tx.auditLog.create({
-            data: {
-              orderId: null,
-              action: 'DEMAND_REQUEST_ACCEPTED',
-              details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items added to outlet inventory`,
-              performedBy: req.user.id
-            }
-          });
-        } catch (auditErr) {
-          console.warn('AuditLog creation warning in demand accept:', auditErr.message);
-        }
       }, { timeout: 30000 });
     } catch (txErr) {
       if (txErr.code === 'DEMAND_ALREADY_ACCEPTED') {
         return res.status(409).json({ message: txErr.message });
       }
       throw txErr;
+    }
+
+    if (req.user?.id) {
+      try {
+        await prisma.auditLog.create({
+          data: {
+            orderId: null,
+            action: 'DEMAND_REQUEST_ACCEPTED',
+            details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items added to outlet inventory`,
+            performedBy: req.user.id
+          }
+        });
+      } catch (auditErr) {
+        console.warn('AuditLog creation warning in demand accept:', auditErr.message);
+      }
     }
 
     // Cache + socket + notify stay outside the transaction (fail-soft).
