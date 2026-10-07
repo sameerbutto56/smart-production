@@ -160,7 +160,7 @@ export default function EmployeeDataPage() {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees', {
+      const res = await api.get('/api/employees', {
         params: {
           status: filterStatus,
           branch: filterBranch,
@@ -182,7 +182,7 @@ export default function EmployeeDataPage() {
   const fetchDailyAttendance = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees/attendance/daily', {
+      const res = await api.get('/api/employees/attendance/daily', {
         params: { date: attendanceDate, branch: filterBranch }
       });
       if (res.data?.success) {
@@ -199,7 +199,7 @@ export default function EmployeeDataPage() {
   const fetchMonthlyAttendance = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees/attendance/monthly', {
+      const res = await api.get('/api/employees/attendance/monthly', {
         params: { monthYear: attMonthYear, branch: filterBranch }
       });
       if (res.data?.success) {
@@ -216,7 +216,7 @@ export default function EmployeeDataPage() {
   const fetchLeaves = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees/leaves/list', {
+      const res = await api.get('/api/employees/leaves/list', {
         params: { status: filterLeaveStatus }
       });
       if (res.data?.success) {
@@ -233,7 +233,7 @@ export default function EmployeeDataPage() {
   const fetchLoans = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees/loans/list', {
+      const res = await api.get('/api/employees/loans/list', {
         params: { type: filterLoanType }
       });
       if (res.data?.success) {
@@ -250,7 +250,7 @@ export default function EmployeeDataPage() {
   const fetchProductionSummary = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees/production/summary', {
+      const res = await api.get('/api/employees/production/summary', {
         params: { monthYear: prodMonthYear }
       });
       if (res.data?.success) {
@@ -267,7 +267,7 @@ export default function EmployeeDataPage() {
   const fetchPayrolls = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees/payroll/list', {
+      const res = await api.get('/api/employees/payroll/list', {
         params: { monthYear: payrollMonthYear, branch: filterBranch }
       });
       if (res.data?.success) {
@@ -362,7 +362,7 @@ export default function EmployeeDataPage() {
 
   const handleOpenProfileView = async (emp) => {
     try {
-      const res = await api.get(`/employees/${emp.employeeId}`);
+      const res = await api.get(`/api/employees/${emp.employeeId}`);
       if (res.data?.success) {
         setViewingEmployeeProfile(res.data.employee);
       }
@@ -376,10 +376,10 @@ export default function EmployeeDataPage() {
     try {
       setLoading(true);
       if (editingEmployee) {
-        await api.put(`/employees/${editingEmployee.employeeId}`, employeeFormData);
+        await api.put(`/api/employees/${editingEmployee.employeeId}`, employeeFormData);
         toast.success(`Employee ${editingEmployee.employeeId} updated successfully`);
       } else {
-        await api.post('/employees', employeeFormData);
+        await api.post('/api/employees', employeeFormData);
         toast.success('New employee created successfully');
       }
       setIsAddEmployeeOpen(false);
@@ -395,7 +395,7 @@ export default function EmployeeDataPage() {
     const newStatus = emp.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     if (!window.confirm(`Are you sure you want to mark ${emp.name} (${emp.employeeId}) as ${newStatus}?`)) return;
     try {
-      await api.put(`/employees/${emp.employeeId}`, { status: newStatus });
+      await api.put(`/api/employees/${emp.employeeId}`, { status: newStatus });
       toast.success(`Employee status set to ${newStatus}`);
       fetchEmployees();
     } catch (err) {
@@ -406,7 +406,7 @@ export default function EmployeeDataPage() {
   const handleToggleLogin = async (emp) => {
     const newEnabled = !emp.loginEnabled;
     try {
-      await api.put(`/employees/${emp.employeeId}`, { loginEnabled: newEnabled });
+      await api.put(`/api/employees/${emp.employeeId}`, { loginEnabled: newEnabled });
       toast.success(`Portal login ${newEnabled ? 'enabled' : 'disabled'} for ${emp.employeeId}`);
       fetchEmployees();
     } catch (err) {
@@ -429,7 +429,7 @@ export default function EmployeeDataPage() {
     if (!selectedAttendance) return;
     try {
       setLoading(true);
-      await api.post('/employees/attendance/mark', {
+      await api.post('/api/employees/attendance/mark', {
         employeeId: selectedAttendance.employeeId,
         date: attendanceDate,
         checkInTime: attFormCheckIn,
@@ -458,7 +458,7 @@ export default function EmployeeDataPage() {
         checkOutTime: rec.checkOutTime || rec.scheduledCheckOut || '18:00',
         status: 'PRESENT'
       }));
-      await api.post('/employees/attendance/bulk-mark', {
+      await api.post('/api/employees/attendance/bulk-mark', {
         date: attendanceDate,
         records
       });
@@ -530,7 +530,7 @@ export default function EmployeeDataPage() {
 
   const fetchImportHistory = async () => {
     try {
-      const res = await api.get('/employees/attendance/import-history');
+      const res = await api.get('/api/employees/attendance/import-history');
       if (res.data?.success) setImportHistoryList(res.data.history || []);
     } catch (err) {
       console.warn('Failed to fetch import history:', err.message);
@@ -541,7 +541,7 @@ export default function EmployeeDataPage() {
     if (importedRows.length === 0) return;
     try {
       setLoading(true);
-      const res = await api.post('/employees/attendance/import-excel', {
+      const res = await api.post('/api/employees/attendance/import-excel', {
         rows: importedRows,
         monthYear: attMonthYear,
         mode: importMode,
@@ -572,7 +572,7 @@ export default function EmployeeDataPage() {
     e.preventDefault();
     try {
       setLoading(true);
-      await api.post('/employees/leaves', leaveFormData);
+      await api.post('/api/employees/leaves', leaveFormData);
       toast.success('Leave recorded successfully');
       setIsAddLeaveOpen(false);
       fetchLeaves();
@@ -585,7 +585,7 @@ export default function EmployeeDataPage() {
 
   const handleUpdateLeaveStatus = async (leaveId, status) => {
     try {
-      await api.put(`/employees/leaves/${leaveId}/status`, { status });
+      await api.put(`/api/employees/leaves/${leaveId}/status`, { status });
       toast.success(`Leave status set to ${status}`);
       fetchLeaves();
     } catch (err) {
@@ -598,7 +598,7 @@ export default function EmployeeDataPage() {
     e.preventDefault();
     try {
       setLoading(true);
-      await api.post('/employees/loans', loanFormData);
+      await api.post('/api/employees/loans', loanFormData);
       toast.success(`${loanFormData.type} record created successfully`);
       setIsAddLoanOpen(false);
       fetchLoans();
@@ -614,7 +614,7 @@ export default function EmployeeDataPage() {
   const handleCalculatePayroll = async () => {
     try {
       setLoading(true);
-      const res = await api.post('/employees/payroll/calculate', { monthYear: payrollMonthYear });
+      const res = await api.post('/api/employees/payroll/calculate', { monthYear: payrollMonthYear });
       if (res.data?.success) {
         toast.success(res.data.message || 'Payroll calculated successfully');
         fetchPayrolls();
@@ -656,7 +656,7 @@ export default function EmployeeDataPage() {
     if (!selectedPayroll) return;
     try {
       setLoading(true);
-      await api.put(`/employees/payroll/${selectedPayroll.id}/adjust`, adjustFormData);
+      await api.put(`/api/employees/payroll/${selectedPayroll.id}/adjust`, adjustFormData);
       toast.success('Payroll adjusted successfully');
       setIsAdjustModalOpen(false);
       fetchPayrolls();
@@ -671,7 +671,7 @@ export default function EmployeeDataPage() {
     if (!window.confirm(`Are you sure you want to FINALIZE and FREEZE payroll for ${payrollMonthYear}? Once finalized, all records and balances are frozen.`)) return;
     try {
       setLoading(true);
-      const res = await api.post('/employees/payroll/finalize', { monthYear: payrollMonthYear });
+      const res = await api.post('/api/employees/payroll/finalize', { monthYear: payrollMonthYear });
       toast.success(res.data?.message || 'Monthly payroll finalized');
       fetchPayrolls();
     } catch (err) {
