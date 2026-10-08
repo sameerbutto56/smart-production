@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import api from '../services/api';
+import socket from '../socket';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import {
@@ -91,8 +92,16 @@ export default function EmployeeDataPage() {
   };
   const [employeeFormData, setEmployeeFormData] = useState(initialEmployeeForm);
 
+  const getTodayLocalDate = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // --- Attendance Tab State ---
-  const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [attendanceDate, setAttendanceDate] = useState(() => getTodayLocalDate());
   const [dailyAttendance, setDailyAttendance] = useState([]);
   const [markingModalOpen, setMarkingModalOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState(null);
@@ -312,6 +321,23 @@ export default function EmployeeDataPage() {
       return () => clearTimeout(timer);
     }
   }, [searchQuery]);
+
+  // Real-time biometric attendance socket sync
+  useEffect(() => {
+    if (!socket) return;
+    const handlePunch = () => {
+      if (activeTab === 'attendance') {
+        fetchDailyAttendance();
+        fetchMonthlyAttendance();
+      }
+    };
+    socket.on('attendance:punched', handlePunch);
+    socket.on('attendance:updated', handlePunch);
+    return () => {
+      socket.off('attendance:punched', handlePunch);
+      socket.off('attendance:updated', handlePunch);
+    };
+  }, [activeTab, attendanceDate, attMonthYear, filterBranch]);
 
   // --- Handlers: Employee Management ---
   const handleOpenAdd = () => {
@@ -1087,6 +1113,18 @@ export default function EmployeeDataPage() {
                   onChange={(e) => setAttendanceDate(e.target.value)}
                   className="bg-transparent text-white text-xs sm:text-sm font-bold focus:outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={() => setAttendanceDate(getTodayLocalDate())}
+                  className={`px-2 py-0.5 text-[11px] font-bold rounded-lg border transition-all ${
+                    attendanceDate === getTodayLocalDate()
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
+                  }`}
+                  title="Switch to Today's Roster"
+                >
+                  Today
+                </button>
               </div>
 
               {/* Branch Filter */}

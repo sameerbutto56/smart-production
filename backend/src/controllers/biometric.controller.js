@@ -293,16 +293,45 @@ const receiveHikvisionEvent = async (req, res) => {
   try {
     let payload = req.body || {};
 
+    // Check if multipart form uploaded event_log or AcsEvent as a file
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      for (const file of req.files) {
+        const fname = file.fieldname || '';
+        if (fname === 'event_log' || fname === 'AcsEvent' || fname.includes('event') || (file.mimetype && (file.mimetype.includes('json') || file.mimetype.includes('text') || file.mimetype.includes('xml')))) {
+          try {
+            const str = file.buffer ? file.buffer.toString('utf8') : '';
+            if (str.trim().startsWith('{')) {
+              payload = { ...payload, ...JSON.parse(str) };
+            } else if (str.includes('<employeeNoString>')) {
+              const idMatch = str.match(/<employeeNoString>([^<]+)<\/employeeNoString>/);
+              const timeMatch = str.match(/<dateTime>([^<]+)<\/dateTime>/);
+              const nameMatch = str.match(/<name>([^<]+)<\/name>/);
+              payload = {
+                ...payload,
+                AccessControllerEvent: {
+                  employeeNoString: idMatch ? idMatch[1] : null,
+                  name: nameMatch ? nameMatch[1] : null
+                },
+                dateTime: timeMatch ? timeMatch[1] : null
+              };
+            }
+          } catch (fileParseErr) {
+            console.warn('Could not parse file from multipart:', fname, fileParseErr.message);
+          }
+        }
+      }
+    }
+
     // 1. Hikvision multipart / event_log parsing
     if (typeof payload.event_log === 'string') {
       try {
-        payload = JSON.parse(payload.event_log);
+        payload = { ...payload, ...JSON.parse(payload.event_log) };
       } catch (e) {
         // Continue with raw payload
       }
     } else if (typeof payload.AcsEvent === 'string') {
       try {
-        payload = JSON.parse(payload.AcsEvent);
+        payload = { ...payload, ...JSON.parse(payload.AcsEvent) };
       } catch (e) {
         // Continue
       }
@@ -324,7 +353,7 @@ const receiveHikvisionEvent = async (req, res) => {
       }
     }
 
-    const acs = payload.AccessControllerEvent || payload.AcsEvent || payload;
+    const acs = payload.AccessControllerEvent || payload.AcsEvent || payload.EventNotificationAlert || payload;
     const rawEmployeeId = acs.employeeNoString || acs.cardNo || acs.employeeNo || payload.employeeNoString || payload.employeeId || null;
     const rawName = acs.name || payload.employeeName || null;
     const rawTime = payload.dateTime || acs.dateTime || payload.time || null;
@@ -336,6 +365,9 @@ const receiveHikvisionEvent = async (req, res) => {
       recordLog({
         type: 'HEARTBEAT',
         deviceName,
+        contentType: req.headers['content-type'] || 'unknown',
+        bodyKeys: Object.keys(payload || {}),
+        filesCount: Array.isArray(req.files) ? req.files.length : 0,
         message: 'Device probe / heartbeat received'
       });
       return res.status(200).json({
