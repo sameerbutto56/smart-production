@@ -109,6 +109,26 @@ function parseMachineDateTime(raw) {
   };
 }
 
+// Active employees memory cache to ensure 0ms lookup latency
+let cachedActiveEmployees = null;
+let cachedActiveEmployeesExpiry = 0;
+
+async function getActiveEmployeesList() {
+  const now = Date.now();
+  if (cachedActiveEmployees && cachedActiveEmployeesExpiry > now) {
+    return cachedActiveEmployees;
+  }
+  try {
+    cachedActiveEmployees = await prisma.employeeRecord.findMany({
+      where: { status: 'ACTIVE' }
+    });
+    cachedActiveEmployeesExpiry = now + 60000; // cache for 60s
+  } catch (_) {
+    if (!cachedActiveEmployees) cachedActiveEmployees = [];
+  }
+  return cachedActiveEmployees;
+}
+
 /**
  * Finds employee in EmployeeRecord matching Hikvision identifier.
  * Active employees always take strict precedence.
@@ -124,107 +144,54 @@ async function findEmployeeByIdentifier(rawId, rawName) {
   const idStr = String(rawId || '').trim();
   const cleanName = typeof rawName === 'string' ? rawName.trim() : '';
 
-  async function searchByCriteria(statusFilter = 'ACTIVE') {
-    let emp = null;
+  const activeEmployees = await getActiveEmployeesList();
 
-    if (idStr && idStr !== 'UNKNOWN' && idStr !== '0') {
-      // 1. Explicit machineUserId mapping
-      emp = await prisma.employeeRecord.findFirst({
-        where: { machineUserId: idStr, ...(statusFilter ? { status: statusFilter } : {}) }
-      });
-      if (emp) return emp;
+  if (idStr && idStr !== 'UNKNOWN' && idStr !== '0') {
+    // 1. Explicit machineUserId mapping
+    let emp = activeEmployees.find(e => e.machineUserId === idStr);
+    if (emp) return emp;
 
-      // 2. Exact employeeId match e.g. "02" or "5" or "13"
-      emp = await prisma.employeeRecord.findFirst({
-        where: { employeeId: idStr, ...(statusFilter ? { status: statusFilter } : {}) }
-      });
-      if (emp) return emp;
+    // 2. Exact employeeId match e.g. "02" or "5" or "13"
+    emp = activeEmployees.find(e => e.employeeId === idStr);
+    if (emp) return emp;
 
-      // 3. Normalized numeric variations (e.g. "02" <-> "2", "005" <-> "5")
-      const numPart = idStr.replace(/^0+/, '') || idStr;
-      emp = await prisma.employeeRecord.findFirst({
-        where: {
-          AND: [
-            statusFilter ? { status: statusFilter } : {},
-            {
-              OR: [
-                { employeeId: numPart },
-                { employeeId: numPart.padStart(2, '0') },
-                { employeeId: numPart.padStart(3, '0') },
-                { machineUserId: numPart },
-                { machineUserId: numPart.padStart(2, '0') },
-                { machineUserId: numPart.padStart(3, '0') }
-              ]
-            }
-          ]
-        }
-      });
-      if (emp) return emp;
-    }
-
-    // 4. Name matching (for devices sending user names like "Ali Raza", "Sajawal", "Noman")
-    if (cleanName) {
-      // 4a. Exact name (case-insensitive)
-      emp = await prisma.employeeRecord.findFirst({
-        where: {
-          name: { equals: cleanName, mode: 'insensitive' },
-          ...(statusFilter ? { status: statusFilter } : {})
-        }
-      });
-      if (emp) return emp;
-
-      // 4b. Fetch candidates and test bidirectional substring & token overlap
-      const candidates = await prisma.employeeRecord.findMany({
-        where: statusFilter ? { status: statusFilter } : {}
-      });
-
-      const cleanLower = cleanName.toLowerCase();
-      const cleanTokens = cleanLower.split(/\s+/).filter(Boolean);
-
-      // Priority: Bidirectional substring (e.g. "Ali Raza" contains "Ali", or "MUHAMMAD SAJAWAL" contains "Sajawal")
-      for (const cand of candidates) {
-        const candLower = cand.name.toLowerCase();
-        if (cleanLower.includes(candLower) || candLower.includes(cleanLower)) {
-          return cand;
-        }
-      }
-
-      // Priority: Token match
-      for (const cand of candidates) {
-        const candLower = cand.name.toLowerCase();
-        const candTokens = candLower.split(/\s+/).filter(Boolean);
-        const hasTokenMatch = cleanTokens.some(t =>
-          candTokens.some(ct => (t.length >= 3 && ct.length >= 3 && (t === ct || ct.startsWith(t) || t.startsWith(ct))) || (t.length === 3 && ct === t))
-        );
-        if (hasTokenMatch) {
-          return cand;
-        }
-      }
-    }
-
-    return null;
+    // 3. Normalized numeric variations (e.g. "02" <-> "2", "005" <-> "5")
+    const numPart = idStr.replace(/^0+/, '') || idStr;
+    emp = activeEmployees.find(e => {
+      const eNum = String(e.employeeId || '').replace(/^0+/, '');
+      const mNum = String(e.machineUserId || '').replace(/^0+/, '');
+      return eNum === numPart || mNum === numPart;
+    });
+    if (emp) return emp;
   }
 
-  // 1. Search ACTIVE employees first (strict priority)
-  let matchedEmp = await searchByCriteria('ACTIVE');
+  // 4. Name matching
+  if (cleanName) {
+    const cleanLower = cleanName.toLowerCase();
+    const cleanTokens = cleanLower.split(/\s+/).filter(Boolean);
 
-  // 2. Fallback to any employee status only if no active match found
-  if (!matchedEmp) {
-    matchedEmp = await searchByCriteria(null);
+    // 4a. Exact name
+    let emp = activeEmployees.find(e => e.name.toLowerCase() === cleanLower);
+    if (emp) return emp;
+
+    // 4b. Bidirectional substring
+    emp = activeEmployees.find(e => {
+      const candLower = e.name.toLowerCase();
+      return cleanLower.includes(candLower) || candLower.includes(cleanLower);
+    });
+    if (emp) return emp;
+
+    // 4c. Token match
+    emp = activeEmployees.find(e => {
+      const candTokens = e.name.toLowerCase().split(/\s+/).filter(Boolean);
+      return cleanTokens.some(t =>
+        candTokens.some(ct => (t.length >= 3 && ct.length >= 3 && (t === ct || ct.startsWith(t) || t.startsWith(ct))) || (t.length === 3 && ct === t))
+      );
+    });
+    if (emp) return emp;
   }
 
-  // 3. Auto-link machineUserId to active employee if not already set or shifted
-  if (matchedEmp && matchedEmp.status === 'ACTIVE' && idStr && idStr !== 'UNKNOWN' && idStr !== '0' && matchedEmp.machineUserId !== idStr) {
-    try {
-      await prisma.employeeRecord.update({
-        where: { id: matchedEmp.id },
-        data: { machineUserId: idStr }
-      });
-      matchedEmp.machineUserId = idStr;
-    } catch (_) {}
-  }
-
-  return matchedEmp;
+  return null;
 }
 
 /**
@@ -652,44 +619,42 @@ function extractHikvisionData(req) {
 
 /**
  * Helper to respond to Hikvision DS-K1T342MFWX HTTP Listening push.
- * The terminal firmware expects standard Hikvision ISAPI XML <ResponseStatus>:
- * <?xml version="1.0" encoding="UTF-8"?>
- * <ResponseStatus version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
- * <requestURL>/api/biometric/hikvision</requestURL>
- * <statusCode>1</statusCode>
- * <statusString>OK</statusString>
- * <subStatusCode>ok</subStatusCode>
- * </ResponseStatus>
- * Without this XML response, the device treats the push as failed and retries the same event indefinitely,
- * freezing all subsequent queued punches!
+ * Sends immediate ACK with Connection: close to terminate the current session
+ * and avoid firmware retry loops on AccessControllerEvent pushes.
  */
 function sendHikvisionResponse(req, res, statusCode = 1, statusString = 'OK', subStatusCode = 'ok', message = 'OK', extra = {}) {
-  const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
-<ResponseStatus version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
-<requestURL>/api/biometric/hikvision</requestURL>
+  res.set('Connection', 'close');
+
+  const reqUrl = req.originalUrl || req.url || '/api/biometric/hikvision';
+  const ct = (req.headers['content-type'] || '').toLowerCase();
+  const rawBodyText = typeof req.body === 'string' ? req.body : '';
+  const isXml = ct.includes('xml') || rawBodyText.trim().startsWith('<');
+
+  if (isXml) {
+    const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
+<ResponseStatus version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<requestURL>${reqUrl}</requestURL>
 <statusCode>${statusCode}</statusCode>
 <statusString>${statusString}</statusString>
 <subStatusCode>${subStatusCode}</subStatusCode>
 </ResponseStatus>`;
-
-  const isExplicitJson = req.query.format === 'json' ||
-    (req.headers['accept'] === 'application/json' && !req.headers['content-type']?.includes('multipart'));
-
-  if (!isExplicitJson) {
-    res.set('Content-Type', 'application/xml; charset="UTF-8"');
+    res.set('Content-Type', 'application/xml; charset=UTF-8');
     return res.status(200).send(xmlBody);
   }
 
+  // Standard JSON response for AccessControllerEvent HTTP Listening
+  res.set('Content-Type', 'application/json; charset=utf-8');
   return res.status(200).json({
+    statusString,
+    statusCode,
+    statusCustom: statusString,
+    subStatusCode,
     ResponseStatus: {
-      requestURL: '/api/biometric/hikvision',
+      requestURL: reqUrl,
       statusCode,
       statusString,
       subStatusCode
     },
-    statusCode,
-    statusString,
-    subStatusCode,
     message,
     ...extra
   });
