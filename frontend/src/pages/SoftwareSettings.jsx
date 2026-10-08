@@ -654,7 +654,7 @@ const SoftwareSettings = () => {
     { key: 'system-control', label: 'System Control', icon: <Shield size={16} /> },
     { key: 'marketing-locations', label: 'Marketing Location Management', icon: <Compass size={16} /> },
     { key: 'abbottabad-password', label: 'Abbottabad Password', icon: <Lock size={16} /> },
-    { key: 'employee-portal-settings', label: 'Employee Portal / Self-Service', icon: <Users size={16} /> },
+    { key: 'employee-portal-settings', label: 'Employee Portal [ON/OFF]', icon: <Users size={16} /> },
     { key: 'system', label: 'System Pause', icon: <PauseCircle size={16} /> },
   ];
 

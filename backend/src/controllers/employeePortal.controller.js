@@ -10,12 +10,12 @@ async function isEmployeePortalEnabled() {
     const setting = await prisma.systemSetting.findUnique({
       where: { key: 'EMPLOYEE_PORTAL_ACCESS' }
     });
-    if (!setting) return false; // Default: OFF
+    if (!setting) return true; // Default: ON (active out of the box)
     const val = String(setting.value).replace(/"/g, '').trim().toUpperCase();
-    return val === 'ON' || val === 'TRUE' || val === 'ENABLED';
+    return val !== 'OFF' && val !== 'FALSE' && val !== 'DISABLED';
   } catch (err) {
     console.error('Error checking employee portal setting:', err);
-    return false;
+    return true;
   }
 }
 
@@ -314,17 +314,22 @@ const getMyDashboard = async (req, res) => {
 // 3. EMPLOYEE ATTENDANCE HISTORY
 // ==========================================
 
-// GET /api/employee-portal/attendance?monthYear=YYYY-MM
+// GET /api/employee-portal/attendance?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD or ?monthYear=YYYY-MM
 const getMyAttendance = async (req, res) => {
   try {
     const empId = req.user.employeeId;
-    const monthYear = req.query.monthYear || new Date().toISOString().slice(0, 7);
+    const { startDate, endDate } = req.query;
+
+    const where = { employeeId: empId };
+    if (startDate && endDate) {
+      where.date = { gte: startDate, lte: endDate };
+    } else {
+      const monthYear = req.query.monthYear || new Date().toISOString().slice(0, 7);
+      where.date = { startsWith: monthYear };
+    }
 
     const attendances = await prisma.employeeAttendance.findMany({
-      where: {
-        employeeId: empId,
-        date: { startsWith: monthYear }
-      },
+      where,
       orderBy: { date: 'asc' }
     });
 

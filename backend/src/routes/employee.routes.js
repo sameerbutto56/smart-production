@@ -14,6 +14,7 @@ router.delete('/:employeeId', ...adminOnly, employeeController.deleteEmployee);
 
 // --- Attendance Management ---
 router.get('/attendance/daily', ...adminOnly, employeeController.getDailyAttendance);
+router.get('/attendance/range', ...adminOnly, employeeController.getAttendanceRange);
 router.post('/attendance/mark', ...adminOnly, employeeController.markAttendance);
 router.post('/attendance/bulk-mark', ...adminOnly, employeeController.bulkMarkAttendance);
 router.post('/attendance/import-excel', ...adminOnly, employeeController.importAttendanceExcel);
@@ -36,9 +37,19 @@ router.get('/production/summary', ...adminOnly, employeeController.getProduction
 
 // --- Payroll Management ---
 router.get('/payroll/list', ...adminOnly, employeeController.getMonthlyPayrollList);
+router.get('/payroll/pending', ...adminOnly, employeeController.getPendingPayrolls);
 router.post('/payroll/calculate', ...adminOnly, employeeController.calculateMonthlyPayroll);
 router.put('/payroll/:id/adjust', ...adminOnly, employeeController.adjustPayroll);
+router.post('/payroll/approve', ...adminOnly, employeeController.approvePayrolls);
+router.post('/payroll/:id/approve', ...adminOnly, employeeController.approveSinglePayroll);
+router.post('/payroll/:id/mark-paid', ...adminOnly, employeeController.markPayrollPaid);
 router.post('/payroll/finalize', ...adminOnly, employeeController.finalizeMonthlyPayroll);
 router.get('/payroll/export-excel', ...adminOnly, employeeController.exportPayrollExcel);
+
+// --- Audit Trail & Settings ---
+router.get('/audit/attendance', ...adminOnly, employeeController.getAttendanceAuditLogs);
+router.get('/audit/payroll', ...adminOnly, employeeController.getPayrollAuditLogs);
+router.get('/settings/portal-status', employeeController.getPortalStatus);
+router.post('/settings/portal-status', ...adminOnly, employeeController.setPortalStatus);
 
 module.exports = router;

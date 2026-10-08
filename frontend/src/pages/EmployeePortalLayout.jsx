@@ -42,6 +42,14 @@ export default function EmployeePortalLayout() {
 
   // Attendance Tab State
   const [attMonthYear, setAttMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
+  const [attStartDate, setAttStartDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+  const [attEndDate, setAttEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [attFilterMode, setAttFilterMode] = useState('month'); // 'month' | 'range'
   const [attendanceData, setAttendanceData] = useState(null);
 
   // Leaves Tab State
@@ -104,9 +112,16 @@ export default function EmployeePortalLayout() {
   const fetchAttendance = useCallback(async () => {
     try {
       setLoading(true);
+      const params = {};
+      if (attFilterMode === 'month') {
+        params.monthYear = attMonthYear;
+      } else {
+        params.startDate = attStartDate;
+        params.endDate = attEndDate;
+      }
       const res = await axios.get('/api/employee-portal/attendance', {
         ...getAuthHeaders(),
-        params: { monthYear: attMonthYear }
+        params
       });
       if (res.data?.success) {
         setAttendanceData(res.data);
@@ -116,7 +131,7 @@ export default function EmployeePortalLayout() {
     } finally {
       setLoading(false);
     }
-  }, [attMonthYear]);
+  }, [attFilterMode, attMonthYear, attStartDate, attEndDate]);
 
   // Fetch Leaves
   const fetchLeaves = useCallback(async () => {
@@ -628,21 +643,69 @@ export default function EmployeePortalLayout() {
         {/* ========================================================================= */}
         {activeTab === 'attendance' && (
           <div className="space-y-6">
-            {/* Month Filter */}
-            <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Clock size={18} className="text-emerald-400" />
-                <h3 className="font-black text-sm text-white">Monthly Attendance Ledger</h3>
+            {/* Month vs Custom Range Filter */}
+            <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Clock size={18} className="text-emerald-400" />
+                  <h3 className="font-black text-sm text-white">Attendance Records</h3>
+                </div>
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setAttFilterMode('month')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      attFilterMode === 'month' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    By Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttFilterMode('range')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      attFilterMode === 'range' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Custom Date Range
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-bold">Month:</span>
-                <input
-                  type="month"
-                  value={attMonthYear}
-                  onChange={(e) => setAttMonthYear(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
-                />
-              </div>
+
+              {attFilterMode === 'month' ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 font-bold">Month:</span>
+                  <input
+                    type="month"
+                    value={attMonthYear}
+                    onChange={(e) => setAttMonthYear(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-400 font-bold">From:</span>
+                  <input
+                    type="date"
+                    value={attStartDate}
+                    onChange={(e) => setAttStartDate(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl text-xs font-mono text-white focus:outline-none"
+                  />
+                  <span className="text-xs text-slate-400 font-bold">To:</span>
+                  <input
+                    type="date"
+                    value={attEndDate}
+                    onChange={(e) => setAttEndDate(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl text-xs font-mono text-white focus:outline-none"
+                  />
+                  <button
+                    onClick={fetchAttendance}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow"
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Attendance Summary */}
@@ -1027,15 +1090,24 @@ export default function EmployeePortalLayout() {
                           <td className="py-3 px-4 font-mono text-rose-400 font-bold">-₨ {p.totalDeductions?.toLocaleString()}</td>
                           <td className="py-3 px-4 font-mono font-black text-emerald-400 text-sm">₨ {p.netPayable?.toLocaleString()}</td>
                           <td className="py-3 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                                p.isFinalized
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                              }`}
-                            >
-                              {p.status}
-                            </span>
+                            {p.status === 'PAID' ? (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-center">
+                                  PAID
+                                </span>
+                                <span className="text-[9px] text-slate-400 font-mono text-center">
+                                  {p.paymentMethod} {p.paymentDate ? `• ${String(p.paymentDate).slice(0, 10)}` : ''}
+                                </span>
+                              </div>
+                            ) : p.status === 'PENDING_PAYMENT' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                PENDING PAYMENT
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                                UNDER REVIEW
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-right">
                             <button
@@ -1498,6 +1570,19 @@ export default function EmployeePortalLayout() {
                   ₨ {selectedPayroll.netPayable?.toLocaleString()}
                 </div>
               </div>
+
+              {selectedPayroll.status === 'PAID' && (
+                <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs text-emerald-300 print:text-black print:border-black">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-emerald-400 print:text-black" />
+                    <span className="font-bold">VERIFIED PAID via {selectedPayroll.paymentMethod || 'Bank Transfer'}</span>
+                  </div>
+                  <div className="font-mono text-[11px] text-slate-300 print:text-black">
+                    {selectedPayroll.paymentDate ? String(selectedPayroll.paymentDate).slice(0, 10) : ''}
+                    {selectedPayroll.paymentReference ? ` • Ref: ${selectedPayroll.paymentReference}` : ''}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

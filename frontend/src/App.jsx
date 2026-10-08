@@ -302,6 +302,7 @@ function App() {
                     <EmployeePortalLayout />
                   </Suspense>
                 } />
+                <Route path="/employee/login" element={<Navigate to="/employee-portal/login" replace />} />
                 <Route path="/employee" element={<Navigate to="/employee-portal/dashboard" replace />} />
                 <Route path="/employee/dashboard" element={<Navigate to="/employee-portal/dashboard" replace />} />
                 <Route path="/employee-profile" element={<Navigate to="/employee-portal/dashboard" replace />} />

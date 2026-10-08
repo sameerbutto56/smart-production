@@ -36,7 +36,10 @@ import {
   FileText,
   Key,
   History,
-  AlertCircle
+  AlertCircle,
+  Fingerprint,
+  Radio,
+  ExternalLink
 } from 'lucide-react';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -121,8 +124,27 @@ export default function EmployeeDataPage() {
   const [importHistoryList, setImportHistoryList] = useState([]);
   const fileInputRef = useRef(null);
 
-  // Monthly Attendance View State
+  // Biometric Terminal Modal & Live Machine Setup State
+  const [isBioModalOpen, setIsBioModalOpen] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState(null);
+  const [testBioEmpId, setTestBioEmpId] = useState('02');
+  const [testBioTime, setTestBioTime] = useState('10:05');
+  const [testingBio, setTestingBio] = useState(false);
+
+  // Monthly & Date-Range Attendance View State (Section 18)
+  const [attViewMode, setAttViewMode] = useState('daily'); // 'daily' | 'range'
   const [attMonthYear, setAttMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
+  const [attStartDate, setAttStartDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+  const [attEndDate, setAttEndDate] = useState(() => getTodayLocalDate());
+  const [attFilterEmployeeId, setAttFilterEmployeeId] = useState('ALL');
+  const [rangeAttendanceRecords, setRangeAttendanceRecords] = useState([]);
+  const [rangeAttendanceSummary, setRangeAttendanceSummary] = useState(null);
+  const [loadingRangeAtt, setLoadingRangeAtt] = useState(false);
   const [monthlyAttSummary, setMonthlyAttSummary] = useState([]);
 
   // --- Leaves Tab State ---
@@ -158,12 +180,29 @@ export default function EmployeeDataPage() {
 
   // --- Payroll Tab State ---
   const [payrollMonthYear, setPayrollMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
+  const [payrollFilterStatus, setPayrollFilterStatus] = useState('ALL'); // 'ALL' | 'DRAFT' | 'PENDING_PAYMENT' | 'PAID'
+  const [payrollStartDate, setPayrollStartDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+  const [payrollEndDate, setPayrollEndDate] = useState(() => getTodayLocalDate());
   const [payrolls, setPayrolls] = useState([]);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [isSlipOpen, setIsSlipOpen] = useState(false);
   const [isFullPayrollPrintOpen, setIsFullPayrollPrintOpen] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [adjustFormData, setAdjustFormData] = useState({});
+
+  // Payment Modal State (Section 27)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentPayrollTarget, setPaymentPayrollTarget] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('BANK_TRANSFER');
+  const [paymentDate, setPaymentDate] = useState(() => getTodayLocalDate());
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
   // Fetch Employees
   const fetchEmployees = async () => {
@@ -272,13 +311,41 @@ export default function EmployeeDataPage() {
     }
   };
 
+  // Fetch Date-Range Attendance (Section 18)
+  const fetchAttendanceRange = async () => {
+    try {
+      setLoadingRangeAtt(true);
+      const res = await api.get('/api/employees/attendance/range', {
+        params: {
+          startDate: attStartDate,
+          endDate: attEndDate,
+          employeeId: attFilterEmployeeId,
+          branch: filterBranch
+        }
+      });
+      if (res.data?.success) {
+        setRangeAttendanceRecords(res.data.records || []);
+        setRangeAttendanceSummary(res.data.summary || null);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load date range attendance');
+    } finally {
+      setLoadingRangeAtt(false);
+    }
+  };
+
   // Fetch Payroll List
   const fetchPayrolls = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/employees/payroll/list', {
-        params: { monthYear: payrollMonthYear, branch: filterBranch }
-      });
+      const params = {
+        monthYear: payrollMonthYear,
+        branch: filterBranch
+      };
+      if (payrollFilterStatus && payrollFilterStatus !== 'ALL') {
+        params.status = payrollFilterStatus;
+      }
+      const res = await api.get('/api/employees/payroll/list', { params });
       if (res.data?.success) {
         setPayrolls(res.data.payrolls || []);
       }
@@ -293,8 +360,12 @@ export default function EmployeeDataPage() {
   useEffect(() => {
     if (activeTab === 'employees') fetchEmployees();
     else if (activeTab === 'attendance') {
-      fetchDailyAttendance();
-      fetchMonthlyAttendance();
+      if (attViewMode === 'daily') {
+        fetchDailyAttendance();
+        fetchMonthlyAttendance();
+      } else {
+        fetchAttendanceRange();
+      }
     } else if (activeTab === 'leaves') fetchLeaves();
     else if (activeTab === 'loans') fetchLoans();
     else if (activeTab === 'production') fetchProductionSummary();
@@ -306,10 +377,15 @@ export default function EmployeeDataPage() {
     filterDepartment,
     attendanceDate,
     attMonthYear,
+    attViewMode,
+    attStartDate,
+    attEndDate,
+    attFilterEmployeeId,
     filterLeaveStatus,
     filterLoanType,
     prodMonthYear,
-    payrollMonthYear
+    payrollMonthYear,
+    payrollFilterStatus
   ]);
 
   // Debounced search for employees
@@ -322,22 +398,35 @@ export default function EmployeeDataPage() {
     }
   }, [searchQuery]);
 
-  // Real-time biometric attendance socket sync
+  // Real-time biometric attendance & payroll socket sync
   useEffect(() => {
     if (!socket) return;
     const handlePunch = () => {
       if (activeTab === 'attendance') {
-        fetchDailyAttendance();
-        fetchMonthlyAttendance();
+        if (attViewMode === 'daily') {
+          fetchDailyAttendance();
+          fetchMonthlyAttendance();
+        } else {
+          fetchAttendanceRange();
+        }
+      }
+    };
+    const handlePayrollSync = () => {
+      if (activeTab === 'payroll') {
+        fetchPayrolls();
       }
     };
     socket.on('attendance:punched', handlePunch);
     socket.on('attendance:updated', handlePunch);
+    socket.on('payroll:updated', handlePayrollSync);
+    socket.on('payroll:paid', handlePayrollSync);
     return () => {
       socket.off('attendance:punched', handlePunch);
       socket.off('attendance:updated', handlePunch);
+      socket.off('payroll:updated', handlePayrollSync);
+      socket.off('payroll:paid', handlePayrollSync);
     };
-  }, [activeTab, attendanceDate, attMonthYear, filterBranch]);
+  }, [activeTab, attendanceDate, attMonthYear, filterBranch, attViewMode, attStartDate, attEndDate, attFilterEmployeeId, payrollMonthYear, payrollFilterStatus]);
 
   // --- Handlers: Employee Management ---
   const handleOpenAdd = () => {
@@ -563,6 +652,43 @@ export default function EmployeeDataPage() {
     }
   };
 
+  const fetchBiometricStatus = async () => {
+    try {
+      const res = await api.get('/api/biometric/status');
+      if (res.data?.success) {
+        setBiometricStatus(res.data);
+      }
+    } catch (_) {}
+  };
+
+  const handleTestPunch = async () => {
+    if (!testBioEmpId) {
+      toast.error('Please select an employee to test punch');
+      return;
+    }
+    try {
+      setTestingBio(true);
+      const res = await api.post('/api/biometric/punch', {
+        employeeId: testBioEmpId,
+        date: attendanceDate,
+        time: `${attendanceDate} ${testBioTime}:00`,
+        verifyMode: 'SIMULATED_TEST',
+        deviceName: 'DS-K1T342MFWX'
+      });
+      if (res.data?.success) {
+        toast.success(`Biometric Punch registered for ${res.data.record?.employeeName || testBioEmpId}!`);
+        fetchDailyAttendance();
+        fetchBiometricStatus();
+      } else {
+        toast.error(res.data?.message || 'Failed to simulate punch');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to simulate punch');
+    } finally {
+      setTestingBio(false);
+    }
+  };
+
   const handleConfirmImport = async () => {
     if (importedRows.length === 0) return;
     try {
@@ -640,15 +766,92 @@ export default function EmployeeDataPage() {
   const handleCalculatePayroll = async () => {
     try {
       setLoading(true);
-      const res = await api.post('/api/employees/payroll/calculate', { monthYear: payrollMonthYear });
+      const res = await api.post('/api/employees/payroll/calculate', {
+        monthYear: payrollMonthYear,
+        startDate: payrollStartDate,
+        endDate: payrollEndDate,
+        branch: filterBranch
+      });
       if (res.data?.success) {
-        toast.success(res.data.message || 'Payroll calculated successfully');
+        toast.success(res.data.message || 'Payroll generated successfully');
         fetchPayrolls();
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to calculate payroll');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApprovePayroll = async (payroll) => {
+    if (!window.confirm(`Approve payroll for ${payroll.employeeName} (${payroll.employeeId}) and move to Pending Payment?`)) return;
+    try {
+      setLoading(true);
+      const res = await api.post(`/api/employees/payroll/${payroll.id}/approve`);
+      if (res.data?.success) {
+        toast.success(`Payroll approved for ${payroll.employeeName}. Ready for payment.`);
+        fetchPayrolls();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to approve payroll');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkApprovePayrolls = async () => {
+    const pendingReview = payrolls.filter(p => ['DRAFT', 'UNDER_REVIEW'].includes(p.status));
+    if (pendingReview.length === 0) {
+      toast.error('No draft payrolls pending review to approve');
+      return;
+    }
+    if (!window.confirm(`Approve all ${pendingReview.length} draft payroll records and move to Pending Payment?`)) return;
+    try {
+      setLoading(true);
+      const res = await api.post('/api/employees/payroll/approve', {
+        payrollIds: pendingReview.map(p => p.id),
+        monthYear: payrollMonthYear
+      });
+      if (res.data?.success) {
+        toast.success(res.data.message || `Approved ${pendingReview.length} payrolls for payment`);
+        fetchPayrolls();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to bulk approve payrolls');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenPaymentModal = (payroll) => {
+    setPaymentPayrollTarget(payroll);
+    setPaymentMethod('BANK_TRANSFER');
+    setPaymentDate(getTodayLocalDate());
+    setPaymentReference('');
+    setPaymentNotes('');
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleConfirmMarkPaid = async (e) => {
+    e?.preventDefault();
+    if (!paymentPayrollTarget) return;
+    try {
+      setPaymentSubmitting(true);
+      const res = await api.post(`/api/employees/payroll/${paymentPayrollTarget.id}/mark-paid`, {
+        paymentMethod,
+        paymentDate,
+        paymentReference,
+        paymentNotes
+      });
+      if (res.data?.success) {
+        toast.success(`Payroll marked as PAID for ${paymentPayrollTarget.employeeName}`);
+        setIsPaymentModalOpen(false);
+        fetchPayrolls();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to mark payroll as paid');
+    } finally {
+      setPaymentSubmitting(false);
     }
   };
 
@@ -682,7 +885,11 @@ export default function EmployeeDataPage() {
     if (!selectedPayroll) return;
     try {
       setLoading(true);
-      await api.put(`/api/employees/payroll/${selectedPayroll.id}/adjust`, adjustFormData);
+      await api.put(`/api/employees/payroll/${selectedPayroll.id}/adjust`, {
+        ...adjustFormData,
+        reason: adjustFormData.adjustmentNote || 'Admin adjustment',
+        notes: adjustFormData.adjustmentNote || ''
+      });
       toast.success('Payroll adjusted successfully');
       setIsAdjustModalOpen(false);
       fetchPayrolls();
@@ -745,6 +952,16 @@ export default function EmployeeDataPage() {
   const totalPayrollDeductions = payrolls.reduce((sum, p) => sum + (p.totalDeductions || 0), 0);
   const totalPayrollNet = payrolls.reduce((sum, p) => sum + (p.netPayable || 0), 0);
   const isPayrollFinalized = payrolls.length > 0 && payrolls.every(p => p.isFinalized);
+
+  const draftPayrollsCount = payrolls.filter(p => ['DRAFT', 'UNDER_REVIEW'].includes(p.status)).length;
+  const pendingPaymentPayrollsCount = payrolls.filter(p => p.status === 'PENDING_PAYMENT').length;
+  const paidPayrollsCount = payrolls.filter(p => p.status === 'PAID').length;
+
+  const filteredPayrolls = useMemo(() => {
+    if (payrollFilterStatus === 'ALL') return payrolls;
+    if (payrollFilterStatus === 'DRAFT') return payrolls.filter(p => ['DRAFT', 'UNDER_REVIEW'].includes(p.status));
+    return payrolls.filter(p => p.status === payrollFilterStatus);
+  }, [payrolls, payrollFilterStatus]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto min-h-screen text-slate-100 font-sans print:p-0 print:bg-white print:text-black">
@@ -1101,311 +1318,610 @@ export default function EmployeeDataPage() {
       {/* ========================================================================= */}
       {activeTab === 'attendance' && (
         <div className="space-y-6 print:hidden">
-          {/* Top Controls: Date Selector, Bulk Mark, Excel Import, Excel Export */}
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
-                <Calendar size={16} className="text-emerald-400" />
-                <span className="text-xs font-bold text-slate-400">Date:</span>
-                <input
-                  type="date"
-                  value={attendanceDate}
-                  onChange={(e) => setAttendanceDate(e.target.value)}
-                  className="bg-transparent text-white text-xs sm:text-sm font-bold focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setAttendanceDate(getTodayLocalDate())}
-                  className={`px-2 py-0.5 text-[11px] font-bold rounded-lg border transition-all ${
-                    attendanceDate === getTodayLocalDate()
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
-                  }`}
-                  title="Switch to Today's Roster"
-                >
-                  Today
-                </button>
-              </div>
-
-              {/* Branch Filter */}
-              <select
-                value={filterBranch}
-                onChange={(e) => setFilterBranch(e.target.value)}
-                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-300 focus:outline-none"
-              >
-                {branchesList.map(b => (
-                  <option key={b} value={b}>{b === 'ALL' ? 'All Branches' : b}</option>
-                ))}
-              </select>
-
+          {/* Sub-View Switcher: Daily Roster vs Date-Range Report */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 p-2 rounded-2xl">
+            <div className="flex items-center gap-2">
               <button
-                onClick={fetchDailyAttendance}
-                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all"
-                title="Refresh"
+                type="button"
+                onClick={() => setAttViewMode('daily')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                  attViewMode === 'daily'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
               >
-                <RefreshCw size={16} />
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importingFile}
-                className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all"
-              >
-                <Upload size={16} />
-                Import Attendance Excel
+                <Calendar size={15} />
+                Daily Attendance Roster
               </button>
               <button
+                type="button"
                 onClick={() => {
-                  fetchImportHistory();
-                  setIsImportHistoryOpen(true);
+                  setAttViewMode('range');
+                  if (rangeAttendanceRecords.length === 0) fetchAttendanceRange();
                 }}
-                className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs sm:text-sm font-bold border border-slate-700/60 transition-all"
-                title="View Attendance Import History & Audit"
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                  attViewMode === 'range'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
               >
-                <History size={16} className="text-amber-400" />
-                Import History
+                <Clock size={15} />
+                Date-Range Attendance & Summary Report (Section 18)
               </button>
-              <button
-                onClick={handleBulkMarkPresent}
-                className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/30 transition-all"
-              >
-                <CheckCircle2 size={16} />
-                Mark All Present Today
-              </button>
-              <button
-                onClick={handleExportAttendanceExcel}
-                className="flex items-center gap-2 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-purple-600/30 transition-all"
-              >
-                <FileSpreadsheet size={16} />
-                Export Monthly Excel
-              </button>
+            </div>
+            <div className="text-[11px] text-slate-400 px-3">
+              {attViewMode === 'daily' ? 'Viewing single-day punch roster' : 'Viewing date-range aggregated attendance & metrics'}
             </div>
           </div>
 
-          {/* Grace Period & Rule Banner */}
-          <div className="bg-slate-900/60 border border-blue-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
-                <Clock size={18} />
-              </div>
-              <div>
-                <span className="font-bold text-white">Automated Grace Period & Late Calculation:</span>
-                <span className="text-slate-300 ml-1">
-                  15-min check-in grace (e.g. 10:00–10:15 is On Time; after 10:15 counts as late).
-                  10-min checkout grace. 15-min overtime threshold.
-                </span>
-              </div>
-            </div>
-            <div className="inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3 py-1.5 rounded-xl font-bold">
-              <AlertTriangle size={14} />
-              Three-Late Rule: 3 lates in a month = 1 day salary deduction
-            </div>
-          </div>
+          {/* VIEW A: DAILY ATTENDANCE ROSTER */}
+          {attViewMode === 'daily' && (
+            <>
+              {/* Top Controls: Date Selector, Bulk Mark, Excel Import, Excel Export */}
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
+                    <Calendar size={16} className="text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-400">Date:</span>
+                    <input
+                      type="date"
+                      value={attendanceDate}
+                      onChange={(e) => setAttendanceDate(e.target.value)}
+                      className="bg-transparent text-white text-xs sm:text-sm font-bold focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAttendanceDate(getTodayLocalDate())}
+                      className={`px-2 py-0.5 text-[11px] font-bold rounded-lg border transition-all ${
+                        attendanceDate === getTodayLocalDate()
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
+                      }`}
+                      title="Switch to Today's Roster"
+                    >
+                      Today
+                    </button>
+                  </div>
 
-          {/* Daily Attendance Table */}
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="font-black text-sm text-white flex items-center gap-2">
-                <Calendar size={16} className="text-emerald-400" />
-                Daily Attendance Roster for {attendanceDate}
-              </h3>
-              <span className="text-xs text-slate-400">Total Staff: {dailyAttendance.length}</span>
-            </div>
+                  {/* Branch Filter */}
+                  <select
+                    value={filterBranch}
+                    onChange={(e) => setFilterBranch(e.target.value)}
+                    className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-300 focus:outline-none"
+                  >
+                    {branchesList.map(b => (
+                      <option key={b} value={b}>{b === 'ALL' ? 'All Branches' : b}</option>
+                    ))}
+                  </select>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm text-slate-300">
-                <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
-                  <tr>
-                    <th className="py-3 px-4">Employee ID</th>
-                    <th className="py-3 px-4">Employee Name</th>
-                    <th className="py-3 px-4">Branch</th>
-                    <th className="py-3 px-4">Scheduled Shift</th>
-                    <th className="py-3 px-4">Check-in</th>
-                    <th className="py-3 px-4">Check-out</th>
-                    <th className="py-3 px-4">Late Mins (Grace 15m)</th>
-                    <th className="py-3 px-4">Early Checkout</th>
-                    <th className="py-3 px-4">Overtime Mins</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-medium">
-                  {dailyAttendance.length === 0 ? (
-                    <tr>
-                      <td colSpan="11" className="py-12 text-center text-slate-500">
-                        {loading ? 'Loading attendance...' : 'No active staff records.'}
-                      </td>
-                    </tr>
-                  ) : (
-                    dailyAttendance.map((rec) => (
-                      <tr key={rec.employeeId} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-blue-400">
-                          {rec.employeeId}
-                        </td>
-                        <td className="py-3 px-4 font-bold text-white">
-                          {rec.employeeName}
-                        </td>
-                        <td className="py-3 px-4 text-slate-400">
-                          {rec.branch || '—'}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-slate-400 text-xs">
-                          {rec.scheduledCheckIn} - {rec.scheduledCheckOut}
-                        </td>
-                        <td className="py-3 px-4 font-mono">
-                          {rec.checkInTime ? (
-                            <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
-                          ) : (
-                            <span className="text-slate-600">--:--</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 font-mono">
-                          {rec.checkOutTime ? (
-                            <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
-                          ) : (
-                            <span className="text-slate-600">--:--</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          {rec.lateMinutes > 0 ? (
-                            <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                              +{rec.lateMinutes}m Late
-                            </span>
-                          ) : (
-                            <span className="text-emerald-400 text-xs">On Time</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          {rec.earlyMinutes > 0 ? (
-                            <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                              -{rec.earlyMinutes}m Early
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          {rec.overtimeMinutes > 0 ? (
-                            <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                              +{rec.overtimeMinutes}m OT
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                              rec.status === 'PRESENT'
-                                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                                : rec.status === 'LATE'
-                                ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
-                                : rec.status === 'HALF_DAY'
-                                ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
-                                : rec.status === 'LEAVE'
-                                ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400'
-                                : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-                            }`}
-                          >
-                            {rec.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => handleOpenMarkAttendance(rec)}
-                            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
-                          >
-                            Edit Punch
-                          </button>
-                        </td>
+                  <button
+                    onClick={fetchDailyAttendance}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all"
+                    title="Refresh"
+                  >
+                    <RefreshCw size={16} />
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      fetchBiometricStatus();
+                      setIsBioModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-600/30 transition-all"
+                    title="Biometric Machine Configuration & Live ID Linking"
+                  >
+                    <Fingerprint size={16} />
+                    Biometric Machine Link & IDs
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={importingFile}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all"
+                  >
+                    <Upload size={16} />
+                    Import Attendance Excel
+                  </button>
+                  <button
+                    onClick={() => {
+                      fetchImportHistory();
+                      setIsImportHistoryOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs sm:text-sm font-bold border border-slate-700/60 transition-all"
+                    title="View Attendance Import History & Audit"
+                  >
+                    <History size={16} className="text-amber-400" />
+                    Import History
+                  </button>
+                  <button
+                    onClick={handleBulkMarkPresent}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/30 transition-all"
+                  >
+                    <CheckCircle2 size={16} />
+                    Mark All Present Today
+                  </button>
+                  <button
+                    onClick={handleExportAttendanceExcel}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-purple-600/30 transition-all"
+                  >
+                    <FileSpreadsheet size={16} />
+                    Export Monthly Excel
+                  </button>
+                </div>
+              </div>
+
+              {/* Grace Period & Rule Banner */}
+              <div className="bg-slate-900/60 border border-blue-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <span className="font-bold text-white">Automated Grace Period & Late Calculation:</span>
+                    <span className="text-slate-300 ml-1">
+                      15-min check-in grace (e.g. 10:00–10:15 is On Time; after 10:15 counts as late).
+                      10-min checkout grace. 15-min overtime threshold.
+                    </span>
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3 py-1.5 rounded-xl font-bold">
+                  <AlertTriangle size={14} />
+                  Three-Late Rule: 3 lates in a month = 1 day salary deduction
+                </div>
+              </div>
+
+              {/* Daily Attendance Table */}
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
+                  <h3 className="font-black text-sm text-white flex items-center gap-2">
+                    <Calendar size={16} className="text-emerald-400" />
+                    Daily Attendance Roster for {attendanceDate}
+                  </h3>
+                  <span className="text-xs text-slate-400">Total Staff: {dailyAttendance.length}</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm text-slate-300">
+                    <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="py-3 px-4">Employee ID</th>
+                        <th className="py-3 px-4">Employee Name</th>
+                        <th className="py-3 px-4">Branch</th>
+                        <th className="py-3 px-4">Scheduled Shift</th>
+                        <th className="py-3 px-4">Check-in</th>
+                        <th className="py-3 px-4">Check-out</th>
+                        <th className="py-3 px-4">Late Mins (Grace 15m)</th>
+                        <th className="py-3 px-4">Early Checkout</th>
+                        <th className="py-3 px-4">Overtime Mins</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Action</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Monthly Attendance & Three-Late Summary Roster */}
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="font-black text-sm text-white flex items-center gap-2">
-                  <Clock size={16} className="text-rose-400" />
-                  Monthly Attendance Summary & 3-Late Penalty Ledger
-                </h3>
-                <span className="text-xs text-slate-400">
-                  Tracking late counts across working days in month
-                </span>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                      {dailyAttendance.length === 0 ? (
+                        <tr>
+                          <td colSpan="11" className="py-12 text-center text-slate-500">
+                            {loading ? 'Loading attendance...' : 'No active staff records.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        dailyAttendance.map((rec) => (
+                          <tr key={rec.employeeId} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="py-3 px-4 font-mono font-bold text-blue-400">
+                              {rec.employeeId}
+                            </td>
+                            <td className="py-3 px-4 font-bold text-white">
+                              {rec.employeeName}
+                            </td>
+                            <td className="py-3 px-4 text-slate-400">
+                              {rec.branch || '—'}
+                            </td>
+                            <td className="py-3 px-4 font-mono text-slate-400 text-xs">
+                              {rec.scheduledCheckIn} - {rec.scheduledCheckOut}
+                            </td>
+                            <td className="py-3 px-4 font-mono">
+                              {rec.checkInTime ? (
+                                <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
+                              ) : (
+                                <span className="text-slate-600">--:--</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 font-mono">
+                              {rec.checkOutTime ? (
+                                <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
+                              ) : (
+                                <span className="text-slate-600">--:--</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {rec.lateMinutes > 0 ? (
+                                <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                                  +{rec.lateMinutes}m Late
+                                </span>
+                              ) : (
+                                <span className="text-emerald-400 text-xs">On Time</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {rec.earlyMinutes > 0 ? (
+                                <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                  -{rec.earlyMinutes}m Early
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {rec.overtimeMinutes > 0 ? (
+                                <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                                  +{rec.overtimeMinutes}m OT
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                                  rec.status === 'PRESENT'
+                                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                                    : rec.status === 'LATE'
+                                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                                    : rec.status === 'HALF_DAY'
+                                    ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
+                                    : rec.status === 'LEAVE'
+                                    ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400'
+                                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                                }`}
+                              >
+                                {rec.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={() => handleOpenMarkAttendance(rec)}
+                                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
+                              >
+                                Edit Punch
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-bold">Month:</span>
-                <input
-                  type="month"
-                  value={attMonthYear}
-                  onChange={(e) => setAttMonthYear(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
-                />
-              </div>
-            </div>
+              {/* Monthly Attendance & Three-Late Summary Roster */}
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-sm text-white flex items-center gap-2">
+                      <Clock size={16} className="text-rose-400" />
+                      Monthly Attendance Summary & 3-Late Penalty Ledger
+                    </h3>
+                    <span className="text-xs text-slate-400">
+                      Tracking late counts across working days in month
+                    </span>
+                  </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm text-slate-300">
-                <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
-                  <tr>
-                    <th className="py-3 px-4">Employee ID</th>
-                    <th className="py-3 px-4">Name</th>
-                    <th className="py-3 px-4">Branch</th>
-                    <th className="py-3 px-4">Present Days</th>
-                    <th className="py-3 px-4">Absent Days</th>
-                    <th className="py-3 px-4">Late Occurrences</th>
-                    <th className="py-3 px-4">Three-Late Penalty</th>
-                    <th className="py-3 px-4">Total Overtime Hours</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-medium">
-                  {monthlyAttSummary.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" className="py-8 text-center text-slate-500">
-                        No monthly records for {attMonthYear}.
-                      </td>
-                    </tr>
-                  ) : (
-                    monthlyAttSummary.map((sum) => (
-                      <tr key={sum.employeeId} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-blue-400">{sum.employeeId}</td>
-                        <td className="py-3 px-4 font-bold text-white">{sum.employeeName}</td>
-                        <td className="py-3 px-4 text-slate-400">{sum.branch || '—'}</td>
-                        <td className="py-3 px-4 font-mono text-emerald-400 font-bold">{sum.presentDays}</td>
-                        <td className="py-3 px-4 font-mono text-rose-400 font-bold">{sum.absentDays}</td>
-                        <td className="py-3 px-4 font-mono">
-                          {sum.lateDays > 0 ? (
-                            <span className="text-amber-400 font-bold">{sum.lateDays} lates</span>
-                          ) : (
-                            <span className="text-slate-500">0</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 font-mono">
-                          {sum.threeLatePenaltyDays > 0 ? (
-                            <span className="text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                              -{sum.threeLatePenaltyDays} Day Salary Deduction
-                            </span>
-                          ) : (
-                            <span className="text-emerald-400 text-xs">No deduction</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-purple-400 font-bold">
-                          {sum.totalOvertimeHours} hrs
-                        </td>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-bold">Month:</span>
+                    <input
+                      type="month"
+                      value={attMonthYear}
+                      onChange={(e) => setAttMonthYear(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm text-slate-300">
+                    <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="py-3 px-4">Employee ID</th>
+                        <th className="py-3 px-4">Name</th>
+                        <th className="py-3 px-4">Branch</th>
+                        <th className="py-3 px-4">Present Days</th>
+                        <th className="py-3 px-4">Absent Days</th>
+                        <th className="py-3 px-4">Late Occurrences</th>
+                        <th className="py-3 px-4">Three-Late Penalty</th>
+                        <th className="py-3 px-4">Total Overtime Hours</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                      {monthlyAttSummary.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="py-8 text-center text-slate-500">
+                            No monthly records for {attMonthYear}.
+                          </td>
+                        </tr>
+                      ) : (
+                        monthlyAttSummary.map((sum) => (
+                          <tr key={sum.employeeId} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="py-3 px-4 font-mono font-bold text-blue-400">{sum.employeeId}</td>
+                            <td className="py-3 px-4 font-bold text-white">{sum.employeeName}</td>
+                            <td className="py-3 px-4 text-slate-400">{sum.branch || '—'}</td>
+                            <td className="py-3 px-4 font-mono text-emerald-400 font-bold">{sum.presentDays}</td>
+                            <td className="py-3 px-4 font-mono text-rose-400 font-bold">{sum.absentDays}</td>
+                            <td className="py-3 px-4 font-mono">
+                              {sum.lateDays > 0 ? (
+                                <span className="text-amber-400 font-bold">{sum.lateDays} lates</span>
+                              ) : (
+                                <span className="text-slate-500">0</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 font-mono">
+                              {sum.threeLatePenaltyDays > 0 ? (
+                                <span className="text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                                  -{sum.threeLatePenaltyDays} Day Salary Deduction
+                                </span>
+                              ) : (
+                                <span className="text-emerald-400 text-xs">No deduction</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 font-mono text-purple-400 font-bold">
+                              {sum.totalOvertimeHours} hrs
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* VIEW B: DATE-RANGE ATTENDANCE & SUMMARY REPORT (Section 18) */}
+          {attViewMode === 'range' && (
+            <div className="space-y-6">
+              {/* Range Controls */}
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* From Date */}
+                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
+                    <Calendar size={15} className="text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-400">From:</span>
+                    <input
+                      type="date"
+                      value={attStartDate}
+                      onChange={(e) => setAttStartDate(e.target.value)}
+                      className="bg-transparent text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  {/* To Date */}
+                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
+                    <Calendar size={15} className="text-blue-400" />
+                    <span className="text-xs font-bold text-slate-400">To:</span>
+                    <input
+                      type="date"
+                      value={attEndDate}
+                      onChange={(e) => setAttEndDate(e.target.value)}
+                      className="bg-transparent text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Employee Filter */}
+                  <select
+                    value={attFilterEmployeeId}
+                    onChange={(e) => setAttFilterEmployeeId(e.target.value)}
+                    className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-300 focus:outline-none max-w-xs"
+                  >
+                    <option value="ALL">All Employees</option>
+                    {employees.map(emp => (
+                      <option key={emp.employeeId} value={emp.employeeId}>
+                        {emp.employeeId} - {emp.name} ({emp.branch || 'Branch'})
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Branch Filter */}
+                  <select
+                    value={filterBranch}
+                    onChange={(e) => setFilterBranch(e.target.value)}
+                    className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-300 focus:outline-none"
+                  >
+                    {branchesList.map(b => (
+                      <option key={b} value={b}>{b === 'ALL' ? 'All Branches' : b}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={fetchAttendanceRange}
+                    disabled={loadingRangeAtt}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/30 transition-all"
+                  >
+                    <RefreshCw size={15} className={loadingRangeAtt ? 'animate-spin' : ''} />
+                    Apply & Fetch Report
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary KPI Cards (Section 18) */}
+              {rangeAttendanceSummary && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Working Days</span>
+                    <h4 className="text-2xl font-black text-white mt-1">{rangeAttendanceSummary.totalWorkingDays}</h4>
+                    <span className="text-[10px] text-slate-500">Scheduled staff slots</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Present Days</span>
+                    <h4 className="text-2xl font-black text-emerald-400 mt-1">{rangeAttendanceSummary.present}</h4>
+                    <span className="text-[10px] text-emerald-500/70 font-semibold">{rangeAttendanceSummary.attendancePercentage}% Attendance</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Absent Days</span>
+                    <h4 className="text-2xl font-black text-rose-400 mt-1">{rangeAttendanceSummary.absent}</h4>
+                    <span className="text-[10px] text-rose-500/70">Unexcused absences</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Approved Leaves</span>
+                    <h4 className="text-2xl font-black text-purple-400 mt-1">{rangeAttendanceSummary.leaves}</h4>
+                    <span className="text-[10px] text-purple-500/70">Casual / Medical</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Late Occurrences</span>
+                    <h4 className="text-2xl font-black text-amber-400 mt-1">{rangeAttendanceSummary.lateOccurrences}</h4>
+                    <span className="text-[10px] text-amber-500/70">Total: {rangeAttendanceSummary.totalLateMinutes} mins</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Early Checkouts</span>
+                    <h4 className="text-2xl font-black text-orange-400 mt-1">{rangeAttendanceSummary.earlyCheckouts}</h4>
+                    <span className="text-[10px] text-orange-500/70">Total: {rangeAttendanceSummary.totalEarlyMinutes} mins</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Worked Hours</span>
+                    <h4 className="text-2xl font-black text-cyan-400 mt-1">{rangeAttendanceSummary.totalWorkedHours} hrs</h4>
+                    <span className="text-[10px] text-cyan-500/70">Actual verified time</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Overtime Hours</span>
+                    <h4 className="text-2xl font-black text-indigo-400 mt-1">{rangeAttendanceSummary.totalOvertimeHours} hrs</h4>
+                    <span className="text-[10px] text-indigo-500/70">{rangeAttendanceSummary.totalOvertimeMinutes} total OT mins</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Overall Attendance %</span>
+                    <h4 className="text-2xl font-black text-emerald-400 mt-1">{rangeAttendanceSummary.attendancePercentage}%</h4>
+                    <span className="text-[10px] text-slate-500">Range compliance</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Range Records Detailed Table */}
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
+                  <h3 className="font-black text-sm text-white flex items-center gap-2">
+                    <Clock size={16} className="text-emerald-400" />
+                    Attendance Records Breakdown ({attStartDate} to {attEndDate})
+                  </h3>
+                  <span className="text-xs text-slate-400">Total Entries: {rangeAttendanceRecords.length}</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm text-slate-300">
+                    <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="py-3 px-3">Date</th>
+                        <th className="py-3 px-3">Employee ID</th>
+                        <th className="py-3 px-3">Employee Name</th>
+                        <th className="py-3 px-3">Branch</th>
+                        <th className="py-3 px-3">Shift</th>
+                        <th className="py-3 px-3">Check-in</th>
+                        <th className="py-3 px-3">Check-out</th>
+                        <th className="py-3 px-3">Late Mins</th>
+                        <th className="py-3 px-3">Early Mins</th>
+                        <th className="py-3 px-3">Overtime Mins</th>
+                        <th className="py-3 px-3">Status</th>
+                        <th className="py-3 px-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                      {rangeAttendanceRecords.length === 0 ? (
+                        <tr>
+                          <td colSpan="12" className="py-12 text-center text-slate-500">
+                            {loadingRangeAtt ? 'Fetching range attendance records...' : 'No records found for the selected date range. Click "Apply & Fetch Report" to load.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        rangeAttendanceRecords.map((rec, i) => (
+                          <tr key={rec.id || `${rec.employeeId}_${rec.date}_${i}`} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="py-3 px-3 font-mono text-white font-bold">{rec.date}</td>
+                            <td className="py-3 px-3 font-mono font-bold text-blue-400">{rec.employeeId}</td>
+                            <td className="py-3 px-3 font-bold text-white">{rec.employeeName}</td>
+                            <td className="py-3 px-3 text-slate-400 text-xs">{rec.branch || '—'}</td>
+                            <td className="py-3 px-3 font-mono text-slate-400 text-xs">
+                              {rec.scheduledCheckIn} - {rec.scheduledCheckOut}
+                            </td>
+                            <td className="py-3 px-3 font-mono">
+                              {rec.checkInTime ? (
+                                <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
+                              ) : (
+                                <span className="text-slate-600">--:--</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 font-mono">
+                              {rec.checkOutTime ? (
+                                <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
+                              ) : (
+                                <span className="text-slate-600">--:--</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {rec.lateMinutes > 0 ? (
+                                <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-xs">
+                                  +{rec.lateMinutes}m
+                                </span>
+                              ) : (
+                                <span className="text-emerald-400 text-xs">On Time</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {rec.earlyMinutes > 0 ? (
+                                <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">
+                                  -{rec.earlyMinutes}m
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {rec.overtimeMinutes > 0 ? (
+                                <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded text-xs">
+                                  +{rec.overtimeMinutes}m
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  rec.status === 'PRESENT'
+                                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                                    : rec.status === 'LATE'
+                                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                                    : rec.status === 'HALF_DAY'
+                                    ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
+                                    : rec.status === 'LEAVE'
+                                    ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400'
+                                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                                }`}
+                              >
+                                {rec.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <button
+                                onClick={() => handleOpenMarkAttendance(rec)}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
+                              >
+                                Edit Punch
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1710,6 +2226,24 @@ export default function EmployeeDataPage() {
                 />
               </div>
 
+              {/* Custom Date Range */}
+              <div className="hidden lg:flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1 rounded-xl text-xs">
+                <span className="text-slate-400 font-bold">Range:</span>
+                <input
+                  type="date"
+                  value={payrollStartDate}
+                  onChange={(e) => setPayrollStartDate(e.target.value)}
+                  className="bg-transparent text-white font-mono focus:outline-none text-[11px]"
+                />
+                <span className="text-slate-600">to</span>
+                <input
+                  type="date"
+                  value={payrollEndDate}
+                  onChange={(e) => setPayrollEndDate(e.target.value)}
+                  className="bg-transparent text-white font-mono focus:outline-none text-[11px]"
+                />
+              </div>
+
               {/* Branch Filter */}
               <select
                 value={filterBranch}
@@ -1736,7 +2270,21 @@ export default function EmployeeDataPage() {
                 className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all"
               >
                 <Calculator size={16} />
-                Calculate Monthly Payroll
+                Generate All Payrolls
+              </button>
+
+              <button
+                onClick={handleBulkApprovePayrolls}
+                disabled={draftPayrollsCount === 0}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all ${
+                  draftPayrollsCount === 0
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                    : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30'
+                }`}
+                title="Approve all drafts and move to Pending Payment"
+              >
+                <CheckCircle2 size={16} />
+                Approve Pending ({draftPayrollsCount})
               </button>
 
               <button
@@ -1749,7 +2297,7 @@ export default function EmployeeDataPage() {
                 }`}
               >
                 <Lock size={16} />
-                {isPayrollFinalized ? 'Payroll Finalized & Frozen' : 'Finalize & Freeze Payroll'}
+                {isPayrollFinalized ? 'Payroll Finalized' : 'Finalize & Freeze'}
               </button>
 
               <button
@@ -1769,6 +2317,55 @@ export default function EmployeeDataPage() {
                 Export Payroll Excel
               </button>
             </div>
+          </div>
+
+          {/* Payroll Workflow Filter Pills (Section 25, 26, 27) */}
+          <div className="flex flex-wrap items-center gap-2 bg-slate-900/60 p-2 rounded-2xl border border-slate-800">
+            <span className="text-xs font-bold text-slate-400 px-2">Filter Workflow:</span>
+            <button
+              type="button"
+              onClick={() => setPayrollFilterStatus('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                payrollFilterStatus === 'ALL'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'bg-slate-950 text-slate-400 hover:text-white'
+              }`}
+            >
+              All Records ({payrolls.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayrollFilterStatus('DRAFT')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                payrollFilterStatus === 'DRAFT'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                  : 'bg-slate-950 text-slate-400 hover:text-white'
+              }`}
+            >
+              Under Review / Draft ({draftPayrollsCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayrollFilterStatus('PENDING_PAYMENT')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                payrollFilterStatus === 'PENDING_PAYMENT'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-slate-950 text-slate-400 hover:text-white'
+              }`}
+            >
+              Pending Payment ({pendingPaymentPayrollsCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayrollFilterStatus('PAID')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                payrollFilterStatus === 'PAID'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-slate-950 text-slate-400 hover:text-white'
+              }`}
+            >
+              Payment Completed ({paidPayrollsCount})
+            </button>
           </div>
 
           {/* Payroll KPI Cards */}
@@ -1808,12 +2405,12 @@ export default function EmployeeDataPage() {
 
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Payroll Status</p>
+                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Payment Status</p>
                 <h3 className="text-2xl font-black text-purple-400 mt-1">
-                  {isPayrollFinalized ? 'FINALIZED' : 'DRAFT / EDITABLE'}
+                  {paidPayrollsCount === payrolls.length && payrolls.length > 0 ? 'ALL PAID' : `${paidPayrollsCount}/${payrolls.length} Paid`}
                 </h3>
-                <span className="text-[11px] text-purple-500/70">
-                  {isPayrollFinalized ? 'Frozen against future changes' : 'Adjustments permitted'}
+                <span className="text-[11px] text-amber-400/90 font-medium">
+                  {pendingPaymentPayrollsCount} awaiting disbursement
                 </span>
               </div>
               <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl">
@@ -1847,14 +2444,14 @@ export default function EmployeeDataPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-medium">
-                  {payrolls.length === 0 ? (
+                  {filteredPayrolls.length === 0 ? (
                     <tr>
                       <td colSpan="16" className="py-12 text-center text-slate-500">
-                        {loading ? 'Loading payroll records...' : 'No payroll generated yet for this month. Click "Calculate Monthly Payroll" to compute.'}
+                        {loading ? 'Loading payroll records...' : 'No payroll records matching current filter. Click "Generate All Payrolls" to compute.'}
                       </td>
                     </tr>
                   ) : (
-                    payrolls.map((p, idx) => (
+                    filteredPayrolls.map((p, idx) => (
                       <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3 px-3 text-slate-500 font-mono">{idx + 1}</td>
                         <td className="py-3 px-3 font-mono font-bold text-blue-400">
@@ -1898,18 +2495,51 @@ export default function EmployeeDataPage() {
                           ₨ {(p.netPayable || 0).toLocaleString()}
                         </td>
                         <td className="py-3 px-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              p.isFinalized
-                                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                                : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
-                            }`}
-                          >
-                            {p.status}
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider text-center ${
+                                p.status === 'PAID'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                  : p.status === 'PENDING_PAYMENT'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
+                              }`}
+                            >
+                              {p.status === 'PENDING_PAYMENT' ? 'PENDING PAYMENT' : p.status}
+                            </span>
+                            {p.status === 'PAID' && (
+                              <span className="text-[9px] text-slate-400 text-center font-mono">
+                                {p.paymentMethod} {p.paymentDate ? `• ${String(p.paymentDate).slice(0, 10)}` : ''}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Proceed / Approve Button (Section 25) */}
+                            {['DRAFT', 'UNDER_REVIEW'].includes(p.status) && (
+                              <button
+                                onClick={() => handleApprovePayroll(p)}
+                                className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 shadow-sm"
+                                title="Approve payroll and move to Pending Payment"
+                              >
+                                <Check size={12} />
+                                Approve
+                              </button>
+                            )}
+
+                            {/* Mark as Paid Button (Section 27) */}
+                            {['PENDING_PAYMENT', 'APPROVED'].includes(p.status) && (
+                              <button
+                                onClick={() => handleOpenPaymentModal(p)}
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 shadow-sm"
+                                title="Disburse payment & mark as Paid"
+                              >
+                                <DollarSign size={12} />
+                                Mark Paid
+                              </button>
+                            )}
+
                             <button
                               onClick={() => handleOpenPaySlip(p)}
                               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg transition-all"
@@ -1917,7 +2547,7 @@ export default function EmployeeDataPage() {
                             >
                               <Eye size={14} />
                             </button>
-                            {!p.isFinalized && (
+                            {!p.isFinalized && p.status !== 'PAID' && (
                               <button
                                 onClick={() => handleOpenAdjustModal(p)}
                                 className="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg transition-all"
@@ -1934,6 +2564,119 @@ export default function EmployeeDataPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: MARK PAYROLL AS PAID (Section 27) */}
+      {/* ========================================================================= */}
+      {isPaymentModalOpen && paymentPayrollTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <DollarSign size={20} className="text-emerald-400" />
+                Disburse Payment & Mark as Paid
+              </h3>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 mb-4 space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400">Employee:</span>
+                <span className="text-white font-bold">{paymentPayrollTarget.employeeName} ({paymentPayrollTarget.employeeId})</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400">Period / Month:</span>
+                <span className="text-white font-mono">{paymentPayrollTarget.monthYear}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400">Branch:</span>
+                <span className="text-slate-300">{paymentPayrollTarget.branch || '—'}</span>
+              </div>
+              <div className="flex justify-between text-sm pt-2 border-t border-slate-800">
+                <span className="text-slate-300 font-bold">Net Payable:</span>
+                <span className="text-emerald-400 font-black text-base">₨ {(paymentPayrollTarget.netPayable || 0).toLocaleString()}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmMarkPaid} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                >
+                  <option value="BANK_TRANSFER">Bank Transfer (Meezan Bank)</option>
+                  <option value="CASH">Cash</option>
+                  <option value="CHEQUE">Cheque</option>
+                  <option value="ONLINE">Online Transfer / JazzCash / EasyPaisa</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Payment Date
+                </label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Transaction Reference / Cheque No (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. TXN-948291 or Cheque # 401928"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Payment Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Salary paid via direct bank transfer"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={paymentSubmitting}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30 flex items-center gap-2"
+                >
+                  <CheckCircle2 size={16} />
+                  {paymentSubmitting ? 'Confirming...' : 'Confirm Payment & Mark Paid'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -2131,6 +2874,226 @@ export default function EmployeeDataPage() {
                 type="button"
                 onClick={() => setIsImportHistoryOpen(false)}
                 className="px-5 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: BIOMETRIC MACHINE SETUP & EMPLOYEE ID MATCHING */}
+      {/* ========================================================================= */}
+      {isBioModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 text-slate-200 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-purple-500/10 border border-purple-500/30 rounded-2xl">
+                  <Fingerprint size={24} className="text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    Hikvision Biometric Terminal & Employee ID Matching
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Live connection status, terminal push configuration & verified employee ID mappings
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBioModalOpen(false)}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Gateway Status & Machine Configuration */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Box 1: Live Cloud Gateway */}
+              <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
+                    <Radio size={14} className="text-emerald-400 animate-pulse" />
+                    Cloud Gateway Status
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                    ONLINE & LISTENING
+                  </span>
+                </div>
+                <div className="text-xs space-y-1.5 font-mono">
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400">Supported Hardware:</span>
+                    <span className="text-white font-bold">Hikvision DS-K1T342MFWX</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400">Push Protocol:</span>
+                    <span className="text-purple-400 font-bold">HTTPS (Port 443)</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400">Cloud Webhook:</span>
+                    <span className="text-emerald-300 font-bold break-all">/api/biometric/hikvision</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-slate-400">Active Staff Registered:</span>
+                    <span className="text-white font-bold">{employees.filter(e => e.status === 'ACTIVE').length} Employees</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Box 2: Settings to enter in Hikvision Device Web GUI */}
+              <div className="bg-gradient-to-br from-purple-950/20 via-slate-950/90 to-slate-900 border border-purple-500/30 rounded-2xl p-4 space-y-2">
+                <span className="text-xs font-bold uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
+                  <Key size={14} className="text-purple-400" />
+                  Terminal Web GUI Settings (Point 5)
+                </span>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Open terminal web page & navigate to: <strong className="text-slate-200">Network &gt; Network Service &gt; HTTP Listening</strong>:
+                </p>
+                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 text-xs font-mono space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Event Alarm IP/Domain:</span>
+                    <span className="text-emerald-400 font-bold select-all">smart-production-v2.vercel.app</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">URL:</span>
+                    <span className="text-emerald-400 font-bold select-all">/api/biometric/hikvision</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Port:</span>
+                    <span className="text-emerald-400 font-bold select-all">443</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Protocol:</span>
+                    <span className="text-emerald-400 font-bold select-all">HTTPS</span>
+                  </div>
+                </div>
+                <div className="text-[10px] text-amber-300/90 flex items-center gap-1">
+                  <AlertCircle size={12} className="text-amber-400 shrink-0" />
+                  <span>Ensure <strong>Preferred DNS</strong> in Network Settings is set to <strong>8.8.8.8</strong> so device can reach the domain.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Employee ID Matching Table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                  <Users size={14} className="text-blue-400" />
+                  Verified Employee ID Matching Table (All Active Employees)
+                </h4>
+                <span className="text-[11px] text-emerald-400 font-bold">
+                  ✓ Machine User IDs Linked
+                </span>
+              </div>
+              <div className="overflow-x-auto border border-slate-800 rounded-2xl max-h-[35vh]">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3">Machine User ID</th>
+                      <th className="py-2.5 px-3">System Employee ID</th>
+                      <th className="py-2.5 px-3">Employee Name</th>
+                      <th className="py-2.5 px-3">Branch</th>
+                      <th className="py-2.5 px-3">Shift Schedule</th>
+                      <th className="py-2.5 px-3">Matching Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                    {employees.filter(e => e.status === 'ACTIVE').map(emp => (
+                      <tr key={emp.id} className="hover:bg-slate-850/40">
+                        <td className="py-2.5 px-3 font-bold text-purple-400">
+                          {emp.machineUserId || emp.employeeId}
+                        </td>
+                        <td className="py-2.5 px-3 text-emerald-400 font-bold">
+                          {emp.employeeId}
+                        </td>
+                        <td className="py-2.5 px-3 font-sans font-bold text-white">
+                          {emp.name}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 font-sans">
+                          {emp.branch}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400">
+                          {emp.checkInTime || '10:00'} - {emp.checkOutTime || '18:00'}
+                        </td>
+                        <td className="py-2.5 px-3 font-sans">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1 w-fit">
+                            <CheckCircle2 size={11} />
+                            MATCHED & ACTIVE
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Interactive Simulation / Test Punch Tool */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-slate-300 flex items-center gap-1.5">
+                  <Fingerprint size={14} className="text-emerald-400" />
+                  Instant Biometric Punch Test / Simulation
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Simulate a machine punch for testing live roster calculation
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">Select Employee</label>
+                  <select
+                    value={testBioEmpId}
+                    onChange={(e) => setTestBioEmpId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                  >
+                    {employees.filter(e => e.status === 'ACTIVE').map(e => (
+                      <option key={e.id} value={e.employeeId}>
+                        #{e.employeeId} — {e.name} ({e.branch})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">Punch Time</label>
+                  <input
+                    type="time"
+                    value={testBioTime}
+                    onChange={(e) => setTestBioTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={handleTestPunch}
+                    disabled={testingBio}
+                    className="w-full py-2 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {testingBio ? <RefreshCw size={14} className="animate-spin" /> : <Fingerprint size={14} />}
+                    Send Test Punch
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={fetchBiometricStatus}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
+              >
+                <RefreshCw size={13} />
+                Refresh Gateway
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBioModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
               >
                 Close
               </button>

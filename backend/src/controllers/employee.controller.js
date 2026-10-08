@@ -435,6 +435,55 @@ const markAttendance = async (req, res) => {
       finalStatus = 'LATE';
     }
 
+    const existing = await prisma.employeeAttendance.findUnique({
+      where: { employeeId_date: { employeeId, date } }
+    });
+
+    if (existing) {
+      if (existing.checkInTime !== checkInTime) {
+        await prisma.attendanceAuditLog.create({
+          data: {
+            employeeId,
+            attendanceDate: date,
+            fieldChanged: 'checkInTime',
+            oldValue: existing.checkInTime || 'None',
+            newValue: checkInTime || 'None',
+            reason: notes || 'Admin Manual Edit',
+            changedById: req.user?.id || null,
+            changedByName: req.user?.name || 'Admin'
+          }
+        }).catch(() => {});
+      }
+      if (existing.checkOutTime !== checkOutTime) {
+        await prisma.attendanceAuditLog.create({
+          data: {
+            employeeId,
+            attendanceDate: date,
+            fieldChanged: 'checkOutTime',
+            oldValue: existing.checkOutTime || 'None',
+            newValue: checkOutTime || 'None',
+            reason: notes || 'Admin Manual Edit',
+            changedById: req.user?.id || null,
+            changedByName: req.user?.name || 'Admin'
+          }
+        }).catch(() => {});
+      }
+      if (existing.status !== finalStatus) {
+        await prisma.attendanceAuditLog.create({
+          data: {
+            employeeId,
+            attendanceDate: date,
+            fieldChanged: 'status',
+            oldValue: existing.status,
+            newValue: finalStatus,
+            reason: notes || 'Admin Manual Edit',
+            changedById: req.user?.id || null,
+            changedByName: req.user?.name || 'Admin'
+          }
+        }).catch(() => {});
+      }
+    }
+
     const record = await prisma.employeeAttendance.upsert({
       where: {
         employeeId_date: { employeeId, date }
@@ -468,6 +517,14 @@ const markAttendance = async (req, res) => {
         notes: notes || null
       }
     });
+
+    try {
+      const io = req?.app?.get('io');
+      if (io) {
+        io.emit('attendance:punched', { employeeId, date, status: finalStatus });
+        io.emit('attendance:updated');
+      }
+    } catch (sErr) {}
 
     res.json({ success: true, message: 'Attendance recorded', record });
   } catch (err) {
@@ -892,6 +949,168 @@ const getMonthlyAttendance = async (req, res) => {
   }
 };
 
+// GET /api/employees/attendance/range?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&employeeId=...&branch=...
+const getAttendanceRange = async (req, res) => {
+  try {
+    const { startDate, endDate, employeeId, branch } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'startDate and endDate are required (YYYY-MM-DD)' });
+    }
+
+    const empWhere = { status: 'ACTIVE' };
+    if (employeeId && employeeId !== 'ALL') {
+      empWhere.employeeId = employeeId;
+    }
+    if (branch && branch !== 'ALL') {
+      empWhere.branch = { contains: branch, mode: 'insensitive' };
+    }
+
+    const employees = await prisma.employeeRecord.findMany({
+      where: empWhere,
+      orderBy: { employeeId: 'asc' }
+    });
+
+    // Query all attendance records in this date range
+    const attendances = await prisma.employeeAttendance.findMany({
+      where: {
+        date: { gte: startDate, lte: endDate },
+        ...(employeeId && employeeId !== 'ALL' ? { employeeId } : {})
+      },
+      orderBy: { date: 'asc' }
+    });
+
+    // Query approved leaves in date range
+    const leaves = await prisma.employeeLeave.findMany({
+      where: {
+        status: 'APPROVED',
+        startDate: { lte: endDate },
+        endDate: { gte: startDate }
+      }
+    });
+
+    const attMap = new Map();
+    attendances.forEach(a => {
+      const key = `${a.employeeId}_${a.date}`;
+      attMap.set(key, a);
+    });
+
+    // Generate date array
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dateList = [];
+    let cur = new Date(start);
+    while (cur <= end) {
+      dateList.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const records = [];
+    let summaryPresent = 0;
+    let summaryAbsent = 0;
+    let summaryLeaves = 0;
+    let summaryLates = 0;
+    let summaryTotalLateMinutes = 0;
+    let summaryEarlyCheckouts = 0;
+    let summaryTotalEarlyMinutes = 0;
+    let summaryWorkedHours = 0;
+    let summaryOvertimeMinutes = 0;
+
+    for (const emp of employees) {
+      for (const d of dateList) {
+        const key = `${emp.employeeId}_${d}`;
+        const att = attMap.get(key);
+
+        if (att) {
+          records.push({
+            ...att,
+            branch: emp.branch,
+            department: emp.department,
+            designation: emp.designation,
+            monthlySalary: emp.monthlySalary
+          });
+
+          if (['PRESENT', 'LATE', 'HALF_DAY'].includes(att.status)) {
+            summaryPresent++;
+          } else if (att.status === 'LEAVE') {
+            summaryLeaves++;
+          } else if (att.status === 'ABSENT') {
+            summaryAbsent++;
+          }
+
+          if (att.lateMinutes > 0) {
+            summaryLates++;
+            summaryTotalLateMinutes += att.lateMinutes;
+          }
+          if (att.earlyMinutes > 0) {
+            summaryEarlyCheckouts++;
+            summaryTotalEarlyMinutes += att.earlyMinutes;
+          }
+          summaryWorkedHours += (att.workingHours || 0);
+          summaryOvertimeMinutes += (att.overtimeMinutes || 0);
+        } else {
+          // Check if employee had approved leave on this date
+          const onLeave = leaves.find(l => l.employeeId === emp.employeeId && l.startDate <= d && l.endDate >= d);
+          const autoStatus = onLeave ? 'LEAVE' : 'ABSENT';
+
+          if (autoStatus === 'LEAVE') summaryLeaves++;
+          else summaryAbsent++;
+
+          records.push({
+            id: null,
+            employeeId: emp.employeeId,
+            employeeName: emp.name,
+            branch: emp.branch,
+            department: emp.department,
+            designation: emp.designation,
+            date: d,
+            checkInTime: null,
+            checkOutTime: null,
+            scheduledCheckIn: emp.checkInTime || '10:00',
+            scheduledCheckOut: emp.checkOutTime || '18:00',
+            lateMinutes: 0,
+            earlyMinutes: 0,
+            overtimeMinutes: 0,
+            status: autoStatus,
+            workingHours: 0,
+            monthlySalary: emp.monthlySalary,
+            notes: onLeave ? `Approved ${onLeave.leaveType} Leave` : 'Automatically marked Absent'
+          });
+        }
+      }
+    }
+
+    const totalWorkingSlots = employees.length * dateList.length;
+    const attPercentage = totalWorkingSlots > 0 ? Math.round((summaryPresent / totalWorkingSlots) * 100) : 0;
+
+    res.json({
+      success: true,
+      startDate,
+      endDate,
+      totalDays: dateList.length,
+      employeesCount: employees.length,
+      count: records.length,
+      summary: {
+        totalWorkingDays: totalWorkingSlots,
+        present: summaryPresent,
+        absent: summaryAbsent,
+        leaves: summaryLeaves,
+        lateOccurrences: summaryLates,
+        totalLateMinutes: summaryTotalLateMinutes,
+        earlyCheckouts: summaryEarlyCheckouts,
+        totalEarlyMinutes: summaryTotalEarlyMinutes,
+        totalWorkedHours: Math.round(summaryWorkedHours * 10) / 10,
+        totalOvertimeMinutes: summaryOvertimeMinutes,
+        totalOvertimeHours: Math.round((summaryOvertimeMinutes / 60) * 10) / 10,
+        attendancePercentage: attPercentage
+      },
+      records
+    });
+  } catch (err) {
+    console.error('Error fetching attendance range:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance range', error: err.message });
+  }
+};
+
 // GET /api/employees/attendance/export-excel?monthYear=YYYY-MM
 const exportAttendanceExcel = async (req, res) => {
   try {
@@ -1240,13 +1459,27 @@ const getProductionSummary = async (req, res) => {
 // 6. PAYROLL CALCULATION & LIFECYCLE
 // ==========================================
 
-// GET /api/employees/payroll/list?monthYear=YYYY-MM
+// GET /api/employees/payroll/list?monthYear=YYYY-MM&status=STATUS&branch=BRANCH&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 const getMonthlyPayrollList = async (req, res) => {
   try {
-    const monthYear = req.query.monthYear || new Date().toISOString().slice(0, 7);
-    const branch = req.query.branch;
+    const { monthYear, branch, status, startDate, endDate } = req.query;
 
-    const where = { monthYear };
+    const where = {};
+    if (monthYear && monthYear !== 'ALL') {
+      where.monthYear = monthYear;
+    } else if (startDate && endDate) {
+      where.OR = [
+        { startDate: { gte: startDate, lte: endDate } },
+        { monthYear: { startsWith: startDate.slice(0, 7) } }
+      ];
+    } else if (!status && !branch) {
+      where.monthYear = new Date().toISOString().slice(0, 7);
+    }
+
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+
     if (branch && branch !== 'ALL') {
       where.branch = { contains: branch, mode: 'insensitive' };
     }
@@ -1254,40 +1487,52 @@ const getMonthlyPayrollList = async (req, res) => {
     const payrolls = await prisma.monthlyPayroll.findMany({
       where,
       include: { employee: true },
-      orderBy: { employeeId: 'asc' }
+      orderBy: [{ monthYear: 'desc' }, { employeeId: 'asc' }]
     });
 
-    res.json({ success: true, monthYear, count: payrolls.length, payrolls });
+    res.json({ success: true, monthYear: where.monthYear || 'ALL', count: payrolls.length, payrolls });
   } catch (err) {
     console.error('Error fetching payrolls:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch payroll list', error: err.message });
   }
 };
 
-// POST /api/employees/payroll/calculate?monthYear=YYYY-MM
+// POST /api/employees/payroll/calculate?monthYear=YYYY-MM or { startDate, endDate, branch }
 const calculateMonthlyPayroll = async (req, res) => {
   try {
-    const monthYear = req.body?.monthYear || req.query.monthYear || new Date().toISOString().slice(0, 7);
+    const startDate = req.body?.startDate || req.query.startDate;
+    const endDate = req.body?.endDate || req.query.endDate;
+    let monthYear = req.body?.monthYear || req.query.monthYear;
+    const branch = req.body?.branch || req.query.branch;
     const employeeIdFilter = req.body?.employeeId;
+    const recalculateDraft = req.body?.recalculate === true || req.body?.recalculate === 'true';
+
+    if (!monthYear) {
+      if (startDate) monthYear = startDate.slice(0, 7);
+      else monthYear = new Date().toISOString().slice(0, 7);
+    }
 
     const empWhere = { status: 'ACTIVE' };
     if (employeeIdFilter) empWhere.employeeId = employeeIdFilter;
+    if (branch && branch !== 'ALL') {
+      empWhere.branch = { contains: branch, mode: 'insensitive' };
+    }
 
     const employees = await prisma.employeeRecord.findMany({
       where: empWhere,
       orderBy: { employeeId: 'asc' }
     });
 
-    const attendances = await prisma.employeeAttendance.findMany({
-      where: { date: { startsWith: monthYear } }
-    });
-
-    if (attendances.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Please import and process ${monthYear} Attendance Excel before generating payroll.`
-      });
+    const attWhere = {};
+    if (startDate && endDate) {
+      attWhere.date = { gte: startDate, lte: endDate };
+    } else {
+      attWhere.date = { startsWith: monthYear };
     }
+
+    const attendances = await prisma.employeeAttendance.findMany({
+      where: attWhere
+    });
 
     const attByEmp = new Map();
     attendances.forEach(a => {
@@ -1306,16 +1551,20 @@ const calculateMonthlyPayroll = async (req, res) => {
     });
 
     const calculatedPayrolls = [];
+    const skippedPayrolls = [];
 
     for (const emp of employees) {
-      // Check if existing payroll is FINALIZED — preserved historical payroll!
+      // Check if existing payroll is APPROVED or PAID or FINALIZED — preserved historical snapshot! (Section 25, 31, 42)
       const existing = await prisma.monthlyPayroll.findUnique({
         where: { employeeId_monthYear: { employeeId: emp.employeeId, monthYear } }
       });
 
-      if (existing?.isFinalized) {
-        calculatedPayrolls.push(existing);
-        continue;
+      if (existing) {
+        if (existing.isFinalized || existing.status === 'PAID' || existing.status === 'PENDING_PAYMENT') {
+          skippedPayrolls.push({ employeeId: emp.employeeId, reason: `Payroll is ${existing.status} (historical snapshot protected)` });
+          calculatedPayrolls.push(existing);
+          continue;
+        }
       }
 
       const records = attByEmp.get(emp.employeeId) || [];
@@ -1324,9 +1573,9 @@ const calculateMonthlyPayroll = async (req, res) => {
       const lateDays = records.filter(r => r.lateMinutes > 0).length;
       const halfDays = records.filter(r => r.status === 'HALF_DAY').length;
 
-      // Three-Late Rule
+      // Three-Late Rule (Section 11): 3 Late Occurrences = 1 Day Salary Deduction
       const lateDeductionDays = Math.floor(lateDays / 3);
-      const perDaySalary = Math.round((emp.monthlySalary || 0) / 30);
+      const perDaySalary = Math.round((emp.monthlySalary || 0) / (emp.workingDays || 30));
       const lateDeductions = lateDeductionDays * perDaySalary;
 
       // Absent deductions
@@ -1340,7 +1589,7 @@ const calculateMonthlyPayroll = async (req, res) => {
       // Overtime
       const totalOvertimeMinutes = records.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
       const overtimeHours = Math.round((totalOvertimeMinutes / 60) * 10) / 10;
-      const hourlyRate = (emp.monthlySalary || 0) / (30 * (emp.workingHours || 8));
+      const hourlyRate = (emp.monthlySalary || 0) / ((emp.workingDays || 30) * (emp.workingHours || 8));
       const overtimeAmount = Math.round(overtimeHours * hourlyRate);
 
       // Loan & Advance Deductions from active records
@@ -1373,7 +1622,7 @@ const calculateMonthlyPayroll = async (req, res) => {
       const manualAdjustment = existing?.manualAdjustment || 0;
       const adjustmentNote = existing?.adjustmentNote || null;
 
-      // Final calculations
+      // Final calculations (Section 22)
       const grossSalary = Math.round(
         (emp.monthlySalary || 0) +
         overtimeAmount +
@@ -1397,6 +1646,8 @@ const calculateMonthlyPayroll = async (req, res) => {
       const netPayable = Math.max(0, Math.round(grossSalary - totalDeductions + manualAdjustment));
 
       const breakdown = {
+        startDate: startDate || `${monthYear}-01`,
+        endDate: endDate || `${monthYear}-30`,
         attendanceSummary: {
           presentDays,
           absentDays,
@@ -1451,10 +1702,15 @@ const calculateMonthlyPayroll = async (req, res) => {
           grossSalary,
           totalDeductions,
           netPayable,
+          startDate: startDate || `${monthYear}-01`,
+          endDate: endDate || `${monthYear}-30`,
+          status: existing?.status || 'DRAFT',
           calculationBreakdown: breakdown
         },
         create: {
           monthYear,
+          startDate: startDate || `${monthYear}-01`,
+          endDate: endDate || `${monthYear}-30`,
           employeeId: emp.employeeId,
           employeeName: emp.name,
           designation: emp.designation,
@@ -1499,7 +1755,10 @@ const calculateMonthlyPayroll = async (req, res) => {
       success: true,
       message: `Calculated payroll for ${calculatedPayrolls.length} employees`,
       monthYear,
-      payrolls: calculatedPayrolls
+      startDate: startDate || `${monthYear}-01`,
+      endDate: endDate || `${monthYear}-30`,
+      payrolls: calculatedPayrolls,
+      skipped: skippedPayrolls
     });
   } catch (err) {
     console.error('Error calculating payroll:', err);
@@ -1516,8 +1775,8 @@ const adjustPayroll = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Payroll record not found' });
     }
 
-    if (existing.isFinalized) {
-      return res.status(400).json({ success: false, message: 'Cannot edit finalized payroll record' });
+    if (existing.isFinalized || existing.status === 'PAID') {
+      return res.status(400).json({ success: false, message: 'Cannot edit finalized or paid payroll record' });
     }
 
     const {
@@ -1556,6 +1815,43 @@ const adjustPayroll = async (req, res) => {
     const othDed = otherDeductions !== undefined ? parseFloat(otherDeductions) : existing.otherDeductions;
     const prodEarn = productionEarning !== undefined ? parseFloat(productionEarning) : existing.productionEarning;
     const manAdj = manualAdjustment !== undefined ? parseFloat(manualAdjustment) : existing.manualAdjustment;
+
+    // Record audit trail entries (Section 23, 40)
+    const auditLogs = [];
+    if (manAdj !== existing.manualAdjustment) {
+      auditLogs.push({ field: 'manualAdjustment', oldVal: existing.manualAdjustment, newVal: manAdj });
+    }
+    if (fullAttBonus !== (existing.fullAttendanceBonus || 0)) {
+      auditLogs.push({ field: 'fullAttendanceBonus', oldVal: existing.fullAttendanceBonus || 0, newVal: fullAttBonus });
+    }
+    if (reimb !== (existing.reimbursement || 0)) {
+      auditLogs.push({ field: 'reimbursement', oldVal: existing.reimbursement || 0, newVal: reimb });
+    }
+    if (fAllow !== existing.fuelAllowance) {
+      auditLogs.push({ field: 'fuelAllowance', oldVal: existing.fuelAllowance, newVal: fAllow });
+    }
+    if (lDed !== existing.lateDeductions) {
+      auditLogs.push({ field: 'lateDeductions', oldVal: existing.lateDeductions, newVal: lDed });
+    }
+    if (aDed !== existing.absentDeductions) {
+      auditLogs.push({ field: 'absentDeductions', oldVal: existing.absentDeductions, newVal: aDed });
+    }
+
+    for (const log of auditLogs) {
+      await prisma.payrollAuditLog.create({
+        data: {
+          payrollId: existing.id,
+          employeeId: existing.employeeId,
+          period: existing.monthYear,
+          fieldChanged: log.field,
+          oldValue: String(log.oldVal),
+          newValue: String(log.newVal),
+          reason: adjustmentNote || 'Admin adjustment',
+          changedById: req.user?.id || null,
+          changedByName: req.user?.name || 'Admin'
+        }
+      }).catch(() => {});
+    }
 
     const grossSalary = Math.round(bSalary + fAllow + tAllow + oAllow + otAmt + fullAttBonus + reimb + prodEarn);
     const totalDeductions = Math.round(lDed + eDed + aDed + loanDed + advDed + othDed);
@@ -1667,6 +1963,247 @@ const finalizeMonthlyPayroll = async (req, res) => {
   }
 };
 
+// POST /api/employees/payroll/approve
+// Moves payroll from DRAFT / UNDER_REVIEW to PENDING_PAYMENT (Section 25)
+const approvePayrolls = async (req, res) => {
+  try {
+    const { payrollIds, monthYear } = req.body;
+    const where = {};
+    if (Array.isArray(payrollIds) && payrollIds.length > 0) {
+      where.id = { in: payrollIds };
+    } else if (monthYear) {
+      where.monthYear = monthYear;
+    } else {
+      return res.status(400).json({ success: false, message: 'payrollIds or monthYear is required' });
+    }
+
+    where.status = { in: ['DRAFT', 'UNDER_REVIEW'] };
+
+    const result = await prisma.monthlyPayroll.updateMany({
+      where,
+      data: {
+        status: 'PENDING_PAYMENT',
+        approvedAt: new Date(),
+        approvedBy: req.user?.name || 'Admin'
+      }
+    });
+
+    const io = req?.app?.get('io');
+    if (io) {
+      io.emit('payroll:updated');
+    }
+
+    res.json({
+      success: true,
+      message: `Approved ${result.count} payroll(s). Moved to Pending Payment.`,
+      count: result.count
+    });
+  } catch (err) {
+    console.error('Error approving payroll:', err);
+    res.status(500).json({ success: false, message: 'Failed to approve payroll', error: err.message });
+  }
+};
+
+// POST /api/employees/payroll/:id/approve
+const approveSinglePayroll = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.monthlyPayroll.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Payroll not found' });
+    }
+
+    const updated = await prisma.monthlyPayroll.update({
+      where: { id },
+      data: {
+        status: 'PENDING_PAYMENT',
+        approvedAt: new Date(),
+        approvedBy: req.user?.name || 'Admin'
+      }
+    });
+
+    const io = req?.app?.get('io');
+    if (io) io.emit('payroll:updated');
+
+    res.json({ success: true, message: `Payroll approved for ${existing.employeeName}`, payroll: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to approve payroll', error: err.message });
+  }
+};
+
+// POST /api/employees/payroll/:id/mark-paid
+// Moves payroll from PENDING_PAYMENT to PAID, records payment metadata, and auto-settles loans (Section 27)
+const markPayrollPaid = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paymentDate, paymentMethod = 'BANK_TRANSFER', paymentReference, paymentNotes } = req.body;
+
+    const payroll = await prisma.monthlyPayroll.findUnique({
+      where: { id },
+      include: { employee: true }
+    });
+
+    if (!payroll) {
+      return res.status(404).json({ success: false, message: 'Payroll record not found' });
+    }
+
+    if (payroll.status === 'PAID') {
+      return res.status(400).json({ success: false, message: 'Payroll is already marked as PAID' });
+    }
+
+    const payDate = paymentDate ? new Date(paymentDate) : new Date();
+
+    const updated = await prisma.monthlyPayroll.update({
+      where: { id },
+      data: {
+        status: 'PAID',
+        isFinalized: true,
+        paymentDate: payDate,
+        paymentMethod: paymentMethod.toUpperCase(),
+        paymentReference: paymentReference?.trim() || null,
+        paymentNotes: paymentNotes?.trim() || null,
+        paidById: req.user?.id || null,
+        paidByName: req.user?.name || 'Admin',
+        finalizedAt: new Date(),
+        finalizedBy: req.user?.name || 'Admin'
+      }
+    });
+
+    // Auto-deduct from active loans & advances
+    if (payroll.loanDeduction > 0) {
+      const activeLoans = await prisma.employeeLoanAdvance.findMany({
+        where: { employeeId: payroll.employeeId, type: 'LOAN', status: 'ACTIVE' }
+      });
+      for (const al of activeLoans) {
+        const newBal = Math.max(0, al.remainingBalance - payroll.loanDeduction);
+        await prisma.employeeLoanAdvance.update({
+          where: { id: al.id },
+          data: {
+            remainingBalance: newBal,
+            status: newBal === 0 ? 'COMPLETED' : 'ACTIVE'
+          }
+        });
+      }
+    }
+
+    if (payroll.advanceDeduction > 0) {
+      const activeAdvances = await prisma.employeeLoanAdvance.findMany({
+        where: { employeeId: payroll.employeeId, type: 'ADVANCE', status: 'ACTIVE' }
+      });
+      for (const aa of activeAdvances) {
+        const newBal = Math.max(0, aa.remainingBalance - payroll.advanceDeduction);
+        await prisma.employeeLoanAdvance.update({
+          where: { id: aa.id },
+          data: {
+            remainingBalance: newBal,
+            status: newBal === 0 ? 'COMPLETED' : 'ACTIVE'
+          }
+        });
+      }
+    }
+
+    // Emit real-time socket events so Employee Portal updates immediately (Section 28)
+    const io = req?.app?.get('io');
+    if (io) {
+      io.emit('payroll:updated');
+      io.emit('payroll:paid', { employeeId: payroll.employeeId, id: payroll.id });
+    }
+
+    res.json({
+      success: true,
+      message: `Payroll marked as PAID for ${payroll.employeeName}`,
+      payroll: updated
+    });
+  } catch (err) {
+    console.error('Error marking payroll paid:', err);
+    res.status(500).json({ success: false, message: 'Failed to mark payroll paid', error: err.message });
+  }
+};
+
+// GET /api/employees/payroll/pending
+// Pending payment section (Section 26)
+const getPendingPayrolls = async (req, res) => {
+  try {
+    const branch = req.query.branch;
+    const where = { status: 'PENDING_PAYMENT' };
+    if (branch && branch !== 'ALL') {
+      where.branch = { contains: branch, mode: 'insensitive' };
+    }
+    const payrolls = await prisma.monthlyPayroll.findMany({
+      where,
+      include: { employee: true },
+      orderBy: { employeeId: 'asc' }
+    });
+    res.json({ success: true, count: payrolls.length, payrolls });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch pending payrolls', error: err.message });
+  }
+};
+
+// GET /api/employees/audit/attendance
+const getAttendanceAuditLogs = async (req, res) => {
+  try {
+    const { employeeId } = req.query;
+    const where = employeeId ? { employeeId } : {};
+    const logs = await prisma.attendanceAuditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    res.json({ success: true, count: logs.length, logs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to load attendance audit logs', error: err.message });
+  }
+};
+
+// GET /api/employees/audit/payroll
+const getPayrollAuditLogs = async (req, res) => {
+  try {
+    const { payrollId, employeeId } = req.query;
+    const where = {};
+    if (payrollId) where.payrollId = payrollId;
+    if (employeeId) where.employeeId = employeeId;
+    const logs = await prisma.payrollAuditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    res.json({ success: true, count: logs.length, logs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to load payroll audit logs', error: err.message });
+  }
+};
+
+// GET /api/employees/settings/portal-status
+const getPortalStatus = async (req, res) => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: 'EMPLOYEE_PORTAL_ACCESS' }
+    });
+    const val = setting ? String(setting.value).replace(/"/g, '').trim().toUpperCase() : 'ON';
+    const enabled = val !== 'OFF' && val !== 'FALSE' && val !== 'DISABLED';
+    res.json({ success: true, enabled, settingValue: val });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error checking portal status', error: err.message });
+  }
+};
+
+// POST /api/employees/settings/portal-status
+const setPortalStatus = async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const val = enabled ? 'ON' : 'OFF';
+    await prisma.systemSetting.upsert({
+      where: { key: 'EMPLOYEE_PORTAL_ACCESS' },
+      update: { value: val },
+      create: { key: 'EMPLOYEE_PORTAL_ACCESS', value: val }
+    });
+    res.json({ success: true, enabled: !!enabled, message: `Employee Portal access turned ${val}` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error updating portal status', error: err.message });
+  }
+};
+
 // GET /api/employees/payroll/export-excel?monthYear=YYYY-MM
 const exportPayrollExcel = async (req, res) => {
   try {
@@ -1727,6 +2264,7 @@ module.exports = {
   importAttendanceExcel,
   getAttendanceImportHistory,
   getMonthlyAttendance,
+  getAttendanceRange,
   exportAttendanceExcel,
   getLeaves,
   createLeave,
@@ -1738,6 +2276,14 @@ module.exports = {
   getMonthlyPayrollList,
   calculateMonthlyPayroll,
   adjustPayroll,
+  approvePayrolls,
+  approveSinglePayroll,
+  markPayrollPaid,
+  getPendingPayrolls,
   finalizeMonthlyPayroll,
-  exportPayrollExcel
+  exportPayrollExcel,
+  getAttendanceAuditLogs,
+  getPayrollAuditLogs,
+  getPortalStatus,
+  setPortalStatus
 };

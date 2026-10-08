@@ -68,36 +68,79 @@ async function findEmployeeByIdentifier(rawId, rawName) {
   if (!rawId && !rawName) return null;
   const idStr = String(rawId || '').trim();
 
-  if (idStr) {
-    // 1. Exact employeeId match e.g. "02"
-    let emp = await prisma.employeeRecord.findUnique({
+  let emp = null;
+
+  if (idStr && idStr !== 'UNKNOWN' && idStr !== '0') {
+    // 1. Explicit machineUserId mapping
+    emp = await prisma.employeeRecord.findFirst({
+      where: { machineUserId: idStr }
+    });
+    if (emp) return emp;
+
+    // 2. Exact employeeId match e.g. "02" or "5" or "13"
+    emp = await prisma.employeeRecord.findUnique({
       where: { employeeId: idStr }
     });
     if (emp) return emp;
 
-    // 2. Stripped leading zeros e.g. "02" -> "2" or vice versa
+    // 3. Stripped leading zeros e.g. "02" -> "2" or vice versa ("2" -> "02")
     const numPart = idStr.replace(/^0+/, '') || idStr;
     emp = await prisma.employeeRecord.findFirst({
       where: {
         OR: [
           { employeeId: numPart },
           { employeeId: numPart.padStart(2, '0') },
+          { employeeId: numPart.padStart(3, '0') },
           { employeeId: `EMP-${numPart.padStart(3, '0')}` },
-          { employeeId: `EMP-${numPart}` }
+          { employeeId: `EMP-${numPart.padStart(2, '0')}` },
+          { employeeId: `EMP-${numPart}` },
+          { machineUserId: numPart },
+          { machineUserId: numPart.padStart(2, '0') },
+          { machineUserId: numPart.padStart(3, '0') }
         ]
       }
     });
     if (emp) return emp;
   }
 
-  // 3. Match by name if provided by device
+  // 4. Match by name if provided by device
   if (rawName && typeof rawName === 'string' && rawName.trim()) {
-    const emp = await prisma.employeeRecord.findFirst({
+    const cleanName = rawName.trim();
+    // 4a. Exact name (case-insensitive)
+    emp = await prisma.employeeRecord.findFirst({
       where: {
-        name: { equals: rawName.trim(), mode: 'insensitive' }
+        name: { equals: cleanName, mode: 'insensitive' }
       }
     });
-    if (emp) return emp;
+    if (emp) {
+      if (idStr && !emp.machineUserId && idStr !== 'UNKNOWN') {
+        try {
+          await prisma.employeeRecord.update({
+            where: { id: emp.id },
+            data: { machineUserId: idStr }
+          });
+        } catch (_) {}
+      }
+      return emp;
+    }
+
+    // 4b. Partial name match (e.g. device sent "Sajawal", matches "MUHAMMAD SAJAWAL")
+    emp = await prisma.employeeRecord.findFirst({
+      where: {
+        name: { contains: cleanName, mode: 'insensitive' }
+      }
+    });
+    if (emp) {
+      if (idStr && !emp.machineUserId && idStr !== 'UNKNOWN') {
+        try {
+          await prisma.employeeRecord.update({
+            where: { id: emp.id },
+            data: { machineUserId: idStr }
+          });
+        } catch (_) {}
+      }
+      return emp;
+    }
   }
 
   return null;
@@ -112,12 +155,46 @@ async function processEmployeePunch({
   date,
   timeStr,
   verifyMode = 'BIOMETRIC',
-  deviceName = 'Hikvision Terminal',
+  deviceName = 'DS-K1T342MFWX',
+  rawPayload = null,
   req
 }) {
   const emp = await findEmployeeByIdentifier(employeeId, employeeName);
 
   if (!emp) {
+    // Store in MachineAttendance as UNMATCHED so Admin can see unknown punch
+    try {
+      await prisma.machineAttendance.upsert({
+        where: {
+          machineId_machineUserId_punchDate_punchTime: {
+            machineId: deviceName,
+            machineUserId: String(employeeId || 'UNKNOWN'),
+            punchDate: date,
+            punchTime: timeStr
+          }
+        },
+        update: {
+          status: 'UNMATCHED',
+          verifyMode,
+          rawPayload: rawPayload ? rawPayload : undefined
+        },
+        create: {
+          machineId: deviceName,
+          machineUserId: String(employeeId || 'UNKNOWN'),
+          employeeId: null,
+          punchDate: date,
+          punchTime: timeStr,
+          punchType: 'UNKNOWN',
+          verifyMode,
+          location: 'Johar Town',
+          rawPayload: rawPayload ? rawPayload : undefined,
+          status: 'UNMATCHED'
+        }
+      });
+    } catch (e) {
+      // Ignore duplicate or unique constraint
+    }
+
     recordLog({
       type: 'UNMATCHED',
       rawId: employeeId,
@@ -242,6 +319,42 @@ async function processEmployeePunch({
     }
   });
 
+  // Store raw machine punch in MachineAttendance
+  try {
+    await prisma.machineAttendance.upsert({
+      where: {
+        machineId_machineUserId_punchDate_punchTime: {
+          machineId: deviceName,
+          machineUserId: String(employeeId || resolvedEmpId),
+          punchDate: date,
+          punchTime: timeStr
+        }
+      },
+      update: {
+        employeeId: resolvedEmpId,
+        punchType,
+        verifyMode,
+        location: emp.branch || 'Johar Town',
+        rawPayload: rawPayload ? rawPayload : undefined,
+        status: 'PROCESSED'
+      },
+      create: {
+        machineId: deviceName,
+        machineUserId: String(employeeId || resolvedEmpId),
+        employeeId: resolvedEmpId,
+        punchDate: date,
+        punchTime: timeStr,
+        punchType,
+        verifyMode,
+        location: emp.branch || 'Johar Town',
+        rawPayload: rawPayload ? rawPayload : undefined,
+        status: 'PROCESSED'
+      }
+    });
+  } catch (mErr) {
+    // Ignore duplicate or unique constraint
+  }
+
   recordLog({
     type: 'PUNCH_SUCCESS',
     employeeId: resolvedEmpId,
@@ -286,93 +399,190 @@ async function processEmployeePunch({
 }
 
 /**
+ * Recursively inspects incoming request (multipart files, JSON body, XML, raw text)
+ * to locate employee ID, name, timestamp, verifyMode, deviceName.
+ */
+function extractHikvisionData(req) {
+  let rawEmployeeId = null;
+  let rawName = null;
+  let rawTime = null;
+  let verifyMode = 'face';
+  let deviceName = 'DS-K1T342MFWX';
+  let punchTypeHint = null;
+  let mergedPayload = {};
+
+  function deepFind(obj, depth = 0) {
+    if (!obj || depth > 8 || typeof obj !== 'object') return;
+
+    if (!rawEmployeeId) {
+      for (const k of ['employeeNoString', 'employeeNo', 'employeeId', 'employeeID', 'cardNo', 'personId', 'personID', 'userCode', 'cardNum']) {
+        if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+          rawEmployeeId = String(obj[k]).trim();
+          break;
+        }
+      }
+    }
+
+    if (!rawName) {
+      for (const k of ['name', 'employeeName', 'userName', 'personName']) {
+        if (typeof obj[k] === 'string' && obj[k].trim() !== '') {
+          rawName = obj[k].trim();
+          break;
+        }
+      }
+    }
+
+    if (!rawTime) {
+      for (const k of ['dateTime', 'time', 'punchTime', 'timestamp', 'eventTime']) {
+        if (obj[k] && typeof obj[k] === 'string' && obj[k].trim() !== '') {
+          rawTime = obj[k].trim();
+          break;
+        }
+      }
+    }
+
+    if (!punchTypeHint) {
+      for (const k of ['attendanceStatus', 'attendStatus', 'punchType', 'direction']) {
+        if (typeof obj[k] === 'string' && obj[k].trim() !== '') {
+          punchTypeHint = obj[k].trim();
+          break;
+        }
+      }
+    }
+
+    if (obj.currentVerifyMode || obj.verifyMode) {
+      verifyMode = String(obj.currentVerifyMode || obj.verifyMode);
+    }
+    if (obj.deviceName || obj.deviceDescription) {
+      deviceName = String(obj.deviceName || obj.deviceDescription);
+    }
+
+    if (Array.isArray(obj)) {
+      for (const item of obj) deepFind(item, depth + 1);
+    } else {
+      for (const val of Object.values(obj)) {
+        if (val && typeof val === 'object') {
+          deepFind(val, depth + 1);
+        }
+      }
+    }
+  }
+
+  // 1. Process files from multipart memory storage
+  if (Array.isArray(req.files) && req.files.length > 0) {
+    for (const file of req.files) {
+      try {
+        const text = file.buffer ? file.buffer.toString('utf8') : '';
+        if (text) {
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              const parsed = JSON.parse(jsonMatch[0]);
+              mergedPayload = { ...mergedPayload, ...parsed };
+              deepFind(parsed);
+            } catch (_) {}
+          }
+          if (text.includes('<')) {
+            const idM = text.match(/<employeeNoString[^>]*>([^<]+)<\/employeeNoString>/i) ||
+                        text.match(/<employeeNo[^>]*>([^<]+)<\/employeeNo>/i) ||
+                        text.match(/<cardNo[^>]*>([^<]+)<\/cardNo>/i) ||
+                        text.match(/<personId[^>]*>([^<]+)<\/personId>/i);
+            const nameM = text.match(/<name[^>]*>([^<]+)<\/name>/i) ||
+                          text.match(/<employeeName[^>]*>([^<]+)<\/employeeName>/i);
+            const timeM = text.match(/<dateTime[^>]*>([^<]+)<\/dateTime>/i) ||
+                          text.match(/<time[^>]*>([^<]+)<\/time>/i);
+            const devM = text.match(/<deviceName[^>]*>([^<]+)<\/deviceName>/i);
+            if (idM && !rawEmployeeId) rawEmployeeId = idM[1].trim();
+            if (nameM && !rawName) rawName = nameM[1].trim();
+            if (timeM && !rawTime) rawTime = timeM[1].trim();
+            if (devM) deviceName = devM[1].trim();
+          }
+        }
+      } catch (err) {
+        console.warn('Error reading multipart file:', err.message);
+      }
+    }
+  }
+
+  // 2. Process req.body
+  let body = req.body;
+  if (typeof body === 'string') {
+    const trimmed = body.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        body = JSON.parse(trimmed);
+      } catch (_) {}
+    } else if (trimmed.includes('<')) {
+      const idM = trimmed.match(/<employeeNoString[^>]*>([^<]+)<\/employeeNoString>/i) ||
+                  trimmed.match(/<employeeNo[^>]*>([^<]+)<\/employeeNo>/i) ||
+                  trimmed.match(/<cardNo[^>]*>([^<]+)<\/cardNo>/i);
+      const nameM = trimmed.match(/<name[^>]*>([^<]+)<\/name>/i);
+      const timeM = trimmed.match(/<dateTime[^>]*>([^<]+)<\/dateTime>/i);
+      const devM = trimmed.match(/<deviceName[^>]*>([^<]+)<\/deviceName>/i);
+      if (idM && !rawEmployeeId) rawEmployeeId = idM[1].trim();
+      if (nameM && !rawName) rawName = nameM[1].trim();
+      if (timeM && !rawTime) rawTime = timeM[1].trim();
+      if (devM) deviceName = devM[1].trim();
+    }
+  }
+
+  if (body && typeof body === 'object') {
+    mergedPayload = { ...mergedPayload, ...body };
+    deepFind(body);
+
+    for (const key of ['event_log', 'AcsEvent', 'event', 'data', 'log', 'EventNotificationAlert']) {
+      if (typeof body[key] === 'string') {
+        try {
+          const parsed = JSON.parse(body[key]);
+          deepFind(parsed);
+        } catch (_) {
+          const idM = body[key].match(/<employeeNoString[^>]*>([^<]+)<\/employeeNoString>/i);
+          if (idM && !rawEmployeeId) rawEmployeeId = idM[1].trim();
+        }
+      }
+    }
+  }
+
+  return {
+    rawEmployeeId,
+    rawName,
+    rawTime,
+    verifyMode,
+    deviceName,
+    punchTypeHint,
+    payload: mergedPayload
+  };
+}
+
+/**
  * POST /api/biometric/hikvision
  * Main webhook handler receiving HTTP Push from Hikvision DS-K1T342MFWX.
  */
 const receiveHikvisionEvent = async (req, res) => {
   try {
-    let payload = req.body || {};
+    const extracted = extractHikvisionData(req);
+    const { rawEmployeeId, rawName, rawTime, verifyMode, deviceName, payload } = extracted;
 
-    // Check if multipart form uploaded event_log or AcsEvent as a file
-    if (Array.isArray(req.files) && req.files.length > 0) {
-      for (const file of req.files) {
-        const fname = file.fieldname || '';
-        if (fname === 'event_log' || fname === 'AcsEvent' || fname.includes('event') || (file.mimetype && (file.mimetype.includes('json') || file.mimetype.includes('text') || file.mimetype.includes('xml')))) {
-          try {
-            const str = file.buffer ? file.buffer.toString('utf8') : '';
-            if (str.trim().startsWith('{')) {
-              payload = { ...payload, ...JSON.parse(str) };
-            } else if (str.includes('<employeeNoString>')) {
-              const idMatch = str.match(/<employeeNoString>([^<]+)<\/employeeNoString>/);
-              const timeMatch = str.match(/<dateTime>([^<]+)<\/dateTime>/);
-              const nameMatch = str.match(/<name>([^<]+)<\/name>/);
-              payload = {
-                ...payload,
-                AccessControllerEvent: {
-                  employeeNoString: idMatch ? idMatch[1] : null,
-                  name: nameMatch ? nameMatch[1] : null
-                },
-                dateTime: timeMatch ? timeMatch[1] : null
-              };
-            }
-          } catch (fileParseErr) {
-            console.warn('Could not parse file from multipart:', fname, fileParseErr.message);
-          }
-        }
-      }
-    }
-
-    // 1. Hikvision multipart / event_log parsing
-    if (typeof payload.event_log === 'string') {
-      try {
-        payload = { ...payload, ...JSON.parse(payload.event_log) };
-      } catch (e) {
-        // Continue with raw payload
-      }
-    } else if (typeof payload.AcsEvent === 'string') {
-      try {
-        payload = { ...payload, ...JSON.parse(payload.AcsEvent) };
-      } catch (e) {
-        // Continue
-      }
-    } else if (typeof payload === 'string') {
-      try {
-        payload = JSON.parse(payload);
-      } catch (e) {
-        // Handle XML string if present
-        const idMatch = payload.match(/<employeeNoString>([^<]+)<\/employeeNoString>/);
-        const timeMatch = payload.match(/<dateTime>([^<]+)<\/dateTime>/);
-        const nameMatch = payload.match(/<name>([^<]+)<\/name>/);
-        payload = {
-          AccessControllerEvent: {
-            employeeNoString: idMatch ? idMatch[1] : null,
-            name: nameMatch ? nameMatch[1] : null
-          },
-          dateTime: timeMatch ? timeMatch[1] : null
-        };
-      }
-    }
-
-    const acs = payload.AccessControllerEvent || payload.AcsEvent || payload.EventNotificationAlert || payload;
-    const rawEmployeeId = acs.employeeNoString || acs.cardNo || acs.employeeNo || payload.employeeNoString || payload.employeeId || null;
-    const rawName = acs.name || payload.employeeName || null;
-    const rawTime = payload.dateTime || acs.dateTime || payload.time || null;
-    const verifyMode = acs.currentVerifyMode || acs.verifyMode || payload.verifyMode || 'face';
-    const deviceName = acs.deviceName || payload.deviceName || 'DS-K1T342MFWX';
+    const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
 
     // If device sends a keep-alive / test without an employee id
     if (!rawEmployeeId && !rawName) {
       recordLog({
         type: 'HEARTBEAT',
         deviceName,
+        clientIp,
+        userAgent,
         contentType: req.headers['content-type'] || 'unknown',
         bodyKeys: Object.keys(payload || {}),
+        bodySnippet: typeof req.body === 'string' ? req.body.slice(0, 300) : JSON.stringify(req.body || {}).slice(0, 300),
         filesCount: Array.isArray(req.files) ? req.files.length : 0,
         message: 'Device probe / heartbeat received'
       });
       return res.status(200).json({
         statusCode: 1,
         statusString: 'OK',
+        subStatusCode: 'ok',
         message: 'Hikvision probe received'
       });
     }
@@ -386,6 +596,7 @@ const receiveHikvisionEvent = async (req, res) => {
       timeStr,
       verifyMode,
       deviceName,
+      rawPayload: payload,
       req
     });
 
@@ -482,6 +693,7 @@ const getBiometricStatus = async (req, res) => {
       select: {
         id: true,
         employeeId: true,
+        machineUserId: true,
         name: true,
         branch: true,
         designation: true,
@@ -489,6 +701,11 @@ const getBiometricStatus = async (req, res) => {
         checkOutTime: true
       },
       orderBy: { employeeId: 'asc' }
+    });
+
+    const rawPunches = await prisma.machineAttendance.findMany({
+      take: 50,
+      orderBy: { createdAt: 'desc' }
     });
 
     res.json({
@@ -502,6 +719,7 @@ const getBiometricStatus = async (req, res) => {
       },
       registeredEmployeesCount: employees.length,
       registeredEmployees: employees,
+      rawMachinePunches: rawPunches,
       recentPunches: recentBiometricLogs
     });
   } catch (err) {

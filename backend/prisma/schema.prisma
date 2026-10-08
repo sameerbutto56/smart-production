@@ -2857,6 +2857,7 @@ model EmployeeRecord {
   workType             String?              @default("STANDARD") // "ENGRAVING", "PRODUCTION", "STANDARD"
   allowedLeaves        Float                @default(2)       // Monthly allowed leaves
   status               String               @default("ACTIVE") // "ACTIVE", "INACTIVE"
+  machineUserId        String?              // Machine User ID mapping (e.g. "02", "105")
   notes                String?
 
   // Employee Login / Self-Service Credentials
@@ -2986,6 +2987,16 @@ model MonthlyPayroll {
   totalDeductions          Float           @default(0)
   netPayable               Float           @default(0)
   status                   String          @default("DRAFT") // "DRAFT", "UNDER_REVIEW", "APPROVED", "FINALIZED", "PAID"
+  startDate                String?         // "YYYY-MM-DD" e.g. "2026-10-01"
+  endDate                  String?         // "YYYY-MM-DD" e.g. "2026-10-31"
+  approvedAt               DateTime?
+  approvedBy               String?
+  paymentDate              DateTime?
+  paymentMethod            String?         // "CASH", "BANK_TRANSFER", "ONLINE", "OTHER"
+  paymentReference         String?         // Transaction ref / cheque / bank transfer ID
+  paymentNotes             String?
+  paidById                 String?
+  paidByName               String?
   finalizedAt              DateTime?
   finalizedBy              String?
   isFinalized              Boolean         @default(false)
@@ -2999,6 +3010,59 @@ model MonthlyPayroll {
   @@index([monthYear])
   @@index([employeeId])
   @@index([status])
+}
+
+model MachineAttendance {
+  id            String   @id @default(uuid())
+  machineId     String?  @default("DS-K1T342MFWX")
+  machineUserId String   // Raw machine ID e.g. "02", "105"
+  employeeId    String?  // Mapped System Employee ID e.g. "02"
+  punchDate     String   // "YYYY-MM-DD"
+  punchTime     String   // "HH:MM:SS" or "HH:MM"
+  punchType     String?  @default("CHECK_IN") // CHECK_IN, CHECK_OUT, UNKNOWN
+  verifyMode    String?  @default("BIOMETRIC") // face, fingerPrint, card
+  location      String?  @default("Johar Town")
+  rawPayload    Json?
+  status        String   @default("PROCESSED") // PROCESSED, UNMATCHED, DUPLICATE
+  createdAt     DateTime @default(now())
+
+  @@unique([machineId, machineUserId, punchDate, punchTime])
+  @@index([machineUserId])
+  @@index([employeeId])
+  @@index([punchDate])
+  @@index([status])
+}
+
+model AttendanceAuditLog {
+  id             String   @id @default(uuid())
+  employeeId     String
+  attendanceDate String   // "YYYY-MM-DD"
+  fieldChanged   String   // "checkInTime", "checkOutTime", "status"
+  oldValue       String?
+  newValue       String?
+  reason         String
+  changedById    String?
+  changedByName  String
+  createdAt      DateTime @default(now())
+
+  @@index([employeeId, attendanceDate])
+}
+
+model PayrollAuditLog {
+  id            String   @id @default(uuid())
+  payrollId     String
+  employeeId    String
+  period        String   // "YYYY-MM" or "2026-10-01 - 2026-10-31"
+  fieldChanged  String
+  oldValue      String?
+  newValue      String?
+  reason        String
+  changedById   String?
+  changedByName String
+  createdAt     DateTime @default(now())
+
+  @@index([payrollId])
+  @@index([employeeId])
 }
 
 model AttendanceImportHistory {

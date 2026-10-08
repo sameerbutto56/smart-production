@@ -141,6 +141,7 @@ const biometricRoutes = require('./routes/biometric.routes');
 app.use('/api/biometric', biometricRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/employee-portal', employeePortalRoutes);
+app.use('/api/employee', employeePortalRoutes);
 app.use('/api/abbottabad', abbottabadRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/system', systemRoutes);
