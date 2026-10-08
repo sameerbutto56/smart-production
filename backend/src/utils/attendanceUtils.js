@@ -44,40 +44,62 @@ function normalizeDateStr(raw) {
 // Compute Late, Early Checkout, and Overtime minutes according to rules
 function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualOut, status = 'PRESENT') {
   if (status === 'ABSENT' || status === 'LEAVE' || status === 'WEEKLY_OFF') {
-    return { lateMinutes: 0, earlyMinutes: 0, overtimeMinutes: 0, workingHours: 0 };
+    return {
+      earlyArrivalMinutes: 0,
+      earlyCheckInOt: 0,
+      lateMinutes: 0,
+      earlyMinutes: 0,
+      checkoutOtMinutes: 0,
+      overtimeMinutes: 0,
+      workingHours: 0
+    };
   }
 
-  const sIn = parseTimeToMinutes(scheduledIn || '10:00') ?? 600; // 10:00 AM
-  const sOut = parseTimeToMinutes(scheduledOut || '18:00') ?? 1080; // 6:00 PM
+  const sIn = parseTimeToMinutes(scheduledIn || '10:00') ?? 600; // 10:00 AM default
+  const sOut = parseTimeToMinutes(scheduledOut || '18:00') ?? 1080; // 6:00 PM default
   const aIn = parseTimeToMinutes(actualIn);
   const aOut = parseTimeToMinutes(actualOut);
 
+  let earlyArrivalMinutes = 0;
+  let earlyCheckInOt = 0;
   let lateMinutes = 0;
   let earlyMinutes = 0;
-  let overtimeMinutes = 0;
+  let checkoutOtMinutes = 0;
 
-  // 1. Check-in grace period: 15 minutes allowed
-  // 10:00 - 10:15 -> On Time. After 10:15 -> Late (e.g. 10:20 -> Late = 5 minutes)
+  // 1. Check-In Dimension (Section 1 & 2)
   if (aIn !== null) {
-    if (aIn > sIn + 15) {
+    if (aIn < sIn) {
+      // Early arrival before scheduled check-in
+      earlyArrivalMinutes = sIn - aIn;
+      // 10-minute early check-in tolerance:
+      // Beyond 10 minutes tolerance becomes Early Check-In Overtime
+      if (earlyArrivalMinutes > 10) {
+        earlyCheckInOt = earlyArrivalMinutes - 10;
+      }
+    } else if (aIn > sIn + 15) {
+      // 15-minute check-in grace period:
+      // Up to sIn + 15 (e.g. 10:15) is On Time. After 10:15 counts as late.
       lateMinutes = aIn - (sIn + 15);
     }
   }
 
-  // 2. Check-out early check: Up to 10 minutes early allowed (5:50 PM).
-  // Before 5:50 PM -> early checkout minutes apply (e.g. 5:40 -> 20 minutes)
+  // 2. Check-Out Dimension (Section 3, 4 & 5)
   if (aOut !== null) {
     if (aOut < sOut - 10) {
+      // 10-minute early checkout tolerance:
+      // Before sOut - 10 records exact early checkout duration (e.g. 5:49 -> 11 mins)
       earlyMinutes = sOut - aOut;
-    }
-    // 3. Overtime: Up to 15 min after checkout (6:15 PM) -> no overtime.
-    // After 6:15 PM -> overtime begins (e.g. 6:30 -> Overtime = 15 minutes)
-    if (aOut > sOut + 15) {
-      overtimeMinutes = aOut - (sOut + 15);
+    } else if (aOut > sOut + 15) {
+      // 15-minute checkout overtime tolerance:
+      // Beyond 15 minutes tolerance becomes Checkout Overtime (e.g. 6:30 -> 15 mins)
+      checkoutOtMinutes = (aOut - sOut) - 15;
     }
   }
 
-  // Working hours
+  // 3. Total Daily Overtime (Section 7: Early Check-In OT + Checkout OT)
+  const overtimeMinutes = earlyCheckInOt + checkoutOtMinutes;
+
+  // 4. Worked Hours
   let workingHours = 8;
   if (status === 'HALF_DAY' || status === 'INCOMPLETE') {
     workingHours = 4;
@@ -85,7 +107,15 @@ function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualO
     workingHours = Math.round(((aOut - aIn) / 60) * 10) / 10;
   }
 
-  return { lateMinutes, earlyMinutes, overtimeMinutes, workingHours };
+  return {
+    earlyArrivalMinutes,
+    earlyCheckInOt,
+    lateMinutes,
+    earlyMinutes,
+    checkoutOtMinutes,
+    overtimeMinutes,
+    workingHours
+  };
 }
 
 module.exports = {

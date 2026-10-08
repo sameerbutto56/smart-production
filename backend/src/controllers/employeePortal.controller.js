@@ -340,6 +340,9 @@ const getMyAttendance = async (req, res) => {
     const earlyDays = attendances.filter(a => a.earlyMinutes > 0).length;
     const totalLateMinutes = attendances.reduce((sum, a) => sum + (a.lateMinutes || 0), 0);
     const totalEarlyMinutes = attendances.reduce((sum, a) => sum + (a.earlyMinutes || 0), 0);
+    const totalEarlyArrivalMinutes = attendances.reduce((sum, a) => sum + (a.earlyArrivalMinutes || 0), 0);
+    const totalEarlyCheckInOtMinutes = attendances.reduce((sum, a) => sum + (a.earlyCheckInOt || 0), 0);
+    const totalCheckoutOtMinutes = attendances.reduce((sum, a) => sum + (a.checkoutOtMinutes || 0), 0);
     const totalOvertimeMinutes = attendances.reduce((sum, a) => sum + (a.overtimeMinutes || 0), 0);
     const totalWorkedHours = attendances.reduce((sum, a) => sum + (a.workingHours || 0), 0);
 
@@ -358,6 +361,9 @@ const getMyAttendance = async (req, res) => {
         halfDays,
         totalLateMinutes,
         totalEarlyMinutes,
+        totalEarlyArrivalMinutes,
+        totalEarlyCheckInOtMinutes,
+        totalCheckoutOtMinutes,
         totalOvertimeMinutes,
         totalOvertimeHours: Math.round((totalOvertimeMinutes / 60) * 10) / 10,
         totalWorkedHours: Math.round(totalWorkedHours * 10) / 10,

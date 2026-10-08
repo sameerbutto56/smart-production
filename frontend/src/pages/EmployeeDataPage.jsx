@@ -859,10 +859,12 @@ export default function EmployeeDataPage() {
     setSelectedPayroll(payroll);
     setAdjustFormData({
       basicSalary: payroll.basicSalary,
+      overtimeHours: payroll.overtimeHours ?? 0,
+      overtimeAmount: payroll.overtimeAmount ?? 0,
+      overtimeAdjustmentReason: '',
       lateDeductions: payroll.lateDeductions,
       earlyCheckoutDeductions: payroll.earlyCheckoutDeductions,
       absentDeductions: payroll.absentDeductions,
-      overtimeAmount: payroll.overtimeAmount,
       fuelAllowance: payroll.fuelAllowance,
       travelAllowance: payroll.travelAllowance,
       otherAllowances: payroll.otherAllowances,
@@ -887,7 +889,8 @@ export default function EmployeeDataPage() {
       setLoading(true);
       await api.put(`/api/employees/payroll/${selectedPayroll.id}/adjust`, {
         ...adjustFormData,
-        reason: adjustFormData.adjustmentNote || 'Admin adjustment',
+        overtimeAdjustmentReason: adjustFormData.overtimeAdjustmentReason || adjustFormData.adjustmentNote || 'Admin Overtime Adjustment',
+        reason: adjustFormData.overtimeAdjustmentReason || adjustFormData.adjustmentNote || 'Admin adjustment',
         notes: adjustFormData.adjustmentNote || ''
       });
       toast.success('Payroll adjusted successfully');
@@ -1486,83 +1489,117 @@ export default function EmployeeDataPage() {
                   <table className="w-full text-left text-xs sm:text-sm text-slate-300">
                     <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
                       <tr>
-                        <th className="py-3 px-4">Employee ID</th>
-                        <th className="py-3 px-4">Employee Name</th>
-                        <th className="py-3 px-4">Branch</th>
-                        <th className="py-3 px-4">Scheduled Shift</th>
-                        <th className="py-3 px-4">Check-in</th>
-                        <th className="py-3 px-4">Check-out</th>
-                        <th className="py-3 px-4">Late Mins (Grace 15m)</th>
-                        <th className="py-3 px-4">Early Checkout</th>
-                        <th className="py-3 px-4">Overtime Mins</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-right">Action</th>
+                        <th className="py-3 px-3">Employee ID</th>
+                        <th className="py-3 px-3">Employee Name</th>
+                        <th className="py-3 px-3">Branch</th>
+                        <th className="py-3 px-3">Scheduled Shift</th>
+                        <th className="py-3 px-3">Check-in</th>
+                        <th className="py-3 px-3">Check-out</th>
+                        <th className="py-3 px-3">Early Arrival & OT</th>
+                        <th className="py-3 px-3">Late Mins</th>
+                        <th className="py-3 px-3">Early Checkout</th>
+                        <th className="py-3 px-3">Checkout OT</th>
+                        <th className="py-3 px-3">Total Daily OT</th>
+                        <th className="py-3 px-3">Status</th>
+                        <th className="py-3 px-3 text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-medium">
                       {dailyAttendance.length === 0 ? (
                         <tr>
-                          <td colSpan="11" className="py-12 text-center text-slate-500">
+                          <td colSpan="13" className="py-12 text-center text-slate-500">
                             {loading ? 'Loading attendance...' : 'No active staff records.'}
                           </td>
                         </tr>
                       ) : (
                         dailyAttendance.map((rec) => (
                           <tr key={rec.employeeId} className="hover:bg-slate-800/40 transition-colors">
-                            <td className="py-3 px-4 font-mono font-bold text-blue-400">
+                            <td className="py-3 px-3 font-mono font-bold text-blue-400">
                               {rec.employeeId}
                             </td>
-                            <td className="py-3 px-4 font-bold text-white">
+                            <td className="py-3 px-3 font-bold text-white">
                               {rec.employeeName}
                             </td>
-                            <td className="py-3 px-4 text-slate-400">
+                            <td className="py-3 px-3 text-slate-400 text-xs">
                               {rec.branch || '—'}
                             </td>
-                            <td className="py-3 px-4 font-mono text-slate-400 text-xs">
+                            <td className="py-3 px-3 font-mono text-slate-400 text-xs">
                               {rec.scheduledCheckIn} - {rec.scheduledCheckOut}
                             </td>
-                            <td className="py-3 px-4 font-mono">
+                            <td className="py-3 px-3 font-mono">
                               {rec.checkInTime ? (
                                 <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
                               ) : (
                                 <span className="text-slate-600">--:--</span>
                               )}
                             </td>
-                            <td className="py-3 px-4 font-mono">
+                            <td className="py-3 px-3 font-mono">
                               {rec.checkOutTime ? (
                                 <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
                               ) : (
                                 <span className="text-slate-600">--:--</span>
                               )}
                             </td>
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-3">
+                              {rec.earlyArrivalMinutes > 0 ? (
+                                <div className="space-y-0.5">
+                                  <span className="text-cyan-400 font-mono text-xs block">
+                                    {rec.earlyArrivalMinutes}m early
+                                  </span>
+                                  {rec.earlyCheckInOt > 0 ? (
+                                    <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 text-[10px] inline-block">
+                                      +{rec.earlyCheckInOt}m OT
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-500 text-[10px]">Within 10m tol</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
                               {rec.lateMinutes > 0 ? (
-                                <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                                <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 text-xs">
                                   +{rec.lateMinutes}m Late
                                 </span>
                               ) : (
                                 <span className="text-emerald-400 text-xs">On Time</span>
                               )}
                             </td>
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-3">
                               {rec.earlyMinutes > 0 ? (
-                                <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-xs">
                                   -{rec.earlyMinutes}m Early
                                 </span>
                               ) : (
                                 <span className="text-slate-500 text-xs">—</span>
                               )}
                             </td>
-                            <td className="py-3 px-4">
-                              {rec.overtimeMinutes > 0 ? (
-                                <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                                  +{rec.overtimeMinutes}m OT
+                            <td className="py-3 px-3">
+                              {rec.checkoutOtMinutes > 0 ? (
+                                <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20 text-xs">
+                                  +{rec.checkoutOtMinutes}m OT
                                 </span>
                               ) : (
                                 <span className="text-slate-500 text-xs">—</span>
                               )}
                             </td>
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-3">
+                              {rec.overtimeMinutes > 0 ? (
+                                <div>
+                                  <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 text-xs block">
+                                    +{rec.overtimeMinutes}m Total
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                                    ({Math.round((rec.overtimeMinutes / 60) * 10) / 10} hrs)
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
                               <span
                                 className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
                                   rec.status === 'PRESENT'
@@ -1579,7 +1616,7 @@ export default function EmployeeDataPage() {
                                 {rec.status}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-3 px-3 text-right">
                               <button
                                 onClick={() => handleOpenMarkAttendance(rec)}
                                 className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
@@ -1745,7 +1782,7 @@ export default function EmployeeDataPage() {
 
               {/* Summary KPI Cards (Section 18) */}
               {rangeAttendanceSummary && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Working Days</span>
                     <h4 className="text-2xl font-black text-white mt-1">{rangeAttendanceSummary.totalWorkingDays}</h4>
@@ -1783,21 +1820,37 @@ export default function EmployeeDataPage() {
                   </div>
 
                   <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Worked Hours</span>
-                    <h4 className="text-2xl font-black text-cyan-400 mt-1">{rangeAttendanceSummary.totalWorkedHours} hrs</h4>
-                    <span className="text-[10px] text-cyan-500/70">Actual verified time</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Early Check-In OT</span>
+                    <h4 className="text-2xl font-black text-cyan-400 mt-1">{rangeAttendanceSummary.totalEarlyCheckInOt || 0}m</h4>
+                    <span className="text-[10px] text-cyan-500/70 font-semibold">
+                      {Math.round(((rangeAttendanceSummary.totalEarlyCheckInOt || 0) / 60) * 10) / 10}h • Arr: {rangeAttendanceSummary.totalEarlyArrivalMinutes || 0}m
+                    </span>
                   </div>
 
                   <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Overtime Hours</span>
-                    <h4 className="text-2xl font-black text-indigo-400 mt-1">{rangeAttendanceSummary.totalOvertimeHours} hrs</h4>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Checkout OT</span>
+                    <h4 className="text-2xl font-black text-purple-400 mt-1">{rangeAttendanceSummary.totalCheckoutOt || 0}m</h4>
+                    <span className="text-[10px] text-purple-500/70 font-semibold">
+                      {Math.round(((rangeAttendanceSummary.totalCheckoutOt || 0) / 60) * 10) / 10}h post-shift OT
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Overtime</span>
+                    <h4 className="text-2xl font-black text-indigo-400 mt-1">{rangeAttendanceSummary.totalOvertimeHours}h</h4>
                     <span className="text-[10px] text-indigo-500/70">{rangeAttendanceSummary.totalOvertimeMinutes} total OT mins</span>
                   </div>
 
                   <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Worked Hours</span>
+                    <h4 className="text-2xl font-black text-emerald-400 mt-1">{rangeAttendanceSummary.totalWorkedHours}h</h4>
+                    <span className="text-[10px] text-emerald-500/70">Verified shift time</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 col-span-2">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Overall Attendance %</span>
                     <h4 className="text-2xl font-black text-emerald-400 mt-1">{rangeAttendanceSummary.attendancePercentage}%</h4>
-                    <span className="text-[10px] text-slate-500">Range compliance</span>
+                    <span className="text-[10px] text-slate-500">Range attendance compliance</span>
                   </div>
                 </div>
               )}
@@ -1823,9 +1876,11 @@ export default function EmployeeDataPage() {
                         <th className="py-3 px-3">Shift</th>
                         <th className="py-3 px-3">Check-in</th>
                         <th className="py-3 px-3">Check-out</th>
+                        <th className="py-3 px-3">Early Arrival & OT</th>
                         <th className="py-3 px-3">Late Mins</th>
-                        <th className="py-3 px-3">Early Mins</th>
-                        <th className="py-3 px-3">Overtime Mins</th>
+                        <th className="py-3 px-3">Early Checkout</th>
+                        <th className="py-3 px-3">Checkout OT</th>
+                        <th className="py-3 px-3">Total Daily OT</th>
                         <th className="py-3 px-3">Status</th>
                         <th className="py-3 px-3 text-right">Action</th>
                       </tr>
@@ -1833,7 +1888,7 @@ export default function EmployeeDataPage() {
                     <tbody className="divide-y divide-slate-800/60 font-medium">
                       {rangeAttendanceRecords.length === 0 ? (
                         <tr>
-                          <td colSpan="12" className="py-12 text-center text-slate-500">
+                          <td colSpan="14" className="py-12 text-center text-slate-500">
                             {loadingRangeAtt ? 'Fetching range attendance records...' : 'No records found for the selected date range. Click "Apply & Fetch Report" to load.'}
                           </td>
                         </tr>
@@ -1862,6 +1917,24 @@ export default function EmployeeDataPage() {
                               )}
                             </td>
                             <td className="py-3 px-3">
+                              {rec.earlyArrivalMinutes > 0 ? (
+                                <div className="space-y-0.5">
+                                  <span className="text-cyan-400 font-mono text-xs block">
+                                    {rec.earlyArrivalMinutes}m early
+                                  </span>
+                                  {rec.earlyCheckInOt > 0 ? (
+                                    <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 text-[10px] inline-block">
+                                      +{rec.earlyCheckInOt}m OT
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-500 text-[10px]">Within 10m tol</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
                               {rec.lateMinutes > 0 ? (
                                 <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-xs">
                                   +{rec.lateMinutes}m
@@ -1880,10 +1953,24 @@ export default function EmployeeDataPage() {
                               )}
                             </td>
                             <td className="py-3 px-3">
-                              {rec.overtimeMinutes > 0 ? (
-                                <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded text-xs">
-                                  +{rec.overtimeMinutes}m
+                              {rec.checkoutOtMinutes > 0 ? (
+                                <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20 text-xs">
+                                  +{rec.checkoutOtMinutes}m OT
                                 </span>
+                              ) : (
+                                <span className="text-slate-500 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {rec.overtimeMinutes > 0 ? (
+                                <div>
+                                  <span className="font-mono font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded text-xs block">
+                                    +{rec.overtimeMinutes}m
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                                    ({Math.round((rec.overtimeMinutes / 60) * 10) / 10} hrs)
+                                  </span>
+                                </div>
                               ) : (
                                 <span className="text-slate-500 text-xs">—</span>
                               )}
@@ -3864,6 +3951,27 @@ export default function EmployeeDataPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Overtime Hours (hrs)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={adjustFormData.overtimeHours ?? ''}
+                    onChange={(e) => {
+                      const newHours = parseFloat(e.target.value) || 0;
+                      const bSalary = parseFloat(adjustFormData.basicSalary) || 0;
+                      const hourlyRate = bSalary / ((selectedPayroll.workingDays || 30) * 8);
+                      const autoOtAmt = Math.round(newHours * hourlyRate);
+                      setAdjustFormData({
+                        ...adjustFormData,
+                        overtimeHours: e.target.value,
+                        overtimeAmount: autoOtAmt
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-mono focus:outline-none"
+                    placeholder="e.g. 5.5"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">Overtime Pay (₨)</label>
                   <input
                     type="number"
@@ -3978,12 +4086,23 @@ export default function EmployeeDataPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Adjustment Note / Reason</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Adjustment Note / General Reason</label>
                 <input
                   type="text"
                   placeholder="e.g. Advance override or festival bonus"
                   value={adjustFormData.adjustmentNote}
                   onChange={(e) => setAdjustFormData({ ...adjustFormData, adjustmentNote: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Overtime Adjustment Reason (Audit Trail)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Approved extra floor shift on weekend or missing machine checkout"
+                  value={adjustFormData.overtimeAdjustmentReason}
+                  onChange={(e) => setAdjustFormData({ ...adjustFormData, overtimeAdjustmentReason: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
                 />
               </div>

@@ -381,8 +381,11 @@ const getDailyAttendance = async (req, res) => {
         checkOutTime: null,
         scheduledCheckIn: emp.checkInTime || '10:00',
         scheduledCheckOut: emp.checkOutTime || '18:00',
+        earlyArrivalMinutes: 0,
+        earlyCheckInOt: 0,
         lateMinutes: 0,
         earlyMinutes: 0,
+        checkoutOtMinutes: 0,
         overtimeMinutes: 0,
         status: 'ABSENT',
         workingHours: emp.workingHours || 8,
@@ -422,7 +425,7 @@ const markAttendance = async (req, res) => {
     const sIn = employee.checkInTime || '10:00';
     const sOut = employee.checkOutTime || '18:00';
 
-    const { lateMinutes, earlyMinutes, overtimeMinutes, workingHours } = calculateAttendanceMetrics(
+    const { earlyArrivalMinutes, earlyCheckInOt, lateMinutes, earlyMinutes, checkoutOtMinutes, overtimeMinutes, workingHours } = calculateAttendanceMetrics(
       sIn,
       sOut,
       checkInTime,
@@ -494,8 +497,11 @@ const markAttendance = async (req, res) => {
         checkOutTime: checkOutTime || null,
         scheduledCheckIn: sIn,
         scheduledCheckOut: sOut,
+        earlyArrivalMinutes,
+        earlyCheckInOt,
         lateMinutes,
         earlyMinutes,
+        checkoutOtMinutes,
         overtimeMinutes,
         status: finalStatus,
         workingHours,
@@ -509,8 +515,11 @@ const markAttendance = async (req, res) => {
         checkOutTime: checkOutTime || null,
         scheduledCheckIn: sIn,
         scheduledCheckOut: sOut,
+        earlyArrivalMinutes,
+        earlyCheckInOt,
         lateMinutes,
         earlyMinutes,
+        checkoutOtMinutes,
         overtimeMinutes,
         status: finalStatus,
         workingHours,
@@ -1012,6 +1021,9 @@ const getAttendanceRange = async (req, res) => {
     let summaryTotalLateMinutes = 0;
     let summaryEarlyCheckouts = 0;
     let summaryTotalEarlyMinutes = 0;
+    let summaryTotalEarlyArrivalMinutes = 0;
+    let summaryTotalEarlyCheckInOt = 0;
+    let summaryTotalCheckoutOt = 0;
     let summaryWorkedHours = 0;
     let summaryOvertimeMinutes = 0;
 
@@ -1045,6 +1057,9 @@ const getAttendanceRange = async (req, res) => {
             summaryEarlyCheckouts++;
             summaryTotalEarlyMinutes += att.earlyMinutes;
           }
+          summaryTotalEarlyArrivalMinutes += (att.earlyArrivalMinutes || 0);
+          summaryTotalEarlyCheckInOt += (att.earlyCheckInOt || 0);
+          summaryTotalCheckoutOt += (att.checkoutOtMinutes || 0);
           summaryWorkedHours += (att.workingHours || 0);
           summaryOvertimeMinutes += (att.overtimeMinutes || 0);
         } else {
@@ -1067,8 +1082,11 @@ const getAttendanceRange = async (req, res) => {
             checkOutTime: null,
             scheduledCheckIn: emp.checkInTime || '10:00',
             scheduledCheckOut: emp.checkOutTime || '18:00',
+            earlyArrivalMinutes: 0,
+            earlyCheckInOt: 0,
             lateMinutes: 0,
             earlyMinutes: 0,
+            checkoutOtMinutes: 0,
             overtimeMinutes: 0,
             status: autoStatus,
             workingHours: 0,
@@ -1098,6 +1116,9 @@ const getAttendanceRange = async (req, res) => {
         totalLateMinutes: summaryTotalLateMinutes,
         earlyCheckouts: summaryEarlyCheckouts,
         totalEarlyMinutes: summaryTotalEarlyMinutes,
+        totalEarlyArrivalMinutes: summaryTotalEarlyArrivalMinutes,
+        totalEarlyCheckInOt: summaryTotalEarlyCheckInOt,
+        totalCheckoutOt: summaryTotalCheckoutOt,
         totalWorkedHours: Math.round(summaryWorkedHours * 10) / 10,
         totalOvertimeMinutes: summaryOvertimeMinutes,
         totalOvertimeHours: Math.round((summaryOvertimeMinutes / 60) * 10) / 10,
@@ -1586,7 +1607,10 @@ const calculateMonthlyPayroll = async (req, res) => {
       const perMinuteSalary = perDaySalary / ((emp.workingHours || 8) * 60);
       const earlyCheckoutDeductions = Math.round(totalEarlyMinutes * perMinuteSalary);
 
-      // Overtime
+      // Overtime (Sections 1-9 & 13)
+      const totalEarlyArrivalMinutes = records.reduce((sum, r) => sum + (r.earlyArrivalMinutes || 0), 0);
+      const totalEarlyCheckInOtMinutes = records.reduce((sum, r) => sum + (r.earlyCheckInOt || 0), 0);
+      const totalCheckoutOtMinutes = records.reduce((sum, r) => sum + (r.checkoutOtMinutes || 0), 0);
       const totalOvertimeMinutes = records.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
       const overtimeHours = Math.round((totalOvertimeMinutes / 60) * 10) / 10;
       const hourlyRate = (emp.monthlySalary || 0) / ((emp.workingDays || 30) * (emp.workingHours || 8));
@@ -1655,8 +1679,13 @@ const calculateMonthlyPayroll = async (req, res) => {
           halfDays,
           lateDeductionDays,
           totalEarlyMinutes,
+          totalEarlyArrivalMinutes,
+          totalEarlyCheckInOtMinutes,
+          totalCheckoutOtMinutes,
           totalOvertimeMinutes,
-          overtimeHours
+          overtimeHours,
+          overtimeHourlyRate: Math.round(hourlyRate),
+          overtimeAmount
         },
         formula: {
           perDaySalary,
@@ -1781,10 +1810,12 @@ const adjustPayroll = async (req, res) => {
 
     const {
       basicSalary,
+      overtimeHours,
+      overtimeAmount,
+      overtimeAdjustmentReason,
       lateDeductions,
       earlyCheckoutDeductions,
       absentDeductions,
-      overtimeAmount,
       fuelAllowance,
       travelAllowance,
       otherAllowances,
@@ -1804,7 +1835,17 @@ const adjustPayroll = async (req, res) => {
     const lDed = lateDeductions !== undefined ? parseFloat(lateDeductions) : existing.lateDeductions;
     const eDed = earlyCheckoutDeductions !== undefined ? parseFloat(earlyCheckoutDeductions) : existing.earlyCheckoutDeductions;
     const aDed = absentDeductions !== undefined ? parseFloat(absentDeductions) : existing.absentDeductions;
-    const otAmt = overtimeAmount !== undefined ? parseFloat(overtimeAmount) : existing.overtimeAmount;
+
+    let otHours = existing.overtimeHours;
+    let otAmt = existing.overtimeAmount;
+    if (overtimeHours !== undefined) {
+      otHours = parseFloat(overtimeHours) || 0;
+      const hourlyRate = (bSalary || 0) / ((existing.workingDays || 30) * 8);
+      otAmt = overtimeAmount !== undefined ? parseFloat(overtimeAmount) : Math.round(otHours * hourlyRate);
+    } else if (overtimeAmount !== undefined) {
+      otAmt = parseFloat(overtimeAmount);
+    }
+
     const fAllow = fuelAllowance !== undefined ? parseFloat(fuelAllowance) : existing.fuelAllowance;
     const tAllow = travelAllowance !== undefined ? parseFloat(travelAllowance) : existing.travelAllowance;
     const oAllow = otherAllowances !== undefined ? parseFloat(otherAllowances) : existing.otherAllowances;
@@ -1816,8 +1857,16 @@ const adjustPayroll = async (req, res) => {
     const prodEarn = productionEarning !== undefined ? parseFloat(productionEarning) : existing.productionEarning;
     const manAdj = manualAdjustment !== undefined ? parseFloat(manualAdjustment) : existing.manualAdjustment;
 
-    // Record audit trail entries (Section 23, 40)
+    // Record audit trail entries (Section 14, 23, 40)
     const auditLogs = [];
+    if (otHours !== existing.overtimeHours) {
+      auditLogs.push({
+        field: 'overtimeHours',
+        oldVal: existing.overtimeHours,
+        newVal: otHours,
+        reason: overtimeAdjustmentReason || adjustmentNote || 'Admin Overtime Adjustment'
+      });
+    }
     if (manAdj !== existing.manualAdjustment) {
       auditLogs.push({ field: 'manualAdjustment', oldVal: existing.manualAdjustment, newVal: manAdj });
     }
@@ -1864,6 +1913,7 @@ const adjustPayroll = async (req, res) => {
         lateDeductions: lDed,
         earlyCheckoutDeductions: eDed,
         absentDeductions: aDed,
+        overtimeHours: otHours,
         overtimeAmount: otAmt,
         fuelAllowance: fAllow,
         travelAllowance: tAllow,

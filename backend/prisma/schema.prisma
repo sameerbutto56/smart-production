@@ -2890,8 +2890,11 @@ model EmployeeAttendance {
   checkOutTime      String?         // Actual e.g. "06:20 PM"
   scheduledCheckIn  String          @default("10:00")
   scheduledCheckOut String          @default("18:00")
+  earlyArrivalMinutes Int           @default(0)
+  earlyCheckInOt    Int             @default(0)
   lateMinutes       Int             @default(0)
   earlyMinutes      Int             @default(0)
+  checkoutOtMinutes Int             @default(0)
   overtimeMinutes   Int             @default(0)
   status            String          @default("PRESENT") // "PRESENT", "ABSENT", "LATE", "HALF_DAY", "LEAVE"
   workingHours      Float           @default(8)

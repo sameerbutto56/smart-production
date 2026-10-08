@@ -709,8 +709,9 @@ export default function EmployeePortalLayout() {
             </div>
 
             {/* Attendance Summary */}
+            {/* Attendance Summary */}
             {attendanceData?.summary && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
                   <span className="text-[10px] text-slate-400 font-bold uppercase">Present Days</span>
                   <h4 className="text-xl font-black text-emerald-400 mt-1">{attendanceData.summary.presentDays}</h4>
@@ -728,58 +729,98 @@ export default function EmployeePortalLayout() {
                   <span className="text-[10px] text-slate-500">3 lates = 1 day salary deduction</span>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">Overtime</span>
-                  <h4 className="text-xl font-black text-purple-400 mt-1">{attendanceData.summary.totalOvertimeHours} hrs</h4>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Early Check-in OT</span>
+                  <h4 className="text-xl font-black text-indigo-400 mt-1">{attendanceData.summary.totalEarlyCheckInOtMinutes || 0}m</h4>
+                  <span className="text-[10px] text-slate-500">Early Arrival: {attendanceData.summary.totalEarlyArrivalMinutes || 0}m</span>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Checkout OT</span>
+                  <h4 className="text-xl font-black text-purple-400 mt-1">{attendanceData.summary.totalCheckoutOtMinutes || 0}m</h4>
+                  <span className="text-[10px] text-slate-500">15m tolerance</span>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Total Overtime</span>
+                  <h4 className="text-xl font-black text-emerald-400 mt-1">{attendanceData.summary.totalOvertimeHours} hrs</h4>
+                  <span className="text-[10px] text-slate-500">{attendanceData.summary.totalOvertimeMinutes} total OT mins</span>
                 </div>
               </div>
             )}
 
-            {/* Attendance Daily Table */}
+            {/* Attendance Daily Table (Section 10) */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs sm:text-sm text-slate-300">
                   <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
                     <tr>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Scheduled In / Out</th>
-                      <th className="py-3 px-4">Actual Check-in</th>
-                      <th className="py-3 px-4">Actual Check-out</th>
-                      <th className="py-3 px-4">Late Mins (Grace 15m)</th>
-                      <th className="py-3 px-4">Overtime Mins</th>
-                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-3">Date</th>
+                      <th className="py-3 px-3">Shift</th>
+                      <th className="py-3 px-3">Check-in</th>
+                      <th className="py-3 px-3">Check-out</th>
+                      <th className="py-3 px-3">Late Mins</th>
+                      <th className="py-3 px-3">Early Arrival & OT</th>
+                      <th className="py-3 px-3">Checkout OT</th>
+                      <th className="py-3 px-3">Total Daily OT</th>
+                      <th className="py-3 px-3">Worked</th>
+                      <th className="py-3 px-3">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-medium">
                     {!attendanceData?.records || attendanceData.records.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="py-8 text-center text-slate-500">
+                        <td colSpan="10" className="py-8 text-center text-slate-500">
                           {loading ? 'Loading attendance...' : 'No attendance records logged for this month.'}
                         </td>
                       </tr>
                     ) : (
                       attendanceData.records.map((r) => (
-                        <tr key={r.id} className="hover:bg-slate-850/40">
-                          <td className="py-3 px-4 font-mono font-bold text-white">{r.date}</td>
-                          <td className="py-3 px-4 font-mono text-slate-400 text-xs">
+                        <tr key={r.id || r.date} className="hover:bg-slate-850/40">
+                          <td className="py-3 px-3 font-mono font-bold text-white whitespace-nowrap">{r.date}</td>
+                          <td className="py-3 px-3 font-mono text-slate-400 text-xs whitespace-nowrap">
                             {r.scheduledCheckIn} - {r.scheduledCheckOut}
                           </td>
-                          <td className="py-3 px-4 font-mono text-emerald-400 font-bold">{r.checkInTime || '--:--'}</td>
-                          <td className="py-3 px-4 font-mono text-blue-400 font-bold">{r.checkOutTime || '--:--'}</td>
-                          <td className="py-3 px-4 font-mono">
+                          <td className="py-3 px-3 font-mono text-emerald-400 font-bold whitespace-nowrap">{r.checkInTime || '--:--'}</td>
+                          <td className="py-3 px-3 font-mono text-blue-400 font-bold whitespace-nowrap">{r.checkOutTime || '--:--'}</td>
+                          <td className="py-3 px-3 font-mono whitespace-nowrap">
                             {r.lateMinutes > 0 ? (
-                              <span className="text-rose-400 font-bold">+{r.lateMinutes}m Late</span>
+                              <span className="text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">+{r.lateMinutes}m Late</span>
                             ) : (
                               <span className="text-emerald-400 text-xs">On Time</span>
                             )}
                           </td>
-                          <td className="py-3 px-4 font-mono">
-                            {r.overtimeMinutes > 0 ? (
-                              <span className="text-purple-400 font-bold">+{r.overtimeMinutes}m OT</span>
+                          <td className="py-3 px-3 font-mono whitespace-nowrap">
+                            {r.earlyArrivalMinutes > 0 ? (
+                              <div className="flex flex-col text-xs">
+                                <span className="text-slate-400">Early: {r.earlyArrivalMinutes}m</span>
+                                {r.earlyCheckInOt > 0 ? (
+                                  <span className="text-indigo-400 font-bold">+{r.earlyCheckInOt}m OT</span>
+                                ) : (
+                                  <span className="text-slate-500 text-[10px]">Within 10m tol</span>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-slate-600">—</span>
                             )}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-3 font-mono whitespace-nowrap">
+                            {r.checkoutOtMinutes > 0 ? (
+                              <span className="text-purple-400 font-bold">+{r.checkoutOtMinutes}m</span>
+                            ) : (
+                              <span className="text-slate-600">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-mono whitespace-nowrap">
+                            {r.overtimeMinutes > 0 ? (
+                              <span className="font-bold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded-lg border border-purple-500/30">
+                                +{r.overtimeMinutes}m OT
+                              </span>
+                            ) : (
+                              <span className="text-slate-600">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-mono text-cyan-400 font-bold whitespace-nowrap">
+                            {r.workingHours ? `${r.workingHours}h` : '—'}
+                          </td>
+                          <td className="py-3 px-3 whitespace-nowrap">
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                                 r.status === 'PRESENT'

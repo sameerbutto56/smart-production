@@ -271,8 +271,16 @@ async function processEmployeePunch({
     }
   }
 
-  // Calculate metrics
-  const { lateMinutes, earlyMinutes, overtimeMinutes, workingHours } = calculateAttendanceMetrics(
+  // Calculate metrics with all dimensions (Sections 1-7)
+  const {
+    earlyArrivalMinutes,
+    earlyCheckInOt,
+    lateMinutes,
+    earlyMinutes,
+    checkoutOtMinutes,
+    overtimeMinutes,
+    workingHours
+  } = calculateAttendanceMetrics(
     sIn,
     sOut,
     checkIn,
@@ -295,8 +303,11 @@ async function processEmployeePunch({
       checkOutTime: checkOut,
       scheduledCheckIn: sIn,
       scheduledCheckOut: sOut,
+      earlyArrivalMinutes,
+      earlyCheckInOt,
       lateMinutes,
       earlyMinutes,
+      checkoutOtMinutes,
       overtimeMinutes,
       status: finalStatus,
       workingHours,
@@ -310,8 +321,11 @@ async function processEmployeePunch({
       checkOutTime: checkOut,
       scheduledCheckIn: sIn,
       scheduledCheckOut: sOut,
+      earlyArrivalMinutes,
+      earlyCheckInOt,
       lateMinutes,
       earlyMinutes,
+      checkoutOtMinutes,
       overtimeMinutes,
       status: finalStatus,
       workingHours,
