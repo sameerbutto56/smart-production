@@ -1013,6 +1013,8 @@ const recalculateAttendanceRange = async (req, res) => {
     let updatedWithPunches = 0;
     let reconciledAbsents = 0;
 
+    const upsertTasks = [];
+
     for (const emp of employees) {
       const sIn = emp.checkInTime || '10:00';
       const sOut = emp.checkOutTime || '18:00';
@@ -1047,7 +1049,7 @@ const recalculateAttendanceRange = async (req, res) => {
           let finalStatus = 'PRESENT';
           if (lateMinutes > 0) finalStatus = 'LATE';
 
-          await prisma.employeeAttendance.upsert({
+          upsertTasks.push(() => prisma.employeeAttendance.upsert({
             where: { employeeId_date: { employeeId: emp.employeeId, date: d } },
             update: {
               employeeName: emp.name,
@@ -1089,14 +1091,14 @@ const recalculateAttendanceRange = async (req, res) => {
               source: 'MACHINE',
               notes: `Real machine attendance [Punches: ${punches.length}]`
             }
-          });
+          }));
           updatedWithPunches++;
         } else {
           // No machine record available (Section 3, 11, 31) -> NEVER INVENT TIMES!
           const onLeave = leaves.find(l => l.employeeId === emp.employeeId && l.startDate <= d && l.endDate >= d);
           const autoStatus = onLeave ? 'LEAVE' : 'ABSENT';
 
-          await prisma.employeeAttendance.upsert({
+          upsertTasks.push(() => prisma.employeeAttendance.upsert({
             where: { employeeId_date: { employeeId: emp.employeeId, date: d } },
             update: {
               employeeName: emp.name,
@@ -1138,10 +1140,16 @@ const recalculateAttendanceRange = async (req, res) => {
               source: 'MACHINE',
               notes: onLeave ? `Approved ${onLeave.leaveType} Leave` : 'No machine record'
             }
-          });
+          }));
           reconciledAbsents++;
         }
       }
+    }
+
+    // Execute in parallel batches of 15
+    const CHUNK_SIZE = 15;
+    for (let i = 0; i < upsertTasks.length; i += CHUNK_SIZE) {
+      await Promise.all(upsertTasks.slice(i, i + CHUNK_SIZE).map(task => task()));
     }
 
     res.json({
