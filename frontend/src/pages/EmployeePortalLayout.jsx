@@ -217,6 +217,23 @@ export default function EmployeePortalLayout() {
     else if (activeTab === 'work-records') fetchWorkRecords();
   }, [activeTab, fetchDashboard, fetchAttendance, fetchLeaves, fetchLoans, fetchProduction, fetchPayrolls, fetchWorkRecords]);
 
+  // Auto-refresh when tab is focused or periodically every 30s for live biometric updates
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchDashboard();
+      if (activeTab === 'attendance') fetchAttendance();
+    };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(() => {
+      fetchDashboard();
+      if (activeTab === 'attendance') fetchAttendance();
+    }, 30000);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [fetchDashboard, fetchAttendance, activeTab]);
+
   // Submit Leave Request
   const handleSubmitLeave = async (e) => {
     e.preventDefault();
