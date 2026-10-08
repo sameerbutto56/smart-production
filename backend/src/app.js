@@ -136,7 +136,9 @@ const productDataRoutes = require('./routes/productData.routes');
 const abbottabadRoutes = require('./routes/abbottabad.routes');
 const employeeRoutes = require('./routes/employee.routes');
 const employeePortalRoutes = require('./routes/employeePortal.routes');
+const biometricRoutes = require('./routes/biometric.routes');
 
+app.use('/api/biometric', biometricRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/employee-portal', employeePortalRoutes);
 app.use('/api/abbottabad', abbottabadRoutes);
