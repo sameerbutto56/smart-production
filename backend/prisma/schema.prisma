@@ -2900,6 +2900,10 @@ model EmployeeAttendance {
   workingHours      Float           @default(8)
   breakDuration     Int             @default(0)         // Break minutes
   notes             String?
+  source            String          @default("MACHINE") // "MACHINE", "MANUAL", "IMPORTED"
+  rawPunchIn        String?         // Exact raw punch in timestamp
+  rawPunchOut       String?         // Exact raw punch out timestamp
+  machineId         String?         @default("DS-K1T342MFWX")
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -3020,11 +3024,15 @@ model MachineAttendance {
   machineId     String?  @default("DS-K1T342MFWX")
   machineUserId String   // Raw machine ID e.g. "02", "105"
   employeeId    String?  // Mapped System Employee ID e.g. "02"
+  employeeName  String?  // Captured employee name
   punchDate     String   // "YYYY-MM-DD"
   punchTime     String   // "HH:MM:SS" or "HH:MM"
+  rawTimestamp  String?  // Original unmodified timestamp string
+  transactionId String?  // Machine transaction / serial event ID
   punchType     String?  @default("CHECK_IN") // CHECK_IN, CHECK_OUT, UNKNOWN
   verifyMode    String?  @default("BIOMETRIC") // face, fingerPrint, card
   location      String?  @default("Johar Town")
+  source        String   @default("MACHINE") // MACHINE, MANUAL, IMPORTED
   rawPayload    Json?
   status        String   @default("PROCESSED") // PROCESSED, UNMATCHED, DUPLICATE
   createdAt     DateTime @default(now())

@@ -778,7 +778,13 @@ export default function EmployeePortalLayout() {
                           <td className="py-3 px-3 font-mono text-slate-400 text-xs whitespace-nowrap">
                             {r.scheduledCheckIn} - {r.scheduledCheckOut}
                           </td>
-                          <td className="py-3 px-3 font-mono text-emerald-400 font-bold whitespace-nowrap">{r.checkInTime || '--:--'}</td>
+                          <td className="py-3 px-3 font-mono whitespace-nowrap">
+                            {r.checkInTime ? (
+                              <span className="text-emerald-400 font-bold">{r.checkInTime}</span>
+                            ) : (
+                              <span className="text-slate-500 text-xs italic font-sans font-normal">No machine record</span>
+                            )}
+                          </td>
                           <td className="py-3 px-3 font-mono text-blue-400 font-bold whitespace-nowrap">{r.checkOutTime || '--:--'}</td>
                           <td className="py-3 px-3 font-mono whitespace-nowrap">
                             {r.lateMinutes > 0 ? (

@@ -13,51 +13,99 @@ function recordLog(entry) {
     timestamp: new Date().toISOString(),
     ...entry
   });
-  if (recentBiometricLogs.length > 50) {
+  if (recentBiometricLogs.length > 100) {
     recentBiometricLogs.pop();
   }
 }
 
 /**
- * Normalizes date & time from Hikvision device payload.
- * Hikvision formats can be:
- * - "2026-10-08T11:14:33+05:00"
- * - "2026-10-08 11:14:33"
- * - ISO string
+ * Normalizes date & time from machine payload.
+ * Guarantee: Preserves exact machine time in Asia/Karachi operating timezone.
+ * NEVER estimates, rounds, or adds/subtracts arbitrary offsets.
  */
-function parseHikvisionDateTime(raw) {
+function parseMachineDateTime(raw) {
   if (!raw) {
     const now = new Date();
-    // Pakistan is UTC+5
-    const pkDate = new Date(now.getTime() + (5 * 60 - now.getTimezoneOffset()) * 60000);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).formatToParts(now);
+    const p = {};
+    parts.forEach(x => { p[x.type] = x.value; });
     return {
-      date: pkDate.toISOString().slice(0, 10),
-      timeStr: pkDate.toISOString().slice(11, 16)
+      date: `${p.year}-${p.month}-${p.day}`,
+      timeStr: `${p.hour}:${p.minute}:${p.second}`,
+      rawTimestamp: 'SERVER_FALLBACK'
     };
   }
 
   const str = String(raw).trim();
-  // Check if starts with YYYY-MM-DD
-  const m = str.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2})(?::\d{2})?/);
-  if (m) {
+
+  // Pattern A: Plain datetime "YYYY-MM-DD HH:MM:SS" or "YYYY/MM/DD HH:MM:SS" or "YYYY-MM-DDTHH:MM:SS"
+  // If followed by +05:00 or no timezone, it's ALREADY in Pakistan local time!
+  const matchPlainOrPkt = str.match(/^(\d{4}[-/]\d{2}[-/]\d{2})[T\s](\d{2}:\d{2}(?::\d{2})?)(?:\+05:?00)?$/i);
+  if (matchPlainOrPkt) {
+    const d = matchPlainOrPkt[1].replace(/\//g, '-');
+    let t = matchPlainOrPkt[2];
+    if (t.length === 5) t = `${t}:00`;
     return {
-      date: m[1],
-      timeStr: m[2]
+      date: d,
+      timeStr: t,
+      rawTimestamp: str
     };
   }
 
-  const parsed = new Date(str);
-  if (!isNaN(parsed.getTime())) {
+  // Pattern B: Time only "HH:MM:SS" or "HH:MM" (e.g. "10:03:27")
+  const matchTimeOnly = str.match(/^(\d{2}:\d{2}(?::\d{2})?)$/);
+  if (matchTimeOnly) {
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+    let t = matchTimeOnly[1];
+    if (t.length === 5) t = `${t}:00`;
     return {
-      date: parsed.toISOString().slice(0, 10),
-      timeStr: parsed.toISOString().slice(11, 16)
+      date: today,
+      timeStr: t,
+      rawTimestamp: str
     };
   }
 
-  const now = new Date();
+  // Pattern C: ISO with explicit timezone Z or offset other than +05:00 (e.g. 2026-10-08T05:00:25Z)
+  const dt = new Date(str);
+  if (!isNaN(dt.getTime())) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).formatToParts(dt);
+    const p = {};
+    parts.forEach(x => { p[x.type] = x.value; });
+    return {
+      date: `${p.year}-${p.month}-${p.day}`,
+      timeStr: `${p.hour}:${p.minute}:${p.second}`,
+      rawTimestamp: str
+    };
+  }
+
+  // Fallback if unparseable
   return {
-    date: now.toISOString().slice(0, 10),
-    timeStr: now.toISOString().slice(11, 16)
+    date: new Date().toISOString().slice(0, 10),
+    timeStr: '10:00:00',
+    rawTimestamp: str
   };
 }
 
@@ -148,21 +196,28 @@ async function findEmployeeByIdentifier(rawId, rawName) {
 
 /**
  * Core punch processing logic.
+ * 1. Upserts raw punch into MachineAttendance.
+ * 2. Recalculates first & last punch for the day.
+ * 3. Applies attendance engine rules.
+ * 4. Updates EmployeeAttendance with source: 'MACHINE'.
  */
 async function processEmployeePunch({
   employeeId,
   employeeName,
   date,
   timeStr,
+  rawTimestamp = null,
+  transactionId = null,
   verifyMode = 'BIOMETRIC',
   deviceName = 'DS-K1T342MFWX',
   rawPayload = null,
-  req
+  source = 'MACHINE',
+  req = null
 }) {
   const emp = await findEmployeeByIdentifier(employeeId, employeeName);
 
   if (!emp) {
-    // Store in MachineAttendance as UNMATCHED so Admin can see unknown punch
+    // Store in MachineAttendance as UNMATCHED so Admin can audit unrecognized punches
     try {
       await prisma.machineAttendance.upsert({
         where: {
@@ -174,26 +229,32 @@ async function processEmployeePunch({
           }
         },
         update: {
+          employeeName: employeeName || null,
+          rawTimestamp: rawTimestamp || timeStr,
+          transactionId: transactionId || null,
           status: 'UNMATCHED',
           verifyMode,
+          source,
           rawPayload: rawPayload ? rawPayload : undefined
         },
         create: {
           machineId: deviceName,
           machineUserId: String(employeeId || 'UNKNOWN'),
           employeeId: null,
+          employeeName: employeeName || null,
           punchDate: date,
           punchTime: timeStr,
+          rawTimestamp: rawTimestamp || timeStr,
+          transactionId: transactionId || null,
           punchType: 'UNKNOWN',
           verifyMode,
           location: 'Johar Town',
+          source,
           rawPayload: rawPayload ? rawPayload : undefined,
           status: 'UNMATCHED'
         }
       });
-    } catch (e) {
-      // Ignore duplicate or unique constraint
-    }
+    } catch (_) {}
 
     recordLog({
       type: 'UNMATCHED',
@@ -208,7 +269,7 @@ async function processEmployeePunch({
     return {
       success: false,
       matched: false,
-      message: `Employee not registered for ID: ${employeeId}`
+      message: `Employee not registered for Machine ID: ${employeeId}`
     };
   }
 
@@ -216,62 +277,73 @@ async function processEmployeePunch({
   const sIn = emp.checkInTime || '10:00';
   const sOut = emp.checkOutTime || '18:00';
 
-  // Check if attendance already exists for today
-  const existing = await prisma.employeeAttendance.findUnique({
-    where: { employeeId_date: { employeeId: resolvedEmpId, date } }
-  });
-
-  let checkIn = existing?.checkInTime || null;
-  let checkOut = existing?.checkOutTime || null;
-  let punchType = 'CHECK_IN';
-
-  const punchMinutes = parseTimeToMinutes(timeStr);
-
-  if (!checkIn) {
-    // First punch of the day -> Check In
-    checkIn = timeStr;
-    punchType = 'CHECK_IN';
-  } else {
-    const inMinutes = parseTimeToMinutes(checkIn);
-    const diff = (punchMinutes !== null && inMinutes !== null) ? (punchMinutes - inMinutes) : 999;
-
-    if (diff < 3) {
-      // Accidental double punch within 3 minutes of check-in
-      recordLog({
-        type: 'DUPLICATE_PUNCH',
+  // 1. Store raw machine punch in MachineAttendance FIRST (Source of Truth)
+  try {
+    await prisma.machineAttendance.upsert({
+      where: {
+        machineId_machineUserId_punchDate_punchTime: {
+          machineId: deviceName,
+          machineUserId: String(employeeId || resolvedEmpId),
+          punchDate: date,
+          punchTime: timeStr
+        }
+      },
+      update: {
         employeeId: resolvedEmpId,
         employeeName: emp.name,
-        date,
-        time: timeStr,
+        rawTimestamp: rawTimestamp || timeStr,
+        transactionId: transactionId || null,
         verifyMode,
-        deviceName,
-        message: `Ignored duplicate punch within ${diff}m of Check-In`
-      });
-      return {
-        success: true,
-        matched: true,
-        employee: emp,
-        action: 'IGNORED_DUPLICATE',
-        message: 'Duplicate punch ignored (within 3m of check-in)'
-      };
-    }
-
-    // Subsequent punch -> Check Out (or updated latest check-out)
-    if (!checkOut) {
-      checkOut = timeStr;
-      punchType = 'CHECK_OUT';
-    } else {
-      const outMinutes = parseTimeToMinutes(checkOut);
-      if (punchMinutes !== null && outMinutes !== null && punchMinutes > outMinutes) {
-        checkOut = timeStr;
-        punchType = 'CHECK_OUT_UPDATED';
-      } else {
-        punchType = 'CHECK_OUT_KEPT';
+        location: emp.branch || 'Johar Town',
+        source,
+        rawPayload: rawPayload ? rawPayload : undefined,
+        status: 'PROCESSED'
+      },
+      create: {
+        machineId: deviceName,
+        machineUserId: String(employeeId || resolvedEmpId),
+        employeeId: resolvedEmpId,
+        employeeName: emp.name,
+        punchDate: date,
+        punchTime: timeStr,
+        rawTimestamp: rawTimestamp || timeStr,
+        transactionId: transactionId || null,
+        punchType: 'CHECK_IN',
+        verifyMode,
+        location: emp.branch || 'Johar Town',
+        source,
+        rawPayload: rawPayload ? rawPayload : undefined,
+        status: 'PROCESSED'
       }
-    }
+    });
+  } catch (_) {}
+
+  // 2. Query ALL raw punches for this employee on this date (Section 15 & 16)
+  const allPunches = await prisma.machineAttendance.findMany({
+    where: {
+      employeeId: resolvedEmpId,
+      punchDate: date,
+      status: { not: 'UNMATCHED' }
+    },
+    orderBy: { punchTime: 'asc' }
+  });
+
+  let checkIn = null;
+  let checkOut = null;
+  let rawPunchIn = null;
+  let rawPunchOut = null;
+
+  if (allPunches.length === 1) {
+    checkIn = allPunches[0].punchTime;
+    rawPunchIn = allPunches[0].rawTimestamp || allPunches[0].punchTime;
+  } else if (allPunches.length > 1) {
+    checkIn = allPunches[0].punchTime;
+    rawPunchIn = allPunches[0].rawTimestamp || allPunches[0].punchTime;
+    checkOut = allPunches[allPunches.length - 1].punchTime;
+    rawPunchOut = allPunches[allPunches.length - 1].rawTimestamp || allPunches[allPunches.length - 1].punchTime;
   }
 
-  // Calculate metrics with all dimensions (Sections 1-7)
+  // 3. Calculate attendance metrics from the exact real machine punches
   const {
     earlyArrivalMinutes,
     earlyCheckInOt,
@@ -293,6 +365,7 @@ async function processEmployeePunch({
     finalStatus = 'LATE';
   }
 
+  // 4. Update EmployeeAttendance with source: 'MACHINE'
   const record = await prisma.employeeAttendance.upsert({
     where: {
       employeeId_date: { employeeId: resolvedEmpId, date }
@@ -301,6 +374,8 @@ async function processEmployeePunch({
       employeeName: emp.name,
       checkInTime: checkIn,
       checkOutTime: checkOut,
+      rawPunchIn,
+      rawPunchOut,
       scheduledCheckIn: sIn,
       scheduledCheckOut: sOut,
       earlyArrivalMinutes,
@@ -311,7 +386,9 @@ async function processEmployeePunch({
       overtimeMinutes,
       status: finalStatus,
       workingHours,
-      notes: `Punch via ${deviceName} (${verifyMode})`
+      machineId: deviceName,
+      source: 'MACHINE',
+      notes: `Punch via ${deviceName} (${verifyMode}) [Punches count: ${allPunches.length}]`
     },
     create: {
       employeeId: resolvedEmpId,
@@ -319,6 +396,8 @@ async function processEmployeePunch({
       date,
       checkInTime: checkIn,
       checkOutTime: checkOut,
+      rawPunchIn,
+      rawPunchOut,
       scheduledCheckIn: sIn,
       scheduledCheckOut: sOut,
       earlyArrivalMinutes,
@@ -329,45 +408,19 @@ async function processEmployeePunch({
       overtimeMinutes,
       status: finalStatus,
       workingHours,
-      notes: `Punch via ${deviceName} (${verifyMode})`
+      machineId: deviceName,
+      source: 'MACHINE',
+      notes: `Punch via ${deviceName} (${verifyMode}) [Punches count: ${allPunches.length}]`
     }
   });
 
-  // Store raw machine punch in MachineAttendance
   try {
-    await prisma.machineAttendance.upsert({
-      where: {
-        machineId_machineUserId_punchDate_punchTime: {
-          machineId: deviceName,
-          machineUserId: String(employeeId || resolvedEmpId),
-          punchDate: date,
-          punchTime: timeStr
-        }
-      },
-      update: {
-        employeeId: resolvedEmpId,
-        punchType,
-        verifyMode,
-        location: emp.branch || 'Johar Town',
-        rawPayload: rawPayload ? rawPayload : undefined,
-        status: 'PROCESSED'
-      },
-      create: {
-        machineId: deviceName,
-        machineUserId: String(employeeId || resolvedEmpId),
-        employeeId: resolvedEmpId,
-        punchDate: date,
-        punchTime: timeStr,
-        punchType,
-        verifyMode,
-        location: emp.branch || 'Johar Town',
-        rawPayload: rawPayload ? rawPayload : undefined,
-        status: 'PROCESSED'
-      }
-    });
-  } catch (mErr) {
-    // Ignore duplicate or unique constraint
-  }
+    const io = req?.app?.get('io');
+    if (io) {
+      io.emit('attendance:punched', { employeeId: resolvedEmpId, date, status: finalStatus });
+      io.emit('attendance:updated');
+    }
+  } catch (_) {}
 
   recordLog({
     type: 'PUNCH_SUCCESS',
@@ -375,62 +428,43 @@ async function processEmployeePunch({
     employeeName: emp.name,
     date,
     time: timeStr,
-    punchType,
-    status: finalStatus,
-    lateMinutes,
-    overtimeMinutes,
+    rawTimestamp,
+    punchesCount: allPunches.length,
+    checkIn,
+    checkOut,
     verifyMode,
-    deviceName
+    deviceName,
+    message: `Recorded ${verifyMode} punch for ${emp.name} (${resolvedEmpId}) at ${timeStr}`
   });
-
-  // Socket notification
-  try {
-    const io = req?.app?.get('io');
-    if (io) {
-      io.emit('attendance:punched', {
-        employeeId: resolvedEmpId,
-        employeeName: emp.name,
-        date,
-        time: timeStr,
-        punchType,
-        status: finalStatus,
-        verifyMode,
-        deviceName
-      });
-      io.emit('attendance:updated');
-    }
-  } catch (sockErr) {
-    // Fail-soft
-  }
 
   return {
     success: true,
     matched: true,
     employee: emp,
-    punchType,
+    punchType: checkOut ? 'CHECK_OUT' : 'CHECK_IN',
     record
   };
 }
 
 /**
- * Recursively inspects incoming request (multipart files, JSON body, XML, raw text)
- * to locate employee ID, name, timestamp, verifyMode, deviceName.
+ * Extracts raw punch parameters from Hikvision HTTP Push payloads.
  */
 function extractHikvisionData(req) {
   let rawEmployeeId = null;
   let rawName = null;
   let rawTime = null;
+  let transactionId = null;
   let verifyMode = 'face';
   let deviceName = 'DS-K1T342MFWX';
   let punchTypeHint = null;
   let mergedPayload = {};
 
   function deepFind(obj, depth = 0) {
-    if (!obj || depth > 8 || typeof obj !== 'object') return;
+    if (!obj || depth > 5) return;
 
     if (!rawEmployeeId) {
-      for (const k of ['employeeNoString', 'employeeNo', 'employeeId', 'employeeID', 'cardNo', 'personId', 'personID', 'userCode', 'cardNum']) {
-        if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+      for (const k of ['employeeNoString', 'employeeNo', 'cardNo', 'personId', 'id', 'UserCode', 'EnrollNumber', 'pin']) {
+        if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '' && String(obj[k]) !== '0') {
           rawEmployeeId = String(obj[k]).trim();
           break;
         }
@@ -447,9 +481,18 @@ function extractHikvisionData(req) {
     }
 
     if (!rawTime) {
-      for (const k of ['dateTime', 'time', 'punchTime', 'timestamp', 'eventTime']) {
+      for (const k of ['dateTime', 'time', 'punchTime', 'timestamp', 'eventTime', 'PunchDate']) {
         if (obj[k] && typeof obj[k] === 'string' && obj[k].trim() !== '') {
           rawTime = obj[k].trim();
+          break;
+        }
+      }
+    }
+
+    if (!transactionId) {
+      for (const k of ['serialNo', 'logId', 'eventID', 'transactionId', 'EventSerialNo']) {
+        if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+          transactionId = String(obj[k]).trim();
           break;
         }
       }
@@ -506,10 +549,12 @@ function extractHikvisionData(req) {
             const timeM = text.match(/<dateTime[^>]*>([^<]+)<\/dateTime>/i) ||
                           text.match(/<time[^>]*>([^<]+)<\/time>/i);
             const devM = text.match(/<deviceName[^>]*>([^<]+)<\/deviceName>/i);
+            const serialM = text.match(/<serialNo[^>]*>([^<]+)<\/serialNo>/i);
             if (idM && !rawEmployeeId) rawEmployeeId = idM[1].trim();
             if (nameM && !rawName) rawName = nameM[1].trim();
             if (timeM && !rawTime) rawTime = timeM[1].trim();
             if (devM) deviceName = devM[1].trim();
+            if (serialM) transactionId = serialM[1].trim();
           }
         }
       } catch (err) {
@@ -531,12 +576,15 @@ function extractHikvisionData(req) {
                   trimmed.match(/<employeeNo[^>]*>([^<]+)<\/employeeNo>/i) ||
                   trimmed.match(/<cardNo[^>]*>([^<]+)<\/cardNo>/i);
       const nameM = trimmed.match(/<name[^>]*>([^<]+)<\/name>/i);
-      const timeM = trimmed.match(/<dateTime[^>]*>([^<]+)<\/dateTime>/i);
+      const timeM = trimmed.match(/<dateTime[^>]*>([^<]+)<\/dateTime>/i) ||
+                    trimmed.match(/<time[^>]*>([^<]+)<\/time>/i);
       const devM = trimmed.match(/<deviceName[^>]*>([^<]+)<\/deviceName>/i);
+      const serialM = trimmed.match(/<serialNo[^>]*>([^<]+)<\/serialNo>/i);
       if (idM && !rawEmployeeId) rawEmployeeId = idM[1].trim();
       if (nameM && !rawName) rawName = nameM[1].trim();
       if (timeM && !rawTime) rawTime = timeM[1].trim();
       if (devM) deviceName = devM[1].trim();
+      if (serialM) transactionId = serialM[1].trim();
     }
   }
 
@@ -544,8 +592,8 @@ function extractHikvisionData(req) {
     mergedPayload = { ...mergedPayload, ...body };
     deepFind(body);
 
-    for (const key of ['event_log', 'AcsEvent', 'event', 'data', 'log', 'EventNotificationAlert']) {
-      if (typeof body[key] === 'string') {
+    for (const key of Object.keys(body)) {
+      if (typeof body[key] === 'string' && (body[key].includes('{') || body[key].includes('<'))) {
         try {
           const parsed = JSON.parse(body[key]);
           deepFind(parsed);
@@ -561,6 +609,7 @@ function extractHikvisionData(req) {
     rawEmployeeId,
     rawName,
     rawTime,
+    transactionId,
     verifyMode,
     deviceName,
     punchTypeHint,
@@ -575,7 +624,7 @@ function extractHikvisionData(req) {
 const receiveHikvisionEvent = async (req, res) => {
   try {
     const extracted = extractHikvisionData(req);
-    const { rawEmployeeId, rawName, rawTime, verifyMode, deviceName, payload } = extracted;
+    const { rawEmployeeId, rawName, rawTime, transactionId, verifyMode, deviceName, payload } = extracted;
 
     const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
@@ -589,8 +638,6 @@ const receiveHikvisionEvent = async (req, res) => {
         userAgent,
         contentType: req.headers['content-type'] || 'unknown',
         bodyKeys: Object.keys(payload || {}),
-        bodySnippet: typeof req.body === 'string' ? req.body.slice(0, 300) : JSON.stringify(req.body || {}).slice(0, 300),
-        filesCount: Array.isArray(req.files) ? req.files.length : 0,
         message: 'Device probe / heartbeat received'
       });
       return res.status(200).json({
@@ -601,20 +648,22 @@ const receiveHikvisionEvent = async (req, res) => {
       });
     }
 
-    const { date, timeStr } = parseHikvisionDateTime(rawTime);
+    const { date, timeStr, rawTimestamp } = parseMachineDateTime(rawTime);
 
     const result = await processEmployeePunch({
       employeeId: rawEmployeeId,
       employeeName: rawName,
       date,
       timeStr,
+      rawTimestamp,
+      transactionId,
       verifyMode,
       deviceName,
       rawPayload: payload,
+      source: 'MACHINE',
       req
     });
 
-    // Hikvision standard response format
     res.status(200).json({
       statusCode: 1,
       statusString: 'OK',
@@ -629,7 +678,6 @@ const receiveHikvisionEvent = async (req, res) => {
       type: 'ERROR',
       error: err.message
     });
-    // Always return 200 to Hikvision so terminal doesn't stall network
     res.status(200).json({
       statusCode: 0,
       statusString: 'Processed with error',
@@ -648,6 +696,7 @@ const getHikvisionProbe = async (req, res) => {
     service: 'Enamels Biometric Attendance Gateway',
     supportedDevice: 'Hikvision DS-K1T342MFWX',
     serverTime: new Date().toISOString(),
+    operatingTimezone: 'Asia/Karachi (UTC+05:00)',
     webhookUrl: 'https://smart-production-v2.vercel.app/api/biometric/hikvision',
     instructions: {
       protocol: 'HTTP / HTTPS POST',
@@ -663,13 +712,13 @@ const getHikvisionProbe = async (req, res) => {
  */
 const recordDirectPunch = async (req, res) => {
   try {
-    const { employeeId, employeeName, time, date, verifyMode, deviceName } = req.body;
+    const { employeeId, employeeName, time, date, verifyMode, deviceName, transactionId } = req.body;
 
     if (!employeeId && !employeeName) {
       return res.status(400).json({ success: false, message: 'employeeId or employeeName is required' });
     }
 
-    const parsed = parseHikvisionDateTime(time || new Date().toISOString());
+    const parsed = parseMachineDateTime(time || new Date().toISOString());
     const finalDate = date || parsed.date;
     const finalTimeStr = parsed.timeStr;
 
@@ -678,8 +727,11 @@ const recordDirectPunch = async (req, res) => {
       employeeName,
       date: finalDate,
       timeStr: finalTimeStr,
+      rawTimestamp: parsed.rawTimestamp,
+      transactionId,
       verifyMode: verifyMode || 'MANUAL_TEST',
       deviceName: deviceName || 'Direct Punch API',
+      source: 'MANUAL',
       req
     });
 
@@ -697,8 +749,435 @@ const recordDirectPunch = async (req, res) => {
 };
 
 /**
+ * POST /api/biometric/sync-batch
+ * Batch ingestion of historical machine punches (Section 9, 10, 13, 14).
+ * Idempotent: Skips duplicates, calculates first/last punch per employee/day.
+ */
+const syncBatchPunches = async (req, res) => {
+  try {
+    const { punches, machineId = 'DS-K1T342MFWX', source = 'MACHINE' } = req.body;
+    if (!Array.isArray(punches) || punches.length === 0) {
+      return res.status(400).json({ success: false, message: 'punches array is required' });
+    }
+
+    let inserted = 0;
+    let skipped = 0;
+    const touchedPairs = new Map(); // key: "empId_date", value: { employeeId, date }
+
+    for (const p of punches) {
+      const rawId = p.machineUserId || p.employeeId || p.EnrollNumber || p.UserCode || p.pin;
+      const rawName = p.name || p.employeeName || p.userName;
+      const rawTime = p.timestamp || p.dateTime || p.time || p.PunchDate;
+
+      if (!rawId && !rawName) {
+        skipped++;
+        continue;
+      }
+
+      const emp = await findEmployeeByIdentifier(rawId, rawName);
+      if (!emp) {
+        skipped++;
+        continue;
+      }
+
+      const { date, timeStr, rawTimestamp } = parseMachineDateTime(rawTime);
+      const devName = p.machineId || machineId;
+      const txId = p.transactionId ? String(p.transactionId) : null;
+      const verifyMode = p.verifyMode || 'BIOMETRIC';
+
+      try {
+        await prisma.machineAttendance.upsert({
+          where: {
+            machineId_machineUserId_punchDate_punchTime: {
+              machineId: devName,
+              machineUserId: String(rawId || emp.employeeId),
+              punchDate: date,
+              punchTime: timeStr
+            }
+          },
+          update: {
+            employeeId: emp.employeeId,
+            employeeName: emp.name,
+            rawTimestamp: rawTimestamp || timeStr,
+            transactionId: txId,
+            verifyMode,
+            source,
+            status: 'PROCESSED'
+          },
+          create: {
+            machineId: devName,
+            machineUserId: String(rawId || emp.employeeId),
+            employeeId: emp.employeeId,
+            employeeName: emp.name,
+            punchDate: date,
+            punchTime: timeStr,
+            rawTimestamp: rawTimestamp || timeStr,
+            transactionId: txId,
+            verifyMode,
+            source,
+            location: emp.branch || 'Johar Town',
+            status: 'PROCESSED'
+          }
+        });
+        inserted++;
+      } catch (_) {
+        skipped++;
+      }
+
+      touchedPairs.set(`${emp.employeeId}_${date}`, { employeeId: emp.employeeId, date, emp });
+    }
+
+    // Recalculate daily attendance for all affected employee-date pairs (Section 15 & 16)
+    let recalculatedCount = 0;
+    for (const { employeeId, date, emp } of touchedPairs.values()) {
+      const allPunches = await prisma.machineAttendance.findMany({
+        where: { employeeId, punchDate: date, status: { not: 'UNMATCHED' } },
+        orderBy: { punchTime: 'asc' }
+      });
+
+      if (allPunches.length === 0) continue;
+
+      const checkIn = allPunches[0].punchTime;
+      const rawPunchIn = allPunches[0].rawTimestamp || allPunches[0].punchTime;
+      const checkOut = allPunches.length > 1 ? allPunches[allPunches.length - 1].punchTime : null;
+      const rawPunchOut = allPunches.length > 1 ? (allPunches[allPunches.length - 1].rawTimestamp || allPunches[allPunches.length - 1].punchTime) : null;
+
+      const sIn = emp.checkInTime || '10:00';
+      const sOut = emp.checkOutTime || '18:00';
+
+      const {
+        earlyArrivalMinutes,
+        earlyCheckInOt,
+        lateMinutes,
+        earlyMinutes,
+        checkoutOtMinutes,
+        overtimeMinutes,
+        workingHours
+      } = calculateAttendanceMetrics(
+        sIn,
+        sOut,
+        checkIn,
+        checkOut,
+        'PRESENT'
+      );
+
+      let finalStatus = 'PRESENT';
+      if (lateMinutes > 0) finalStatus = 'LATE';
+
+      await prisma.employeeAttendance.upsert({
+        where: { employeeId_date: { employeeId, date } },
+        update: {
+          employeeName: emp.name,
+          checkInTime: checkIn,
+          checkOutTime: checkOut,
+          rawPunchIn,
+          rawPunchOut,
+          scheduledCheckIn: sIn,
+          scheduledCheckOut: sOut,
+          earlyArrivalMinutes,
+          earlyCheckInOt,
+          lateMinutes,
+          earlyMinutes,
+          checkoutOtMinutes,
+          overtimeMinutes,
+          status: finalStatus,
+          workingHours,
+          source: 'MACHINE',
+          notes: `Batch synced from ${machineId} [Punches count: ${allPunches.length}]`
+        },
+        create: {
+          employeeId,
+          employeeName: emp.name,
+          date,
+          checkInTime: checkIn,
+          checkOutTime: checkOut,
+          rawPunchIn,
+          rawPunchOut,
+          scheduledCheckIn: sIn,
+          scheduledCheckOut: sOut,
+          earlyArrivalMinutes,
+          earlyCheckInOt,
+          lateMinutes,
+          earlyMinutes,
+          checkoutOtMinutes,
+          overtimeMinutes,
+          status: finalStatus,
+          workingHours,
+          source: 'MACHINE',
+          notes: `Batch synced from ${machineId} [Punches count: ${allPunches.length}]`
+        }
+      });
+      recalculatedCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `Batch sync complete: ${inserted} raw punches processed, ${recalculatedCount} daily attendance records calculated.`,
+      insertedPunches: inserted,
+      skippedPunches: skipped,
+      recalculatedDates: recalculatedCount
+    });
+  } catch (err) {
+    console.error('Error in syncBatchPunches:', err);
+    res.status(500).json({ success: false, message: 'Failed to sync punches', error: err.message });
+  }
+};
+
+/**
+ * POST /api/biometric/recalculate
+ * Re-runs the first/last punch calculation engine over a date range (Section 15, 16, 26).
+ * From raw MachineAttendance records. Never invents fake check-in/out times.
+ */
+const recalculateAttendanceRange = async (req, res) => {
+  try {
+    const { startDate = '2026-09-01', endDate = new Date().toISOString().slice(0, 10), employeeId } = req.body;
+
+    const empWhere = { status: 'ACTIVE' };
+    if (employeeId && employeeId !== 'ALL') {
+      empWhere.employeeId = employeeId;
+    }
+
+    const employees = await prisma.employeeRecord.findMany({
+      where: empWhere,
+      orderBy: { employeeId: 'asc' }
+    });
+
+    // Query raw punches for the range
+    const rawPunches = await prisma.machineAttendance.findMany({
+      where: {
+        punchDate: { gte: startDate, lte: endDate },
+        status: { not: 'UNMATCHED' },
+        ...(employeeId && employeeId !== 'ALL' ? { employeeId } : {})
+      },
+      orderBy: { punchTime: 'asc' }
+    });
+
+    // Group punches by employeeId and date
+    const punchMap = new Map(); // key: "empId_date", value: array of punches
+    rawPunches.forEach(p => {
+      if (!p.employeeId) return;
+      const key = `${p.employeeId}_${p.punchDate}`;
+      if (!punchMap.has(key)) punchMap.set(key, []);
+      punchMap.get(key).push(p);
+    });
+
+    // Generate date array
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dateList = [];
+    let cur = new Date(start);
+    while (cur <= end) {
+      dateList.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    // Query approved leaves
+    const leaves = await prisma.employeeLeave.findMany({
+      where: {
+        status: 'APPROVED',
+        startDate: { lte: endDate },
+        endDate: { gte: startDate }
+      }
+    });
+
+    let updatedWithPunches = 0;
+    let reconciledAbsents = 0;
+
+    for (const emp of employees) {
+      const sIn = emp.checkInTime || '10:00';
+      const sOut = emp.checkOutTime || '18:00';
+
+      for (const d of dateList) {
+        const key = `${emp.employeeId}_${d}`;
+        const punches = punchMap.get(key) || [];
+
+        if (punches.length > 0) {
+          // Real machine punches available -> First = Check-in, Last = Check-out (Section 16)
+          const checkIn = punches[0].punchTime;
+          const rawPunchIn = punches[0].rawTimestamp || punches[0].punchTime;
+          const checkOut = punches.length > 1 ? punches[punches.length - 1].punchTime : null;
+          const rawPunchOut = punches.length > 1 ? (punches[punches.length - 1].rawTimestamp || punches[punches.length - 1].punchTime) : null;
+
+          const {
+            earlyArrivalMinutes,
+            earlyCheckInOt,
+            lateMinutes,
+            earlyMinutes,
+            checkoutOtMinutes,
+            overtimeMinutes,
+            workingHours
+          } = calculateAttendanceMetrics(
+            sIn,
+            sOut,
+            checkIn,
+            checkOut,
+            'PRESENT'
+          );
+
+          let finalStatus = 'PRESENT';
+          if (lateMinutes > 0) finalStatus = 'LATE';
+
+          await prisma.employeeAttendance.upsert({
+            where: { employeeId_date: { employeeId: emp.employeeId, date: d } },
+            update: {
+              employeeName: emp.name,
+              checkInTime: checkIn,
+              checkOutTime: checkOut,
+              rawPunchIn,
+              rawPunchOut,
+              scheduledCheckIn: sIn,
+              scheduledCheckOut: sOut,
+              earlyArrivalMinutes,
+              earlyCheckInOt,
+              lateMinutes,
+              earlyMinutes,
+              checkoutOtMinutes,
+              overtimeMinutes,
+              status: finalStatus,
+              workingHours,
+              source: 'MACHINE',
+              notes: `Real machine attendance [Punches: ${punches.length}]`
+            },
+            create: {
+              employeeId: emp.employeeId,
+              employeeName: emp.name,
+              date: d,
+              checkInTime: checkIn,
+              checkOutTime: checkOut,
+              rawPunchIn,
+              rawPunchOut,
+              scheduledCheckIn: sIn,
+              scheduledCheckOut: sOut,
+              earlyArrivalMinutes,
+              earlyCheckInOt,
+              lateMinutes,
+              earlyMinutes,
+              checkoutOtMinutes,
+              overtimeMinutes,
+              status: finalStatus,
+              workingHours,
+              source: 'MACHINE',
+              notes: `Real machine attendance [Punches: ${punches.length}]`
+            }
+          });
+          updatedWithPunches++;
+        } else {
+          // No machine record available (Section 3, 11, 31) -> NEVER INVENT TIMES!
+          const onLeave = leaves.find(l => l.employeeId === emp.employeeId && l.startDate <= d && l.endDate >= d);
+          const autoStatus = onLeave ? 'LEAVE' : 'ABSENT';
+
+          await prisma.employeeAttendance.upsert({
+            where: { employeeId_date: { employeeId: emp.employeeId, date: d } },
+            update: {
+              employeeName: emp.name,
+              checkInTime: null,
+              checkOutTime: null,
+              rawPunchIn: null,
+              rawPunchOut: null,
+              scheduledCheckIn: sIn,
+              scheduledCheckOut: sOut,
+              earlyArrivalMinutes: 0,
+              earlyCheckInOt: 0,
+              lateMinutes: 0,
+              earlyMinutes: 0,
+              checkoutOtMinutes: 0,
+              overtimeMinutes: 0,
+              status: autoStatus,
+              workingHours: 0,
+              source: 'MACHINE',
+              notes: onLeave ? `Approved ${onLeave.leaveType} Leave` : 'No machine record'
+            },
+            create: {
+              employeeId: emp.employeeId,
+              employeeName: emp.name,
+              date: d,
+              checkInTime: null,
+              checkOutTime: null,
+              rawPunchIn: null,
+              rawPunchOut: null,
+              scheduledCheckIn: sIn,
+              scheduledCheckOut: sOut,
+              earlyArrivalMinutes: 0,
+              earlyCheckInOt: 0,
+              lateMinutes: 0,
+              earlyMinutes: 0,
+              checkoutOtMinutes: 0,
+              overtimeMinutes: 0,
+              status: autoStatus,
+              workingHours: 0,
+              source: 'MACHINE',
+              notes: onLeave ? `Approved ${onLeave.leaveType} Leave` : 'No machine record'
+            }
+          });
+          reconciledAbsents++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Recalculation complete from ${startDate} to ${endDate}. Updated ${updatedWithPunches} present records with real punches and ${reconciledAbsents} records with no machine punches.`,
+      startDate,
+      endDate,
+      employeesCount: employees.length,
+      daysCount: dateList.length,
+      updatedWithPunches,
+      reconciledAbsents
+    });
+  } catch (err) {
+    console.error('Error in recalculateAttendanceRange:', err);
+    res.status(500).json({ success: false, message: 'Failed to recalculate attendance range', error: err.message });
+  }
+};
+
+/**
+ * GET /api/biometric/raw-logs
+ * Compares Raw Machine Data vs Calculated Attendance (Section 24).
+ */
+const getRawMachinePunches = async (req, res) => {
+  try {
+    const { date = new Date().toISOString().slice(0, 10), employeeId } = req.query;
+
+    const rawWhere = { punchDate: date };
+    if (employeeId && employeeId !== 'ALL') {
+      rawWhere.OR = [
+        { employeeId },
+        { machineUserId: employeeId }
+      ];
+    }
+
+    const rawPunches = await prisma.machineAttendance.findMany({
+      where: rawWhere,
+      orderBy: { punchTime: 'asc' }
+    });
+
+    const attWhere = { date };
+    if (employeeId && employeeId !== 'ALL') {
+      attWhere.employeeId = employeeId;
+    }
+
+    const calculatedRecords = await prisma.employeeAttendance.findMany({
+      where: attWhere,
+      orderBy: { employeeId: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      date,
+      employeeId: employeeId || 'ALL',
+      rawPunchesCount: rawPunches.length,
+      rawPunches,
+      calculatedCount: calculatedRecords.length,
+      calculatedRecords
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch raw machine punches', error: err.message });
+  }
+};
+
+/**
  * GET /api/biometric/status
- * Returns gateway status, recent punches, and mapped employees.
+ * Returns gateway status, sync counters, and mapped employees.
  */
 const getBiometricStatus = async (req, res) => {
   try {
@@ -717,19 +1196,32 @@ const getBiometricStatus = async (req, res) => {
       orderBy: { employeeId: 'asc' }
     });
 
+    const totalRawCount = await prisma.machineAttendance.count();
+    const unmatchedCount = await prisma.machineAttendance.count({
+      where: { status: 'UNMATCHED' }
+    });
+
     const rawPunches = await prisma.machineAttendance.findMany({
       take: 50,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const lastPunch = await prisma.machineAttendance.findFirst({
       orderBy: { createdAt: 'desc' }
     });
 
     res.json({
       success: true,
       gateway: {
-        status: 'ACTIVE',
+        status: 'CONNECTED',
         model: 'Hikvision DS-K1T342MFWX',
         webhookUrl: 'https://smart-production-v2.vercel.app/api/biometric/hikvision',
         port: 443,
-        protocol: 'HTTPS'
+        protocol: 'HTTPS',
+        operatingTimezone: 'Asia/Karachi (UTC+05:00)',
+        lastSync: lastPunch ? lastPunch.createdAt : null,
+        totalRawPunches: totalRawCount,
+        unmatchedPunches: unmatchedCount
       },
       registeredEmployeesCount: employees.length,
       registeredEmployees: employees,
@@ -745,5 +1237,11 @@ module.exports = {
   receiveHikvisionEvent,
   getHikvisionProbe,
   recordDirectPunch,
-  getBiometricStatus
+  syncBatchPunches,
+  recalculateAttendanceRange,
+  getRawMachinePunches,
+  getBiometricStatus,
+  parseMachineDateTime,
+  findEmployeeByIdentifier,
+  processEmployeePunch
 };

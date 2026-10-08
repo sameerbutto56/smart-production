@@ -39,7 +39,8 @@ import {
   AlertCircle,
   Fingerprint,
   Radio,
-  ExternalLink
+  ExternalLink,
+  Database
 } from 'lucide-react';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -130,6 +131,14 @@ export default function EmployeeDataPage() {
   const [testBioEmpId, setTestBioEmpId] = useState('02');
   const [testBioTime, setTestBioTime] = useState('10:05');
   const [testingBio, setTestingBio] = useState(false);
+
+  // Raw Machine vs Calculated Verification Modal State (Section 24)
+  const [isRawAuditModalOpen, setIsRawAuditModalOpen] = useState(false);
+  const [rawAuditDate, setRawAuditDate] = useState(() => getTodayLocalDate());
+  const [rawAuditEmployeeId, setRawAuditEmployeeId] = useState('ALL');
+  const [rawAuditData, setRawAuditData] = useState(null);
+  const [loadingRawAudit, setLoadingRawAudit] = useState(false);
+  const [recalculatingBatch, setRecalculatingBatch] = useState(false);
 
   // Monthly & Date-Range Attendance View State (Section 18)
   const [attViewMode, setAttViewMode] = useState('daily'); // 'daily' | 'range'
@@ -563,28 +572,59 @@ export default function EmployeeDataPage() {
     }
   };
 
-  const handleBulkMarkPresent = async () => {
-    if (!window.confirm(`Mark all active employees PRESENT for ${attendanceDate} using their scheduled times?`)) return;
+  const handleRecalculateAttendance = async (startDate, endDate, label = 'attendance') => {
     try {
-      setLoading(true);
-      const records = dailyAttendance.map(rec => ({
-        employeeId: rec.employeeId,
-        checkInTime: rec.checkInTime || rec.scheduledCheckIn || '10:00',
-        checkOutTime: rec.checkOutTime || rec.scheduledCheckOut || '18:00',
-        status: 'PRESENT'
-      }));
-      await api.post('/api/employees/attendance/bulk-mark', {
-        date: attendanceDate,
-        records
+      setRecalculatingBatch(true);
+      toast.loading(`Recalculating ${label} strictly from real machine punches...`, { id: 'recalc-att' });
+      const res = await api.post('/api/biometric/recalculate', {
+        startDate: startDate || attendanceDate,
+        endDate: endDate || attendanceDate
       });
-      toast.success(`Bulk attendance recorded for ${records.length} employees`);
-      fetchDailyAttendance();
-      fetchMonthlyAttendance();
+      if (res.data?.success) {
+        toast.success(res.data.message || 'Recalculation complete from real machine punches!', { id: 'recalc-att' });
+        fetchDailyAttendance();
+        fetchMonthlyAttendance();
+        if (attViewMode === 'range') fetchAttendanceRange();
+        fetchBiometricStatus();
+        if (isRawAuditModalOpen) {
+          fetchRawAuditLogs(rawAuditDate, rawAuditEmployeeId);
+        }
+      } else {
+        toast.error(res.data?.message || 'Recalculation failed', { id: 'recalc-att' });
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to bulk mark attendance');
+      toast.error(err.response?.data?.message || 'Failed to recalculate attendance', { id: 'recalc-att' });
     } finally {
-      setLoading(false);
+      setRecalculatingBatch(false);
     }
+  };
+
+  const fetchRawAuditLogs = async (targetDate, targetEmployeeId) => {
+    try {
+      setLoadingRawAudit(true);
+      const res = await api.get('/api/biometric/raw-logs', {
+        params: {
+          date: targetDate || rawAuditDate,
+          employeeId: targetEmployeeId || rawAuditEmployeeId
+        }
+      });
+      if (res.data?.success) {
+        setRawAuditData(res.data);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load raw machine audit logs');
+    } finally {
+      setLoadingRawAudit(false);
+    }
+  };
+
+  const handleOpenRawAudit = (date, employeeId = 'ALL') => {
+    const d = date || attendanceDate;
+    const emp = employeeId || 'ALL';
+    setRawAuditDate(d);
+    setRawAuditEmployeeId(emp);
+    setIsRawAuditModalOpen(true);
+    fetchRawAuditLogs(d, emp);
   };
 
   const handleExportAttendanceExcel = async () => {
@@ -1439,11 +1479,21 @@ export default function EmployeeDataPage() {
                     Import History
                   </button>
                   <button
-                    onClick={handleBulkMarkPresent}
+                    onClick={() => handleRecalculateAttendance(attendanceDate, attendanceDate, `Daily (${attendanceDate})`)}
+                    disabled={recalculatingBatch}
                     className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/30 transition-all"
+                    title="Recalculate attendance strictly from real machine punches for selected date without inventing fake data"
                   >
-                    <CheckCircle2 size={16} />
-                    Mark All Present Today
+                    <RefreshCw size={16} className={recalculatingBatch ? 'animate-spin' : ''} />
+                    Sync & Calculate Today
+                  </button>
+                  <button
+                    onClick={() => handleOpenRawAudit(attendanceDate, 'ALL')}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-cyan-600/30 transition-all"
+                    title="View side-by-side Raw Machine Punches vs Calculated Attendance Verification"
+                  >
+                    <ShieldCheck size={16} />
+                    Raw vs Calc Audit
                   </button>
                   <button
                     onClick={handleExportAttendanceExcel}
@@ -1530,14 +1580,14 @@ export default function EmployeeDataPage() {
                               {rec.checkInTime ? (
                                 <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
                               ) : (
-                                <span className="text-slate-600">--:--</span>
+                                <span className="text-slate-500 text-xs italic font-sans font-normal">No machine record</span>
                               )}
                             </td>
                             <td className="py-3 px-3 font-mono">
                               {rec.checkOutTime ? (
                                 <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
                               ) : (
-                                <span className="text-slate-600">--:--</span>
+                                <span className="text-slate-500 text-xs italic font-sans font-normal">--:--</span>
                               )}
                             </td>
                             <td className="py-3 px-3">
@@ -1617,12 +1667,21 @@ export default function EmployeeDataPage() {
                               </span>
                             </td>
                             <td className="py-3 px-3 text-right">
-                              <button
-                                onClick={() => handleOpenMarkAttendance(rec)}
-                                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
-                              >
-                                Edit Punch
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleOpenRawAudit(attendanceDate, rec.employeeId)}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-750 text-cyan-400 hover:text-cyan-300 font-bold rounded-lg text-xs transition-all border border-cyan-500/30"
+                                  title="View Raw Machine Punches vs Calculated Record"
+                                >
+                                  Raw vs Calc
+                                </button>
+                                <button
+                                  onClick={() => handleOpenMarkAttendance(rec)}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
+                                >
+                                  Edit Punch
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -1906,14 +1965,14 @@ export default function EmployeeDataPage() {
                               {rec.checkInTime ? (
                                 <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
                               ) : (
-                                <span className="text-slate-600">--:--</span>
+                                <span className="text-slate-500 text-xs italic font-sans font-normal">No machine record</span>
                               )}
                             </td>
                             <td className="py-3 px-3 font-mono">
                               {rec.checkOutTime ? (
                                 <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
                               ) : (
-                                <span className="text-slate-600">--:--</span>
+                                <span className="text-slate-500 text-xs italic font-sans font-normal">--:--</span>
                               )}
                             </td>
                             <td className="py-3 px-3">
@@ -1993,12 +2052,21 @@ export default function EmployeeDataPage() {
                               </span>
                             </td>
                             <td className="py-3 px-3 text-right">
-                              <button
-                                onClick={() => handleOpenMarkAttendance(rec)}
-                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
-                              >
-                                Edit Punch
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleOpenRawAudit(rec.date, rec.employeeId)}
+                                  className="px-2 py-1 bg-slate-800 hover:bg-slate-750 text-cyan-400 hover:text-cyan-300 font-bold rounded-lg text-xs transition-all border border-cyan-500/30"
+                                  title="View Raw Machine Punches vs Calculated Record"
+                                >
+                                  Raw vs Calc
+                                </button>
+                                <button
+                                  onClick={() => handleOpenMarkAttendance(rec)}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all"
+                                >
+                                  Edit Punch
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -3024,6 +3092,20 @@ export default function EmployeeDataPage() {
                     <span className="text-slate-400">Cloud Webhook:</span>
                     <span className="text-emerald-300 font-bold break-all">/api/biometric/hikvision</span>
                   </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400">Operating Timezone:</span>
+                    <span className="text-cyan-400 font-bold">Asia/Karachi (UTC+05:00)</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400">Total Machine Punches:</span>
+                    <span className="text-emerald-400 font-bold">{biometricStatus?.gateway?.totalRawPunches ?? '...'} raw records</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400">Last Machine Sync:</span>
+                    <span className="text-amber-400 font-bold">
+                      {biometricStatus?.gateway?.lastSync ? formatDateTime(biometricStatus.gateway.lastSync) : 'No punches logged yet'}
+                    </span>
+                  </div>
                   <div className="flex justify-between py-1">
                     <span className="text-slate-400">Active Staff Registered:</span>
                     <span className="text-white font-bold">{employees.filter(e => e.status === 'ACTIVE').length} Employees</span>
@@ -3119,6 +3201,47 @@ export default function EmployeeDataPage() {
               </div>
             </div>
 
+            {/* Real Machine Attendance Recalculation & Audit Section */}
+            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 border border-indigo-500/30 rounded-2xl p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold uppercase text-indigo-300 tracking-wider flex items-center gap-1.5">
+                    <Database size={15} className="text-indigo-400" />
+                    Historical Attendance Recalculation Engine (Real Punches Only)
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Derives check-in from earliest machine punch and check-out from latest punch from 01 Sep 2026 to present. Days without punches are marked "No machine record" — zero fake times.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Recalculate entire historical attendance from 01 Sep 2026 to today strictly using physical machine records?")) {
+                        handleRecalculateAttendance('2026-09-01', getTodayLocalDate(), 'Historical (01 Sep 2026 - Today)');
+                      }
+                    }}
+                    disabled={recalculatingBatch}
+                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+                  >
+                    <RefreshCw size={14} className={recalculatingBatch ? 'animate-spin' : ''} />
+                    Recalculate (01 Sep 2026 – Today)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBioModalOpen(false);
+                      handleOpenRawAudit(attendanceDate, 'ALL');
+                    }}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                  >
+                    <ShieldCheck size={14} className="text-cyan-400" />
+                    Open Raw Machine Punches Audit
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Interactive Simulation / Test Punch Tool */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -3183,6 +3306,284 @@ export default function EmployeeDataPage() {
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: RAW MACHINE DATA VS CALCULATED ATTENDANCE VERIFICATION (Section 24) */}
+      {/* ========================================================================= */}
+      {isRawAuditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl max-h-[92vh] overflow-y-auto shadow-2xl p-6 text-slate-200 space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl">
+                  <ShieldCheck size={24} className="text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    Raw Machine Punches vs Calculated Attendance Verification
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Direct side-by-side audit of physical biometric punches from MachineAttendance against derived attendance records in EmployeeAttendance. Operating Timezone: Asia/Karachi (UTC+05:00).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRawAuditModalOpen(false)}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Filter Controls */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Audit Date:</span>
+                  <input
+                    type="date"
+                    value={rawAuditDate}
+                    onChange={(e) => setRawAuditDate(e.target.value)}
+                    className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white font-mono focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Staff:</span>
+                  <select
+                    value={rawAuditEmployeeId}
+                    onChange={(e) => setRawAuditEmployeeId(e.target.value)}
+                    className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                  >
+                    <option value="ALL">All Employees</option>
+                    {employees.filter(e => e.status === 'ACTIVE').map(emp => (
+                      <option key={emp.employeeId} value={emp.employeeId}>
+                        {emp.employeeId} - {emp.name} (Machine ID: {emp.machineUserId || emp.employeeId})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchRawAuditLogs(rawAuditDate, rawAuditEmployeeId)}
+                  disabled={loadingRawAudit}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-cyan-600/30"
+                >
+                  <RefreshCw size={13} className={loadingRawAudit ? 'animate-spin' : ''} />
+                  Fetch Audit Records
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleRecalculateAttendance(rawAuditDate, rawAuditDate, `Date ${rawAuditDate}`)}
+                disabled={recalculatingBatch}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/30"
+                title="Recalculate attendance for this date strictly from real machine punches"
+              >
+                <RefreshCw size={13} className={recalculatingBatch ? 'animate-spin' : ''} />
+                Recalculate This Date
+              </button>
+            </div>
+
+            {/* Audit Status Counters */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+                <span className="text-slate-400 uppercase text-[10px] font-bold block">Raw Machine Punches</span>
+                <span className="text-xl font-black text-cyan-400 mt-0.5 block">{rawAuditData?.rawPunchesCount ?? 0}</span>
+                <span className="text-[10px] text-slate-500">Physical terminal logs</span>
+              </div>
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+                <span className="text-slate-400 uppercase text-[10px] font-bold block">Calculated Records</span>
+                <span className="text-xl font-black text-emerald-400 mt-0.5 block">{rawAuditData?.calculatedCount ?? 0}</span>
+                <span className="text-[10px] text-slate-500">Derived daily rosters</span>
+              </div>
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+                <span className="text-slate-400 uppercase text-[10px] font-bold block">Check-In Logic</span>
+                <span className="text-xs font-bold text-emerald-300 mt-0.5 block">Earliest Machine Punch</span>
+                <span className="text-[10px] text-slate-500">No shift fallback</span>
+              </div>
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+                <span className="text-slate-400 uppercase text-[10px] font-bold block">Check-Out Logic</span>
+                <span className="text-xs font-bold text-blue-300 mt-0.5 block">Latest Machine Punch</span>
+                <span className="text-[10px] text-slate-500">Null if single punch</span>
+              </div>
+            </div>
+
+            {/* Side-by-Side Comparison Tables */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Left Panel: Raw Machine Punches (MachineAttendance) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                    <Fingerprint size={14} className="text-cyan-400" />
+                    Physical Machine Punches (MachineAttendance)
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Count: {rawAuditData?.rawPunches?.length || 0}
+                  </span>
+                </div>
+                <div className="overflow-x-auto border border-slate-800 rounded-2xl max-h-[42vh]">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 sticky top-0">
+                      <tr>
+                        <th className="py-2.5 px-3">Punch Time</th>
+                        <th className="py-2.5 px-3">Staff / Machine ID</th>
+                        <th className="py-2.5 px-3">Device / Serial</th>
+                        <th className="py-2.5 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                      {!rawAuditData?.rawPunches || rawAuditData.rawPunches.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" className="py-8 text-center text-slate-500 font-sans">
+                            {loadingRawAudit ? 'Loading machine punches...' : 'No physical machine punches found for this date.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        rawAuditData.rawPunches.map((p, idx) => (
+                          <tr key={p.id || idx} className="hover:bg-slate-850/40">
+                            <td className="py-2.5 px-3 font-bold text-emerald-400">
+                              {p.punchTime}
+                            </td>
+                            <td className="py-2.5 px-3 font-sans">
+                              <span className="font-bold text-white block">
+                                {p.employeeName || p.employeeId || 'Unknown'}
+                              </span>
+                              <span className="text-[10px] text-purple-400 font-mono">
+                                Machine ID: {p.machineUserId}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-[11px] text-slate-400 font-sans">
+                              {p.deviceId || 'Hikvision Terminal'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                p.status === 'PROCESSED'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                              }`}>
+                                {p.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Right Panel: Derived Attendance Records (EmployeeAttendance) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                    <Database size={14} className="text-emerald-400" />
+                    Calculated Daily Attendance (EmployeeAttendance)
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Count: {rawAuditData?.calculatedRecords?.length || 0}
+                  </span>
+                </div>
+                <div className="overflow-x-auto border border-slate-800 rounded-2xl max-h-[42vh]">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 sticky top-0">
+                      <tr>
+                        <th className="py-2.5 px-3">Employee</th>
+                        <th className="py-2.5 px-3">Check-In</th>
+                        <th className="py-2.5 px-3">Check-Out</th>
+                        <th className="py-2.5 px-3">OT / Late</th>
+                        <th className="py-2.5 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                      {!rawAuditData?.calculatedRecords || rawAuditData.calculatedRecords.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="py-8 text-center text-slate-500 font-sans">
+                            {loadingRawAudit ? 'Loading calculated records...' : 'No calculated records found for this date.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        rawAuditData.calculatedRecords.map((c, idx) => (
+                          <tr key={c.id || idx} className="hover:bg-slate-850/40">
+                            <td className="py-2.5 px-3 font-sans">
+                              <span className="font-bold text-white block">
+                                {c.employeeName || c.employeeId}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                #{c.employeeId}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {c.checkInTime ? (
+                                <span className="font-bold text-emerald-400">{c.checkInTime}</span>
+                              ) : (
+                                <span className="text-slate-500 text-xs italic font-sans">No machine record</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {c.checkOutTime ? (
+                                <span className="font-bold text-blue-400">{c.checkOutTime}</span>
+                              ) : (
+                                <span className="text-slate-500 text-xs italic font-sans">--:--</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="space-y-0.5 text-[10px]">
+                                {c.lateMinutes > 0 && (
+                                  <span className="text-rose-400 font-bold block">+{c.lateMinutes}m Late</span>
+                                )}
+                                {c.earlyCheckInOt > 0 && (
+                                  <span className="text-cyan-400 font-bold block">+{c.earlyCheckInOt}m Early OT</span>
+                                )}
+                                {c.checkoutOtMinutes > 0 && (
+                                  <span className="text-purple-400 font-bold block">+{c.checkoutOtMinutes}m Post OT</span>
+                                )}
+                                {c.overtimeMinutes > 0 && (
+                                  <span className="text-indigo-300 font-bold block">Total OT: {c.overtimeMinutes}m</span>
+                                )}
+                                {c.lateMinutes === 0 && c.overtimeMinutes === 0 && (
+                                  <span className="text-slate-500">—</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 font-sans">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                c.status === 'PRESENT'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                  : c.status === 'LATE'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                              }`}>
+                                {c.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <span className="text-[11px] text-slate-500">
+                Operating Principle: Physical machine punches are the permanent ground truth. Scheduled shifts are never substituted.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsRawAuditModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
+              >
+                Close Audit View
               </button>
             </div>
           </div>

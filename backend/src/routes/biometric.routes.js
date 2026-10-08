@@ -40,10 +40,19 @@ const bodyParserMiddleware = (req, res, next) => {
 router.post('/hikvision', bodyParserMiddleware, biometricController.receiveHikvisionEvent);
 router.get('/hikvision', biometricController.getHikvisionProbe);
 
-// Direct Punch Endpoint (for testing & PC bridge scripts)
+// Direct Punch Endpoint (for bridge scripts & manual punches)
 router.post('/punch', biometricController.recordDirectPunch);
 
-// Gateway Status & Live Punch Logs
+// Historical Batch Sync (Section 9, 10, 13, 14)
+router.post('/sync-batch', biometricController.syncBatchPunches);
+
+// Range Recalculation Engine (Section 15, 16, 26)
+router.post('/recalculate', biometricController.recalculateAttendanceRange);
+
+// Raw vs Calculated Punches Verification Endpoint (Section 24)
+router.get('/raw-logs', biometricController.getRawMachinePunches);
+
+// Gateway Status, Connectivity & Counters (Section 25)
 router.get('/status', biometricController.getBiometricStatus);
 
 module.exports = router;
