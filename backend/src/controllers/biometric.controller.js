@@ -1168,7 +1168,7 @@ const getRawMachinePunches = async (req, res) => {
   try {
     const { date = new Date().toISOString().slice(0, 10), employeeId } = req.query;
 
-    const rawWhere = { punchDate: date };
+    const rawWhere = (date && date !== 'ALL') ? { punchDate: date } : {};
     if (employeeId && employeeId !== 'ALL') {
       rawWhere.OR = [
         { employeeId },
@@ -1178,10 +1178,11 @@ const getRawMachinePunches = async (req, res) => {
 
     const rawPunches = await prisma.machineAttendance.findMany({
       where: rawWhere,
-      orderBy: { punchTime: 'asc' }
+      orderBy: [{ punchDate: 'desc' }, { punchTime: 'asc' }],
+      take: 200
     });
 
-    const attWhere = { date };
+    const attWhere = (date && date !== 'ALL') ? { date } : {};
     if (employeeId && employeeId !== 'ALL') {
       attWhere.employeeId = employeeId;
     }
