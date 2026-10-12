@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { debounce } from '../utils/debounce';
-import useCache, { setCache } from '../hooks/useCache';
+import { getItem, getHot, setHot } from '../utils/db';
+import { setCache } from '../hooks/useCache';
 import { 
   Package, 
   Search, 
@@ -95,10 +96,85 @@ const AllOrders = () => {
   const isReadOnly = user?.role === 'FAISAL';
   const PRICE_VISIBLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CEO', 'SOFTWARE_SETTINGS', 'FAISAL', 'INVENTORY_VIEW', 'DISPATCH', 'DELIVERY_BOY'];
   const showPrice = PRICE_VISIBLE_ROLES.includes(user?.role);
-  const { data: orders = [], loading, refresh } = useCache('orders:all', {
-    fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []),
-    ttl: 60 * 1000,
+  const [orders, setOrders] = useState(() => {
+    const hot = getHot('orders:all');
+    return Array.isArray(hot) && hot.length > 0 ? hot : [];
   });
+  const [loading, setLoading] = useState(() => {
+    const hot = getHot('orders:all');
+    return !(Array.isArray(hot) && hot.length > 0);
+  });
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const fetchSeqRef = useRef(0);
+  const mountRef = useRef(true);
+
+  const fetchOrders = useCallback(async (isManual = false) => {
+    const seq = ++fetchSeqRef.current;
+    const startTime = performance.now();
+    console.log(`[AllOrders] Fetch started (seq: ${seq}, manual: ${isManual})`);
+
+    setError(null);
+    if (isManual) {
+      setRefreshing(true);
+    }
+
+    try {
+      const res = await api.get('/api/orders', {
+        noDedupe: isManual,
+        params: { _t: Date.now() },
+        timeout: 60000,
+      });
+
+      if (!mountRef.current || fetchSeqRef.current !== seq) {
+        console.log(`[AllOrders] Discarding stale response (seq: ${seq}, current: ${fetchSeqRef.current})`);
+        return;
+      }
+
+      const raw = res.data;
+      const orderList = Array.isArray(raw) ? raw : (Array.isArray(raw?.orders) ? raw.orders : []);
+      const elapsed = Math.round(performance.now() - startTime);
+      console.log(`[AllOrders] Completed in ${elapsed}ms - loaded ${orderList.length} orders (seq: ${seq})`);
+
+      setOrders(orderList);
+      setCache('orders:all', orderList, 60 * 1000);
+      setLoading(false);
+      setRefreshing(false);
+      setError(null);
+      return orderList;
+    } catch (err) {
+      if (!mountRef.current || fetchSeqRef.current !== seq) return;
+      const elapsed = Math.round(performance.now() - startTime);
+      const errMsg = err.response?.data?.message || err.message || 'Unable to load orders. Please try again.';
+      console.error(`[AllOrders] Fetch failed after ${elapsed}ms (seq: ${seq}):`, err);
+      setError(errMsg);
+      setLoading(false);
+      setRefreshing(false);
+      throw err;
+    }
+  }, []);
+
+  const refresh = useCallback((isManual = false) => {
+    return fetchOrders(isManual);
+  }, [fetchOrders]);
+
+  useEffect(() => {
+    mountRef.current = true;
+
+    // Check IndexedDB if initial hot cache was empty
+    getItem('orders:all').then((cached) => {
+      if (mountRef.current && Array.isArray(cached) && cached.length > 0) {
+        setOrders((prev) => (prev.length === 0 ? cached : prev));
+        setLoading(false);
+      }
+    }).catch(() => {});
+
+    fetchOrders(false);
+
+    return () => {
+      mountRef.current = false;
+    };
+  }, [fetchOrders]);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
 
@@ -200,25 +276,29 @@ const AllOrders = () => {
         }
       });
 
-      // Optimistically update cache so dashboard reflects the change immediately
-      setCache('orders:all', orders.map(o => {
-        if (o.id === selectedOrder.id) {
-          try {
-            const pd = o.productDetails;
-            const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
-            const updatedItems = items.map((item, i) => {
-              if (i === idx) {
-                return { ...item, availabilityStatus: isAvailable ? 'available' : 'not_available' };
-              }
-              return item;
-            });
-            return { ...o, productDetails: updatedItems };
-          } catch {
-            return o;
+      // Optimistically update local state and cache so dashboard reflects the change immediately
+      setOrders(prev => {
+        const next = prev.map(o => {
+          if (o.id === selectedOrder.id) {
+            try {
+              const pd = o.productDetails;
+              const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+              const updatedItems = items.map((item, i) => {
+                if (i === idx) {
+                  return { ...item, availabilityStatus: isAvailable ? 'available' : 'not_available' };
+                }
+                return item;
+              });
+              return { ...o, productDetails: updatedItems };
+            } catch {
+              return o;
+            }
           }
-        }
-        return o;
-      }));
+          return o;
+        });
+        setCache('orders:all', next, 60 * 1000);
+        return next;
+      });
 
       toast.success(isAvailable ? 'Item Completed' : 'Item Rejected');
     } catch (err) {
@@ -258,7 +338,6 @@ const AllOrders = () => {
   const [filterDepartment, setFilterDepartment] = useState(null); // Store|Production|Logo|Dispatch|Inventory Verification
   const [filterDelayStage, setFilterDelayStage] = useState(null); // specific workflow stage (e.g. 'PRODUCTION')
   const [exporting, setExporting] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
@@ -292,8 +371,10 @@ const AllOrders = () => {
       if (location.state.filterCategory) setFilterCategory(location.state.filterCategory);
       if (location.state.filterDelayStage) setFilterDelayStage(location.state.filterDelayStage);
     }
+  }, [location.state]);
 
-    const debouncedRefresh = debounce(refresh, 300);
+  useEffect(() => {
+    const debouncedRefresh = debounce(() => fetchOrders(false), 300);
 
     const onOrderUpdated = () => { debouncedRefresh(); };
     const onNewOrder = (order) => {
@@ -314,7 +395,7 @@ const AllOrders = () => {
       socket.off('stage-accepted', debouncedRefresh);
       socket.off('delay-config-updated', debouncedRefresh);
     };
-  }, [location.state]);
+  }, [fetchOrders, user?.role, user?.id]);
 
   const handleSendForDelivery = async (orderId) => {
     if (isReadOnly) return;
@@ -474,7 +555,11 @@ const AllOrders = () => {
     const map = {};
     (baseOrders || []).forEach(o => {
       const d = getDelayInfo(o, delayConfig, pausePeriods, pauseProfile);
-      if (d) map[o.id] = d;
+      if (d) {
+        map[o.id] = d;
+      } else if (o.delayInfo && o.delayInfo.isDelayed) {
+        map[o.id] = o.delayInfo;
+      }
     });
     return map;
   }, [baseOrders, delayConfig, pausePeriods, pauseProfile]);
@@ -511,7 +596,7 @@ const AllOrders = () => {
       case 'out_for_delivery':
         return ['OUT_FOR_DELIVERY', 'ENAMELS_DELIVERY'].includes(effectiveStage);
       case 'delayed':
-        return !!delayMap[order.id];
+        return !!delayMap[order.id] || !!(order.delayInfo && order.delayInfo.isDelayed);
       case 'urgent':
         return order.priority === 'URGENT' || order.urgent === true;
       case 'super_urgent':
@@ -546,10 +631,18 @@ const AllOrders = () => {
       const orderCreated = order.createdAt ? new Date(order.createdAt).getTime() : 0;
       const matchesDate = !dateRange || (orderCreated >= dateRange.start && orderCreated < dateRange.end);
       
-      // Strict Role Filtering
-      const userRole = String(user?.role || '').toUpperCase().trim();
-      const isOwner = order.createdById === user?.id;
-      const isControlCenter = ['SUPER_ADMIN', 'ADMIN', 'CEO'].includes(userRole);
+      // Strict Role Filtering with storage fallback
+      const effectiveUser = user || (() => {
+        try {
+          const s = sessionStorage.getItem('user');
+          return s ? JSON.parse(s) : null;
+        } catch {
+          return null;
+        }
+      })();
+      const userRole = String(effectiveUser?.role || '').toUpperCase().trim();
+      const isOwner = effectiveUser?.id && order.createdById === effectiveUser.id;
+      const isControlCenter = !userRole || ['SUPER_ADMIN', 'ADMIN', 'CEO', 'SOFTWARE_SETTINGS', 'INVENTORY_VIEW', 'FAISAL'].includes(userRole);
       const matchesRole = isControlCenter || isOwner;
       
       // STORE_RECEIVE is Store-only — never show in Online/Outlet/AllOrders views
@@ -559,7 +652,7 @@ const AllOrders = () => {
       
       return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive && matchesDate;
     });
-  }, [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, user?.role, user?.id, dateRange, isServerSearchActive]);
+  }, [baseOrders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, user, dateRange, isServerSearchActive]);
 
   const summaryCounts = useMemo(() => {
     const counts = { all: 0, store: 0, verification: 0, logo: 0, production: 0, dispatch: 0, in_dispatch: 0, out_for_delivery: 0, delayed: 0, urgent: 0, super_urgent: 0, standard: 0, custom: 0 };
@@ -584,8 +677,9 @@ const AllOrders = () => {
   const filteredOrders = useMemo(() => {
     return baseFilteredOrders.filter(order => {
       const matchesCat = matchesCategory(order, filterCategory);
-      const matchesDepartment = !filterDepartment || delayMap[order.id]?.department === filterDepartment;
-      const matchesDelayStage = !filterDelayStage || delayMap[order.id]?.stage === filterDelayStage;
+      const orderDelay = delayMap[order.id] || (order.delayInfo?.isDelayed ? order.delayInfo : null);
+      const matchesDepartment = !filterDepartment || orderDelay?.department === filterDepartment;
+      const matchesDelayStage = !filterDelayStage || orderDelay?.stage === filterDelayStage;
       return matchesCat && matchesDepartment && matchesDelayStage;
     }).sort((a, b) => {
       const numA = parseInt(a.orderNumber) || 0;
@@ -593,6 +687,20 @@ const AllOrders = () => {
       return sortOrder === 'asc' ? numA - numB : numB - numA;
     });
   }, [baseFilteredOrders, filterCategory, filterDepartment, filterDelayStage, matchesCategory, delayMap, sortOrder]);
+
+  const handleResetFilters = useCallback(() => {
+    setFilterStatus('ALL');
+    setFilterType('ALL');
+    setFilterUrgent(false);
+    setFilterCity('');
+    setFilterCategory('all');
+    setFilterDepartment(null);
+    setFilterDelayStage(null);
+    setDateFilter('all');
+    setSearchTerm('');
+    setContextSearch('');
+    setShowFilters(false);
+  }, [setContextSearch]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -696,7 +804,7 @@ const AllOrders = () => {
               onClick={async () => {
                 setRefreshing(true);
                 try {
-                  await refresh();
+                  await refresh(true);
                   toast.success('Orders refreshed');
                 } catch (err) {
                   console.error('Refresh failed:', err);
@@ -995,13 +1103,7 @@ const AllOrders = () => {
               </div>
 
               <button 
-                onClick={() => {
-                  setFilterStatus('ALL');
-                  setFilterType('ALL');
-                  setFilterUrgent(false);
-                  setFilterCity('');
-                  setShowFilters(false);
-                }}
+                onClick={handleResetFilters}
                 className="w-full py-2 text-xs md:text-sm font-black uppercase theme-text-muted hover:text-white transition-colors"
               >
                 Reset Filters
@@ -1040,14 +1142,47 @@ const AllOrders = () => {
             <tbody className="divide-y divide-gray-700">
               {loading && orders.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="p-6">
+                  <td colSpan="6" className="p-8 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-3 py-6">
+                      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm font-bold theme-text-secondary">Loading orders...</p>
+                    </div>
                     <TableSkeleton rows={8} />
+                  </td>
+                </tr>
+              ) : error && orders.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-16 text-center">
+                    <div className="max-w-md mx-auto flex flex-col items-center justify-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center text-xl font-black">
+                        !
+                      </div>
+                      <h3 className="text-base font-black text-red-400">Unable to load orders</h3>
+                      <p className="text-xs theme-text-muted">{error || 'Please check your connection and try again.'}</p>
+                      <button
+                        onClick={() => fetchOrders(true)}
+                        className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                      >
+                        Retry Loading Orders
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-20 text-center theme-text-muted">
-                    No orders found matching your criteria.
+                  <td colSpan="6" className="px-6 py-16 text-center theme-text-muted">
+                    <div className="max-w-md mx-auto flex flex-col items-center justify-center space-y-3">
+                      <Package size={36} className="theme-text-muted opacity-40 mx-auto" />
+                      <p className="text-sm font-bold theme-text-muted">
+                        No orders found for the selected filters.
+                      </p>
+                      <button
+                        onClick={handleResetFilters}
+                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-blue-400 border border-blue-500/30 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+                      >
+                        Reset Filters & View All
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : isGroupedView ? (

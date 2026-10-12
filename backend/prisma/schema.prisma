@@ -273,6 +273,7 @@ model OrderStage {
   @@index([orderId, stageName])
   @@index([orderId, status])
   @@index([orderId, stageName, status])
+  @@index([orderId, createdAt(sort: Desc)])
 }
 
 model AuditLog {
@@ -288,6 +289,7 @@ model AuditLog {
   @@index([orderId, action])
   @@index([performedBy])
   @@index([timestamp])
+  @@index([orderId, timestamp(sort: Desc)])
 }
 
 model InventoryItem {

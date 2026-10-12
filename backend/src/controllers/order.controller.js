@@ -773,57 +773,69 @@ const createOrder = async (req, res) => {
   }
 };
 
+let cachedDelayConfig = null;
+let cachedDelayConfigAt = 0;
+
 const loadDelayConfig = async () => {
+  if (cachedDelayConfig && (Date.now() - cachedDelayConfigAt < 60000)) {
+    return cachedDelayConfig;
+  }
   try {
     const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
     if (setting?.value) {
-      return { ...DEFAULT_DELAY_CONFIG, ...JSON.parse(setting.value) };
+      cachedDelayConfig = { ...DEFAULT_DELAY_CONFIG, ...JSON.parse(setting.value) };
+      cachedDelayConfigAt = Date.now();
+      return cachedDelayConfig;
     }
   } catch (e) {}
-  return { ...DEFAULT_DELAY_CONFIG };
+  cachedDelayConfig = { ...DEFAULT_DELAY_CONFIG };
+  cachedDelayConfigAt = Date.now();
+  return cachedDelayConfig;
 };
 
 const getOrders = async (req, res) => {
+  const reqStart = Date.now();
   try {
     const role = String(req.user.role || '').toUpperCase().trim();
     const id = req.user.id;
     const { status: filterStatus, limit, skip, page } = req.query;
+    console.log(`[Orders API] Request started: role=${role}, user=${req.user.name || id}, query=${JSON.stringify(req.query)}`);
     const delayConfig = await loadDelayConfig();
 
     // Escalation check: auto-log overdue priority stages.
-    // Throttled to once per 5 min per instance and skipped for delivery queries —
-    // each auditLog.findFirst({ details: { contains } }) is a slow full-text scan
-    // (~500ms x up to 10 stages) that pushed /api/orders?status=delivery to 16-25s,
-    // blowing the frontend 15s timeout and leaving the delivery dashboard empty.
-    if (filterStatus !== 'delivery' && !(await isSystemPaused()) && Date.now() - lastEscalationCheckAt > ESCALATION_CHECK_INTERVAL) {
+    // Run asynchronously via setImmediate so it never delays the HTTP response.
+    if (filterStatus !== 'delivery' && Date.now() - lastEscalationCheckAt > ESCALATION_CHECK_INTERVAL) {
       lastEscalationCheckAt = Date.now();
-      try {
-        const overduePriorityStages = await prisma.orderStage.findMany({
-          where: {
-            status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
-            deadlineAt: { lt: new Date() },
-            order: { priority: { in: ['URGENT', 'SUPER_URGENT'] } }
-          },
-          include: { order: { select: { id: true, orderNumber: true, priority: true } } },
-          take: 10
-        });
-        for (const stage of overduePriorityStages) {
-          const existingEscalation = await prisma.auditLog.findFirst({
-            where: { orderId: stage.orderId, action: 'ESCALATION_OVERDUE', details: { contains: stage.stageName } },
-            orderBy: { timestamp: 'desc' }
+      setImmediate(async () => {
+        try {
+          if (await isSystemPaused()) return;
+          const overduePriorityStages = await prisma.orderStage.findMany({
+            where: {
+              status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
+              deadlineAt: { lt: new Date() },
+              order: { priority: { in: ['URGENT', 'SUPER_URGENT'] } }
+            },
+            include: { order: { select: { id: true, orderNumber: true, priority: true } } },
+            take: 10
           });
-          if (!existingEscalation || (Date.now() - existingEscalation.timestamp.getTime()) > 3600000) {
-            await prisma.auditLog.create({
-              data: {
-                orderId: stage.orderId,
-                action: 'ESCALATION_OVERDUE',
-                details: `CRITICAL: ${stage.order.priority} order #${stage.order.orderNumber} - Stage ${stage.stageName} exceeded deadline on ${stage.deadlineAt.toISOString()}`,
-                performedBy: req.user?.id || 'SYSTEM'
-              }
-            }).catch(() => {});
+          for (const stage of overduePriorityStages) {
+            const existingEscalation = await prisma.auditLog.findFirst({
+              where: { orderId: stage.orderId, action: 'ESCALATION_OVERDUE', details: { contains: stage.stageName } },
+              orderBy: { timestamp: 'desc' }
+            });
+            if (!existingEscalation || (Date.now() - existingEscalation.timestamp.getTime()) > 3600000) {
+              await prisma.auditLog.create({
+                data: {
+                  orderId: stage.orderId,
+                  action: 'ESCALATION_OVERDUE',
+                  details: `CRITICAL: ${stage.order.priority} order #${stage.order.orderNumber} - Stage ${stage.stageName} exceeded deadline on ${stage.deadlineAt.toISOString()}`,
+                  performedBy: id || 'SYSTEM'
+                }
+              }).catch(() => {});
+            }
           }
-        }
-      } catch (e) { /* non-blocking */ }
+        } catch (e) { /* non-blocking background task */ }
+      });
     }
     // Global order search — mirrors trackOrder so the Orders module finds every
     // order that Order Tracking can find (order number / invoice number / customer
@@ -928,7 +940,7 @@ const getOrders = async (req, res) => {
       if (!isPaginated && (!limit || limit !== 'all')) {
         const isDeliveryQuery = filterStatus === 'delivery';
         const deliveryPaymentsInclude = isDeliveryQuery ? { deliveryPayments: { orderBy: { createdAt: 'desc' }, select: { paymentMethod: true, cashAmount: true, onlineAmount: true, collectedBy: true, createdAt: true } } } : {};
-        const [activeOrders, completedOrders] = await prisma.$transaction([
+        const [activeOrders, completedOrders] = await Promise.all([
           prisma.order.findMany({
             where: {
               ...where,
@@ -961,7 +973,9 @@ const getOrders = async (req, res) => {
 
         const combined = [...activeOrders, ...completedOrders];
         attachDelayInfoToOrders(combined, delayConfig);
-        return res.json(sortByPriority(combined));
+        const sorted = sortByPriority(combined);
+        console.log(`[Orders API] Completed in ${Date.now() - reqStart}ms - returned ${sorted.length} orders (${activeOrders.length} active, ${completedOrders.length} completed)`);
+        return res.json(sorted);
       }
     }
 
@@ -998,11 +1012,15 @@ const getOrders = async (req, res) => {
     // When pagination is requested, include total count
     if (isPaginated || pageNum > 0 || skipVal > 0) {
       const total = await prisma.order.count({ where });
+      console.log(`[Orders API] Paginated query completed in ${Date.now() - reqStart}ms - page ${pageNum || 1}/${Math.ceil(total / takeLimit)}, total ${total}`);
       return res.json({ orders: sortByPriority(orders), total, page: pageNum || 1, totalPages: Math.ceil(total / takeLimit) });
     }
     
-    res.json(sortByPriority(orders));
+    const sortedOrders = sortByPriority(orders);
+    console.log(`[Orders API] Query completed in ${Date.now() - reqStart}ms - returned ${sortedOrders.length} orders`);
+    res.json(sortedOrders);
   } catch (error) {
+    console.error(`[Orders API] Request failed after ${Date.now() - reqStart}ms:`, error);
     res.status(500).json({ message: 'Error fetching orders', error: error.message });
   }
 };

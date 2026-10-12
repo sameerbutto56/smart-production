@@ -26,14 +26,14 @@ api.interceptors.request.use(config => {
   return config;
 });
 
-// Deduplication: cancel previous in-flight GET to the same URL
+// Deduplication: cancel previous in-flight GET to the same URL unless noDedupe is specified
 const inflight = new Map();
 api.interceptors.request.use(config => {
-  if (config.method === 'get') {
+  if (config.method === 'get' && !config.noDedupe && !config.headers?.['x-no-dedupe']) {
     const key = `${config.method}:${config.url}:${JSON.stringify(config.params)}`;
     const prev = inflight.get(key);
     if (prev) {
-      prev.abort();
+      try { prev.abort(); } catch (_) {}
     }
     inflight.set(key, config._controller);
     config._inflightKey = key;
@@ -43,12 +43,15 @@ api.interceptors.request.use(config => {
 
 api.interceptors.response.use(
   response => {
-    if (response.config._inflightKey) {
+    if (response.config?._inflightKey) {
       inflight.delete(response.config._inflightKey);
     }
     return response;
   },
   error => {
+    if (error.config?._inflightKey) {
+      inflight.delete(error.config._inflightKey);
+    }
     if (axios.isCancel(error)) {
       return Promise.reject(new Error('CANCELLED'));
     }
