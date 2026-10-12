@@ -1,5 +1,44 @@
 ## Goals
-### Implemented This Session — Production Out: Added "Send to Logo" Workflow & Removed "Unseen Tasks" Tab (deployed & live-verified)
+### Implemented This Session — Admin Profile → Orders: Instant Data Loading, Error/Empty States & Filter Reliability (deployed & live-verified)
+- **Problem & Root Causes**:
+  1. In **Admin Profile → Orders** (`AllOrders.jsx` at `/orders`), orders did not appear immediately on first load, often requiring 3–4 manual page refreshes.
+  2. Applying filters such as "Delayed Orders" initially showed 0 records or inconsistent counts until refreshed.
+  3. **Root Cause 1 (IndexedDB Stale-Empty State)**: `useCache('orders:all')` with `staleWhileRevalidate: true` was setting `orders = []` and `loading = false` when reading empty cached arrays from IndexedDB, immediately bypassing `<TableSkeleton />` and rendering `"No orders found matching your criteria"` while background fetching was still in progress.
+  4. **Root Cause 2 (API In-flight Abort Leak)**: `frontend/src/services/api.js` had a deduplication interceptor that did not clear `inflight.delete(key)` upon error or abort, and aborted responses rejected with `CANCELLED` which `useCache` silently swallowed without rendering.
+  5. **Root Cause 3 (Role Hydration Race)**: In `AllOrders.jsx`, `baseFilteredOrders` evaluated `matchesRole` against `user?.role`. During mount hydration before `sessionStorage` was read by `useAuth()`, `user` was `null`, causing `matchesRole = false` and filtering the entire order list to `[]` for initial renders.
+  6. **Root Cause 4 (Delayed Orders Fallback)**: `matchesCategory(order, 'delayed')` checked only `!!delayMap[order.id]`. In `AllOrders.jsx`, `delayMap` relied purely on client-side calculation that returned `null` until `delayConfig` finished loading, ignoring the server-attached `order.delayInfo` already computed by the backend.
+  7. **Root Cause 5 (Database & Query Bottleneck)**: `OrderStage` and `AuditLog` lacked composite sort indexes (`orderId + createdAt DESC`, `orderId + timestamp DESC`); `loadDelayConfig()` made repeated database queries; and active and completed orders were wrapped in serialized `$transaction` instead of parallel pooled execution.
+- **Implementation & Fixes**:
+  - **PostgreSQL Composite Indexes & Schema (`backend/prisma/schema.prisma`)**:
+    - Created indexes on live PostgreSQL and schema: `@@index([orderId, createdAt(sort: Desc)])` on `OrderStage` and `@@index([orderId, timestamp(sort: Desc)])` on `AuditLog`.
+  - **Backend Controller Optimizations (`backend/src/controllers/order.controller.js`)**:
+    - Added in-memory 60s cache for `loadDelayConfig` (`cachedDelayConfig`, `cachedDelayConfigAt`).
+    - Decoupled synchronous audit log escalation checks into non-blocking `setImmediate`.
+    - Switched active and completed order database queries from serialized `$transaction` to parallel `Promise.all`.
+    - Added structured diagnostic logging: `[Orders API] Request started` and `[Orders API] Completed in ...ms - returned ... orders`.
+  - **API Interceptor Cleanup & Bypass Support (`frontend/src/services/api.js`)**:
+    - Added cleanup of `inflight.delete(error.config?._inflightKey)` in `api.interceptors.response` error handler.
+    - Added `config.noDedupe` and `x-no-dedupe` header support so manual refreshes and forced fetches bypass deduplication aborts.
+  - **Rock-Solid Frontend Data Layer (`frontend/src/pages/AllOrders.jsx`)**:
+    - Replaced `useCache` with a sequenced data fetcher using `fetchSeqRef` and `mountRef` to guarantee stale in-flight responses are discarded.
+    - Cold-load protection: `loading` only turns false when valid orders arrive or are present in cache; never flashes empty table.
+    - Explicit States:
+      - **Loading State**: Displays spinner with `"Loading orders..."` and `<TableSkeleton rows={8} />`.
+      - **Error State**: Displays alert icon, `"Unable to load orders"`, error description, and a `[Retry Loading Orders]` button.
+      - **Empty State**: Displays package icon, `"No orders found for the selected filters."`, and a `[Reset Filters & View All]` button.
+    - **Delayed Orders & Filters Reliability**: `delayMap` and `matchesCategory` now fall back to server-attached `order.delayInfo` when client delay config is not hydrated, guaranteeing 100% immediate filter accuracy on first load.
+    - **SessionStorage Role Hydration**: `matchesRole` falls back to `sessionStorage.getItem('user')` and permits all administrative roles (`SUPER_ADMIN`, `ADMIN`, `CEO`, `SOFTWARE_SETTINGS`, `INVENTORY_VIEW`, `FAISAL`), preventing bootstrap filter wipeout.
+    - **Filter Reset Handler**: Added `handleResetFilters` callback resetting category, department, delay stage, status, type, urgency, city, date, and search term.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-admin-orders-loading-and-filters.cjs`:
+    - 100% Pass across all 5 verification checks (indexes verified, latency benchmarked, server delay tagging verified, frontend Loading/Error/Empty states verified, api.js deduplication verified).
+  - Frontend production build: compiled cleanly with 0 errors (`AllOrders-BLK-Glf2.js.br 84.60kb`).
+  - Git commit & push: committed to `main` branch (`62702d01`).
+  - Deployed to Vercel production (`smart-production-v2-qcuyuviia-sameerbutt056-1019s-projects.vercel.app`) and aliased to `smart-production-v2.vercel.app`.
+  - Live health check verified: `https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `{"status":"ok"}`.
+  - Live deployed assets verified: `https://smart-production-v2.vercel.app/` serving `index-CP-3StrQ.js`.
+
+### Implemented Prior Session — Production Out: Added "Send to Logo" Workflow & Removed "Unseen Tasks" Tab (deployed & live-verified)
 - **Problem & Requirements**:
   1. In **Production Out**, orders reaching production completion needed an additional routing option to send the order to the **Logo Profile** (`LOGO_DESIGN`), without creating duplicate orders and keeping the exact same order number and full order history.
   2. The workflow must follow: **Production Out → Send to Logo → Logo → Accept → Production Acceptance → Production → Production Out → Complete**.
