@@ -92,7 +92,17 @@ export default function EmployeeDataPage() {
     notes: '',
     loginEmail: '',
     password: '',
-    loginEnabled: false
+    loginEnabled: false,
+    // Dedicated Loan & Advance Section on Employee Creation (Section 2)
+    hasInitialLoan: false,
+    loanType: 'LOAN',
+    loanAmount: '',
+    loanRepaidAmount: '0',
+    loanMonthlyDeduction: '',
+    loanInstallments: '1',
+    loanFirstMonth: new Date().toISOString().slice(0, 7),
+    loanStartDate: new Date().toISOString().slice(0, 10),
+    loanNotes: ''
   };
   const [employeeFormData, setEmployeeFormData] = useState(initialEmployeeForm);
 
@@ -172,16 +182,45 @@ export default function EmployeeDataPage() {
 
   // --- Loans & Advances Tab State ---
   const [loansList, setLoansList] = useState([]);
+  const [loansSummary, setLoansSummary] = useState(null);
   const [filterLoanType, setFilterLoanType] = useState('ALL');
   const [isAddLoanOpen, setIsAddLoanOpen] = useState(false);
   const [loanFormData, setLoanFormData] = useState({
     employeeId: '',
     type: 'LOAN',
     amount: '',
+    repaidAmount: '0',
     monthlyDeduction: '',
+    numberOfInstallments: '1',
+    firstDeductionMonth: new Date().toISOString().slice(0, 7),
+    finalDeductionMonth: '',
     date: new Date().toISOString().slice(0, 10),
+    status: 'ACTIVE',
+    approvalStatus: 'APPROVED',
     notes: ''
   });
+
+  // Selected Loan for Detail View / Repayment Modal (Section 3)
+  const [selectedLoanDetail, setSelectedLoanDetail] = useState(null);
+  const [isLoanDetailModalOpen, setIsLoanDetailModalOpen] = useState(false);
+  const [isRecordRepaymentModalOpen, setIsRecordRepaymentModalOpen] = useState(false);
+  const [repaymentFormData, setRepaymentFormData] = useState({
+    amount: '',
+    repaymentType: 'DIRECT_PAYMENT',
+    period: new Date().toISOString().slice(0, 7),
+    notes: ''
+  });
+
+  // Late History & Deduction Review Modal (Section 7 & 8)
+  const [selectedLateHistoryEmp, setSelectedLateHistoryEmp] = useState(null);
+  const [isLateHistoryModalOpen, setIsLateHistoryModalOpen] = useState(false);
+  const [lateHistoryData, setLateHistoryData] = useState(null);
+  const [loadingLateHistory, setLoadingLateHistory] = useState(false);
+  const [lateDeductionCases, setLateDeductionCases] = useState([]);
+  const [reviewingCase, setReviewingCase] = useState(null);
+  const [reviewDecision, setReviewDecision] = useState('ACCEPT'); // 'ACCEPT' | 'MODIFY' | 'WAIVE'
+  const [reviewModifiedAmount, setReviewModifiedAmount] = useState('');
+  const [reviewReason, setReviewReason] = useState('');
 
   // --- Production & Incentive Tab State ---
   const [prodMonthYear, setProdMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
@@ -295,11 +334,28 @@ export default function EmployeeDataPage() {
       });
       if (res.data?.success) {
         setLoansList(res.data.records || []);
+        if (res.data.summary) {
+          setLoansSummary(res.data.summary);
+        }
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load loans');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch Late Deduction Cases (Section 8)
+  const fetchLateDeductionCases = async () => {
+    try {
+      const res = await api.get('/api/employees/deductions/cases', {
+        params: { period: payrollMonthYear }
+      });
+      if (res.data?.success) {
+        setLateDeductionCases(res.data.cases || []);
+      }
+    } catch (err) {
+      console.warn('Could not load late deduction cases:', err.message);
     }
   };
 
@@ -378,7 +434,10 @@ export default function EmployeeDataPage() {
     } else if (activeTab === 'leaves') fetchLeaves();
     else if (activeTab === 'loans') fetchLoans();
     else if (activeTab === 'production') fetchProductionSummary();
-    else if (activeTab === 'payroll') fetchPayrolls();
+    else if (activeTab === 'payroll') {
+      fetchPayrolls();
+      fetchLateDeductionCases();
+    }
   }, [
     activeTab,
     filterStatus,
@@ -503,11 +562,25 @@ export default function EmployeeDataPage() {
         await api.put(`/api/employees/${editingEmployee.employeeId}`, employeeFormData);
         toast.success(`Employee ${editingEmployee.employeeId} updated successfully`);
       } else {
-        await api.post('/api/employees', employeeFormData);
-        toast.success('New employee created successfully');
+        const payload = { ...employeeFormData };
+        if (employeeFormData.hasInitialLoan && parseFloat(employeeFormData.loanAmount) > 0) {
+          payload.loanDetails = {
+            type: employeeFormData.loanType || 'LOAN',
+            amount: parseFloat(employeeFormData.loanAmount) || 0,
+            repaidAmount: parseFloat(employeeFormData.loanRepaidAmount) || 0,
+            monthlyDeduction: parseFloat(employeeFormData.loanMonthlyDeduction) || 0,
+            numberOfInstallments: parseInt(employeeFormData.loanInstallments, 10) || 1,
+            firstDeductionMonth: employeeFormData.loanFirstMonth || new Date().toISOString().slice(0, 7),
+            date: employeeFormData.loanStartDate || new Date().toISOString().slice(0, 10),
+            notes: employeeFormData.loanNotes || 'Initial loan added at employee creation'
+          };
+        }
+        await api.post('/api/employees', payload);
+        toast.success('New employee created successfully with loan records');
       }
       setIsAddEmployeeOpen(false);
       fetchEmployees();
+      fetchLoans();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save employee');
     } finally {
@@ -790,13 +863,140 @@ export default function EmployeeDataPage() {
     e.preventDefault();
     try {
       setLoading(true);
-      await api.post('/api/employees/loans', loanFormData);
+      const payload = {
+        ...loanFormData,
+        amount: parseFloat(loanFormData.amount) || 0,
+        repaidAmount: parseFloat(loanFormData.repaidAmount) || 0,
+        monthlyDeduction: parseFloat(loanFormData.monthlyDeduction) || 0,
+        numberOfInstallments: parseInt(loanFormData.numberOfInstallments, 10) || 1
+      };
+      await api.post('/api/employees/loans', payload);
       toast.success(`${loanFormData.type} record created successfully`);
       setIsAddLoanOpen(false);
       fetchLoans();
       fetchEmployees();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save loan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenLoanDetail = async (loanId) => {
+    try {
+      setLoading(true);
+      const res = await api.get(`/api/employees/loans/${loanId}`);
+      if (res.data?.success) {
+        setSelectedLoanDetail(res.data.loan);
+        setIsLoanDetailModalOpen(true);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load loan details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenRecordRepayment = (loan) => {
+    setSelectedLoanDetail(loan);
+    setRepaymentFormData({
+      amount: String(Math.min(loan.monthlyDeduction || loan.remainingBalance, loan.remainingBalance)),
+      repaymentType: 'DIRECT_PAYMENT',
+      period: new Date().toISOString().slice(0, 7),
+      notes: ''
+    });
+    setIsRecordRepaymentModalOpen(true);
+  };
+
+  const handleSaveLoanRepayment = async (e) => {
+    e.preventDefault();
+    if (!selectedLoanDetail) return;
+    try {
+      setLoading(true);
+      const res = await api.post(`/api/employees/loans/${selectedLoanDetail.id}/repayments`, {
+        amount: parseFloat(repaymentFormData.amount) || 0,
+        repaymentType: repaymentFormData.repaymentType,
+        period: repaymentFormData.period,
+        notes: repaymentFormData.notes
+      });
+      if (res.data?.success) {
+        toast.success(res.data.message || 'Repayment recorded successfully');
+        setIsRecordRepaymentModalOpen(false);
+        fetchLoans();
+        fetchEmployees();
+        if (isLoanDetailModalOpen) {
+          handleOpenLoanDetail(selectedLoanDetail.id);
+        }
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to record repayment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleLoanStatus = async (loan, newStatus) => {
+    try {
+      setLoading(true);
+      const res = await api.put(`/api/employees/loans/${loan.id}`, { status: newStatus });
+      if (res.data?.success) {
+        toast.success(`Loan status set to ${newStatus}`);
+        fetchLoans();
+        if (isLoanDetailModalOpen && selectedLoanDetail?.id === loan.id) {
+          handleOpenLoanDetail(loan.id);
+        }
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update loan status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Handlers: Late History & Deduction Review (Section 7 & 8) ---
+  const handleOpenLateHistory = async (employeeId, employeeName) => {
+    try {
+      setLoadingLateHistory(true);
+      setSelectedLateHistoryEmp({ employeeId, employeeName });
+      setIsLateHistoryModalOpen(true);
+      const res = await api.get(`/api/employees/${employeeId}/attendance-history`, {
+        params: { monthYear: attMonthYear }
+      });
+      if (res.data?.success) {
+        setLateHistoryData(res.data);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load employee attendance history');
+    } finally {
+      setLoadingLateHistory(false);
+    }
+  };
+
+  const handleOpenReviewCase = (c) => {
+    setReviewingCase(c);
+    setReviewDecision(c.adminDecision || 'ACCEPT');
+    setReviewModifiedAmount(String(c.approvedAmount || c.proposedAmount || 0));
+    setReviewReason(c.reason || '');
+  };
+
+  const handleSubmitReviewCase = async (e) => {
+    e.preventDefault();
+    if (!reviewingCase) return;
+    try {
+      setLoading(true);
+      const res = await api.post(`/api/employees/deductions/${reviewingCase.id}/review`, {
+        decision: reviewDecision,
+        amount: parseFloat(reviewModifiedAmount) || 0,
+        reason: reviewReason
+      });
+      if (res.data?.success) {
+        toast.success(res.data.message || 'Deduction case updated');
+        setReviewingCase(null);
+        fetchLateDeductionCases();
+        fetchPayrolls();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit review');
     } finally {
       setLoading(false);
     }
@@ -1612,9 +1812,15 @@ export default function EmployeeDataPage() {
                             </td>
                             <td className="py-3 px-3">
                               {rec.lateMinutes > 0 ? (
-                                <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 text-xs">
-                                  +{rec.lateMinutes}m Late
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenLateHistory(rec.employeeId, rec.employeeName)}
+                                  className="font-mono font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/25 px-2 py-0.5 rounded border border-rose-500/20 text-xs transition-colors flex items-center gap-1 group"
+                                  title="Click to view employee late occurrences and audit ledger"
+                                >
+                                  <span>+{rec.lateMinutes}m Late</span>
+                                  <ExternalLink size={10} className="opacity-60 group-hover:opacity-100" />
+                                </button>
                               ) : (
                                 <span className="text-emerald-400 text-xs">On Time</span>
                               )}
@@ -2069,9 +2275,15 @@ export default function EmployeeDataPage() {
                             </td>
                             <td className="py-3 px-3">
                               {rec.lateMinutes > 0 ? (
-                                <span className="font-mono font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-xs">
-                                  +{rec.lateMinutes}m
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenLateHistory(rec.employeeId, rec.employeeName)}
+                                  className="font-mono font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/25 px-1.5 py-0.5 rounded border border-rose-500/20 text-xs transition-colors flex items-center gap-1 group"
+                                  title="Click to view employee late occurrences and audit ledger"
+                                >
+                                  <span>+{rec.lateMinutes}m</span>
+                                  <ExternalLink size={10} className="opacity-60 group-hover:opacity-100" />
+                                </button>
                               ) : (
                                 <span className="text-emerald-400 text-xs">On Time</span>
                               )}
@@ -2277,6 +2489,49 @@ export default function EmployeeDataPage() {
       {/* ========================================================================= */}
       {activeTab === 'loans' && (
         <div className="space-y-6 print:hidden">
+          {/* Section 3: Loan Dashboard KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Loan Issued</span>
+              <h4 className="text-2xl font-black text-white mt-1">
+                ₨ {(loansSummary?.totalIssued ?? loansList.reduce((s, r) => s + (r.amount || 0), 0)).toLocaleString()}
+              </h4>
+              <span className="text-[10px] text-slate-500">Gross approved amount</span>
+            </div>
+
+            <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Confirmed Repayments</span>
+              <h4 className="text-2xl font-black text-emerald-400 mt-1">
+                ₨ {(loansSummary?.totalRepaid ?? loansList.reduce((s, r) => s + (r.repaidAmount || (r.amount - r.remainingBalance) || 0), 0)).toLocaleString()}
+              </h4>
+              <span className="text-[10px] text-emerald-500/70 font-semibold">Recovered to date</span>
+            </div>
+
+            <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Outstanding Balance</span>
+              <h4 className="text-2xl font-black text-rose-400 mt-1">
+                ₨ {(loansSummary?.totalOutstanding ?? loansList.reduce((s, r) => s + (r.remainingBalance || 0), 0)).toLocaleString()}
+              </h4>
+              <span className="text-[10px] text-rose-500/70 font-semibold">Remaining balance</span>
+            </div>
+
+            <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Active Loans</span>
+              <h4 className="text-2xl font-black text-purple-400 mt-1">
+                {loansSummary?.activeCount ?? loansList.filter(r => r.status === 'ACTIVE').length}
+              </h4>
+              <span className="text-[10px] text-purple-400/80">Monthly installment active</span>
+            </div>
+
+            <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Settled Loans</span>
+              <h4 className="text-2xl font-black text-cyan-400 mt-1">
+                {loansSummary?.completedCount ?? loansList.filter(r => r.status === 'COMPLETED').length}
+              </h4>
+              <span className="text-[10px] text-cyan-400/80">100% Repaid</span>
+            </div>
+          </div>
+
           <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl">
@@ -2284,7 +2539,7 @@ export default function EmployeeDataPage() {
               </div>
               <div>
                 <h3 className="font-black text-white text-base">Loan & Advance Management</h3>
-                <p className="text-xs text-slate-400">Track loans, monthly deduction schedules, and remaining carry-forward balances</p>
+                <p className="text-xs text-slate-400">Track loans, monthly deduction schedules, confirmed repayments, and remaining balances</p>
               </div>
             </div>
 
@@ -2319,24 +2574,34 @@ export default function EmployeeDataPage() {
                     <th className="py-3 px-4">Type</th>
                     <th className="py-3 px-4">Issued Date</th>
                     <th className="py-3 px-4">Total Amount</th>
+                    <th className="py-3 px-4">Repaid</th>
                     <th className="py-3 px-4">Monthly Deduction</th>
                     <th className="py-3 px-4">Remaining Balance</th>
+                    <th className="py-3 px-4">Schedule</th>
                     <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Notes</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-medium">
                   {loansList.length === 0 ? (
                     <tr>
-                      <td colSpan="9" className="py-8 text-center text-slate-500">
+                      <td colSpan="11" className="py-8 text-center text-slate-500">
                         {loading ? 'Loading loans...' : 'No loans or advance records found.'}
                       </td>
                     </tr>
                   ) : (
                     loansList.map((rec) => (
-                      <tr key={rec.id} className="hover:bg-slate-800/40">
+                      <tr key={rec.id} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-blue-400">{rec.employeeId}</td>
-                        <td className="py-3 px-4 font-bold text-white">{rec.employeeName}</td>
+                        <td className="py-3 px-4 font-bold text-white">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenLoanDetail(rec.id)}
+                            className="text-left hover:text-blue-400 hover:underline transition-colors"
+                          >
+                            {rec.employeeName}
+                          </button>
+                        </td>
                         <td className="py-3 px-4">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             rec.type === 'LOAN' ? 'bg-purple-500/20 text-purple-300' : 'bg-amber-500/20 text-amber-300'
@@ -2346,16 +2611,47 @@ export default function EmployeeDataPage() {
                         </td>
                         <td className="py-3 px-4 font-mono">{rec.date}</td>
                         <td className="py-3 px-4 font-mono">₨ {rec.amount?.toLocaleString()}</td>
+                        <td className="py-3 px-4 font-mono text-emerald-400 font-bold">
+                          ₨ {(rec.repaidAmount || (rec.amount - rec.remainingBalance) || 0).toLocaleString()}
+                        </td>
                         <td className="py-3 px-4 font-mono text-purple-400">₨ {rec.monthlyDeduction?.toLocaleString()}</td>
                         <td className="py-3 px-4 font-mono font-bold text-rose-400">₨ {rec.remainingBalance?.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-[11px] text-slate-400 font-mono">
+                          {rec.firstDeductionMonth ? `From: ${rec.firstDeductionMonth}` : 'Immediate'}
+                        </td>
                         <td className="py-3 px-4">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                            rec.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            rec.status === 'ACTIVE'
+                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                              : rec.status === 'PAUSED'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                           }`}>
                             {rec.status}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-slate-400">{rec.notes || '—'}</td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenLoanDetail(rec.id)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold rounded-lg text-xs transition-all border border-blue-500/30"
+                              title="View Loan History & Repayments"
+                            >
+                              History
+                            </button>
+                            {rec.remainingBalance > 0 && rec.status === 'ACTIVE' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRecordRepayment(rec)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all"
+                                title="Record Direct Cash / Bank Repayment"
+                              >
+                                Repay
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -2651,6 +2947,94 @@ export default function EmployeeDataPage() {
               </div>
             </div>
           </div>
+
+          {/* Late Deduction Review Cases Banner (Section 7 & 8) */}
+          {lateDeductionCases.length > 0 && (
+            <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white flex items-center gap-2">
+                      Late Arrival Salary Deduction Reviews ({lateDeductionCases.length} Cases)
+                      {lateDeductionCases.some(c => c.status === 'PENDING') && (
+                        <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          {lateDeductionCases.filter(c => c.status === 'PENDING').length} Action Required
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      HR Policy: 3 late arrivals in a month trigger a salary deduction review. Admins have final authority to Accept, Modify, or Waive.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {lateDeductionCases.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`p-3 rounded-xl border text-xs space-y-2 transition-all ${
+                      c.status === 'PENDING'
+                        ? 'bg-amber-950/20 border-amber-500/40'
+                        : c.adminDecision === 'WAIVED'
+                        ? 'bg-emerald-950/20 border-emerald-500/30'
+                        : 'bg-slate-950/60 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white font-mono">{c.employeeId} - {c.employeeName}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        c.status === 'PENDING'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : c.adminDecision === 'WAIVED'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : c.adminDecision === 'MODIFIED'
+                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      }`}>
+                        {c.status === 'PENDING' ? 'PENDING REVIEW' : `${c.adminDecision} (₨ ${c.approvedAmount?.toLocaleString()})`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                      <span>Lates Count: <strong className="text-rose-400 font-mono">{c.totalLates} lates</strong></span>
+                      <span>Policy Proposed: <strong className="text-amber-400 font-mono">₨ {c.proposedAmount?.toLocaleString()}</strong></span>
+                    </div>
+
+                    {c.reason && (
+                      <p className="text-[11px] text-slate-400 italic bg-slate-900/60 p-1.5 rounded border border-slate-800 truncate">
+                        "{c.reason}"
+                      </p>
+                    )}
+
+                    <div className="pt-1 flex items-center justify-between border-t border-slate-800/60">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLateHistory(c.employeeId, c.employeeName)}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold underline"
+                      >
+                        View Late Punches
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReviewCase(c)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          c.status === 'PENDING'
+                            ? 'bg-amber-600 hover:bg-amber-500 text-white shadow'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                        }`}
+                      >
+                        {c.status === 'PENDING' ? 'Review & Decide' : 'Change Decision'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Full Excel-Compatible Payroll List Table */}
           <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
@@ -3968,6 +4352,168 @@ export default function EmployeeDataPage() {
                 </div>
               </div>
 
+              {/* Section 5: Initial Loan or Salary Advance (Optional) */}
+              {!editingEmployee && (
+                <div className="bg-slate-950/60 p-4 rounded-2xl border border-purple-500/30">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={employeeFormData.hasInitialLoan}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, hasInitialLoan: e.target.checked })}
+                        className="w-4 h-4 rounded text-purple-600 bg-slate-900 border-slate-800 focus:ring-0"
+                      />
+                      <span className="text-xs font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                        <CreditCard size={14} /> Add Initial Loan or Salary Advance (Optional)
+                      </span>
+                    </label>
+                    <span className="text-[11px] text-slate-500 font-medium">Automatic payroll deduction scheduler</span>
+                  </div>
+
+                  {employeeFormData.hasInitialLoan && (
+                    <div className="space-y-4 pt-2 border-t border-slate-800/80">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Disbursement Type *</label>
+                          <select
+                            value={employeeFormData.loanType}
+                            onChange={(e) => setEmployeeFormData({ ...employeeFormData, loanType: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="LOAN">LOAN (Deducted monthly in installments)</option>
+                            <option value="ADVANCE">SALARY ADVANCE (Recovered on next payroll)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Total Loan / Advance (₨) *</label>
+                          <input
+                            type="number"
+                            placeholder="e.g. 60000"
+                            value={employeeFormData.loanAmount}
+                            onChange={(e) => {
+                              const amt = parseFloat(e.target.value) || 0;
+                              const repaid = parseFloat(employeeFormData.loanRepaidAmount) || 0;
+                              const rem = Math.max(0, amt - repaid);
+                              const inst = parseInt(employeeFormData.loanInstallments, 10) || 1;
+                              const mDeduction = inst > 0 ? Math.round(rem / inst) : rem;
+                              setEmployeeFormData({
+                                ...employeeFormData,
+                                loanAmount: e.target.value,
+                                loanMonthlyDeduction: String(mDeduction)
+                              });
+                            }}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Amount Already Repaid (₨)</label>
+                          <input
+                            type="number"
+                            placeholder="0 if fresh loan"
+                            value={employeeFormData.loanRepaidAmount}
+                            onChange={(e) => {
+                              const repaid = parseFloat(e.target.value) || 0;
+                              const amt = parseFloat(employeeFormData.loanAmount) || 0;
+                              const rem = Math.max(0, amt - repaid);
+                              const inst = parseInt(employeeFormData.loanInstallments, 10) || 1;
+                              const mDeduction = inst > 0 ? Math.round(rem / inst) : rem;
+                              setEmployeeFormData({
+                                ...employeeFormData,
+                                loanRepaidAmount: e.target.value,
+                                loanMonthlyDeduction: String(mDeduction)
+                              });
+                            }}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Remaining Balance</label>
+                          <div className="px-3 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs sm:text-sm text-purple-400 font-mono font-bold">
+                            ₨ {Math.max(0, (parseFloat(employeeFormData.loanAmount) || 0) - (parseFloat(employeeFormData.loanRepaidAmount) || 0)).toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Monthly Deduction (₨) *</label>
+                          <input
+                            type="number"
+                            placeholder="e.g. 10000"
+                            value={employeeFormData.loanMonthlyDeduction}
+                            onChange={(e) => {
+                              const mDed = parseFloat(e.target.value) || 0;
+                              const amt = parseFloat(employeeFormData.loanAmount) || 0;
+                              const repaid = parseFloat(employeeFormData.loanRepaidAmount) || 0;
+                              const rem = Math.max(0, amt - repaid);
+                              const instCount = mDed > 0 ? Math.ceil(rem / mDed) : 1;
+                              setEmployeeFormData({
+                                ...employeeFormData,
+                                loanMonthlyDeduction: e.target.value,
+                                loanInstallments: String(instCount)
+                              });
+                            }}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Installments Count</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={employeeFormData.loanInstallments}
+                            onChange={(e) => {
+                              const inst = parseInt(e.target.value, 10) || 1;
+                              const amt = parseFloat(employeeFormData.loanAmount) || 0;
+                              const repaid = parseFloat(employeeFormData.loanRepaidAmount) || 0;
+                              const rem = Math.max(0, amt - repaid);
+                              const mDed = inst > 0 ? Math.round(rem / inst) : rem;
+                              setEmployeeFormData({
+                                ...employeeFormData,
+                                loanInstallments: e.target.value,
+                                loanMonthlyDeduction: String(mDed)
+                              });
+                            }}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">First Deduction Month</label>
+                          <input
+                            type="month"
+                            value={employeeFormData.loanFirstMonth}
+                            onChange={(e) => setEmployeeFormData({ ...employeeFormData, loanFirstMonth: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Disbursement Date</label>
+                          <input
+                            type="date"
+                            value={employeeFormData.loanStartDate}
+                            onChange={(e) => setEmployeeFormData({ ...employeeFormData, loanStartDate: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Reason / Agreement Notes</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Initial advance/loan recorded at employee enrollment"
+                            value={employeeFormData.loanNotes}
+                            onChange={(e) => setEmployeeFormData({ ...employeeFormData, loanNotes: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
@@ -4284,15 +4830,15 @@ export default function EmployeeDataPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: ADD LOAN / ADVANCE */}
+      {/* MODAL: ADD LOAN / ADVANCE (Enhanced) */}
       {/* ========================================================================= */}
       {isAddLoanOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm print:hidden">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 text-slate-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl p-6 text-slate-200">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
               <h3 className="text-lg font-black text-white flex items-center gap-2">
                 <CreditCard size={18} className="text-purple-400" />
-                Issue Loan / Advance
+                Issue Employee Loan / Advance
               </h3>
               <button onClick={() => setIsAddLoanOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
                 <X size={16} />
@@ -4306,7 +4852,7 @@ export default function EmployeeDataPage() {
                   required
                   value={loanFormData.employeeId}
                   onChange={(e) => setLoanFormData({ ...loanFormData, employeeId: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-purple-500"
                 >
                   <option value="">-- Choose Employee --</option>
                   {employees.map(e => (
@@ -4317,50 +4863,133 @@ export default function EmployeeDataPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Disbursement Type</label>
-                <select
-                  value={loanFormData.type}
-                  onChange={(e) => setLoanFormData({ ...loanFormData, type: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
-                >
-                  <option value="LOAN">LOAN (Deducted monthly in installments)</option>
-                  <option value="ADVANCE">SALARY ADVANCE (Recovered on next payroll)</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Disbursement Type *</label>
+                  <select
+                    value={loanFormData.type}
+                    onChange={(e) => setLoanFormData({ ...loanFormData, type: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="LOAN">LOAN (Monthly installments)</option>
+                    <option value="ADVANCE">SALARY ADVANCE (Next payroll)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Disbursement Date</label>
+                  <input
+                    type="date"
+                    value={loanFormData.date}
+                    onChange={(e) => setLoanFormData({ ...loanFormData, date: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">Total Amount (₨) *</label>
                   <input
                     type="number"
                     required
-                    placeholder="e.g. 40000"
+                    placeholder="e.g. 60000"
                     value={loanFormData.amount}
-                    onChange={(e) => setLoanFormData({ ...loanFormData, amount: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none"
+                    onChange={(e) => {
+                      const amt = parseFloat(e.target.value) || 0;
+                      const repaid = parseFloat(loanFormData.repaidAmount) || 0;
+                      const rem = Math.max(0, amt - repaid);
+                      const inst = parseInt(loanFormData.numberOfInstallments, 10) || 1;
+                      const mDed = inst > 0 ? Math.round(rem / inst) : rem;
+                      setLoanFormData({
+                        ...loanFormData,
+                        amount: e.target.value,
+                        monthlyDeduction: String(mDed)
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none focus:border-purple-500"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Already Repaid (₨)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={loanFormData.repaidAmount}
+                    onChange={(e) => {
+                      const repaid = parseFloat(e.target.value) || 0;
+                      const amt = parseFloat(loanFormData.amount) || 0;
+                      const rem = Math.max(0, amt - repaid);
+                      const inst = parseInt(loanFormData.numberOfInstallments, 10) || 1;
+                      const mDed = inst > 0 ? Math.round(rem / inst) : rem;
+                      setLoanFormData({
+                        ...loanFormData,
+                        repaidAmount: e.target.value,
+                        monthlyDeduction: String(mDed)
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Remaining Balance</label>
+                  <div className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-purple-400 font-mono font-bold">
+                    ₨ {Math.max(0, (parseFloat(loanFormData.amount) || 0) - (parseFloat(loanFormData.repaidAmount) || 0)).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">Monthly Deduction (₨)</label>
                   <input
                     type="number"
                     placeholder="e.g. 10000"
                     value={loanFormData.monthlyDeduction}
-                    onChange={(e) => setLoanFormData({ ...loanFormData, monthlyDeduction: e.target.value })}
+                    onChange={(e) => {
+                      const mDed = parseFloat(e.target.value) || 0;
+                      const amt = parseFloat(loanFormData.amount) || 0;
+                      const repaid = parseFloat(loanFormData.repaidAmount) || 0;
+                      const rem = Math.max(0, amt - repaid);
+                      const inst = mDed > 0 ? Math.ceil(rem / mDed) : 1;
+                      setLoanFormData({
+                        ...loanFormData,
+                        monthlyDeduction: e.target.value,
+                        numberOfInstallments: String(inst)
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Installments Count</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={loanFormData.numberOfInstallments}
+                    onChange={(e) => {
+                      const inst = parseInt(e.target.value, 10) || 1;
+                      const amt = parseFloat(loanFormData.amount) || 0;
+                      const repaid = parseFloat(loanFormData.repaidAmount) || 0;
+                      const rem = Math.max(0, amt - repaid);
+                      const mDed = inst > 0 ? Math.round(rem / inst) : rem;
+                      setLoanFormData({
+                        ...loanFormData,
+                        numberOfInstallments: e.target.value,
+                        monthlyDeduction: String(mDed)
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">First Month</label>
+                  <input
+                    type="month"
+                    value={loanFormData.firstDeductionMonth}
+                    onChange={(e) => setLoanFormData({ ...loanFormData, firstDeductionMonth: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={loanFormData.date}
-                  onChange={(e) => setLoanFormData({ ...loanFormData, date: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
-                />
               </div>
 
               <div>
@@ -4369,7 +4998,8 @@ export default function EmployeeDataPage() {
                   rows="2"
                   value={loanFormData.notes}
                   onChange={(e) => setLoanFormData({ ...loanFormData, notes: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  placeholder="e.g. Loan approved by management with 6-month repayment schedule"
                 />
               </div>
 
@@ -4384,9 +5014,540 @@ export default function EmployeeDataPage() {
                 <button
                   type="submit"
                   disabled={loading}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/30"
+                >
+                  Issue Loan Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: LOAN DETAIL & REPAYMENT LEDGER (Section 3) */}
+      {/* ========================================================================= */}
+      {isLoanDetailModalOpen && selectedLoanDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-purple-600/20 text-purple-400 rounded-2xl">
+                  <CreditCard size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    {selectedLoanDetail.employeeName} ({selectedLoanDetail.employeeId})
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                      selectedLoanDetail.status === 'COMPLETED'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : selectedLoanDetail.status === 'PAUSED'
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                        : 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
+                    }`}>
+                      {selectedLoanDetail.status}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Disbursement: {selectedLoanDetail.type} • Issued on: {selectedLoanDetail.date || '—'} • Approved by: {selectedLoanDetail.approvedBy || 'Admin'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenRecordRepayment(selectedLoanDetail)}
+                  disabled={selectedLoanDetail.remainingBalance <= 0}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow"
+                >
+                  <DollarSign size={14} /> Record Direct Payment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleLoanStatus(
+                    selectedLoanDetail,
+                    selectedLoanDetail.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'
+                  )}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
+                >
+                  {selectedLoanDetail.status === 'ACTIVE' ? 'Pause Deductions' : 'Resume Deductions'}
+                </button>
+                <button
+                  onClick={() => setIsLoanDetailModalOpen(false)}
+                  className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-xl"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Issued</span>
+                <span className="text-lg font-black text-white font-mono">₨ {selectedLoanDetail.amount?.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">Total Repaid</span>
+                <span className="text-lg font-black text-emerald-400 font-mono">₨ {(selectedLoanDetail.repaidAmount || 0)?.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block">Remaining Balance</span>
+                <span className="text-lg font-black text-purple-300 font-mono">₨ {(selectedLoanDetail.remainingBalance || 0)?.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider block">Schedule</span>
+                <span className="text-xs font-bold text-slate-200 block mt-0.5">
+                  ₨ {(selectedLoanDetail.monthlyDeduction || 0)?.toLocaleString()} / mo ({selectedLoanDetail.paidInstallmentsCount || 0}/{selectedLoanDetail.numberOfInstallments || 1})
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {selectedLoanDetail.firstDeductionMonth || '—'} → {selectedLoanDetail.finalDeductionMonth || '—'}
+                </span>
+              </div>
+            </div>
+
+            {/* Repayments Ledger Table */}
+            <div className="border border-slate-800 rounded-2xl overflow-hidden mb-4">
+              <div className="px-4 py-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <History size={14} className="text-emerald-400" /> Repayment Audit Ledger ({(selectedLoanDetail.repayments || []).length} transactions)
+                </h4>
+                <span className="text-[11px] text-slate-500">Atomic balance reconciliation</span>
+              </div>
+              <div className="overflow-x-auto max-h-[40vh]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 border-b border-slate-800 text-[10px] uppercase font-bold text-slate-400 sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Period</th>
+                      <th className="py-2.5 px-3">Type</th>
+                      <th className="py-2.5 px-3">Inst #</th>
+                      <th className="py-2.5 px-3">Amount</th>
+                      <th className="py-2.5 px-3">Balance Before</th>
+                      <th className="py-2.5 px-3">Balance After</th>
+                      <th className="py-2.5 px-3">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                    {(selectedLoanDetail.repayments || []).length === 0 ? (
+                      <tr>
+                        <td colSpan="9" className="py-8 text-center text-slate-500 font-sans">
+                          No repayment transactions recorded yet. Monthly payroll deductions will appear here automatically when payroll is marked paid.
+                        </td>
+                      </tr>
+                    ) : (
+                      selectedLoanDetail.repayments.map((tx, idx) => (
+                        <tr key={tx.id || idx} className="hover:bg-slate-800/30">
+                          <td className="py-2 px-3 text-slate-500">{idx + 1}</td>
+                          <td className="py-2 px-3 text-slate-300">{tx.paymentDate || tx.createdAt?.slice(0, 10)}</td>
+                          <td className="py-2 px-3 text-blue-400 font-bold">{tx.period || '—'}</td>
+                          <td className="py-2 px-3 font-sans">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              tx.repaymentType === 'PAYROLL_DEDUCTION'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : tx.repaymentType === 'DIRECT_PAYMENT'
+                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                            }`}>
+                              {tx.repaymentType?.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-400">{tx.installmentNumber ? `#${tx.installmentNumber}` : '—'}</td>
+                          <td className="py-2 px-3 text-emerald-400 font-bold">₨ {tx.amount?.toLocaleString()}</td>
+                          <td className="py-2 px-3 text-slate-400">₨ {tx.balanceBefore?.toLocaleString()}</td>
+                          <td className="py-2 px-3 text-purple-400 font-bold">₨ {tx.balanceAfter?.toLocaleString()}</td>
+                          <td className="py-2 px-3 font-sans text-slate-400 truncate max-w-xs">{tx.notes || '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
+              <span className="text-slate-500">
+                Operating Rule: Repayments are strictly non-duplicative and protected from over-deduction.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsLoanDetailModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+              >
+                Close Audit View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: RECORD DIRECT REPAYMENT */}
+      {/* ========================================================================= */}
+      {isRecordRepaymentModalOpen && selectedLoanDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <DollarSign size={18} className="text-emerald-400" />
+                Record Direct Loan Payment
+              </h3>
+              <button onClick={() => setIsRecordRepaymentModalOpen(false)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLoanRepayment} className="space-y-4">
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs">
+                <div className="flex justify-between text-slate-400 mb-1">
+                  <span>Employee:</span>
+                  <span className="font-bold text-white">{selectedLoanDetail.employeeName} ({selectedLoanDetail.employeeId})</span>
+                </div>
+                <div className="flex justify-between text-slate-400 mb-1">
+                  <span>Outstanding Balance:</span>
+                  <span className="font-mono font-bold text-purple-400">₨ {selectedLoanDetail.remainingBalance?.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Monthly Installment:</span>
+                  <span className="font-mono text-slate-300">₨ {selectedLoanDetail.monthlyDeduction?.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Payment Type</label>
+                <select
+                  value={repaymentFormData.repaymentType}
+                  onChange={(e) => setRepaymentFormData({ ...repaymentFormData, repaymentType: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none"
+                >
+                  <option value="DIRECT_PAYMENT">DIRECT PAYMENT (Cash / Bank Transfer)</option>
+                  <option value="PAYROLL_DEDUCTION">MANUAL PAYROLL ADJUSTMENT</option>
+                  <option value="ADMIN_ADJUSTMENT">ADMIN ADJUSTMENT / WRITE-OFF</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Amount to Repay (₨) *</label>
+                  <input
+                    type="number"
+                    required
+                    max={selectedLoanDetail.remainingBalance}
+                    min="1"
+                    placeholder="e.g. 10000"
+                    value={repaymentFormData.amount}
+                    onChange={(e) => setRepaymentFormData({ ...repaymentFormData, amount: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Accounting Period</label>
+                  <input
+                    type="month"
+                    value={repaymentFormData.period}
+                    onChange={(e) => setRepaymentFormData({ ...repaymentFormData, period: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white font-mono focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Receipt / Payment Notes</label>
+                <textarea
+                  rows="2"
+                  value={repaymentFormData.notes}
+                  onChange={(e) => setRepaymentFormData({ ...repaymentFormData, notes: e.target.value })}
+                  placeholder="e.g. Cash received at Johar Town outlet accounts counter"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsRecordRepaymentModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30"
+                >
+                  Save Repayment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EMPLOYEE LATE OCCURRENCES & ATTENDANCE AUDIT */}
+      {/* ========================================================================= */}
+      {isLateHistoryModalOpen && selectedLateHistoryEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-rose-600/20 text-rose-400 rounded-2xl">
+                  <Clock size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    {selectedLateHistoryEmp.employeeName} ({selectedLateHistoryEmp.employeeId})
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Monthly Biometric Late Occurrences & Audit • Shift: 10:00 AM (15m grace)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsLateHistoryModalOpen(false)}
+                className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-xl"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Late Summary Header */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Month Evaluated</span>
+                <span className="text-base font-black text-white font-mono">{lateHistoryData?.period || attMonthYear}</span>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider block">Late Occurrences</span>
+                <span className="text-xl font-black text-rose-400 font-mono">{lateHistoryData?.totalLates || 0} lates</span>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">Total Late Time</span>
+                <span className="text-xl font-black text-amber-400 font-mono">{lateHistoryData?.totalLateMinutes || 0} mins</span>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider block">HR Policy Status</span>
+                <span className="text-xs font-bold text-slate-200 block mt-1">
+                  {(lateHistoryData?.totalLates || 0) >= 3 ? 'Review Case Created' : 'Under 3-Late Policy'}
+                </span>
+              </div>
+            </div>
+
+            {/* Late Occurrences Table */}
+            <div className="border border-slate-800 rounded-2xl overflow-hidden mb-4">
+              <div className="px-4 py-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-rose-400" /> Late Arrival Punches (Physical Ground Truth)
+                </h4>
+                <span className="text-[11px] text-slate-500">Punches after 10:15 AM</span>
+              </div>
+              <div className="overflow-x-auto max-h-[45vh]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 border-b border-slate-800 text-[10px] uppercase font-bold text-slate-400 sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Scheduled Shift</th>
+                      <th className="py-2.5 px-3">First Machine Punch</th>
+                      <th className="py-2.5 px-3">Check-out Punch</th>
+                      <th className="py-2.5 px-3">Late Delay</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Device / Verification</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                    {loadingLateHistory ? (
+                      <tr>
+                        <td colSpan="7" className="py-8 text-center text-slate-400 font-sans">
+                          Loading employee late attendance history...
+                        </td>
+                      </tr>
+                    ) : (lateHistoryData?.records || []).filter(r => r.lateMinutes > 0).length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="py-8 text-center text-emerald-400 font-sans">
+                          Clean record! No late arrivals recorded for this employee in the selected period.
+                        </td>
+                      </tr>
+                    ) : (
+                      lateHistoryData.records
+                        .filter(r => r.lateMinutes > 0)
+                        .map((r, idx) => (
+                          <tr key={r.id || idx} className="hover:bg-slate-800/30">
+                            <td className="py-2 px-3 text-white font-bold">{r.date}</td>
+                            <td className="py-2 px-3 text-slate-400 font-sans">{r.scheduledCheckIn || '10:00'} - {r.scheduledCheckOut || '18:00'}</td>
+                            <td className="py-2 px-3 text-rose-400 font-bold">{r.checkInTime || '--:--'}</td>
+                            <td className="py-2 px-3 text-blue-400">{r.checkOutTime || '--:--'}</td>
+                            <td className="py-2 px-3">
+                              <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                +{r.lateMinutes} mins
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-sans">
+                              <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                LATE
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-slate-400 font-sans text-[10px]">{r.deviceInfo || 'Hikvision Terminal'}</td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
+              <span className="text-slate-500">
+                Operating Rule: Punches are derived purely from machine logs. 3 lates per month creates an HR review case for Admin approval.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsLateHistoryModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+              >
+                Close Audit View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: REVIEW LATE DEDUCTION CASE (Accept, Modify, Waive) */}
+      {/* ========================================================================= */}
+      {reviewingCase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <AlertTriangle size={18} className="text-amber-400" />
+                Review Late Salary Deduction Case
+              </h3>
+              <button onClick={() => setReviewingCase(null)} className="p-1.5 bg-slate-800 text-slate-400 rounded-xl">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitReviewCase} className="space-y-4">
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Employee:</span>
+                  <span className="font-bold text-white">{reviewingCase.employeeName} ({reviewingCase.employeeId})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Payroll Month:</span>
+                  <span className="font-mono font-bold text-blue-400">{reviewingCase.period}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Recorded Late Arrivals:</span>
+                  <span className="font-mono font-bold text-rose-400">{reviewingCase.totalLates} lates</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-800/80">
+                  <span className="text-slate-400 font-bold">Standard Policy Deduction:</span>
+                  <span className="font-mono font-bold text-amber-400 text-sm">
+                    ₨ {reviewingCase.proposedAmount?.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-2">Admin Decision *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReviewDecision('ACCEPT');
+                      setReviewModifiedAmount(String(reviewingCase.proposedAmount || 0));
+                    }}
+                    className={`p-3 rounded-2xl border text-center transition-all ${
+                      reviewDecision === 'ACCEPT'
+                        ? 'bg-rose-500/20 border-rose-500 text-rose-300 shadow-md'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="block text-xs font-black">ACCEPT</span>
+                    <span className="text-[10px] opacity-75">Apply Policy</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReviewDecision('MODIFY')}
+                    className={`p-3 rounded-2xl border text-center transition-all ${
+                      reviewDecision === 'MODIFY'
+                        ? 'bg-blue-500/20 border-blue-500 text-blue-300 shadow-md'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="block text-xs font-black">MODIFY</span>
+                    <span className="text-[10px] opacity-75">Custom Amount</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReviewDecision('WAIVE');
+                      setReviewModifiedAmount('0');
+                    }}
+                    className={`p-3 rounded-2xl border text-center transition-all ${
+                      reviewDecision === 'WAIVE'
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="block text-xs font-black">WAIVE</span>
+                    <span className="text-[10px] opacity-75">Forgive 100%</span>
+                  </button>
+                </div>
+              </div>
+
+              {reviewDecision === 'MODIFY' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Approved Deduction Amount (₨) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    placeholder="e.g. 500"
+                    value={reviewModifiedAmount}
+                    onChange={(e) => setReviewModifiedAmount(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-blue-500/60 rounded-xl text-xs font-bold text-white font-mono focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Specify the exact customized deduction amount for this employee</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Admin Reason / Justification *</label>
+                <textarea
+                  rows="2"
+                  required
+                  placeholder={
+                    reviewDecision === 'WAIVE'
+                      ? 'e.g. Approved exemption due to road blockage verified by manager'
+                      : reviewDecision === 'MODIFY'
+                      ? 'e.g. First occurrence warning - deduction reduced to nominal ₨ 500'
+                      : 'e.g. Approved deduction as per 3-late policy'
+                  }
+                  value={reviewReason}
+                  onChange={(e) => setReviewReason(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setReviewingCase(null)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30"
                 >
-                  Save Record
+                  Confirm & Update Payroll
                 </button>
               </div>
             </form>

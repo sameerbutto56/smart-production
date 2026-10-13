@@ -34,8 +34,10 @@ router.put('/leaves/:id/status', ...adminOnly, employeeController.updateLeaveSta
 
 // --- Loans & Advances Management ---
 router.get('/loans/list', ...adminOnly, employeeController.getLoans);
+router.get('/loans/:id', ...adminOnly, employeeController.getLoanDetails);
 router.post('/loans', ...adminOnly, employeeController.createLoan);
 router.put('/loans/:id', ...adminOnly, employeeController.updateLoan);
+router.post('/loans/:id/repayments', ...adminOnly, employeeController.recordLoanRepayment);
 
 // --- Production & Incentives Summary ---
 router.get('/production/summary', ...adminOnly, employeeController.getProductionSummary);

@@ -462,7 +462,12 @@ const getMyLoans = async (req, res) => {
 
     const records = await prisma.employeeLoanAdvance.findMany({
       where: { employeeId: empId },
-      orderBy: { date: 'desc' }
+      orderBy: { date: 'desc' },
+      include: {
+        repayments: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
     });
 
     const totalActiveLoanBalance = records
@@ -473,10 +478,13 @@ const getMyLoans = async (req, res) => {
       .filter(r => r.type === 'ADVANCE' && r.status === 'ACTIVE')
       .reduce((sum, r) => sum + (r.remainingBalance || 0), 0);
 
+    const totalRepaidAmount = records.reduce((sum, r) => sum + (r.repaidAmount || 0), 0);
+
     res.json({
       success: true,
       totalLoanBalance: totalActiveLoanBalance,
       totalAdvanceBalance: totalActiveAdvanceBalance,
+      totalRepaidAmount,
       records
     });
   } catch (err) {

@@ -2940,24 +2940,60 @@ model EmployeeLeave {
 }
 
 model EmployeeLoanAdvance {
-  id               String          @id @default(uuid())
-  employeeId       String
-  employeeName     String
-  type             String          @default("LOAN") // "LOAN" or "ADVANCE"
-  amount           Float           @default(0)
-  monthlyDeduction Float           @default(0)
-  remainingBalance Float           @default(0)
-  date             String          // "YYYY-MM-DD"
-  status           String          @default("ACTIVE") // "ACTIVE", "COMPLETED"
-  notes            String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                    String          @id @default(uuid())
+  employeeId            String
+  employeeName          String
+  type                  String          @default("LOAN") // "LOAN" or "ADVANCE"
+  amount                Float           @default(0)      // Total Loan Amount
+  repaidAmount          Float           @default(0)      // Total Confirmed Repayments
+  monthlyDeduction      Float           @default(0)      // Monthly Installment Amount
+  remainingBalance      Float           @default(0)      // Remaining Balance
+  numberOfInstallments  Int             @default(1)      // Total Planned Installments
+  paidInstallmentsCount Int             @default(0)      // Confirmed Paid Installments
+  firstDeductionMonth   String?                          // "YYYY-MM" e.g. "2026-10"
+  finalDeductionMonth   String?                          // "YYYY-MM" e.g. "2027-03"
+  date                  String                           // "YYYY-MM-DD" Start Date
+  status                String          @default("ACTIVE") // "ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"
+  approvalStatus        String          @default("APPROVED") // "APPROVED", "PENDING", "REJECTED"
+  approvedBy            String?
+  approvedAt            DateTime?
+  agreementDocUrl       String?
+  notes                 String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
-  employee         EmployeeRecord? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  employee              EmployeeRecord? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  repayments            LoanRepaymentTransaction[]
 
   @@index([employeeId])
   @@index([type])
   @@index([status])
+  @@index([approvalStatus])
+}
+
+model LoanRepaymentTransaction {
+  id               String               @id @default(uuid())
+  loanId           String
+  employeeId       String
+  employeeName     String
+  amount           Float                // Repayment amount
+  repaymentType    String               @default("PAYROLL_DEDUCTION") // "PAYROLL_DEDUCTION", "DIRECT_PAYMENT", "ADMIN_ADJUSTMENT", "REVERSAL"
+  payrollId        String?              // Linked MonthlyPayroll ID if deducted in payroll
+  period           String?              // "YYYY-MM" e.g. "2026-10"
+  installmentNumber Int?
+  balanceBefore    Float
+  balanceAfter     Float
+  notes            String?
+  createdById      String?
+  createdByName    String?              @default("System")
+  createdAt        DateTime             @default(now())
+
+  loan             EmployeeLoanAdvance  @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@index([employeeId])
+  @@index([payrollId])
+  @@index([period])
 }
 
 model MonthlyPayroll {

@@ -237,6 +237,59 @@ const createEmployee = async (req, res) => {
     });
 
     const { passwordHash: _, ...safeEmployee } = employee;
+
+    // Optional: Auto-create Loan & Advance Details during Employee Creation (Section 2)
+    if (req.body.loanDetails && typeof req.body.loanDetails === 'object') {
+      const ld = req.body.loanDetails;
+      const loanAmt = parseFloat(ld.amount) || 0;
+      if (loanAmt > 0) {
+        const lType = (ld.type || 'LOAN').toUpperCase();
+        const mDed = parseFloat(ld.monthlyDeduction) || 0;
+        const repaid = parseFloat(ld.repaidAmount) || 0;
+        const remaining = Math.max(0, loanAmt - repaid);
+        const installments = parseInt(ld.numberOfInstallments, 10) || (mDed > 0 ? Math.ceil(remaining / mDed) : 1);
+        const firstMonth = ld.firstDeductionMonth || new Date().toISOString().slice(0, 7);
+        const startDate = ld.date || new Date().toISOString().slice(0, 10);
+        const lStatus = ld.status ? ld.status.toUpperCase() : 'ACTIVE';
+        const approval = ld.approvalStatus ? ld.approvalStatus.toUpperCase() : 'APPROVED';
+
+        await prisma.employeeLoanAdvance.create({
+          data: {
+            employeeId: finalEmpId,
+            employeeName: employee.name,
+            type: lType,
+            amount: loanAmt,
+            repaidAmount: repaid,
+            monthlyDeduction: mDed,
+            remainingBalance: remaining,
+            numberOfInstallments: installments,
+            paidInstallmentsCount: mDed > 0 ? Math.floor(repaid / mDed) : 0,
+            firstDeductionMonth: firstMonth,
+            finalDeductionMonth: ld.finalDeductionMonth || null,
+            date: startDate,
+            status: remaining === 0 ? 'COMPLETED' : lStatus,
+            approvalStatus: approval,
+            approvedBy: req.user?.name || 'Admin',
+            approvedAt: new Date(),
+            notes: ld.notes?.trim() || null
+          }
+        });
+
+        // Update employee summary loan/advance balance
+        if (lType === 'LOAN') {
+          await prisma.employeeRecord.update({
+            where: { employeeId: finalEmpId },
+            data: { loan: remaining }
+          });
+        } else {
+          await prisma.employeeRecord.update({
+            where: { employeeId: finalEmpId },
+            data: { advance: remaining }
+          });
+        }
+      }
+    }
+
     res.status(201).json({ success: true, message: 'Employee created successfully', employee: safeEmployee });
   } catch (err) {
     console.error('Error creating employee:', err);
@@ -1518,20 +1571,82 @@ const getLoans = async (req, res) => {
     const records = await prisma.employeeLoanAdvance.findMany({
       where,
       orderBy: { date: 'desc' },
-      include: { employee: true }
+      include: {
+        employee: true,
+        repayments: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
     });
 
-    res.json({ success: true, count: records.length, records });
+    // Summary statistics for Dashboard (Section 3)
+    const totalIssued = records.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const totalRepaid = records.reduce((sum, r) => sum + (r.repaidAmount || 0), 0);
+    const totalOutstanding = records.reduce((sum, r) => sum + (r.remainingBalance || 0), 0);
+    const activeCount = records.filter(r => r.status === 'ACTIVE').length;
+    const completedCount = records.filter(r => r.status === 'COMPLETED').length;
+
+    res.json({
+      success: true,
+      count: records.length,
+      summary: {
+        totalIssued,
+        totalRepaid,
+        totalOutstanding,
+        activeCount,
+        completedCount
+      },
+      records
+    });
   } catch (err) {
     console.error('Error fetching loans:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch loans', error: err.message });
   }
 };
 
+// GET /api/employees/loans/:id
+const getLoanDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const loan = await prisma.employeeLoanAdvance.findUnique({
+      where: { id },
+      include: {
+        employee: true,
+        repayments: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    if (!loan) {
+      return res.status(404).json({ success: false, message: 'Loan record not found' });
+    }
+
+    res.json({ success: true, loan });
+  } catch (err) {
+    console.error('Error fetching loan details:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch loan details', error: err.message });
+  }
+};
+
 // POST /api/employees/loans
 const createLoan = async (req, res) => {
   try {
-    const { employeeId, type = 'LOAN', amount, monthlyDeduction, date, notes } = req.body;
+    const {
+      employeeId,
+      type = 'LOAN',
+      amount,
+      repaidAmount = 0,
+      monthlyDeduction,
+      numberOfInstallments,
+      firstDeductionMonth,
+      finalDeductionMonth,
+      date,
+      status = 'ACTIVE',
+      approvalStatus = 'APPROVED',
+      notes
+    } = req.body;
+
     if (!employeeId || !amount) {
       return res.status(400).json({ success: false, message: 'employeeId and amount are required' });
     }
@@ -1540,8 +1655,12 @@ const createLoan = async (req, res) => {
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found' });
 
     const amt = parseFloat(amount) || 0;
+    const repaid = parseFloat(repaidAmount) || 0;
     const mDed = parseFloat(monthlyDeduction) || 0;
+    const remaining = Math.max(0, amt - repaid);
+    const installments = parseInt(numberOfInstallments, 10) || (mDed > 0 ? Math.ceil(remaining / mDed) : 1);
     const recDate = date || new Date().toISOString().slice(0, 10);
+    const firstMonth = firstDeductionMonth || recDate.slice(0, 7);
 
     const record = await prisma.employeeLoanAdvance.create({
       data: {
@@ -1549,24 +1668,51 @@ const createLoan = async (req, res) => {
         employeeName: employee.name,
         type: type.toUpperCase(),
         amount: amt,
+        repaidAmount: repaid,
         monthlyDeduction: mDed,
-        remainingBalance: amt,
+        remainingBalance: remaining,
+        numberOfInstallments: installments,
+        paidInstallmentsCount: mDed > 0 ? Math.floor(repaid / mDed) : 0,
+        firstDeductionMonth: firstMonth,
+        finalDeductionMonth: finalDeductionMonth || null,
         date: recDate,
-        status: 'ACTIVE',
+        status: remaining === 0 ? 'COMPLETED' : status.toUpperCase(),
+        approvalStatus: approvalStatus.toUpperCase(),
+        approvedBy: req.user?.name || 'Admin',
+        approvedAt: new Date(),
         notes: notes?.trim() || null
       }
     });
+
+    // If initial repayment was recorded, create opening repayment transaction
+    if (repaid > 0) {
+      await prisma.loanRepaymentTransaction.create({
+        data: {
+          loanId: record.id,
+          employeeId,
+          employeeName: employee.name,
+          amount: repaid,
+          repaymentType: 'DIRECT_PAYMENT',
+          period: firstMonth,
+          balanceBefore: amt,
+          balanceAfter: remaining,
+          notes: 'Initial confirmed repayment on record creation',
+          createdById: req.user?.id || null,
+          createdByName: req.user?.name || 'Admin'
+        }
+      });
+    }
 
     // Update employee profile summary balance
     if (type.toUpperCase() === 'LOAN') {
       await prisma.employeeRecord.update({
         where: { employeeId },
-        data: { loan: { increment: amt } }
+        data: { loan: { increment: remaining } }
       });
     } else {
       await prisma.employeeRecord.update({
         where: { employeeId },
-        data: { advance: { increment: amt } }
+        data: { advance: { increment: remaining } }
       });
     }
 
@@ -1581,12 +1727,29 @@ const createLoan = async (req, res) => {
 const updateLoan = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, monthlyDeduction, remainingBalance, notes } = req.body;
+    const { status, approvalStatus, monthlyDeduction, remainingBalance, notes, firstDeductionMonth, finalDeductionMonth } = req.body;
+
+    const existing = await prisma.employeeLoanAdvance.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Loan not found' });
 
     const data = {};
     if (status) data.status = status.toUpperCase();
+    if (approvalStatus) {
+      data.approvalStatus = approvalStatus.toUpperCase();
+      if (approvalStatus.toUpperCase() === 'APPROVED') {
+        data.approvedBy = req.user?.name || 'Admin';
+        data.approvedAt = new Date();
+      }
+    }
     if (monthlyDeduction !== undefined) data.monthlyDeduction = parseFloat(monthlyDeduction) || 0;
-    if (remainingBalance !== undefined) data.remainingBalance = parseFloat(remainingBalance) || 0;
+    if (remainingBalance !== undefined) {
+      const newBal = parseFloat(remainingBalance) || 0;
+      data.remainingBalance = newBal;
+      data.repaidAmount = Math.max(0, existing.amount - newBal);
+      if (newBal === 0) data.status = 'COMPLETED';
+    }
+    if (firstDeductionMonth !== undefined) data.firstDeductionMonth = firstDeductionMonth;
+    if (finalDeductionMonth !== undefined) data.finalDeductionMonth = finalDeductionMonth;
     if (notes !== undefined) data.notes = notes;
 
     const record = await prisma.employeeLoanAdvance.update({
@@ -1598,6 +1761,81 @@ const updateLoan = async (req, res) => {
   } catch (err) {
     console.error('Error updating loan:', err);
     res.status(500).json({ success: false, message: 'Failed to update loan', error: err.message });
+  }
+};
+
+// POST /api/employees/loans/:id/repayments
+// Records a confirmed repayment (Direct Cash/Bank payment, adjustment, or settlement) with full audit trail (Section 3)
+const recordLoanRepayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, repaymentType = 'DIRECT_PAYMENT', period, notes } = req.body;
+
+    const repayAmt = parseFloat(amount);
+    if (!repayAmt || repayAmt <= 0) {
+      return res.status(400).json({ success: false, message: 'Repayment amount must be greater than zero' });
+    }
+
+    const loan = await prisma.employeeLoanAdvance.findUnique({ where: { id } });
+    if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
+
+    if (repayAmt > loan.remainingBalance) {
+      return res.status(400).json({
+        success: false,
+        message: `Repayment amount (₨ ${repayAmt}) cannot exceed remaining balance (₨ ${loan.remainingBalance})`
+      });
+    }
+
+    const balanceBefore = loan.remainingBalance;
+    const balanceAfter = Math.max(0, balanceBefore - repayAmt);
+    const newRepaid = (loan.repaidAmount || 0) + repayAmt;
+    const newStatus = balanceAfter === 0 ? 'COMPLETED' : loan.status;
+
+    const [tx, updatedLoan] = await prisma.$transaction([
+      prisma.loanRepaymentTransaction.create({
+        data: {
+          loanId: id,
+          employeeId: loan.employeeId,
+          employeeName: loan.employeeName,
+          amount: repayAmt,
+          repaymentType: repaymentType.toUpperCase(),
+          period: period || new Date().toISOString().slice(0, 7),
+          installmentNumber: (loan.paidInstallmentsCount || 0) + 1,
+          balanceBefore,
+          balanceAfter,
+          notes: notes?.trim() || 'Direct confirmed repayment',
+          createdById: req.user?.id || null,
+          createdByName: req.user?.name || 'Admin'
+        }
+      }),
+      prisma.employeeLoanAdvance.update({
+        where: { id },
+        data: {
+          remainingBalance: balanceAfter,
+          repaidAmount: newRepaid,
+          paidInstallmentsCount: { increment: 1 },
+          status: newStatus
+        }
+      }),
+      prisma.employeeRecord.update({
+        where: { employeeId: loan.employeeId },
+        data: {
+          ...(loan.type === 'LOAN'
+            ? { loan: { decrement: repayAmt } }
+            : { advance: { decrement: repayAmt } })
+        }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      message: `Repayment of ₨ ${repayAmt.toLocaleString()} recorded successfully`,
+      transaction: tx,
+      loan: updatedLoan
+    });
+  } catch (err) {
+    console.error('Error recording loan repayment:', err);
+    res.status(500).json({ success: false, message: 'Failed to record loan repayment', error: err.message });
   }
 };
 
@@ -1868,15 +2106,29 @@ const calculateMonthlyPayroll = async (req, res) => {
       const hourlyRate = (emp.monthlySalary || 0) / ((emp.workingDays || 30) * (emp.workingHours || 8));
       const overtimeAmount = Math.round(overtimeHours * hourlyRate);
 
-      // Loan & Advance Deductions from active records
-      const empLoanRecs = loansByEmp.get(emp.employeeId) || [];
+      // Loan & Advance Deductions from active & approved records (Section 4 & 10)
+      const empLoanRecs = (loansByEmp.get(emp.employeeId) || []).filter(r => {
+        // Only APPROVED and ACTIVE loans
+        if (r.approvalStatus && r.approvalStatus !== 'APPROVED') return false;
+        if (r.status !== 'ACTIVE') return false;
+        if ((r.remainingBalance || 0) <= 0) return false;
+
+        // Check if scheduled for this payroll period:
+        // If firstDeductionMonth is set, monthYear must be >= firstDeductionMonth
+        if (r.firstDeductionMonth && monthYear < r.firstDeductionMonth) return false;
+        // If finalDeductionMonth is set, monthYear must be <= finalDeductionMonth
+        if (r.finalDeductionMonth && monthYear > r.finalDeductionMonth) return false;
+
+        return true;
+      });
+
       const loanDeduction = empLoanRecs
         .filter(r => r.type === 'LOAN')
-        .reduce((sum, r) => sum + Math.min(r.monthlyDeduction || 0, r.remainingBalance || 0), 0) || (emp.loan ? Math.min(emp.loan, 2000) : 0);
+        .reduce((sum, r) => sum + Math.min(r.monthlyDeduction || 0, r.remainingBalance || 0), 0);
 
       const advanceDeduction = empLoanRecs
         .filter(r => r.type === 'ADVANCE')
-        .reduce((sum, r) => sum + Math.min(r.monthlyDeduction || 0, r.remainingBalance || 0), 0) || (emp.advance || 0);
+        .reduce((sum, r) => sum + Math.min(r.monthlyDeduction || 0, r.remainingBalance || 0), 0);
 
       // Allowances
       const fuelAllowance = emp.fuelAllowance || 0;
@@ -2371,36 +2623,134 @@ const markPayrollPaid = async (req, res) => {
       }
     });
 
-    // Auto-deduct from active loans & advances
+    // Auto-deduct from active loans & advances with duplicate-safe LoanRepaymentTransaction (Section 4 & 10)
     if (payroll.loanDeduction > 0) {
-      const activeLoans = await prisma.employeeLoanAdvance.findMany({
-        where: { employeeId: payroll.employeeId, type: 'LOAN', status: 'ACTIVE' }
+      // Check if this payroll period was already processed for loan repayments
+      const existingLoanTx = await prisma.loanRepaymentTransaction.findFirst({
+        where: { payrollId: payroll.id }
       });
-      for (const al of activeLoans) {
-        const newBal = Math.max(0, al.remainingBalance - payroll.loanDeduction);
-        await prisma.employeeLoanAdvance.update({
-          where: { id: al.id },
-          data: {
-            remainingBalance: newBal,
-            status: newBal === 0 ? 'COMPLETED' : 'ACTIVE'
-          }
+
+      if (!existingLoanTx) {
+        const activeLoans = await prisma.employeeLoanAdvance.findMany({
+          where: {
+            employeeId: payroll.employeeId,
+            type: 'LOAN',
+            status: 'ACTIVE',
+            approvalStatus: 'APPROVED'
+          },
+          orderBy: { date: 'asc' }
         });
+
+        let remainingToDeduct = payroll.loanDeduction;
+        for (const al of activeLoans) {
+          if (remainingToDeduct <= 0) break;
+          const deductThisLoan = Math.min(al.remainingBalance, remainingToDeduct);
+          if (deductThisLoan > 0) {
+            const balBefore = al.remainingBalance;
+            const balAfter = Math.max(0, balBefore - deductThisLoan);
+            const newRepaid = (al.repaidAmount || 0) + deductThisLoan;
+            const newStatus = balAfter === 0 ? 'COMPLETED' : 'ACTIVE';
+
+            await prisma.loanRepaymentTransaction.create({
+              data: {
+                loanId: al.id,
+                employeeId: payroll.employeeId,
+                employeeName: payroll.employeeName,
+                amount: deductThisLoan,
+                repaymentType: 'PAYROLL_DEDUCTION',
+                payrollId: payroll.id,
+                period: payroll.monthYear,
+                installmentNumber: (al.paidInstallmentsCount || 0) + 1,
+                balanceBefore: balBefore,
+                balanceAfter: balAfter,
+                notes: `Deducted via approved payroll for ${payroll.monthYear}`,
+                createdById: req.user?.id || null,
+                createdByName: req.user?.name || 'Admin'
+              }
+            });
+
+            await prisma.employeeLoanAdvance.update({
+              where: { id: al.id },
+              data: {
+                remainingBalance: balAfter,
+                repaidAmount: newRepaid,
+                paidInstallmentsCount: { increment: 1 },
+                status: newStatus
+              }
+            });
+
+            await prisma.employeeRecord.update({
+              where: { employeeId: payroll.employeeId },
+              data: { loan: { decrement: deductThisLoan } }
+            });
+
+            remainingToDeduct -= deductThisLoan;
+          }
+        }
       }
     }
 
     if (payroll.advanceDeduction > 0) {
-      const activeAdvances = await prisma.employeeLoanAdvance.findMany({
-        where: { employeeId: payroll.employeeId, type: 'ADVANCE', status: 'ACTIVE' }
+      const existingAdvTx = await prisma.loanRepaymentTransaction.findFirst({
+        where: { payrollId: payroll.id, repaymentType: 'PAYROLL_DEDUCTION' }
       });
+
+      // Deduct advance if not already processed
+      const activeAdvances = await prisma.employeeLoanAdvance.findMany({
+        where: {
+          employeeId: payroll.employeeId,
+          type: 'ADVANCE',
+          status: 'ACTIVE',
+          approvalStatus: 'APPROVED'
+        },
+        orderBy: { date: 'asc' }
+      });
+
+      let remainingAdvToDeduct = payroll.advanceDeduction;
       for (const aa of activeAdvances) {
-        const newBal = Math.max(0, aa.remainingBalance - payroll.advanceDeduction);
-        await prisma.employeeLoanAdvance.update({
-          where: { id: aa.id },
-          data: {
-            remainingBalance: newBal,
-            status: newBal === 0 ? 'COMPLETED' : 'ACTIVE'
-          }
-        });
+        if (remainingAdvToDeduct <= 0) break;
+        const deductThisAdv = Math.min(aa.remainingBalance, remainingAdvToDeduct);
+        if (deductThisAdv > 0) {
+          const balBefore = aa.remainingBalance;
+          const balAfter = Math.max(0, balBefore - deductThisAdv);
+          const newRepaid = (aa.repaidAmount || 0) + deductThisAdv;
+          const newStatus = balAfter === 0 ? 'COMPLETED' : 'ACTIVE';
+
+          await prisma.loanRepaymentTransaction.create({
+            data: {
+              loanId: aa.id,
+              employeeId: payroll.employeeId,
+              employeeName: payroll.employeeName,
+              amount: deductThisAdv,
+              repaymentType: 'PAYROLL_DEDUCTION',
+              payrollId: payroll.id,
+              period: payroll.monthYear,
+              installmentNumber: (aa.paidInstallmentsCount || 0) + 1,
+              balanceBefore: balBefore,
+              balanceAfter: balAfter,
+              notes: `Advance deducted via approved payroll for ${payroll.monthYear}`,
+              createdById: req.user?.id || null,
+              createdByName: req.user?.name || 'Admin'
+            }
+          });
+
+          await prisma.employeeLoanAdvance.update({
+            where: { id: aa.id },
+            data: {
+              remainingBalance: balAfter,
+              repaidAmount: newRepaid,
+              paidInstallmentsCount: { increment: 1 },
+              status: newStatus
+            }
+          });
+
+          await prisma.employeeRecord.update({
+            where: { employeeId: payroll.employeeId },
+            data: { advance: { decrement: deductThisAdv } }
+          });
+
+          remainingAdvToDeduct -= deductThisAdv;
+        }
       }
     }
 
@@ -3171,8 +3521,10 @@ module.exports = {
   createLeave,
   updateLeaveStatus,
   getLoans,
+  getLoanDetails,
   createLoan,
   updateLoan,
+  recordLoanRepayment,
   getProductionSummary,
   getMonthlyPayrollList,
   calculateMonthlyPayroll,
