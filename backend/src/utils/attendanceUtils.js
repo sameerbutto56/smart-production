@@ -100,8 +100,8 @@ function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualO
   const overtimeMinutes = earlyCheckInOt + checkoutOtMinutes;
 
   // 4. Worked Hours
-  let workingHours = 8;
-  if (status === 'HALF_DAY' || status === 'INCOMPLETE') {
+  let workingHours = 0;
+  if (status === 'HALF_DAY') {
     workingHours = 4;
   } else if (aIn !== null && aOut !== null && aOut > aIn) {
     workingHours = Math.round(((aOut - aIn) / 60) * 10) / 10;

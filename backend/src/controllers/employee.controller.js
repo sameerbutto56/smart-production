@@ -338,7 +338,13 @@ const deleteEmployee = async (req, res) => {
 // GET /api/employees/attendance/daily?date=YYYY-MM-DD
 const getDailyAttendance = async (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const todayPkt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+    const date = req.query.date || todayPkt;
     const branch = req.query.branch;
 
     const empWhere = { status: 'ACTIVE' };
@@ -358,6 +364,103 @@ const getDailyAttendance = async (req, res) => {
     const attMap = new Map();
     attendances.forEach(a => attMap.set(a.employeeId, a));
 
+    // Leaves query
+    const leaves = await prisma.employeeLeave.findMany({
+      where: {
+        status: 'APPROVED',
+        startDate: { lte: date },
+        endDate: { gte: date }
+      }
+    });
+
+    // Check for any employees missing attendance records or with null checkInTime
+    const missingEmployees = employees.filter(e => {
+      const a = attMap.get(e.employeeId);
+      return !a || a.checkInTime === null;
+    });
+
+    if (missingEmployees.length > 0) {
+      const rawPunches = await prisma.machineAttendance.findMany({
+        where: {
+          punchDate: date,
+          OR: [
+            { employeeId: { in: missingEmployees.map(e => e.employeeId) } },
+            { machineUserId: { in: missingEmployees.map(e => String(e.machineUserId || e.employeeId)) } }
+          ]
+        },
+        orderBy: { punchTime: 'asc' }
+      });
+
+      if (rawPunches.length > 0) {
+        const punchesByEmp = new Map();
+        for (const p of rawPunches) {
+          let matchedEmp = missingEmployees.find(e =>
+            e.employeeId === p.employeeId ||
+            (e.machineUserId && e.machineUserId === p.machineUserId) ||
+            String(e.employeeId).replace(/^0+/, '') === String(p.machineUserId).replace(/^0+/, '')
+          );
+          if (matchedEmp) {
+            if (!punchesByEmp.has(matchedEmp.employeeId)) punchesByEmp.set(matchedEmp.employeeId, []);
+            punchesByEmp.get(matchedEmp.employeeId).push(p);
+          }
+        }
+
+        for (const [empId, pList] of punchesByEmp.entries()) {
+          const emp = employees.find(e => e.employeeId === empId);
+          if (!emp || pList.length === 0) continue;
+
+          const checkIn = pList[0].punchTime;
+          const rawPunchIn = pList[0].rawTimestamp || pList[0].punchTime;
+          const checkOut = pList.length > 1 ? pList[pList.length - 1].punchTime : null;
+          const rawPunchOut = pList.length > 1 ? (pList[pList.length - 1].rawTimestamp || pList[pList.length - 1].punchTime) : null;
+
+          const sIn = emp.checkInTime || '10:00';
+          const sOut = emp.checkOutTime || '18:00';
+
+          const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, checkOut, 'PRESENT');
+          let status = 'PRESENT';
+          if (pList.length === 1) {
+            status = date === todayPkt ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'INCOMPLETE';
+          } else {
+            status = metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT';
+          }
+
+          const rec = {
+            employeeId: emp.employeeId,
+            employeeName: emp.name,
+            date,
+            checkInTime: checkIn,
+            checkOutTime: checkOut,
+            rawPunchIn,
+            rawPunchOut,
+            scheduledCheckIn: sIn,
+            scheduledCheckOut: sOut,
+            earlyArrivalMinutes: metrics.earlyArrivalMinutes,
+            earlyCheckInOt: metrics.earlyCheckInOt,
+            lateMinutes: metrics.lateMinutes,
+            earlyMinutes: metrics.earlyMinutes,
+            checkoutOtMinutes: metrics.checkoutOtMinutes,
+            overtimeMinutes: metrics.overtimeMinutes,
+            status,
+            workingHours: metrics.workingHours,
+            machineId: pList[0].machineId || 'DS-K1T342MFWX',
+            source: 'MACHINE',
+            notes: `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} [${pList.length} punches]`
+          };
+
+          attMap.set(emp.employeeId, rec);
+
+          prisma.employeeAttendance.upsert({
+            where: { employeeId_date: { employeeId: emp.employeeId, date } },
+            update: rec,
+            create: rec
+          }).catch(() => {});
+        }
+      }
+    }
+
+    const isSun = new Date(`${date}T12:00:00Z`).getUTCDay() === 0;
+
     const records = employees.map(emp => {
       const att = attMap.get(emp.employeeId);
       if (att) {
@@ -369,6 +472,11 @@ const getDailyAttendance = async (req, res) => {
           monthlySalary: emp.monthlySalary
         };
       }
+
+      const onLeave = leaves.find(l => l.employeeId === emp.employeeId);
+      const fallbackStatus = onLeave ? 'LEAVE' : (isSun ? 'WEEKLY_OFF' : 'ABSENT');
+      const fallbackNote = onLeave ? `Approved ${onLeave.leaveType} Leave` : (isSun ? 'Weekly Off / Non-Working Day' : 'No machine punch found for this date');
+
       return {
         id: null,
         employeeId: emp.employeeId,
@@ -387,10 +495,11 @@ const getDailyAttendance = async (req, res) => {
         earlyMinutes: 0,
         checkoutOtMinutes: 0,
         overtimeMinutes: 0,
-        status: 'ABSENT',
-        workingHours: emp.workingHours || 8,
+        status: fallbackStatus,
+        workingHours: 0,
         monthlySalary: emp.monthlySalary,
-        notes: null
+        source: 'SYSTEM',
+        notes: fallbackNote
       };
     });
 
@@ -920,13 +1029,16 @@ const getMonthlyAttendance = async (req, res) => {
 
     const summary = employees.map(emp => {
       const records = attByEmp.get(emp.employeeId) || [];
-      const presentDays = records.filter(r => ['PRESENT', 'LATE'].includes(r.status)).length;
+      const presentDays = records.filter(r => ['PRESENT', 'LATE', 'HALF_DAY', 'INCOMPLETE'].includes(r.status)).length;
       const absentDays = records.filter(r => r.status === 'ABSENT').length;
+      const leaveDays = records.filter(r => r.status === 'LEAVE').length;
+      const weeklyOffDays = records.filter(r => r.status === 'WEEKLY_OFF').length;
       const lateDays = records.filter(r => r.lateMinutes > 0).length;
       const halfDays = records.filter(r => r.status === 'HALF_DAY').length;
       const totalLateMinutes = records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
       const totalEarlyMinutes = records.reduce((sum, r) => sum + (r.earlyMinutes || 0), 0);
       const totalOvertimeMinutes = records.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
+      const totalWorkedHours = Math.round(records.reduce((sum, r) => sum + (r.workingHours || 0), 0) * 10) / 10;
 
       // Three-Late Rule: Every 3 lates = 1 day salary deduction
       const threeLatePenaltyDays = Math.floor(lateDays / 3);
@@ -941,13 +1053,16 @@ const getMonthlyAttendance = async (req, res) => {
         totalRecords: records.length,
         presentDays,
         absentDays,
+        leaveDays,
+        weeklyOffDays,
         lateDays,
         halfDays,
         threeLatePenaltyDays,
         totalLateMinutes,
         totalEarlyMinutes,
         totalOvertimeMinutes,
-        totalOvertimeHours: Math.round((totalOvertimeMinutes / 60) * 10) / 10
+        totalOvertimeHours: Math.round((totalOvertimeMinutes / 60) * 10) / 10,
+        totalWorkedHours
       };
     });
 
@@ -966,6 +1081,13 @@ const getAttendanceRange = async (req, res) => {
       return res.status(400).json({ success: false, message: 'startDate and endDate are required (YYYY-MM-DD)' });
     }
 
+    const todayPkt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
     const empWhere = { status: 'ACTIVE' };
     if (employeeId && employeeId !== 'ALL') {
       empWhere.employeeId = employeeId;
@@ -983,9 +1105,14 @@ const getAttendanceRange = async (req, res) => {
     const attendances = await prisma.employeeAttendance.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
-        ...(employeeId && employeeId !== 'ALL' ? { employeeId } : {})
+        ...(employeeId && employeeId !== 'ALL' ? { employeeId } : { employeeId: { in: employees.map(e => e.employeeId) } })
       },
       orderBy: { date: 'asc' }
+    });
+
+    const attMap = new Map();
+    attendances.forEach(a => {
+      attMap.set(`${a.employeeId}_${a.date}`, a);
     });
 
     // Query approved leaves in date range
@@ -995,12 +1122,6 @@ const getAttendanceRange = async (req, res) => {
         startDate: { lte: endDate },
         endDate: { gte: startDate }
       }
-    });
-
-    const attMap = new Map();
-    attendances.forEach(a => {
-      const key = `${a.employeeId}_${a.date}`;
-      attMap.set(key, a);
     });
 
     // Generate date array
@@ -1013,10 +1134,107 @@ const getAttendanceRange = async (req, res) => {
       cur.setDate(cur.getDate() + 1);
     }
 
+    // Check for any missing punches that exist in MachineAttendance
+    const missingItems = [];
+    for (const emp of employees) {
+      for (const d of dateList) {
+        const att = attMap.get(`${emp.employeeId}_${d}`);
+        if (!att || att.checkInTime === null) {
+          missingItems.push({ emp, date: d });
+        }
+      }
+    }
+
+    if (missingItems.length > 0) {
+      const neededEmpIds = Array.from(new Set(missingItems.map(m => m.emp.employeeId)));
+      const rawPunches = await prisma.machineAttendance.findMany({
+        where: {
+          punchDate: { gte: startDate, lte: endDate },
+          OR: [
+            { employeeId: { in: neededEmpIds } },
+            { machineUserId: { in: neededEmpIds } }
+          ]
+        },
+        orderBy: { punchTime: 'asc' }
+      });
+
+      if (rawPunches.length > 0) {
+        const punchMap = new Map();
+        for (const p of rawPunches) {
+          let matchedEmp = employees.find(e =>
+            e.employeeId === p.employeeId ||
+            (e.machineUserId && e.machineUserId === p.machineUserId) ||
+            String(e.employeeId).replace(/^0+/, '') === String(p.machineUserId).replace(/^0+/, '')
+          );
+          if (matchedEmp) {
+            const k = `${matchedEmp.employeeId}_${p.punchDate}`;
+            if (!punchMap.has(k)) punchMap.set(k, []);
+            punchMap.get(k).push(p);
+          }
+        }
+
+        for (const { emp, date: d } of missingItems) {
+          const k = `${emp.employeeId}_${d}`;
+          const pList = punchMap.get(k);
+          if (pList && pList.length > 0) {
+            const checkIn = pList[0].punchTime;
+            const rawPunchIn = pList[0].rawTimestamp || pList[0].punchTime;
+            const checkOut = pList.length > 1 ? pList[pList.length - 1].punchTime : null;
+            const rawPunchOut = pList.length > 1 ? (pList[pList.length - 1].rawTimestamp || pList[pList.length - 1].punchTime) : null;
+
+            const sIn = emp.checkInTime || '10:00';
+            const sOut = emp.checkOutTime || '18:00';
+
+            const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, checkOut, 'PRESENT');
+            let status = 'PRESENT';
+            if (pList.length === 1) {
+              status = d === todayPkt ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'INCOMPLETE';
+            } else {
+              status = metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT';
+            }
+
+            const rec = {
+              id: null,
+              employeeId: emp.employeeId,
+              employeeName: emp.name,
+              date: d,
+              checkInTime: checkIn,
+              checkOutTime: checkOut,
+              rawPunchIn,
+              rawPunchOut,
+              scheduledCheckIn: sIn,
+              scheduledCheckOut: sOut,
+              earlyArrivalMinutes: metrics.earlyArrivalMinutes,
+              earlyCheckInOt: metrics.earlyCheckInOt,
+              lateMinutes: metrics.lateMinutes,
+              earlyMinutes: metrics.earlyMinutes,
+              checkoutOtMinutes: metrics.checkoutOtMinutes,
+              overtimeMinutes: metrics.overtimeMinutes,
+              status,
+              workingHours: metrics.workingHours,
+              machineId: pList[0].machineId || 'DS-K1T342MFWX',
+              source: 'MACHINE',
+              notes: `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} [${pList.length} punches]`
+            };
+            attMap.set(k, rec);
+
+            prisma.employeeAttendance.upsert({
+              where: { employeeId_date: { employeeId: emp.employeeId, date: d } },
+              update: rec,
+              create: rec
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+
     const records = [];
+    let scheduledSlots = employees.length * dateList.length;
+    let summaryWorkingDays = 0;
     let summaryPresent = 0;
     let summaryAbsent = 0;
     let summaryLeaves = 0;
+    let summaryWeeklyOffs = 0;
     let summaryLates = 0;
     let summaryTotalLateMinutes = 0;
     let summaryEarlyCheckouts = 0;
@@ -1031,6 +1249,11 @@ const getAttendanceRange = async (req, res) => {
       for (const d of dateList) {
         const key = `${emp.employeeId}_${d}`;
         const att = attMap.get(key);
+        const isSun = new Date(`${d}T12:00:00Z`).getUTCDay() === 0;
+
+        if (!isSun) {
+          summaryWorkingDays++;
+        }
 
         if (att) {
           records.push({
@@ -1041,10 +1264,12 @@ const getAttendanceRange = async (req, res) => {
             monthlySalary: emp.monthlySalary
           });
 
-          if (['PRESENT', 'LATE', 'HALF_DAY'].includes(att.status)) {
+          if (['PRESENT', 'LATE', 'HALF_DAY', 'INCOMPLETE'].includes(att.status)) {
             summaryPresent++;
           } else if (att.status === 'LEAVE') {
             summaryLeaves++;
+          } else if (att.status === 'WEEKLY_OFF') {
+            summaryWeeklyOffs++;
           } else if (att.status === 'ABSENT') {
             summaryAbsent++;
           }
@@ -1063,11 +1288,12 @@ const getAttendanceRange = async (req, res) => {
           summaryWorkedHours += (att.workingHours || 0);
           summaryOvertimeMinutes += (att.overtimeMinutes || 0);
         } else {
-          // Check if employee had approved leave on this date
           const onLeave = leaves.find(l => l.employeeId === emp.employeeId && l.startDate <= d && l.endDate >= d);
-          const autoStatus = onLeave ? 'LEAVE' : 'ABSENT';
+          const autoStatus = onLeave ? 'LEAVE' : (isSun ? 'WEEKLY_OFF' : 'ABSENT');
+          const autoNotes = onLeave ? `Approved ${onLeave.leaveType} Leave` : (isSun ? 'Weekly Off / Non-Working Day' : 'No machine punch found for this date');
 
           if (autoStatus === 'LEAVE') summaryLeaves++;
+          else if (autoStatus === 'WEEKLY_OFF') summaryWeeklyOffs++;
           else summaryAbsent++;
 
           records.push({
@@ -1091,14 +1317,14 @@ const getAttendanceRange = async (req, res) => {
             status: autoStatus,
             workingHours: 0,
             monthlySalary: emp.monthlySalary,
-            notes: onLeave ? `Approved ${onLeave.leaveType} Leave` : 'Automatically marked Absent'
+            source: 'SYSTEM',
+            notes: autoNotes
           });
         }
       }
     }
 
-    const totalWorkingSlots = employees.length * dateList.length;
-    const attPercentage = totalWorkingSlots > 0 ? Math.round((summaryPresent / totalWorkingSlots) * 100) : 0;
+    const attPercentage = summaryWorkingDays > 0 ? Math.round((summaryPresent / summaryWorkingDays) * 100) : 0;
 
     res.json({
       success: true,
@@ -1108,10 +1334,11 @@ const getAttendanceRange = async (req, res) => {
       employeesCount: employees.length,
       count: records.length,
       summary: {
-        totalWorkingDays: totalWorkingSlots,
+        totalWorkingDays: scheduledSlots,
         present: summaryPresent,
         absent: summaryAbsent,
         leaves: summaryLeaves,
+        weeklyOffs: summaryWeeklyOffs,
         lateOccurrences: summaryLates,
         totalLateMinutes: summaryTotalLateMinutes,
         earlyCheckouts: summaryEarlyCheckouts,

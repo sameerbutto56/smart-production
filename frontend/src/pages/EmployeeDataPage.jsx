@@ -1580,7 +1580,9 @@ export default function EmployeeDataPage() {
                               {rec.checkInTime ? (
                                 <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
                               ) : (
-                                <span className="text-slate-500 text-xs italic font-sans font-normal">No machine record</span>
+                                <span className="text-slate-500 text-xs italic font-sans font-normal">
+                                  {rec.status === 'WEEKLY_OFF' ? 'Weekly Off' : rec.status === 'LEAVE' ? 'On Leave' : 'No machine record'}
+                                </span>
                               )}
                             </td>
                             <td className="py-3 px-3 font-mono">
@@ -1660,10 +1662,14 @@ export default function EmployeeDataPage() {
                                     ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
                                     : rec.status === 'LEAVE'
                                     ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400'
+                                    : rec.status === 'WEEKLY_OFF'
+                                    ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-400'
+                                    : rec.status === 'INCOMPLETE'
+                                    ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-400'
                                     : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
                                 }`}
                               >
-                                {rec.status}
+                                {rec.status === 'WEEKLY_OFF' ? 'WEEKLY OFF' : rec.status}
                               </span>
                             </td>
                             <td className="py-3 px-3 text-right">
@@ -1837,6 +1843,66 @@ export default function EmployeeDataPage() {
                     Apply & Fetch Report
                   </button>
                 </div>
+
+                {/* Quick Presets */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-800/80 w-full text-xs">
+                  <span className="text-slate-400 font-bold text-[11px] mr-1">Quick Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = getTodayLocalDate();
+                      setAttStartDate(today);
+                      setAttEndDate(today);
+                    }}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700/60"
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date();
+                      start.setDate(end.getDate() - 6);
+                      setAttStartDate(start.toISOString().slice(0, 10));
+                      setAttEndDate(end.toISOString().slice(0, 10));
+                    }}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700/60"
+                  >
+                    This Week (7D)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = getTodayLocalDate();
+                      setAttStartDate(today.slice(0, 7) + '-01');
+                      setAttEndDate(today);
+                    }}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700/60"
+                  >
+                    This Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttStartDate('2026-10-01');
+                      setAttEndDate('2026-10-08');
+                    }}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700/60"
+                  >
+                    Oct 1 - Oct 8
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttStartDate('2026-09-01');
+                      setAttEndDate('2026-09-30');
+                    }}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700/60"
+                  >
+                    September 2026
+                  </button>
+                </div>
               </div>
 
               {/* Summary KPI Cards (Section 18) */}
@@ -1864,6 +1930,12 @@ export default function EmployeeDataPage() {
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Approved Leaves</span>
                     <h4 className="text-2xl font-black text-purple-400 mt-1">{rangeAttendanceSummary.leaves}</h4>
                     <span className="text-[10px] text-purple-500/70">Casual / Medical</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Weekly Offs</span>
+                    <h4 className="text-2xl font-black text-indigo-400 mt-1">{rangeAttendanceSummary.weeklyOffs || 0}</h4>
+                    <span className="text-[10px] text-indigo-500/70">Sundays</span>
                   </div>
 
                   <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
@@ -1965,7 +2037,9 @@ export default function EmployeeDataPage() {
                               {rec.checkInTime ? (
                                 <span className="text-emerald-400 font-bold">{rec.checkInTime}</span>
                               ) : (
-                                <span className="text-slate-500 text-xs italic font-sans font-normal">No machine record</span>
+                                <span className="text-slate-500 text-xs italic font-sans font-normal">
+                                  {rec.status === 'WEEKLY_OFF' ? 'Weekly Off' : rec.status === 'LEAVE' ? 'On Leave' : 'No machine record'}
+                                </span>
                               )}
                             </td>
                             <td className="py-3 px-3 font-mono">
@@ -2045,10 +2119,14 @@ export default function EmployeeDataPage() {
                                     ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
                                     : rec.status === 'LEAVE'
                                     ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400'
+                                    : rec.status === 'WEEKLY_OFF'
+                                    ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-400'
+                                    : rec.status === 'INCOMPLETE'
+                                    ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-400'
                                     : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
                                 }`}
                               >
-                                {rec.status}
+                                {rec.status === 'WEEKLY_OFF' ? 'WEEKLY OFF' : rec.status}
                               </span>
                             </td>
                             <td className="py-3 px-3 text-right">
