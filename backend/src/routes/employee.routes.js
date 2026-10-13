@@ -5,9 +5,14 @@ const employeeController = require('../controllers/employee.controller');
 
 const adminOnly = [authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'])];
 
+// --- Late Deduction Cases & Review (Three-Late Policy) ---
+router.get('/deductions/cases', ...adminOnly, employeeController.getLateDeductionCases);
+router.post('/deductions/:id/review', ...adminOnly, employeeController.reviewLateDeductionCase);
+
 // --- Employee Management ---
 router.get('/', ...adminOnly, employeeController.getEmployees);
 router.post('/', ...adminOnly, employeeController.createEmployee);
+router.get('/:employeeId/attendance-history', ...adminOnly, employeeController.getEmployeeAttendanceHistory);
 router.get('/:employeeId', ...adminOnly, employeeController.getEmployeeById);
 router.put('/:employeeId', ...adminOnly, employeeController.updateEmployee);
 router.delete('/:employeeId', ...adminOnly, employeeController.deleteEmployee);
@@ -36,6 +41,7 @@ router.put('/loans/:id', ...adminOnly, employeeController.updateLoan);
 router.get('/production/summary', ...adminOnly, employeeController.getProductionSummary);
 
 // --- Payroll Management ---
+router.get('/payroll/pre-check', ...adminOnly, employeeController.getPayrollPreCheckWarnings);
 router.get('/payroll/list', ...adminOnly, employeeController.getMonthlyPayrollList);
 router.get('/payroll/pending', ...adminOnly, employeeController.getPendingPayrolls);
 router.post('/payroll/calculate', ...adminOnly, employeeController.calculateMonthlyPayroll);

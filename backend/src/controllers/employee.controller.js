@@ -1821,10 +1821,35 @@ const calculateMonthlyPayroll = async (req, res) => {
       const lateDays = records.filter(r => r.lateMinutes > 0).length;
       const halfDays = records.filter(r => r.status === 'HALF_DAY').length;
 
-      // Three-Late Rule (Section 11): 3 Late Occurrences = 1 Day Salary Deduction
+      // Three-Late Rule: Requires Explicit Admin Review & Approval
       const lateDeductionDays = Math.floor(lateDays / 3);
       const perDaySalary = Math.round((emp.monthlySalary || 0) / (emp.workingDays || 30));
-      const lateDeductions = lateDeductionDays * perDaySalary;
+      let lateDeductions = 0;
+      let lateDeductionStatus = 'NO_DEDUCTION';
+
+      if (lateDeductionDays > 0) {
+        const deductionCase = await prisma.lateDeductionCase.findUnique({
+          where: { employeeId_period: { employeeId: emp.employeeId, period: monthYear } }
+        });
+
+        if (deductionCase && ['APPROVED', 'MODIFIED'].includes(deductionCase.status)) {
+          // Admin explicitly approved/modified the deduction amount
+          lateDeductions = Number(deductionCase.approvedAmount) || 0;
+          lateDeductionStatus = deductionCase.status;
+          await prisma.lateDeductionCase.update({
+            where: { id: deductionCase.id },
+            data: { status: 'APPLIED_TO_PAYROLL' }
+          }).catch(() => {});
+        } else if (deductionCase && deductionCase.status === 'WAIVED') {
+          // Admin explicitly waived the deduction
+          lateDeductions = 0;
+          lateDeductionStatus = 'WAIVED';
+        } else {
+          // Deduction is PENDING_REVIEW or unreviewed: MUST NOT deduct from salary without Admin approval!
+          lateDeductions = 0;
+          lateDeductionStatus = deductionCase?.status || 'PENDING_REVIEW';
+        }
+      }
 
       // Absent deductions
       const absentDeductions = absentDays * perDaySalary;
@@ -2529,6 +2554,605 @@ const exportPayrollExcel = async (req, res) => {
   }
 };
 
+// GET /api/employees/:employeeId/attendance-history?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&monthYear=YYYY-MM
+const getEmployeeAttendanceHistory = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    let { startDate, endDate, monthYear } = req.query;
+
+    const todayPkt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
+    if (!startDate || !endDate) {
+      if (monthYear) {
+        startDate = `${monthYear}-01`;
+        const y = parseInt(monthYear.slice(0, 4));
+        const m = parseInt(monthYear.slice(5, 7));
+        const lastDay = new Date(y, m, 0).getDate();
+        endDate = `${monthYear}-${String(lastDay).padStart(2, '0')}`;
+      } else {
+        startDate = `${todayPkt.slice(0, 7)}-01`;
+        endDate = todayPkt;
+      }
+    }
+
+    const employee = await prisma.employeeRecord.findUnique({
+      where: { employeeId }
+    });
+
+    if (!employee) {
+      return res.status(404).json({ success: false, message: `Employee not found: ${employeeId}` });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dateList = [];
+    let cur = new Date(start);
+    while (cur <= end) {
+      dateList.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const attendances = await prisma.employeeAttendance.findMany({
+      where: {
+        employeeId,
+        date: { gte: startDate, lte: endDate }
+      },
+      orderBy: { date: 'asc' }
+    });
+    const attMap = new Map(attendances.map(a => [a.date, a]));
+
+    const empNum = String(employeeId).replace(/^0+/, '');
+    const rawPunches = await prisma.machineAttendance.findMany({
+      where: {
+        punchDate: { gte: startDate, lte: endDate },
+        OR: [
+          { employeeId },
+          { machineUserId: employeeId },
+          { machineUserId: empNum },
+          ...(employee.machineUserId ? [{ machineUserId: employee.machineUserId }] : [])
+        ]
+      },
+      orderBy: [{ punchDate: 'asc' }, { punchTime: 'asc' }]
+    });
+
+    const punchesByDate = new Map();
+    rawPunches.forEach(p => {
+      if (!punchesByDate.has(p.punchDate)) punchesByDate.set(p.punchDate, []);
+      punchesByDate.get(p.punchDate).push(p);
+    });
+
+    const leaves = await prisma.employeeLeave.findMany({
+      where: {
+        employeeId,
+        status: 'APPROVED',
+        startDate: { lte: endDate },
+        endDate: { gte: startDate }
+      }
+    });
+
+    const sIn = employee.checkInTime || '10:00';
+    const sOut = employee.checkOutTime || '18:00';
+
+    const records = [];
+    let lateOccurrenceCounter = 0;
+    const lateHistory = [];
+
+    for (const d of dateList) {
+      let att = attMap.get(d);
+      const dayPunches = punchesByDate.get(d) || [];
+      const isSun = new Date(`${d}T12:00:00Z`).getUTCDay() === 0;
+
+      if ((!att || !att.checkInTime) && dayPunches.length > 0) {
+        const checkIn = dayPunches[0].punchTime;
+        const rawPunchIn = dayPunches[0].rawTimestamp || dayPunches[0].punchTime;
+        const checkOut = dayPunches.length > 1 ? dayPunches[dayPunches.length - 1].punchTime : null;
+        const rawPunchOut = dayPunches.length > 1 ? (dayPunches[dayPunches.length - 1].rawTimestamp || dayPunches[dayPunches.length - 1].punchTime) : null;
+        const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, checkOut, 'PRESENT');
+        let status = 'PRESENT';
+        if (dayPunches.length === 1) {
+          status = d === todayPkt ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'INCOMPLETE';
+        } else {
+          status = metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT';
+        }
+        att = {
+          id: null,
+          employeeId,
+          employeeName: employee.name,
+          date: d,
+          checkInTime: checkIn,
+          checkOutTime: checkOut,
+          rawPunchIn,
+          rawPunchOut,
+          scheduledCheckIn: sIn,
+          scheduledCheckOut: sOut,
+          ...metrics,
+          status,
+          source: 'MACHINE',
+          notes: `Punch via ${dayPunches[0].machineId || 'Enamels FRT'} [${dayPunches.length} punches]`
+        };
+      }
+
+      if (att) {
+        let occNum = null;
+        if (att.lateMinutes > 0 && !isSun) {
+          lateOccurrenceCounter++;
+          occNum = lateOccurrenceCounter;
+          lateHistory.push({
+            occurrenceNumber: occNum,
+            date: d,
+            scheduledIn: att.scheduledCheckIn || sIn,
+            actualIn: att.checkInTime,
+            lateMinutes: att.lateMinutes,
+            rawPunchIn: att.rawPunchIn || (dayPunches[0]?.rawTimestamp || att.checkInTime),
+            machineId: dayPunches[0]?.machineId || att.machineId || 'Enamels FRT',
+            verifyMode: dayPunches[0]?.verifyMode || 'face',
+            transactionId: dayPunches[0]?.transactionId || null,
+            allPunches: dayPunches
+          });
+        }
+
+        records.push({
+          ...att,
+          lateOccurrenceNumber: occNum,
+          rawPunches: dayPunches
+        });
+      } else {
+        const onLeave = leaves.find(l => l.startDate <= d && l.endDate >= d);
+        const autoStatus = onLeave ? 'LEAVE' : (isSun ? 'WEEKLY_OFF' : 'ABSENT');
+        const autoNotes = onLeave ? `Approved ${onLeave.leaveType} Leave` : (isSun ? 'Weekly Off / Non-Working Day' : 'No machine punch found for this date');
+        records.push({
+          id: null,
+          employeeId,
+          employeeName: employee.name,
+          date: d,
+          checkInTime: null,
+          checkOutTime: null,
+          scheduledCheckIn: sIn,
+          scheduledCheckOut: sOut,
+          earlyArrivalMinutes: 0,
+          earlyCheckInOt: 0,
+          lateMinutes: 0,
+          earlyMinutes: 0,
+          checkoutOtMinutes: 0,
+          overtimeMinutes: 0,
+          status: autoStatus,
+          workingHours: 0,
+          source: 'SYSTEM',
+          notes: autoNotes,
+          lateOccurrenceNumber: null,
+          rawPunches: []
+        });
+      }
+    }
+
+    const period = startDate.slice(0, 7);
+    let deductionCase = await prisma.lateDeductionCase.findUnique({
+      where: { employeeId_period: { employeeId, period } }
+    });
+
+    const perDaySalary = Math.round((employee.monthlySalary || 0) / (employee.workingDays || 30));
+    const potentialDeductionDays = Math.floor(lateHistory.length / 3);
+    const potentialAmount = potentialDeductionDays * perDaySalary;
+
+    if (!deductionCase && lateHistory.length >= 3) {
+      deductionCase = await prisma.lateDeductionCase.create({
+        data: {
+          employeeId,
+          employeeName: employee.name,
+          period,
+          lateCount: lateHistory.length,
+          qualifyingDates: lateHistory.map(l => l.date),
+          lateDetails: lateHistory,
+          proposedDays: potentialDeductionDays,
+          proposedAmount: potentialAmount,
+          status: 'PENDING_REVIEW'
+        }
+      });
+    }
+
+    const summary = {
+      totalDays: dateList.length,
+      workingDays: records.filter(r => r.status !== 'WEEKLY_OFF').length,
+      present: records.filter(r => ['PRESENT', 'LATE', 'HALF_DAY', 'INCOMPLETE'].includes(r.status)).length,
+      absent: records.filter(r => r.status === 'ABSENT').length,
+      weeklyOffs: records.filter(r => r.status === 'WEEKLY_OFF').length,
+      leaves: records.filter(r => r.status === 'LEAVE').length,
+      lateCount: lateHistory.length,
+      totalLateMinutes: records.reduce((s, r) => s + (r.lateMinutes || 0), 0),
+      earlyCheckouts: records.filter(r => r.earlyMinutes > 0).length,
+      totalEarlyMinutes: records.reduce((s, r) => s + (r.earlyMinutes || 0), 0),
+      earlyCheckInOt: records.reduce((s, r) => s + (r.earlyCheckInOt || 0), 0),
+      checkoutOt: records.reduce((s, r) => s + (r.checkoutOtMinutes || 0), 0),
+      totalOvertimeHours: Math.round((records.reduce((s, r) => s + (r.overtimeMinutes || 0), 0) / 60) * 10) / 10,
+      totalWorkedHours: Math.round(records.reduce((s, r) => s + (r.workingHours || 0), 0) * 10) / 10
+    };
+
+    res.json({
+      success: true,
+      employee,
+      startDate,
+      endDate,
+      period,
+      records,
+      lateHistory,
+      deductionCase: deductionCase || {
+        status: lateHistory.length >= 3 ? 'PENDING_REVIEW' : 'NO_DEDUCTION',
+        lateCount: lateHistory.length,
+        proposedDays: potentialDeductionDays,
+        proposedAmount: potentialAmount,
+        qualifyingDates: lateHistory.map(l => l.date)
+      },
+      summary
+    });
+  } catch (err) {
+    console.error('Error in getEmployeeAttendanceHistory:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch employee attendance history', error: err.message });
+  }
+};
+
+// GET /api/employees/deductions/cases?period=YYYY-MM&status=...&branch=...
+const getLateDeductionCases = async (req, res) => {
+  try {
+    const todayPkt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
+    const period = req.query.period || todayPkt.slice(0, 7);
+    const { status, branch } = req.query;
+
+    const empWhere = { status: 'ACTIVE' };
+    if (branch && branch !== 'ALL') {
+      empWhere.branch = { contains: branch, mode: 'insensitive' };
+    }
+
+    const employees = await prisma.employeeRecord.findMany({
+      where: empWhere,
+      orderBy: { employeeId: 'asc' }
+    });
+
+    const attendances = await prisma.employeeAttendance.findMany({
+      where: {
+        date: { startsWith: period }
+      },
+      orderBy: { date: 'asc' }
+    });
+
+    const attByEmp = new Map();
+    attendances.forEach(a => {
+      if (!attByEmp.has(a.employeeId)) attByEmp.set(a.employeeId, []);
+      attByEmp.get(a.employeeId).push(a);
+    });
+
+    const existingCases = await prisma.lateDeductionCase.findMany({
+      where: { period }
+    });
+    const caseMap = new Map(existingCases.map(c => [c.employeeId, c]));
+
+    const cases = [];
+
+    for (const emp of employees) {
+      const records = attByEmp.get(emp.employeeId) || [];
+      const lateRecords = records.filter(r => r.lateMinutes > 0);
+      const lateCount = lateRecords.length;
+      const perDaySalary = Math.round((emp.monthlySalary || 0) / (emp.workingDays || 30));
+      const proposedDays = Math.floor(lateCount / 3);
+      const proposedAmount = proposedDays * perDaySalary;
+
+      let c = caseMap.get(emp.employeeId);
+
+      if (!c) {
+        if (lateCount >= 3) {
+          const qualifyingDates = lateRecords.map(r => r.date);
+          const lateDetails = lateRecords.map((r, idx) => ({
+            occurrence: idx + 1,
+            date: r.date,
+            actualIn: r.checkInTime,
+            scheduledIn: r.scheduledCheckIn || emp.checkInTime || '10:00',
+            lateMinutes: r.lateMinutes,
+            rawPunch: r.rawPunchIn || r.checkInTime
+          }));
+
+          c = await prisma.lateDeductionCase.create({
+            data: {
+              employeeId: emp.employeeId,
+              employeeName: emp.name,
+              period,
+              lateCount,
+              qualifyingDates,
+              lateDetails,
+              proposedDays,
+              proposedAmount,
+              status: 'PENDING_REVIEW'
+            }
+          });
+        } else {
+          c = {
+            id: null,
+            employeeId: emp.employeeId,
+            employeeName: emp.name,
+            period,
+            lateCount,
+            qualifyingDates: lateRecords.map(r => r.date),
+            lateDetails: [],
+            proposedDays: 0,
+            proposedAmount: 0,
+            approvedAmount: 0,
+            status: 'NO_DEDUCTION',
+            adminDecision: null,
+            reason: null,
+            reviewedByName: null,
+            reviewedAt: null
+          };
+        }
+      } else {
+        if (c.status === 'PENDING_REVIEW' && (c.lateCount !== lateCount || c.proposedAmount !== proposedAmount)) {
+          const qualifyingDates = lateRecords.map(r => r.date);
+          const lateDetails = lateRecords.map((r, idx) => ({
+            occurrence: idx + 1,
+            date: r.date,
+            actualIn: r.checkInTime,
+            scheduledIn: r.scheduledCheckIn || emp.checkInTime || '10:00',
+            lateMinutes: r.lateMinutes,
+            rawPunch: r.rawPunchIn || r.checkInTime
+          }));
+          c = await prisma.lateDeductionCase.update({
+            where: { id: c.id },
+            data: {
+              lateCount,
+              proposedDays,
+              proposedAmount,
+              qualifyingDates,
+              lateDetails
+            }
+          });
+        }
+      }
+
+      if (status && status !== 'ALL' && c.status !== status) {
+        continue;
+      }
+
+      cases.push({
+        ...c,
+        employee: {
+          employeeId: emp.employeeId,
+          name: emp.name,
+          designation: emp.designation,
+          department: emp.department,
+          branch: emp.branch,
+          monthlySalary: emp.monthlySalary
+        }
+      });
+    }
+
+    const summary = {
+      period,
+      totalEmployees: employees.length,
+      pendingReview: cases.filter(c => c.status === 'PENDING_REVIEW').length,
+      approved: cases.filter(c => c.status === 'APPROVED').length,
+      modified: cases.filter(c => c.status === 'MODIFIED').length,
+      waived: cases.filter(c => c.status === 'WAIVED').length,
+      noDeduction: cases.filter(c => c.status === 'NO_DEDUCTION').length,
+      appliedToPayroll: cases.filter(c => c.status === 'APPLIED_TO_PAYROLL').length,
+      totalProposedAmount: cases.reduce((s, c) => s + (c.proposedAmount || 0), 0),
+      totalApprovedAmount: cases.reduce((s, c) => s + (c.approvedAmount || (c.status === 'APPROVED' ? c.proposedAmount : 0)), 0)
+    };
+
+    res.json({
+      success: true,
+      period,
+      cases,
+      summary
+    });
+  } catch (err) {
+    console.error('Error in getLateDeductionCases:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch deduction cases', error: err.message });
+  }
+};
+
+// POST /api/employees/deductions/:id/review
+const reviewLateDeductionCase = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { decision, amount, reason } = req.body;
+
+    if (!['ACCEPT', 'MODIFY', 'WAIVE'].includes(decision)) {
+      return res.status(400).json({ success: false, message: 'decision must be ACCEPT, MODIFY, or WAIVE' });
+    }
+
+    if (['MODIFY', 'WAIVE'].includes(decision) && !reason) {
+      return res.status(400).json({ success: false, message: 'Reason is required when modifying or waiving a deduction' });
+    }
+
+    const existingCase = await prisma.lateDeductionCase.findUnique({
+      where: { id }
+    });
+
+    if (!existingCase) {
+      return res.status(404).json({ success: false, message: 'Deduction case not found' });
+    }
+
+    let status = 'APPROVED';
+    let approvedAmount = existingCase.proposedAmount;
+
+    if (decision === 'MODIFY') {
+      status = 'MODIFIED';
+      approvedAmount = Number(amount) >= 0 ? Number(amount) : existingCase.proposedAmount;
+    } else if (decision === 'WAIVE') {
+      status = 'WAIVED';
+      approvedAmount = 0;
+    }
+
+    const reviewerId = req.user?.id || null;
+    const reviewerName = req.user?.name || req.user?.username || 'Admin';
+
+    const updated = await prisma.lateDeductionCase.update({
+      where: { id },
+      data: {
+        status,
+        adminDecision: decision,
+        approvedAmount,
+        reason: reason || null,
+        reviewedById: reviewerId,
+        reviewedByName: reviewerName,
+        reviewedAt: new Date()
+      }
+    });
+
+    await prisma.attendanceAuditLog.create({
+      data: {
+        employeeId: existingCase.employeeId,
+        attendanceDate: existingCase.period,
+        fieldChanged: 'lateDeductions',
+        oldValue: `Status: ${existingCase.status}, Proposed: ${existingCase.proposedAmount}`,
+        newValue: `Status: ${status}, Approved: ${approvedAmount}, Decision: ${decision}`,
+        reason: reason || `Admin decision ${decision} on 3-Late deduction for ${existingCase.period}`,
+        changedById: reviewerId,
+        changedByName: reviewerName
+      }
+    });
+
+    try {
+      const io = req.app?.get('io');
+      if (io) {
+        io.emit('attendance:deduction-reviewed', updated);
+      }
+    } catch (_) {}
+
+    res.json({
+      success: true,
+      message: `Deduction case ${decision === 'ACCEPT' ? 'approved' : decision.toLowerCase()} successfully`,
+      deductionCase: updated
+    });
+  } catch (err) {
+    console.error('Error in reviewLateDeductionCase:', err);
+    res.status(500).json({ success: false, message: 'Failed to review deduction case', error: err.message });
+  }
+};
+
+// GET /api/employees/payroll/pre-check?monthYear=YYYY-MM
+const getPayrollPreCheckWarnings = async (req, res) => {
+  try {
+    const todayPkt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
+    const monthYear = req.query.monthYear || todayPkt.slice(0, 7);
+
+    const pendingCases = await prisma.lateDeductionCase.findMany({
+      where: {
+        period: monthYear,
+        status: 'PENDING_REVIEW'
+      }
+    });
+
+    const attendances = await prisma.employeeAttendance.findMany({
+      where: { date: { startsWith: monthYear } }
+    });
+    const latesByEmp = new Map();
+    attendances.filter(a => a.lateMinutes > 0).forEach(a => {
+      latesByEmp.set(a.employeeId, (latesByEmp.get(a.employeeId) || 0) + 1);
+    });
+
+    const activeEmployees = await prisma.employeeRecord.findMany({
+      where: { status: 'ACTIVE' }
+    });
+
+    const unreviewedLates = [];
+    for (const emp of activeEmployees) {
+      const lateCount = latesByEmp.get(emp.employeeId) || 0;
+      if (lateCount >= 3) {
+        const existing = await prisma.lateDeductionCase.findUnique({
+          where: { employeeId_period: { employeeId: emp.employeeId, period: monthYear } }
+        });
+        if (!existing || existing.status === 'PENDING_REVIEW') {
+          unreviewedLates.push({
+            employeeId: emp.employeeId,
+            name: emp.name,
+            lateCount,
+            proposedDeduction: Math.floor(lateCount / 3) * Math.round((emp.monthlySalary || 0) / (emp.workingDays || 30))
+          });
+        }
+      }
+    }
+
+    const unmatchedPunches = await prisma.machineAttendance.findMany({
+      where: {
+        punchDate: { startsWith: monthYear },
+        status: 'UNMATCHED'
+      },
+      take: 20
+    });
+
+    const incompleteDays = await prisma.employeeAttendance.findMany({
+      where: {
+        date: { startsWith: monthYear },
+        status: 'INCOMPLETE'
+      },
+      select: { employeeId: true, employeeName: true, date: true, checkInTime: true }
+    });
+
+    const unmappedEmployees = activeEmployees.filter(e => !e.machineUserId);
+
+    const warnings = [];
+    if (unreviewedLates.length > 0) {
+      warnings.push({
+        type: 'PENDING_DEDUCTION_REVIEWS',
+        severity: 'warning',
+        count: unreviewedLates.length,
+        message: `${unreviewedLates.length} employee(s) reached 3+ late occurrences but deductions are pending Admin review`,
+        items: unreviewedLates
+      });
+    }
+
+    if (unmatchedPunches.length > 0) {
+      warnings.push({
+        type: 'UNMATCHED_MACHINE_PUNCHES',
+        severity: 'error',
+        count: unmatchedPunches.length,
+        message: `${unmatchedPunches.length} raw machine punch(es) could not be matched to an employee in this month`,
+        items: unmatchedPunches
+      });
+    }
+
+    if (incompleteDays.length > 0) {
+      warnings.push({
+        type: 'INCOMPLETE_ATTENDANCE',
+        severity: 'info',
+        count: incompleteDays.length,
+        message: `${incompleteDays.length} attendance record(s) have single punches with missing checkout`,
+        items: incompleteDays.slice(0, 10)
+      });
+    }
+
+    res.json({
+      success: true,
+      monthYear,
+      readyForPayroll: unreviewedLates.length === 0 && unmatchedPunches.length === 0,
+      warningsCount: warnings.length,
+      warnings,
+      unreviewedLates,
+      unmatchedCount: unmatchedPunches.length,
+      incompleteCount: incompleteDays.length,
+      unmappedEmployeesCount: unmappedEmployees.length
+    });
+  } catch (err) {
+    console.error('Error in getPayrollPreCheckWarnings:', err);
+    res.status(500).json({ success: false, message: 'Failed to generate payroll pre-check warnings', error: err.message });
+  }
+};
+
 module.exports = {
   getEmployees,
   getEmployeeById,
@@ -2562,5 +3186,9 @@ module.exports = {
   getAttendanceAuditLogs,
   getPayrollAuditLogs,
   getPortalStatus,
-  setPortalStatus
+  setPortalStatus,
+  getEmployeeAttendanceHistory,
+  getLateDeductionCases,
+  reviewLateDeductionCase,
+  getPayrollPreCheckWarnings
 };

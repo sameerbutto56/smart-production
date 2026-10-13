@@ -3096,4 +3096,33 @@ model AttendanceImportHistory {
   @@index([createdAt])
 }
 
+model LateDeductionCase {
+  id              String    @id @default(uuid())
+  employeeId      String
+  employeeName    String
+  period          String    // "YYYY-MM" e.g. "2026-10"
+  lateCount       Int       @default(0)
+  qualifyingDates String[]  @default([])
+  lateDetails     Json?     // [{ occurrence: 1, date, actualIn, scheduledIn, lateMinutes, rawPunch }]
+  proposedDays    Float     @default(1.0)
+  proposedAmount  Float     @default(0)
+  approvedAmount  Float?
+  status          String    @default("PENDING_REVIEW") // NO_DEDUCTION, PENDING_REVIEW, APPROVED, MODIFIED, WAIVED, APPLIED_TO_PAYROLL, PAID
+  adminDecision   String?   // ACCEPT, MODIFY, WAIVE
+  reason          String?
+  reviewedById    String?
+  reviewedByName  String?
+  reviewedAt      DateTime?
+  payrollId       String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([employeeId, period])
+  @@index([employeeId])
+  @@index([period])
+  @@index([status])
+}
+
+
 

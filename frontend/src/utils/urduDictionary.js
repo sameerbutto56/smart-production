@@ -23,6 +23,42 @@ const urduDictionary = {
   'SPRINTER MEN ASPIRE': 'اسپائر مین سپرنٹر',
   'Sprinter Men': 'سپرنٹر مین',
   'Sprinter Women': 'سپرنٹر ویمن',
+  'Sprinter Charcoal - Men': 'سپرنٹر چارکول - مین',
+  'Sprinter Charcoal Men': 'سپرنٹر چارکول مین',
+  'Sprinter Charcoal - Women': 'سپرنٹر چارکول - وومن',
+  'Sprinter Charcoal Women': 'سپرنٹر چارکول وومن',
+  'Sprinter Emerald Green - Wide Leg Men': 'سپرنٹر ایمرلڈ گرین - وائیڈ لیگ مین',
+  'Sprinter Emerald Green Wide Leg Men': 'سپرنٹر ایمرلڈ گرین وائیڈ لیگ مین',
+  'Sprinter Emerald Green - Women': 'سپرنٹر ایمرلڈ گرین - وومن',
+  'Sprinter Emerald Green Women': 'سپرنٹر ایمرلڈ گرین وومن',
+  'Sprinter Espresso Strike - Men': 'سپرنٹر ایسپریسو اسٹرائیک - مین',
+  'Sprinter Espresso Strike Men': 'سپرنٹر ایسپریسو اسٹرائیک مین',
+  'Sprinter Espresso Strike Wide Leg - Women': 'سپرنٹر ایسپریسو اسٹرائیک وائیڈ لیگ - وومن',
+  'Sprinter Espresso Strike Wide Leg Women': 'سپرنٹر ایسپریسو اسٹرائیک وائیڈ لیگ وومن',
+  'Sprinter Navy Collar - Men': 'سپرنٹر نیوی کالر - مین',
+  'Sprinter Navy Collar Men': 'سپرنٹر نیوی کالر مین',
+  'Sprinter Navy - Women': 'سپرنٹر نیوی - وومن',
+  'Sprinter Navy Women': 'سپرنٹر نیوی وومن',
+  'Sprinter Rust - Men': 'سپرنٹر رسٹ - مین',
+  'Sprinter Rust Men': 'سپرنٹر رسٹ مین',
+  'Sprinter Rust - Women': 'سپرنٹر رسٹ - وومن',
+  'Sprinter Rust Women': 'سپرنٹر رسٹ وومن',
+  'Sprinter Sky - Men': 'سپرنٹر اسکائی - مین',
+  'Sprinter Sky Men': 'سپرنٹر اسکائی مین',
+  'Sprinter Sky - Women': 'سپرنٹر اسکائی - وومن',
+  'Sprinter Sky Women': 'سپرنٹر اسکائی وومن',
+  'Sprinter Purple - Women': 'سپرنٹر پرپل - وومن',
+  'Sprinter Purple Women': 'سپرنٹر پرپل وومن',
+  'Sprinter Steel Blue - Men': 'سپرنٹر اسٹیل بلیو - مین',
+  'Sprinter Steel Blue Men': 'سپرنٹر اسٹیل بلیو مین',
+  'Sprinter Seagreen - Men': 'سپرنٹر سی گرین - مین',
+  'Sprinter Seagreen Men': 'سپرنٹر سی گرین مین',
+  'Sprinter Sea Green - Men': 'سپرنٹر سی گرین - مین',
+  'Sprinter Sea-Green - Men': 'سپرنٹر سی گرین - مین',
+  'Sprinter Seagreen - Women': 'سپرنٹر سی گرین - وومن',
+  'Sprinter Seagreen Women': 'سپرنٹر سی گرین وومن',
+  'Sprinter Sea Green - Women': 'سپرنٹر سی گرین - وومن',
+  'Sprinter Sea-Green - Women': 'سپرنٹر سی گرین - وومن',
   'Sprinter E Print Men': 'سپرنٹر ای پرنٹ مین',
   'Sprinter E Print Women': 'سپرنٹر ای پرنٹ ویمن',
   'Sprinter Explode Men': 'سپرنٹر ایکسپلوڈ مین',
@@ -179,7 +215,9 @@ const urduDictionary = {
   Camel: 'کیمل',
   'Cardiac Surgery': 'کارڈیک سرجری',
   'Cardinal Rosa': 'کارڈینل روزا',
+  Charcoal: 'چارکول',
   'Charcoal Grey': 'چارکول گرے',
+  Collar: 'کالر',
   'CL-020': 'سی ایل 020',
   'CL-021': 'سی ایل 021',
   'CL-024': 'سی ایل 024',
@@ -219,7 +257,11 @@ const urduDictionary = {
   ECG: 'ای سی جی',
   'ECG Black': 'ای سی جی بلیک',
   'ECG White': 'ای سی جی وائٹ',
+  'Emerald Green': 'ایمرلڈ گرین',
+  Emerald: 'ایمرلڈ',
   ENT: 'ای این ٹی',
+  'Espresso Strike': 'ایسپریسو اسٹرائیک',
+  Espresso: 'ایسپریسو',
   Exicutive: 'ایگزیکٹو',
 
   // F
@@ -261,6 +303,7 @@ const urduDictionary = {
   // L
   Lavander: 'لیونڈر',
   Lavender: 'لیونڈر',
+  Leg: 'لیگ',
   'Lesson Poly Navy': 'لیسن پولی نیوی',
   'Light Blue': 'لائٹ بلو',
   'Light Gray': 'لائٹ گرے',
@@ -276,6 +319,7 @@ const urduDictionary = {
   'Medical Logo Scrub': 'میڈیکل لوگو سکرب',
   'Medical Logos': 'میڈیکل لوگوز',
   Mehroon: 'محرون',
+  Men: 'مین',
   'Midnight Black': 'مڈنائٹ بلیک',
   Mint: 'منٹ',
   Molar: 'مولر',
@@ -286,6 +330,7 @@ const urduDictionary = {
   // N
   Navy: 'نیوی',
   'Navy Blue': 'نیوی بلو',
+  'Navy Collar': 'نیوی کالر',
   'Navy Cossing': 'نیوی کاسنگ',
   'Navy Festeve': 'نیوی فیسٹیو',
   'Navy Nova': 'نیوی نووا',
@@ -325,20 +370,28 @@ const urduDictionary = {
 
   // S
   'Sage Green': 'سیج گرین',
+  Seagreen: 'سی گرین',
+  'Sea-Green': 'سی گرین',
   'Sea Green': 'سی گرین',
+  SeaGreen: 'سی گرین',
   Signature: 'سگنیچر',
   Silver: 'سلور',
   'Silver 2.0': 'سلور 2.0',
   'Silver Grey': 'سلور گرے',
+  Sky: 'اسکائی',
   'Sky Blue': 'اسکائی بلو',
   'Splash Black': 'سپلیش بلیک',
   'Splash Blue': 'سپلیش بلو',
+  Sprinter: 'سپرنٹر',
   'Sprinter Ancient': 'سپرنٹر اینشینٹ',
   'Sprinter Influential Contrast': 'سپرنٹر انفلوئنشل کانٹراسٹ',
   'Sprinter Oncology': 'سپرنٹر آنکولوجی',
   Springy: 'سپرنگی',
   'Squid Games': 'اسکویڈ گیمز',
+  'Steel Blue': 'اسٹیل بلیو',
+  Steel: 'اسٹیل',
   Stormy: 'اسٹورمی',
+  Strike: 'اسٹرائیک',
   'Summit Burgundy': 'سمٹ برگنڈی',
   'Summit Executive': 'سمٹ ایگزیکٹو',
   'Summit Grey': 'سمٹ گرے',
@@ -370,7 +423,10 @@ const urduDictionary = {
   // W
   White: 'وائٹ',
   'White Ocean': 'وائٹ اوشن',
+  'Wide Leg': 'وائیڈ لیگ',
+  Wide: 'وائیڈ',
   Wine: 'وائن',
+  Women: 'وومن',
 
   // X
   'X-Ray': 'ایکس رے',
@@ -389,7 +445,7 @@ const urduDictionary = {
   'Male': 'مرد',
   'Men': 'مین',
   'Female': 'عورت',
-  'Women': 'ویمن',
+  'Women': 'وومن',
   'Unisex': 'یونیسیکس',
 
   // Fit / Sleeve / Length
@@ -824,6 +880,10 @@ function dictLookup(s) {
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
+  // 0. Check direct match for full compound product name or color phrase
+  const direct = dictLookup(key);
+  if (direct) return direct;
+
   return key.split(/\s+/).map(w => {
     if (!w) return w;
     // 1. Try exact match with case variations
