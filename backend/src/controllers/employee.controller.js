@@ -1283,8 +1283,6 @@ const getAttendanceRange = async (req, res) => {
           if (pList && pList.length > 0) {
             const checkIn = pList[0].punchTime;
             const rawPunchIn = pList[0].rawTimestamp || pList[0].punchTime;
-            const checkOut = pList.length > 1 ? pList[pList.length - 1].punchTime : null;
-            const rawPunchOut = pList.length > 1 ? (pList[pList.length - 1].rawTimestamp || pList[pList.length - 1].punchTime) : null;
 
             const sIn = emp.checkInTime || '10:00';
             const sOut = emp.checkOutTime || '18:00';
