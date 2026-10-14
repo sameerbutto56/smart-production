@@ -2861,6 +2861,7 @@ model EmployeeRecord {
   status               String               @default("ACTIVE") // "ACTIVE", "INACTIVE"
   machineUserId        String?              // Machine User ID mapping (e.g. "02", "105")
   notes                String?
+  autoCheckoutEnabled  Boolean              @default(false)   // Automatic Checkout when no machine checkout recorded by shift end
 
   // Employee Login / Self-Service Credentials
   loginEmail           String?              @unique           // e.g. employee@enamels.com
@@ -2903,6 +2904,7 @@ model EmployeeAttendance {
   breakDuration     Int             @default(0)         // Break minutes
   notes             String?
   source            String          @default("MACHINE") // "MACHINE", "MANUAL", "IMPORTED"
+  checkoutSource    String?         @default("MACHINE") // "MACHINE", "AUTO_CALCULATED", "MANUAL"
   rawPunchIn        String?         // Exact raw punch in timestamp
   rawPunchOut       String?         // Exact raw punch out timestamp
   machineId         String?         @default("DS-K1T342MFWX")

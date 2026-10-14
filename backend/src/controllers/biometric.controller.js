@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const {
   parseTimeToMinutes,
+  hasShiftEnded,
   calculateAttendanceMetrics
 } = require('../utils/attendanceUtils');
 
@@ -332,18 +333,26 @@ async function processEmployeePunch({
   let checkOut = null;
   let rawPunchIn = null;
   let rawPunchOut = null;
+  let checkoutSource = null;
+  let isAutoCheckout = false;
 
   if (allPunches.length === 1) {
     checkIn = allPunches[0].punchTime;
     rawPunchIn = allPunches[0].rawTimestamp || allPunches[0].punchTime;
+    if (emp.autoCheckoutEnabled && hasShiftEnded(date, sOut)) {
+      checkOut = sOut;
+      checkoutSource = 'AUTO_CALCULATED';
+      isAutoCheckout = true;
+    }
   } else if (allPunches.length > 1) {
     checkIn = allPunches[0].punchTime;
     rawPunchIn = allPunches[0].rawTimestamp || allPunches[0].punchTime;
     checkOut = allPunches[allPunches.length - 1].punchTime;
     rawPunchOut = allPunches[allPunches.length - 1].rawTimestamp || allPunches[allPunches.length - 1].punchTime;
+    checkoutSource = 'MACHINE';
   }
 
-  // 3. Calculate attendance metrics from the exact real machine punches
+  // 3. Calculate attendance metrics from the real machine punches & auto-checkout if applicable
   const {
     earlyArrivalMinutes,
     earlyCheckInOt,
@@ -357,7 +366,8 @@ async function processEmployeePunch({
     sOut,
     checkIn,
     checkOut,
-    'PRESENT'
+    'PRESENT',
+    { isAutoCheckout }
   );
 
   let finalStatus = 'PRESENT';
@@ -365,7 +375,7 @@ async function processEmployeePunch({
     finalStatus = 'LATE';
   }
 
-  // 4. Update EmployeeAttendance with source: 'MACHINE'
+  // 4. Update EmployeeAttendance with source and checkoutSource
   const record = await prisma.employeeAttendance.upsert({
     where: {
       employeeId_date: { employeeId: resolvedEmpId, date }
@@ -374,6 +384,7 @@ async function processEmployeePunch({
       employeeName: emp.name,
       checkInTime: checkIn,
       checkOutTime: checkOut,
+      checkoutSource: checkoutSource || (checkOut ? 'MACHINE' : null),
       rawPunchIn,
       rawPunchOut,
       scheduledCheckIn: sIn,
@@ -388,7 +399,9 @@ async function processEmployeePunch({
       workingHours,
       machineId: deviceName,
       source: 'MACHINE',
-      notes: `Punch via ${deviceName} (${verifyMode}) [Punches count: ${allPunches.length}]`
+      notes: isAutoCheckout
+        ? `Punch via ${deviceName} (${verifyMode}) | Auto-calculated checkout at shift end (${sOut})`
+        : `Punch via ${deviceName} (${verifyMode}) [Punches count: ${allPunches.length}]`
     },
     create: {
       employeeId: resolvedEmpId,
@@ -396,6 +409,7 @@ async function processEmployeePunch({
       date,
       checkInTime: checkIn,
       checkOutTime: checkOut,
+      checkoutSource: checkoutSource || (checkOut ? 'MACHINE' : null),
       rawPunchIn,
       rawPunchOut,
       scheduledCheckIn: sIn,
@@ -410,7 +424,9 @@ async function processEmployeePunch({
       workingHours,
       machineId: deviceName,
       source: 'MACHINE',
-      notes: `Punch via ${deviceName} (${verifyMode}) [Punches count: ${allPunches.length}]`
+      notes: isAutoCheckout
+        ? `Punch via ${deviceName} (${verifyMode}) | Auto-calculated checkout at shift end (${sOut})`
+        : `Punch via ${deviceName} (${verifyMode}) [Punches count: ${allPunches.length}]`
     }
   });
 
@@ -1027,8 +1043,16 @@ const recalculateAttendanceRange = async (req, res) => {
           // Real machine punches available -> First = Check-in, Last = Check-out (Section 16)
           const checkIn = punches[0].punchTime;
           const rawPunchIn = punches[0].rawTimestamp || punches[0].punchTime;
-          const checkOut = punches.length > 1 ? punches[punches.length - 1].punchTime : null;
-          const rawPunchOut = punches.length > 1 ? (punches[punches.length - 1].rawTimestamp || punches[punches.length - 1].punchTime) : null;
+          let checkOut = punches.length > 1 ? punches[punches.length - 1].punchTime : null;
+          let rawPunchOut = punches.length > 1 ? (punches[punches.length - 1].rawTimestamp || punches[punches.length - 1].punchTime) : null;
+          let checkoutSource = punches.length > 1 ? 'MACHINE' : null;
+          let isAutoCheckout = false;
+
+          if (punches.length === 1 && emp.autoCheckoutEnabled && hasShiftEnded(d, sOut)) {
+            checkOut = sOut;
+            checkoutSource = 'AUTO_CALCULATED';
+            isAutoCheckout = true;
+          }
 
           const {
             earlyArrivalMinutes,
@@ -1043,7 +1067,8 @@ const recalculateAttendanceRange = async (req, res) => {
             sOut,
             checkIn,
             checkOut,
-            'PRESENT'
+            'PRESENT',
+            { isAutoCheckout }
           );
 
           let finalStatus = 'PRESENT';
@@ -1055,6 +1080,7 @@ const recalculateAttendanceRange = async (req, res) => {
               employeeName: emp.name,
               checkInTime: checkIn,
               checkOutTime: checkOut,
+              checkoutSource: checkoutSource || (checkOut ? 'MACHINE' : null),
               rawPunchIn,
               rawPunchOut,
               scheduledCheckIn: sIn,
@@ -1068,7 +1094,9 @@ const recalculateAttendanceRange = async (req, res) => {
               status: finalStatus,
               workingHours,
               source: 'MACHINE',
-              notes: `Real machine attendance [Punches: ${punches.length}]`
+              notes: isAutoCheckout
+                ? `Real machine check-in | Auto-calculated checkout at shift end (${sOut})`
+                : `Real machine attendance [Punches: ${punches.length}]`
             },
             create: {
               employeeId: emp.employeeId,
@@ -1076,6 +1104,7 @@ const recalculateAttendanceRange = async (req, res) => {
               date: d,
               checkInTime: checkIn,
               checkOutTime: checkOut,
+              checkoutSource: checkoutSource || (checkOut ? 'MACHINE' : null),
               rawPunchIn,
               rawPunchOut,
               scheduledCheckIn: sIn,
@@ -1089,7 +1118,9 @@ const recalculateAttendanceRange = async (req, res) => {
               status: finalStatus,
               workingHours,
               source: 'MACHINE',
-              notes: `Real machine attendance [Punches: ${punches.length}]`
+              notes: isAutoCheckout
+                ? `Real machine check-in | Auto-calculated checkout at shift end (${sOut})`
+                : `Real machine attendance [Punches: ${punches.length}]`
             }
           }));
           updatedWithPunches++;
@@ -1317,12 +1348,139 @@ const getBiometricStatus = async (req, res) => {
   }
 };
 
+/**
+ * Trigger Automatic Checkout Process
+ * Evaluates active employees with autoCheckoutEnabled: true
+ * For employees with a valid check-in today and missing checkout whose shift has ended:
+ * Automatically calculates checkout at scheduled shift end with checkoutSource: 'AUTO_CALCULATED'.
+ */
+const triggerAutoCheckoutProcess = async (req, res) => {
+  try {
+    const todayPkt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+    const date = req.body?.date || req.query?.date || todayPkt;
+
+    const employees = await prisma.employeeRecord.findMany({
+      where: { status: 'ACTIVE', autoCheckoutEnabled: true }
+    });
+
+    let autoCalculatedCount = 0;
+    const processedEmployees = [];
+
+    for (const emp of employees) {
+      const sOut = emp.checkOutTime || '18:00';
+      const sIn = emp.checkInTime || '10:00';
+
+      // Only calculate if the shift has ended
+      if (!hasShiftEnded(date, sOut)) continue;
+
+      // Find attendance record in database
+      let att = await prisma.employeeAttendance.findUnique({
+        where: { employeeId_date: { employeeId: emp.employeeId, date } }
+      });
+
+      // If no attendance record, check raw punches in MachineAttendance
+      if (!att || !att.checkInTime) {
+        const rawPunch = await prisma.machineAttendance.findFirst({
+          where: {
+            employeeId: emp.employeeId,
+            punchDate: date,
+            status: { not: 'UNMATCHED' }
+          },
+          orderBy: { punchTime: 'asc' }
+        });
+        if (rawPunch) {
+          const checkIn = rawPunch.punchTime;
+          const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, sOut, 'PRESENT', { isAutoCheckout: true });
+          await prisma.employeeAttendance.upsert({
+            where: { employeeId_date: { employeeId: emp.employeeId, date } },
+            update: {
+              employeeName: emp.name,
+              checkInTime: checkIn,
+              checkOutTime: sOut,
+              checkoutSource: 'AUTO_CALCULATED',
+              rawPunchIn: rawPunch.rawTimestamp || rawPunch.punchTime,
+              scheduledCheckIn: sIn,
+              scheduledCheckOut: sOut,
+              earlyArrivalMinutes: metrics.earlyArrivalMinutes,
+              earlyCheckInOt: metrics.earlyCheckInOt,
+              lateMinutes: metrics.lateMinutes,
+              earlyMinutes: 0,
+              checkoutOtMinutes: 0,
+              overtimeMinutes: metrics.overtimeMinutes,
+              status: metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT',
+              workingHours: metrics.workingHours,
+              notes: `Auto-calculated checkout at shift end (${sOut})`
+            },
+            create: {
+              employeeId: emp.employeeId,
+              employeeName: emp.name,
+              date,
+              checkInTime: checkIn,
+              checkOutTime: sOut,
+              checkoutSource: 'AUTO_CALCULATED',
+              rawPunchIn: rawPunch.rawTimestamp || rawPunch.punchTime,
+              scheduledCheckIn: sIn,
+              scheduledCheckOut: sOut,
+              earlyArrivalMinutes: metrics.earlyArrivalMinutes,
+              earlyCheckInOt: metrics.earlyCheckInOt,
+              lateMinutes: metrics.lateMinutes,
+              earlyMinutes: 0,
+              checkoutOtMinutes: 0,
+              overtimeMinutes: metrics.overtimeMinutes,
+              status: metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT',
+              workingHours: metrics.workingHours,
+              notes: `Auto-calculated checkout at shift end (${sOut})`
+            }
+          });
+          autoCalculatedCount++;
+          processedEmployees.push({ employeeId: emp.employeeId, name: emp.name, checkOutTime: sOut });
+        }
+      } else if (att.checkInTime && !att.checkOutTime) {
+        // Attendance exists with checkIn but no checkOut
+        const metrics = calculateAttendanceMetrics(sIn, sOut, att.checkInTime, sOut, att.status === 'INCOMPLETE' ? 'PRESENT' : att.status, { isAutoCheckout: true });
+        await prisma.employeeAttendance.update({
+          where: { id: att.id },
+          data: {
+            checkOutTime: sOut,
+            checkoutSource: 'AUTO_CALCULATED',
+            earlyMinutes: 0,
+            checkoutOtMinutes: 0,
+            overtimeMinutes: metrics.overtimeMinutes,
+            workingHours: metrics.workingHours,
+            status: att.status === 'INCOMPLETE' ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : att.status,
+            notes: (att.notes ? att.notes + ' | ' : '') + `Auto-calculated checkout at shift end (${sOut})`
+          }
+        });
+        autoCalculatedCount++;
+        processedEmployees.push({ employeeId: emp.employeeId, name: emp.name, checkOutTime: sOut });
+      }
+    }
+
+    res.json({
+      success: true,
+      date,
+      autoCalculatedCount,
+      processedEmployees,
+      message: `Processed auto-checkout for ${autoCalculatedCount} eligible employee(s)`
+    });
+  } catch (err) {
+    console.error('Error in triggerAutoCheckoutProcess:', err);
+    res.status(500).json({ success: false, message: 'Failed to process auto checkout', error: err.message });
+  }
+};
+
 module.exports = {
   receiveHikvisionEvent,
   getHikvisionProbe,
   recordDirectPunch,
   syncBatchPunches,
   recalculateAttendanceRange,
+  triggerAutoCheckoutProcess,
   getRawMachinePunches,
   getBiometricStatus,
   parseMachineDateTime,

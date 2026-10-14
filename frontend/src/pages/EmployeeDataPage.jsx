@@ -40,7 +40,8 @@ import {
   Fingerprint,
   Radio,
   ExternalLink,
-  Database
+  Database,
+  Sparkles
 } from 'lucide-react';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -90,6 +91,7 @@ export default function EmployeeDataPage() {
     allowedLeaves: '2',
     status: 'ACTIVE',
     notes: '',
+    autoCheckoutEnabled: false,
     loginEmail: '',
     password: '',
     loginEnabled: false,
@@ -536,6 +538,7 @@ export default function EmployeeDataPage() {
       allowedLeaves: String(emp.allowedLeaves || 2),
       status: emp.status || 'ACTIVE',
       notes: emp.notes || '',
+      autoCheckoutEnabled: Boolean(emp.autoCheckoutEnabled),
       loginEmail: emp.loginEmail || '',
       password: '',
       loginEnabled: Boolean(emp.loginEnabled)
@@ -1470,6 +1473,14 @@ export default function EmployeeDataPage() {
                           <div className="text-[11px] text-slate-400 mt-0.5">
                             {emp.workingHours || 8} hrs ({emp.breakTime || 60}m break)
                           </div>
+                          {emp.autoCheckoutEnabled && (
+                            <div className="mt-1">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                                <Sparkles size={10} className="text-amber-400" />
+                                Auto-Checkout
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 font-mono font-bold text-emerald-400">
                           ₨ {(emp.monthlySalary || 0).toLocaleString()}
@@ -1787,7 +1798,31 @@ export default function EmployeeDataPage() {
                             </td>
                             <td className="py-3 px-3 font-mono">
                               {rec.checkOutTime ? (
-                                <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
+                                <div className="space-y-0.5">
+                                  <span className={`font-bold block ${rec.checkoutSource === 'AUTO_CALCULATED' ? 'text-amber-400' : 'text-blue-400'}`}>
+                                    {rec.checkOutTime}
+                                  </span>
+                                  {rec.checkoutSource === 'AUTO_CALCULATED' ? (
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[10px] font-sans font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                      title={`Auto-calculated at scheduled shift end (${rec.scheduledCheckOut || '18:00'})`}
+                                    >
+                                      <Sparkles size={10} className="text-amber-400" />
+                                      Auto Checkout
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center text-[9px] font-sans text-slate-500 font-medium">
+                                      Machine
+                                    </span>
+                                  )}
+                                </div>
+                              ) : rec.checkInTime ? (
+                                <div className="space-y-0.5">
+                                  <span className="text-slate-500 text-xs italic font-sans font-normal block">--:--</span>
+                                  <span className="inline-flex items-center text-[10px] font-sans font-semibold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                    Missing Checkout
+                                  </span>
+                                </div>
                               ) : (
                                 <span className="text-slate-500 text-xs italic font-sans font-normal">--:--</span>
                               )}
@@ -2250,7 +2285,31 @@ export default function EmployeeDataPage() {
                             </td>
                             <td className="py-3 px-3 font-mono">
                               {rec.checkOutTime ? (
-                                <span className="text-blue-400 font-bold">{rec.checkOutTime}</span>
+                                <div className="space-y-0.5">
+                                  <span className={`font-bold block ${rec.checkoutSource === 'AUTO_CALCULATED' ? 'text-amber-400' : 'text-blue-400'}`}>
+                                    {rec.checkOutTime}
+                                  </span>
+                                  {rec.checkoutSource === 'AUTO_CALCULATED' ? (
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[10px] font-sans font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                      title={`Auto-calculated at scheduled shift end (${rec.scheduledCheckOut || '18:00'})`}
+                                    >
+                                      <Sparkles size={10} className="text-amber-400" />
+                                      Auto Checkout
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center text-[9px] font-sans text-slate-500 font-medium">
+                                      Machine
+                                    </span>
+                                  )}
+                                </div>
+                              ) : rec.checkInTime ? (
+                                <div className="space-y-0.5">
+                                  <span className="text-slate-500 text-xs italic font-sans font-normal block">--:--</span>
+                                  <span className="inline-flex items-center text-[10px] font-sans font-semibold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                    Missing Checkout
+                                  </span>
+                                </div>
                               ) : (
                                 <span className="text-slate-500 text-xs italic font-sans font-normal">--:--</span>
                               )}
@@ -4231,6 +4290,27 @@ export default function EmployeeDataPage() {
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-blue-500"
                     />
                   </div>
+                </div>
+
+                {/* Attendance Settings: Automatic Checkout */}
+                <div className="mt-4 p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(employeeFormData.autoCheckoutEnabled)}
+                      onChange={(e) => setEmployeeFormData({ ...employeeFormData, autoCheckoutEnabled: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-slate-950 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-amber-400" />
+                        Enable Automatic Checkout
+                      </span>
+                      <span className="text-[11px] text-slate-400 leading-relaxed block mt-0.5">
+                        If enabled, the system will automatically calculate checkout at the employee's scheduled shift end when no machine checkout is recorded.
+                      </span>
+                    </div>
+                  </label>
                 </div>
               </div>
 

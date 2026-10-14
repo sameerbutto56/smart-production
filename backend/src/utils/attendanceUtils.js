@@ -41,8 +41,38 @@ function normalizeDateStr(raw) {
   return null;
 }
 
+// Helper to check if a shift has ended according to Asia/Karachi local date and time
+function hasShiftEnded(dateStr, scheduledOutStr) {
+  if (!dateStr) return false;
+  try {
+    const pktFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const parts = pktFormatter.formatToParts(new Date());
+    const map = {};
+    parts.forEach(p => { map[p.type] = p.value; });
+    const currentPktDate = `${map.year}-${map.month}-${map.day}`;
+    const currentPktMins = parseInt(map.hour, 10) * 60 + parseInt(map.minute, 10);
+
+    if (dateStr < currentPktDate) return true;
+    if (dateStr > currentPktDate) return false;
+
+    const sOutMins = parseTimeToMinutes(scheduledOutStr || '18:00') ?? 1080;
+    return currentPktMins >= sOutMins;
+  } catch (_) {
+    return false;
+  }
+}
+
 // Compute Late, Early Checkout, and Overtime minutes according to rules
-function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualOut, status = 'PRESENT') {
+function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualOut, status = 'PRESENT', options = {}) {
   if (status === 'ABSENT' || status === 'LEAVE' || status === 'WEEKLY_OFF') {
     return {
       earlyArrivalMinutes: 0,
@@ -55,6 +85,7 @@ function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualO
     };
   }
 
+  const isAutoCheckout = Boolean(options.isAutoCheckout);
   const sIn = parseTimeToMinutes(scheduledIn || '10:00') ?? 600; // 10:00 AM default
   const sOut = parseTimeToMinutes(scheduledOut || '18:00') ?? 1080; // 6:00 PM default
   const aIn = parseTimeToMinutes(actualIn);
@@ -85,18 +116,26 @@ function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualO
 
   // 2. Check-Out Dimension (Section 3, 4 & 5)
   if (aOut !== null) {
-    if (aOut < sOut - 10) {
-      // 10-minute early checkout tolerance:
-      // Before sOut - 10 records exact early checkout duration (e.g. 5:49 -> 11 mins)
-      earlyMinutes = sOut - aOut;
-    } else if (aOut > sOut + 15) {
-      // 15-minute checkout overtime tolerance:
-      // Beyond 15 minutes tolerance becomes Checkout Overtime (e.g. 6:30 -> 15 mins)
-      checkoutOtMinutes = (aOut - sOut) - 15;
+    if (isAutoCheckout) {
+      // Auto Checkout: Employee assigned scheduled shift end
+      // Requirement 5: Do not treat employee as late checkout, do not award checkout overtime,
+      // and do not apply an early-checkout penalty.
+      earlyMinutes = 0;
+      checkoutOtMinutes = 0;
+    } else {
+      if (aOut < sOut - 10) {
+        // 10-minute early checkout tolerance:
+        // Before sOut - 10 records exact early checkout duration (e.g. 5:49 -> 11 mins)
+        earlyMinutes = sOut - aOut;
+      } else if (aOut > sOut + 15) {
+        // 15-minute checkout overtime tolerance:
+        // Beyond 15 minutes tolerance becomes Checkout Overtime (e.g. 6:30 -> 15 mins)
+        checkoutOtMinutes = (aOut - sOut) - 15;
+      }
     }
   }
 
-  // 3. Total Daily Overtime (Section 7: Early Check-In OT + Checkout OT)
+  // 3. Total Daily Overtime (Early Check-In OT + Checkout OT)
   const overtimeMinutes = earlyCheckInOt + checkoutOtMinutes;
 
   // 4. Worked Hours
@@ -121,5 +160,6 @@ function calculateAttendanceMetrics(scheduledIn, scheduledOut, actualIn, actualO
 module.exports = {
   parseTimeToMinutes,
   normalizeDateStr,
+  hasShiftEnded,
   calculateAttendanceMetrics
 };

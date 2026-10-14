@@ -49,6 +49,9 @@ router.post('/sync-batch', biometricController.syncBatchPunches);
 // Range Recalculation Engine (Section 15, 16, 26)
 router.post('/recalculate', biometricController.recalculateAttendanceRange);
 
+// Automatic Checkout Process for shift-ended employees (Section 16, 17)
+router.post('/auto-checkout-process', biometricController.triggerAutoCheckoutProcess);
+
 // Raw vs Calculated Punches Verification Endpoint (Section 24)
 router.get('/raw-logs', biometricController.getRawMachinePunches);
 

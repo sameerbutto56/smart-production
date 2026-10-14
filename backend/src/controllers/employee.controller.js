@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const {
   parseTimeToMinutes,
   normalizeDateStr,
+  hasShiftEnded,
   calculateAttendanceMetrics
 } = require('../utils/attendanceUtils');
 
@@ -72,6 +73,7 @@ const getEmployees = async (req, res) => {
         allowedLeaves: true,
         status: true,
         notes: true,
+        autoCheckoutEnabled: true,
         loginEmail: true,
         loginEnabled: true,
         lastLogin: true,
@@ -230,6 +232,7 @@ const createEmployee = async (req, res) => {
         allowedLeaves: parseFloat(allowedLeaves) || 2,
         status: status?.toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
         notes: notes?.trim() || null,
+        autoCheckoutEnabled: Boolean(req.body.autoCheckoutEnabled),
         loginEmail: finalLoginEmail,
         passwordHash,
         loginEnabled: Boolean(loginEnabled)
@@ -325,6 +328,7 @@ const updateEmployee = async (req, res) => {
     }
     if (data.allowedLeaves !== undefined) data.allowedLeaves = parseFloat(data.allowedLeaves) || 2;
     if (data.status) data.status = data.status.toUpperCase();
+    if (data.autoCheckoutEnabled !== undefined) data.autoCheckoutEnabled = Boolean(data.autoCheckoutEnabled);
     if (data.loginEnabled !== undefined) data.loginEnabled = Boolean(data.loginEnabled);
 
     // Login email update & uniqueness check
@@ -464,15 +468,23 @@ const getDailyAttendance = async (req, res) => {
 
           const checkIn = pList[0].punchTime;
           const rawPunchIn = pList[0].rawTimestamp || pList[0].punchTime;
-          const checkOut = pList.length > 1 ? pList[pList.length - 1].punchTime : null;
-          const rawPunchOut = pList.length > 1 ? (pList[pList.length - 1].rawTimestamp || pList[pList.length - 1].punchTime) : null;
+          let checkOut = pList.length > 1 ? pList[pList.length - 1].punchTime : null;
+          let rawPunchOut = pList.length > 1 ? (pList[pList.length - 1].rawTimestamp || pList[pList.length - 1].punchTime) : null;
+          let checkoutSource = pList.length > 1 ? 'MACHINE' : null;
+          let isAutoCheckout = false;
 
           const sIn = emp.checkInTime || '10:00';
           const sOut = emp.checkOutTime || '18:00';
 
-          const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, checkOut, 'PRESENT');
+          if (pList.length === 1 && emp.autoCheckoutEnabled && hasShiftEnded(date, sOut)) {
+            checkOut = sOut;
+            checkoutSource = 'AUTO_CALCULATED';
+            isAutoCheckout = true;
+          }
+
+          const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, checkOut, 'PRESENT', { isAutoCheckout });
           let status = 'PRESENT';
-          if (pList.length === 1) {
+          if (pList.length === 1 && !isAutoCheckout) {
             status = date === todayPkt ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'INCOMPLETE';
           } else {
             status = metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT';
@@ -484,6 +496,7 @@ const getDailyAttendance = async (req, res) => {
             date,
             checkInTime: checkIn,
             checkOutTime: checkOut,
+            checkoutSource,
             rawPunchIn,
             rawPunchOut,
             scheduledCheckIn: sIn,
@@ -498,7 +511,9 @@ const getDailyAttendance = async (req, res) => {
             workingHours: metrics.workingHours,
             machineId: pList[0].machineId || 'DS-K1T342MFWX',
             source: 'MACHINE',
-            notes: `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} [${pList.length} punches]`
+            notes: isAutoCheckout
+              ? `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} | Auto-calculated checkout at shift end (${sOut})`
+              : `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} [${pList.length} punches]`
           };
 
           attMap.set(emp.employeeId, rec);
@@ -512,6 +527,41 @@ const getDailyAttendance = async (req, res) => {
       }
     }
 
+    // Check for employees with checkInTime present but missing checkOutTime who have autoCheckoutEnabled and shift ended
+    for (const emp of employees) {
+      const att = attMap.get(emp.employeeId);
+      if (att && att.checkInTime && !att.checkOutTime && emp.autoCheckoutEnabled && hasShiftEnded(date, emp.checkOutTime)) {
+        const sIn = emp.checkInTime || '10:00';
+        const sOut = emp.checkOutTime || '18:00';
+        const metrics = calculateAttendanceMetrics(sIn, sOut, att.checkInTime, sOut, att.status === 'INCOMPLETE' ? 'PRESENT' : att.status, { isAutoCheckout: true });
+        let finalStatus = att.status === 'INCOMPLETE' ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : att.status;
+        att.checkOutTime = sOut;
+        att.checkoutSource = 'AUTO_CALCULATED';
+        att.scheduledCheckIn = sIn;
+        att.scheduledCheckOut = sOut;
+        att.earlyMinutes = metrics.earlyMinutes;
+        att.checkoutOtMinutes = metrics.checkoutOtMinutes;
+        att.overtimeMinutes = metrics.overtimeMinutes;
+        att.workingHours = metrics.workingHours;
+        att.status = finalStatus;
+        att.notes = (att.notes ? att.notes + ' | ' : '') + `Auto-calculated checkout at shift end (${sOut})`;
+
+        prisma.employeeAttendance.update({
+          where: { employeeId_date: { employeeId: emp.employeeId, date } },
+          data: {
+            checkOutTime: sOut,
+            checkoutSource: 'AUTO_CALCULATED',
+            earlyMinutes: metrics.earlyMinutes,
+            checkoutOtMinutes: metrics.checkoutOtMinutes,
+            overtimeMinutes: metrics.overtimeMinutes,
+            workingHours: metrics.workingHours,
+            status: finalStatus,
+            notes: att.notes
+          }
+        }).catch(() => {});
+      }
+    }
+
     const isSun = new Date(`${date}T12:00:00Z`).getUTCDay() === 0;
 
     const records = employees.map(emp => {
@@ -519,6 +569,7 @@ const getDailyAttendance = async (req, res) => {
       if (att) {
         return {
           ...att,
+          checkoutSource: att.checkoutSource || (att.checkOutTime ? 'MACHINE' : null),
           branch: emp.branch,
           department: emp.department,
           designation: emp.designation,
@@ -1238,9 +1289,20 @@ const getAttendanceRange = async (req, res) => {
             const sIn = emp.checkInTime || '10:00';
             const sOut = emp.checkOutTime || '18:00';
 
-            const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, checkOut, 'PRESENT');
+            let checkOut = pList.length > 1 ? pList[pList.length - 1].punchTime : null;
+            let rawPunchOut = pList.length > 1 ? (pList[pList.length - 1].rawTimestamp || pList[pList.length - 1].punchTime) : null;
+            let checkoutSource = pList.length > 1 ? 'MACHINE' : null;
+            let isAutoCheckout = false;
+
+            if (pList.length === 1 && emp.autoCheckoutEnabled && hasShiftEnded(d, sOut)) {
+              checkOut = sOut;
+              checkoutSource = 'AUTO_CALCULATED';
+              isAutoCheckout = true;
+            }
+
+            const metrics = calculateAttendanceMetrics(sIn, sOut, checkIn, checkOut, 'PRESENT', { isAutoCheckout });
             let status = 'PRESENT';
-            if (pList.length === 1) {
+            if (pList.length === 1 && !isAutoCheckout) {
               status = d === todayPkt ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'INCOMPLETE';
             } else {
               status = metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT';
@@ -1253,6 +1315,7 @@ const getAttendanceRange = async (req, res) => {
               date: d,
               checkInTime: checkIn,
               checkOutTime: checkOut,
+              checkoutSource,
               rawPunchIn,
               rawPunchOut,
               scheduledCheckIn: sIn,
@@ -1267,7 +1330,9 @@ const getAttendanceRange = async (req, res) => {
               workingHours: metrics.workingHours,
               machineId: pList[0].machineId || 'DS-K1T342MFWX',
               source: 'MACHINE',
-              notes: `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} [${pList.length} punches]`
+              notes: isAutoCheckout
+                ? `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} | Auto-calculated checkout at shift end (${sOut})`
+                : `Punch via ${pList[0].machineId || 'DS-K1T342MFWX'} [${pList.length} punches]`
             };
             attMap.set(k, rec);
 
@@ -1277,6 +1342,45 @@ const getAttendanceRange = async (req, res) => {
               create: rec
             }).catch(() => {});
           }
+        }
+      }
+    }
+
+    // Check for employees with checkInTime present but missing checkOutTime who have autoCheckoutEnabled and shift ended
+    for (const emp of employees) {
+      if (!emp.autoCheckoutEnabled) continue;
+      for (const d of dateList) {
+        const k = `${emp.employeeId}_${d}`;
+        const att = attMap.get(k);
+        if (att && att.checkInTime && !att.checkOutTime && hasShiftEnded(d, emp.checkOutTime)) {
+          const sIn = emp.checkInTime || '10:00';
+          const sOut = emp.checkOutTime || '18:00';
+          const metrics = calculateAttendanceMetrics(sIn, sOut, att.checkInTime, sOut, att.status === 'INCOMPLETE' ? 'PRESENT' : att.status, { isAutoCheckout: true });
+          let finalStatus = att.status === 'INCOMPLETE' ? (metrics.lateMinutes > 0 ? 'LATE' : 'PRESENT') : att.status;
+          att.checkOutTime = sOut;
+          att.checkoutSource = 'AUTO_CALCULATED';
+          att.scheduledCheckIn = sIn;
+          att.scheduledCheckOut = sOut;
+          att.earlyMinutes = metrics.earlyMinutes;
+          att.checkoutOtMinutes = metrics.checkoutOtMinutes;
+          att.overtimeMinutes = metrics.overtimeMinutes;
+          att.workingHours = metrics.workingHours;
+          att.status = finalStatus;
+          att.notes = (att.notes ? att.notes + ' | ' : '') + `Auto-calculated checkout at shift end (${sOut})`;
+
+          prisma.employeeAttendance.update({
+            where: { employeeId_date: { employeeId: emp.employeeId, date: d } },
+            data: {
+              checkOutTime: sOut,
+              checkoutSource: 'AUTO_CALCULATED',
+              earlyMinutes: metrics.earlyMinutes,
+              checkoutOtMinutes: metrics.checkoutOtMinutes,
+              overtimeMinutes: metrics.overtimeMinutes,
+              workingHours: metrics.workingHours,
+              status: finalStatus,
+              notes: att.notes
+            }
+          }).catch(() => {});
         }
       }
     }
@@ -1311,6 +1415,7 @@ const getAttendanceRange = async (req, res) => {
         if (att) {
           records.push({
             ...att,
+            checkoutSource: att.checkoutSource || (att.checkOutTime ? 'MACHINE' : null),
             branch: emp.branch,
             department: emp.department,
             designation: emp.designation,
