@@ -21,7 +21,13 @@ import {
   Users,
   List,
   Grid,
-  DollarSign
+  DollarSign,
+  RotateCcw,
+  ArrowLeft,
+  Clock,
+  AlertCircle,
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
@@ -109,6 +115,34 @@ const AllOrders = () => {
   const fetchSeqRef = useRef(0);
   const mountRef = useRef(true);
 
+  // Return and Replacement delay tracking state
+  const [returnReplacementDelays, setReturnReplacementDelays] = useState({
+    counts: { csrReturns: 0, inventoryViewReturns: 0, storeReturns: 0, replacementOrders: 0, total: 0 },
+    records: { csrReturns: [], inventoryViewReturns: [], storeReturns: [], replacementOrders: [] }
+  });
+  const [selectedReturnDelayCategory, setSelectedReturnDelayCategory] = useState(null);
+  const [returnDelaysLoading, setReturnDelaysLoading] = useState(false);
+
+  const fetchReturnReplacementDelays = useCallback(async () => {
+    try {
+      setReturnDelaysLoading(true);
+      const res = await api.get('/api/orders/returns-replacements-delays', {
+        params: { _t: Date.now() },
+        timeout: 30000
+      });
+      if (res.data?.success) {
+        setReturnReplacementDelays({
+          counts: res.data.counts || {},
+          records: res.data.records || {}
+        });
+      }
+    } catch (e) {
+      console.error('[AllOrders] Failed to load return/replacement delays:', e);
+    } finally {
+      setReturnDelaysLoading(false);
+    }
+  }, []);
+
   const fetchOrders = useCallback(async (isManual = false) => {
     const seq = ++fetchSeqRef.current;
     const startTime = performance.now();
@@ -141,6 +175,7 @@ const AllOrders = () => {
       setLoading(false);
       setRefreshing(false);
       setError(null);
+      fetchReturnReplacementDelays();
       return orderList;
     } catch (err) {
       if (!mountRef.current || fetchSeqRef.current !== seq) return;
@@ -152,11 +187,12 @@ const AllOrders = () => {
       setRefreshing(false);
       throw err;
     }
-  }, []);
+  }, [fetchReturnReplacementDelays]);
 
   const refresh = useCallback((isManual = false) => {
+    fetchReturnReplacementDelays();
     return fetchOrders(isManual);
-  }, [fetchOrders]);
+  }, [fetchOrders, fetchReturnReplacementDelays]);
 
   useEffect(() => {
     mountRef.current = true;
@@ -170,11 +206,12 @@ const AllOrders = () => {
     }).catch(() => {});
 
     fetchOrders(false);
+    fetchReturnReplacementDelays();
 
     return () => {
       mountRef.current = false;
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, fetchReturnReplacementDelays]);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
 
@@ -388,14 +425,38 @@ const AllOrders = () => {
     socket.on('new-order', onNewOrder);
     socket.on('stage-accepted', debouncedRefresh);
     socket.on('delay-config-updated', debouncedRefresh);
+    socket.on('return-exchange-updated', debouncedRefresh);
 
     return () => {
       socket.off('order-updated', onOrderUpdated);
       socket.off('new-order', onNewOrder);
       socket.off('stage-accepted', debouncedRefresh);
       socket.off('delay-config-updated', debouncedRefresh);
+      socket.off('return-exchange-updated', debouncedRefresh);
     };
   }, [fetchOrders, user?.role, user?.id]);
+
+  const handleOpenDelayedReturnOrder = async (item) => {
+    if (item.orderId) {
+      const existing = orders.find(o => o.id === item.orderId || o.orderNumber === item.orderNumber);
+      if (existing) {
+        setSelectedOrder(existing);
+        setShowModal(true);
+        return;
+      }
+      try {
+        const res = await api.get(`/api/orders/${item.orderId}`);
+        if (res.data) {
+          setSelectedOrder(res.data);
+          setShowModal(true);
+          return;
+        }
+      } catch (err) {
+        console.error('Error fetching order details:', err);
+      }
+    }
+    toast(`Return Case #${item.orderNumber || item.caseId.substring(0,8)} (${item.responsibleProfile || 'Returns'})`);
+  };
 
   const handleSendForDelivery = async (orderId) => {
     if (isReadOnly) return;
@@ -688,6 +749,11 @@ const AllOrders = () => {
     });
   }, [baseFilteredOrders, filterCategory, filterDepartment, filterDelayStage, matchesCategory, delayMap, sortOrder]);
 
+  const activeReturnRecords = useMemo(() => {
+    if (!selectedReturnDelayCategory) return [];
+    return returnReplacementDelays.records[selectedReturnDelayCategory] || [];
+  }, [selectedReturnDelayCategory, returnReplacementDelays]);
+
   const handleResetFilters = useCallback(() => {
     setFilterStatus('ALL');
     setFilterType('ALL');
@@ -696,6 +762,7 @@ const AllOrders = () => {
     setFilterCategory('all');
     setFilterDepartment(null);
     setFilterDelayStage(null);
+    setSelectedReturnDelayCategory(null);
     setDateFilter('all');
     setSearchTerm('');
     setContextSearch('');
@@ -912,16 +979,17 @@ const AllOrders = () => {
         </select>
       </div>
 
-      {/* Department-wise delayed summary (click to filter that department's delayed orders) */}
-      {Object.keys(departmentDelays).length > 0 && (
+      {/* Department-wise delayed summary (click to filter that department's delayed orders or returns) */}
+      {(Object.keys(departmentDelays).length > 0 || (returnReplacementDelays?.counts?.total > 0)) && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-black uppercase tracking-widest theme-text-muted">Delayed by Department:</span>
           {Object.entries(departmentDelays).map(([dept, count]) => {
-            const active = filterDepartment === dept;
+            const active = filterDepartment === dept && !selectedReturnDelayCategory;
             return (
               <button
                 key={dept}
                 onClick={() => {
+                  setSelectedReturnDelayCategory(null);
                   setFilterDepartment(active ? null : dept);
                   setFilterCategory('delayed');
                 }}
@@ -929,13 +997,49 @@ const AllOrders = () => {
                   ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40'
                   : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'}`}
               >
-                {dept} ({count})
+                {dept} Delay: ({count})
               </button>
             );
           })}
-          {filterDepartment && (
+
+          {/* Return & Replacement department delays */}
+          {[
+            { key: 'csrReturns', label: 'CSR Returns Delay', count: returnReplacementDelays?.counts?.csrReturns || 0, icon: '📞' },
+            { key: 'inventoryViewReturns', label: 'Inventory View Returns Delay', count: returnReplacementDelays?.counts?.inventoryViewReturns || 0, icon: '📋' },
+            { key: 'storeReturns', label: 'Store Returns Delay', count: returnReplacementDelays?.counts?.storeReturns || 0, icon: '🏬' },
+            { key: 'replacementOrders', label: 'Replacement Orders Delay', count: returnReplacementDelays?.counts?.replacementOrders || 0, icon: '🔄' },
+          ].map(item => {
+            const active = selectedReturnDelayCategory === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => {
+                  if (active) {
+                    setSelectedReturnDelayCategory(null);
+                  } else {
+                    setSelectedReturnDelayCategory(item.key);
+                    setFilterDepartment(null);
+                    setFilterDelayStage(null);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-all flex items-center gap-1.5 ${active
+                  ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-900/40 animate-pulse'
+                  : item.count > 0
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                    : 'bg-gray-800/40 text-gray-400 border-gray-700/50 hover:bg-gray-800'}`}
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}:</span>
+                <span className={`px-1.5 py-0.2 rounded font-black ${item.count > 0 ? (active ? 'bg-black/40 text-white' : 'bg-amber-500/20 text-amber-300') : 'text-gray-400'}`}>
+                  {item.count}
+                </span>
+              </button>
+            );
+          })}
+
+          {(filterDepartment || selectedReturnDelayCategory) && (
             <button
-              onClick={() => { setFilterDepartment(null); }}
+              onClick={() => { setFilterDepartment(null); setSelectedReturnDelayCategory(null); }}
               className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-widest theme-text-muted hover:text-white"
             >
               ✕ Clear
@@ -1113,6 +1217,156 @@ const AllOrders = () => {
         </div>
 
       <SectionOverlay isUpdating={refreshing || (loading && orders.length > 0)} updatingText="Refreshing orders...">
+      {selectedReturnDelayCategory ? (
+        <div className="glass rounded-2xl overflow-hidden p-6 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedReturnDelayCategory(null)}
+                className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider"
+              >
+                <ArrowLeft size={16} /> Back to All Orders
+              </button>
+              <div>
+                <h2 className="text-lg md:text-xl font-black text-white flex items-center gap-2">
+                  {selectedReturnDelayCategory === 'csrReturns' && '📞 CSR Returns Delay'}
+                  {selectedReturnDelayCategory === 'inventoryViewReturns' && '📋 Inventory View Returns Delay'}
+                  {selectedReturnDelayCategory === 'storeReturns' && '🏬 Store Returns Delay'}
+                  {selectedReturnDelayCategory === 'replacementOrders' && '🔄 Replacement Orders Delay'}
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-red-600/30 text-red-400 border border-red-500/30 font-black">
+                    {activeReturnRecords.length} Delayed
+                  </span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {selectedReturnDelayCategory === 'csrReturns' && 'Pending CSR action, delivery boy return intake, or customer outreach beyond SLA threshold.'}
+                  {selectedReturnDelayCategory === 'inventoryViewReturns' && 'Pending Inventory View inspection, acceptance, or routing beyond SLA threshold.'}
+                  {selectedReturnDelayCategory === 'storeReturns' && 'Pending Store acceptance, restocking, or return resolution beyond SLA threshold.'}
+                  {selectedReturnDelayCategory === 'replacementOrders' && 'Pending Faisal approval, replacement order creation, or fulfillment beyond SLA threshold.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchReturnReplacementDelays()}
+                disabled={returnDelaysLoading}
+                className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <RefreshCcw size={14} className={returnDelaysLoading ? 'animate-spin text-amber-400' : ''} />
+                <span>Refresh</span>
+              </button>
+              <button
+                onClick={() => setSelectedReturnDelayCategory(null)}
+                className="px-4 py-2 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 text-xs font-black uppercase tracking-wider transition-all"
+              >
+                Close View
+              </button>
+            </div>
+          </div>
+
+          {activeReturnRecords.length === 0 ? (
+            <div className="py-16 text-center text-gray-400 space-y-3">
+              <CheckCircle2 size={40} className="mx-auto text-emerald-400 opacity-60" />
+              <h4 className="text-base font-bold text-gray-200">No delayed cases in this category!</h4>
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                All active cases are progressing within their configured working SLA threshold.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="theme-text-secondary text-xs uppercase border-b border-gray-800 bg-gray-900/60">
+                    <th className="px-5 py-3.5">Order / Case</th>
+                    <th className="px-5 py-3.5">Customer</th>
+                    <th className="px-5 py-3.5">Responsible Profile</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5">Pending Duration</th>
+                    <th className="px-5 py-3.5">Allowed SLA</th>
+                    <th className="px-5 py-3.5">Delay (Overdue)</th>
+                    <th className="px-5 py-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800 text-xs font-medium">
+                  {activeReturnRecords.map((item) => (
+                    <tr
+                      key={item.caseId || item.orderId}
+                      onClick={() => handleOpenDelayedReturnOrder(item)}
+                      className="hover:bg-white/5 transition-colors cursor-pointer group animate-delayed-row"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="font-black text-sm text-white group-hover:text-blue-400 transition-colors">
+                          #{item.orderNumber || item.caseId?.substring(0, 8)}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">
+                            {item.type || 'RETURN'}
+                          </span>
+                          {item.returnSource && (
+                            <span className="text-[10px] font-bold text-gray-400">
+                              ({item.returnSource})
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-white">{item.customerName || 'N/A'}</div>
+                        {item.customerPhone && (
+                          <div className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
+                            <Phone size={11} className="text-gray-500" />
+                            {item.customerPhone}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-purple-900/40 text-purple-300 border border-purple-700/50">
+                          {item.responsibleProfile || 'Returns'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                          {item.status?.replace(/_/g, ' ') || 'PENDING'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-gray-200">
+                          {fmtDuration(item.workingMs)}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          Since {formatDateOnly(item.enteredAt)} {formatTimeOnly(item.enteredAt)}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-gray-300 font-bold">
+                          {item.allowedHours} Hours
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-red-600 text-white shadow-md shadow-red-950/50">
+                          <Clock size={12} />
+                          +{fmtDuration(item.delayDuration)} Overdue
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDelayedReturnOrder(item);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ml-auto shadow-md"
+                        >
+                          <span>View Details</span>
+                          <ExternalLink size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="glass rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -1519,6 +1773,7 @@ const AllOrders = () => {
           </div>
         )}
       </div>
+      )}
       </SectionOverlay>
 
       {/* --- JOB SHEET MODAL --- */}

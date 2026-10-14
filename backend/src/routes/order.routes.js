@@ -4,6 +4,7 @@ const {
   getOrders, 
   getOrdersExport,
   getDashboardSummary,
+  getReturnsAndReplacementsDelays,
   requestStageCompletion, 
   approveStageCompletion, 
   rejectStageCompletion,
@@ -82,6 +83,9 @@ router.get('/dashboard-summary', authenticate, authorize(['SUPER_ADMIN', 'ADMIN'
 // Excel export of the Orders screen (category/department/stage delay filters).
 // Registered before /:orderId so 'export' is never captured as an order id.
 router.get('/export', authenticate, requirePermission('ORDER_EXCEL_EXPORT'), getOrdersExport);
+
+// Returns & Replacements Delays for Admin Orders Dashboard
+router.get('/returns-replacements-delays', authenticate, getReturnsAndReplacementsDelays);
 
 // Track order by orderNumber (any authenticated user)
 router.get('/track/:orderNumber', authenticate, requirePermission('ORDER_TRACK'), trackOrder);

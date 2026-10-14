@@ -101,6 +101,10 @@ const DEFAULT_DELAY_CONFIG = {
   OUTLET_RECEIVE: 48,
   ENAMELS_DELIVERY: 24,
   OUT_FOR_DELIVERY: 12,
+  CSR_RETURNS: 12,
+  INVENTORY_VIEW_RETURNS: 24,
+  STORE_RETURNS: 24,
+  REPLACEMENT_ORDERS: 48,
 };
 
 const SoftwareSettings = () => {
@@ -1052,6 +1056,10 @@ const SoftwareSettings = () => {
                 { key: 'OUTLET_RECEIVE', title: 'Outlet Receive', color: 'from-cyan-900/40 to-blue-900/40', border: 'border-cyan-700/50' },
                 { key: 'ENAMELS_DELIVERY', title: 'Enamels Delivery', color: 'from-pink-900/40 to-rose-900/40', border: 'border-pink-700/50' },
                 { key: 'OUT_FOR_DELIVERY', title: 'Out for Delivery', color: 'from-rose-900/40 to-red-900/40', border: 'border-rose-700/50' },
+                { key: 'CSR_RETURNS', title: 'CSR Returns', color: 'from-amber-950/40 to-yellow-950/40', border: 'border-amber-600/50' },
+                { key: 'INVENTORY_VIEW_RETURNS', title: 'Inventory View Returns', color: 'from-indigo-950/40 to-blue-950/40', border: 'border-indigo-600/50' },
+                { key: 'STORE_RETURNS', title: 'Store Returns', color: 'from-cyan-950/40 to-teal-950/40', border: 'border-cyan-600/50' },
+                { key: 'REPLACEMENT_ORDERS', title: 'Replacement Orders', color: 'from-purple-950/40 to-pink-950/40', border: 'border-purple-600/50' },
               ].map(phase => {
                 const current = delayConfig[phase.key] ?? DEFAULT_DELAY_CONFIG[phase.key];
                 return (

@@ -1,7 +1,7 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion, DISPATCH_RESET_FIELDS, ensureSingleActiveDispatchStage } = require('./order-helpers');
-const { getDelayInfo, getDelayMap, attachDelayInfoToOrders, getAllowedHours, fmtDuration, DEFAULT_DELAY_CONFIG, computeWorkingMs } = require('../utils/orderDelay');
+const { getDelayInfo, getDelayMap, attachDelayInfoToOrders, getAllowedHours, fmtDuration, DEFAULT_DELAY_CONFIG, computeWorkingMs, computeReturnExchangeDelay } = require('../utils/orderDelay');
 const { recordAssignment } = require('./tahirSheet.controller');
 const { getSystemState } = require('../utils/systemPause');
 const notify = require('../utils/notify');
@@ -5871,11 +5871,176 @@ const getDashboardSummary = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/orders/returns-replacements-delays
+ * Computes live delayed counts and record details for:
+ *  - CSR Returns
+ *  - Inventory View Returns
+ *  - Store Returns
+ *  - Replacement Orders
+ */
+const getReturnsAndReplacementsDelays = async (req, res) => {
+  try {
+    const delayConfig = await loadDelayConfig();
+    const systemState = await getSystemState();
+    const pausePeriods = systemState?.pausePeriods || [];
+    const now = Date.now();
+
+    // 1. Fetch active ReturnExchange cases
+    const activeCases = await prisma.returnExchange.findMany({
+      where: {
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REPLACEMENT_COMPLETED', 'RESTOCKED'] }
+      },
+      select: {
+        id: true,
+        orderId: true,
+        orderNumber: true,
+        customerName: true,
+        customerPhone: true,
+        type: true,
+        status: true,
+        routedTo: true,
+        returnSource: true,
+        replacementOrderId: true,
+        createdAt: true,
+        acceptedAt: true,
+        acceptedById: true,
+        storeAcceptedAt: true,
+        faisalApprovedAt: true,
+        deliveryReturnedAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // 2. Fetch active Replacement Orders from Order table
+    const activeReplacementOrders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { type: 'REPLACEMENT' },
+          { replacementCaseId: { not: null } }
+        ],
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        customerName: true,
+        customerPhone: true,
+        type: true,
+        currentStage: true,
+        status: true,
+        priority: true,
+        createdAt: true,
+        updatedAt: true,
+        replacementCaseId: true,
+        stages: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, createdAt: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const csrReturns = [];
+    const inventoryViewReturns = [];
+    const storeReturns = [];
+    const replacementOrders = [];
+
+    // Evaluate active ReturnExchange cases
+    for (const c of activeCases) {
+      const delay = computeReturnExchangeDelay(c, delayConfig, pausePeriods, now);
+      if (delay && delay.isDelayed) {
+        if (delay.categoryKey === 'CSR_RETURNS') {
+          csrReturns.push(delay);
+        } else if (delay.categoryKey === 'STORE_RETURNS') {
+          storeReturns.push(delay);
+        } else if (delay.categoryKey === 'INVENTORY_VIEW_RETURNS') {
+          inventoryViewReturns.push(delay);
+        } else if (delay.categoryKey === 'REPLACEMENT_ORDERS') {
+          replacementOrders.push(delay);
+        }
+      }
+    }
+
+    // Evaluate active replacement orders from Order table
+    // (Deduplicate if already captured by caseId / replacementOrderId)
+    const capturedCaseIds = new Set(replacementOrders.map(r => r.caseId));
+    const capturedOrderNumbers = new Set(replacementOrders.map(r => r.orderNumber));
+
+    for (const o of activeReplacementOrders) {
+      if (o.replacementCaseId && capturedCaseIds.has(o.replacementCaseId)) continue;
+      if (capturedOrderNumbers.has(o.orderNumber)) continue;
+
+      // Check order delay
+      const orderDelay = getDelayInfo(o, delayConfig, pausePeriods, null, now);
+      // Also check overall replacement order threshold (REPLACEMENT_ORDERS)
+      const enteredMs = new Date(o.createdAt).getTime();
+      const allowedHours = getAllowedHours('REPLACEMENT_ORDERS', delayConfig);
+      const allowedMs = allowedHours * 3600 * 1000;
+      const workingMs = computeWorkingMs(enteredMs, now);
+      const isReplacementOverdue = workingMs > allowedMs;
+
+      if ((orderDelay && orderDelay.isDelayed) || isReplacementOverdue) {
+        const delayDuration = isReplacementOverdue
+          ? (workingMs - allowedMs)
+          : (orderDelay ? orderDelay.delayDuration : 0);
+
+        replacementOrders.push({
+          caseId: o.replacementCaseId || o.id,
+          orderId: o.id,
+          orderNumber: o.orderNumber,
+          customerName: o.customerName,
+          customerPhone: o.customerPhone,
+          type: 'REPLACEMENT',
+          status: o.status,
+          currentStage: o.currentStage,
+          categoryKey: 'REPLACEMENT_ORDERS',
+          department: 'Replacement Orders',
+          responsibleProfile: o.currentStage === 'STORE' ? 'Store Profile' : (['PRODUCTION', 'WORKERS'].includes(o.currentStage) ? 'Production' : 'Faisal Profile'),
+          isDelayed: true,
+          enteredAt: new Date(enteredMs).toISOString(),
+          allowedHours,
+          allowedMs,
+          workingMs,
+          delayDuration,
+          deadlineAt: orderDelay?.deadlineAt ? new Date(orderDelay.deadlineAt).toISOString() : null,
+          createdAt: o.createdAt,
+          updatedAt: o.updatedAt,
+        });
+      }
+    }
+
+    const counts = {
+      csrReturns: csrReturns.length,
+      inventoryViewReturns: inventoryViewReturns.length,
+      storeReturns: storeReturns.length,
+      replacementOrders: replacementOrders.length,
+      total: csrReturns.length + inventoryViewReturns.length + storeReturns.length + replacementOrders.length,
+    };
+
+    res.json({
+      success: true,
+      counts,
+      records: {
+        csrReturns,
+        inventoryViewReturns,
+        storeReturns,
+        replacementOrders,
+      }
+    });
+  } catch (error) {
+    console.error('getReturnsAndReplacementsDelays error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch returns and replacement delays', error: error.message });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
   getOrdersExport,
   getDashboardSummary,
+  getReturnsAndReplacementsDelays,
   requestStageCompletion,
   approveStageCompletion,
   rejectStageCompletion,

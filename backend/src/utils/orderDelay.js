@@ -27,6 +27,10 @@ const STAGE_DEPARTMENTS = {
   VERIFICATION: 'Verification',
   RETURN_VERIFICATION: 'Return from Verification',
   DELIVERED: 'Completed',
+  CSR_RETURNS: 'CSR Returns',
+  INVENTORY_VIEW_RETURNS: 'Inventory View Returns',
+  STORE_RETURNS: 'Store Returns',
+  REPLACEMENT_ORDERS: 'Replacement Orders',
 };
 
 const DELAY_REASONS = {
@@ -45,6 +49,10 @@ const DELAY_REASONS = {
   'Inventory Verification': 'Delayed in Inventory Verification',
   'Verification': 'Delayed in Verification',
   'Return from Verification': 'Delayed in Return from Verification',
+  'CSR Returns': 'Delayed in CSR Returns',
+  'Inventory View Returns': 'Delayed in Inventory View Returns',
+  'Store Returns': 'Delayed in Store Returns',
+  'Replacement Orders': 'Delayed in Replacement Orders',
 };
 
 const STAGE_LABELS = {
@@ -63,6 +71,10 @@ const STAGE_LABELS = {
   ENAMELS_DELIVERY: 'Delivery',
   OUT_FOR_DELIVERY: 'Out of Delivery',
   DELIVERED: 'Completed',
+  CSR_RETURNS: 'CSR Returns',
+  INVENTORY_VIEW_RETURNS: 'Inventory View Returns',
+  STORE_RETURNS: 'Store Returns',
+  REPLACEMENT_ORDERS: 'Replacement Orders',
 };
 
 // Fallback allowed hours per phase when no config is available.
@@ -81,6 +93,10 @@ const FALLBACK_STAGE_HOURS = {
   OUTLET_RECEIVE: 48,
   ENAMELS_DELIVERY: 24,
   OUT_FOR_DELIVERY: 12,
+  CSR_RETURNS: 12,
+  INVENTORY_VIEW_RETURNS: 24,
+  STORE_RETURNS: 24,
+  REPLACEMENT_ORDERS: 48,
 };
 
 // Default delay config for Software Settings (all phases, hours).
@@ -99,6 +115,10 @@ const DEFAULT_DELAY_CONFIG = {
   OUTLET_RECEIVE: 48,
   ENAMELS_DELIVERY: 24,
   OUT_FOR_DELIVERY: 12,
+  CSR_RETURNS: 12,
+  INVENTORY_VIEW_RETURNS: 24,
+  STORE_RETURNS: 24,
+  REPLACEMENT_ORDERS: 48,
 };
 
 // Each phase maps to a config key in the Software Settings delay config.
@@ -117,6 +137,10 @@ const STAGE_CONFIG_MAP = {
   OUTLET_RECEIVE: 'OUTLET_RECEIVE',
   ENAMELS_DELIVERY: 'ENAMELS_DELIVERY',
   OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
+  CSR_RETURNS: 'CSR_RETURNS',
+  INVENTORY_VIEW_RETURNS: 'INVENTORY_VIEW_RETURNS',
+  STORE_RETURNS: 'STORE_RETURNS',
+  REPLACEMENT_ORDERS: 'REPLACEMENT_ORDERS',
 };
 
 const stageLabel = (stageName) =>
@@ -333,6 +357,91 @@ const attachDelayInfoToOrders = (orders, delayConfig = null, pausePeriods = null
   return orders;
 };
 
+/**
+ * Compute delay for a ReturnExchange case.
+ * Determines the category:
+ *  - CSR_RETURNS: initiated returns awaiting CSR review or delivery return acceptance (returnSource in POSTEX, ENAMELS_DELIVERY_BOY, or routedTo == 'CSR')
+ *  - STORE_RETURNS: returns routed to Store (routedTo == 'STORE')
+ *  - INVENTORY_VIEW_RETURNS: returns with Inventory View (routedTo == 'INVENTORY_VIEW' or status == 'ACCEPTED' and not with Store)
+ *  - REPLACEMENT_ORDERS: type == 'REPLACEMENT'
+ *
+ * Uses working-hours computation (9AM-7PM Mon-Sat, Sunday excluded, pause periods deducted).
+ */
+const computeReturnExchangeDelay = (c, delayConfig = null, pausePeriods = null, nowMs = null) => {
+  if (!c) return null;
+  const status = String(c.status || '').toUpperCase();
+  if (['COMPLETED', 'CANCELLED', 'REPLACEMENT_COMPLETED', 'RESTOCKED'].includes(status)) return null;
+
+  const type = String(c.type || '').toUpperCase();
+  const routedTo = String(c.routedTo || '').toUpperCase();
+  const returnSource = String(c.returnSource || '').toUpperCase();
+
+  let categoryKey;
+  let responsibleProfile;
+  let enteredAt;
+
+  if (type === 'REPLACEMENT') {
+    categoryKey = 'REPLACEMENT_ORDERS';
+    if (routedTo === 'FAISAL' && !c.faisalApprovedAt) {
+      responsibleProfile = 'Faisal Profile';
+    } else if (routedTo === 'STORE') {
+      responsibleProfile = 'Store Profile';
+    } else {
+      responsibleProfile = 'Production';
+    }
+    enteredAt = c.faisalApprovedAt || c.createdAt;
+  } else if (routedTo === 'CSR' || (!c.acceptedById && c.status === 'PENDING' && (returnSource === 'POSTEX' || returnSource === 'ENAMELS_DELIVERY_BOY'))) {
+    categoryKey = 'CSR_RETURNS';
+    responsibleProfile = 'CSR Profile';
+    enteredAt = c.deliveryReturnedAt || c.createdAt;
+  } else if (routedTo === 'STORE') {
+    categoryKey = 'STORE_RETURNS';
+    responsibleProfile = 'Store Returns';
+    enteredAt = c.storeAcceptedAt || c.updatedAt || c.createdAt;
+  } else {
+    // Inventory View Returns
+    categoryKey = 'INVENTORY_VIEW_RETURNS';
+    responsibleProfile = 'Inventory View';
+    enteredAt = c.acceptedAt || c.createdAt;
+  }
+
+  const now = nowMs || Date.now();
+  const enteredMs = enteredAt ? new Date(enteredAt).getTime() : Date.now();
+  if (!Number.isFinite(enteredMs)) return null;
+
+  const allowedHours = getAllowedHours(categoryKey, delayConfig);
+  const allowedMs = allowedHours * 3600 * 1000;
+  const workingMs = computeActiveWorkingMsSafe(enteredMs, now, pausePeriods);
+  const deadlineAt = computeWorkingDeadline(enteredMs, allowedHours);
+
+  const isDelayed = workingMs > allowedMs;
+  const delayDuration = isDelayed ? (workingMs - allowedMs) : 0;
+
+  return {
+    caseId: c.id,
+    orderId: c.orderId,
+    orderNumber: c.orderNumber,
+    customerName: c.customerName,
+    customerPhone: c.customerPhone,
+    type: c.type,
+    status: c.status,
+    categoryKey,
+    department: STAGE_DEPARTMENTS[categoryKey] || categoryKey,
+    responsibleProfile,
+    isDelayed,
+    enteredAt: new Date(enteredMs).toISOString(),
+    allowedHours,
+    allowedMs,
+    workingMs,
+    delayDuration,
+    deadlineAt: deadlineAt ? new Date(deadlineAt).toISOString() : null,
+    returnSource: c.returnSource,
+    routedTo: c.routedTo,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  };
+};
+
 module.exports = {
   STAGE_DEPARTMENTS,
   DELAY_REASONS,
@@ -348,6 +457,7 @@ module.exports = {
   getDelayInfo,
   getDelayMap,
   attachDelayInfoToOrders,
+  computeReturnExchangeDelay,
   computeWorkingMs,
   computeWorkingHours,
   computeWorkingDeadline,
