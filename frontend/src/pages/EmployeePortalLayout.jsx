@@ -127,6 +127,10 @@ export default function EmployeePortalLayout() {
         setAttendanceData(res.data);
       }
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+        return;
+      }
       toast.error('Failed to load attendance');
     } finally {
       setLoading(false);
@@ -142,6 +146,10 @@ export default function EmployeePortalLayout() {
         setLeavesData(res.data);
       }
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+        return;
+      }
       toast.error('Failed to load leaves');
     } finally {
       setLoading(false);
@@ -157,6 +165,10 @@ export default function EmployeePortalLayout() {
         setLoansData(res.data);
       }
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+        return;
+      }
       toast.error('Failed to load loans');
     } finally {
       setLoading(false);
@@ -175,6 +187,10 @@ export default function EmployeePortalLayout() {
         setProductionData(res.data);
       }
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+        return;
+      }
       toast.error('Failed to load production');
     } finally {
       setLoading(false);
@@ -190,6 +206,10 @@ export default function EmployeePortalLayout() {
         setPayrollsList(res.data.payrolls || []);
       }
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+        return;
+      }
       toast.error('Failed to load payroll records');
     } finally {
       setLoading(false);
@@ -205,6 +225,10 @@ export default function EmployeePortalLayout() {
         setWorkRecordsData(res.data);
       }
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+        return;
+      }
       toast.error('Failed to load work/sales records');
     } finally {
       setLoading(false);

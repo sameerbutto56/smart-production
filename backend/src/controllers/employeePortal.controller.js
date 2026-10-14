@@ -321,10 +321,12 @@ const getMyAttendance = async (req, res) => {
     const { startDate, endDate } = req.query;
 
     const where = { employeeId: empId };
+    let monthYear = req.query.monthYear;
     if (startDate && endDate) {
       where.date = { gte: startDate, lte: endDate };
+      monthYear = startDate.slice(0, 7);
     } else {
-      const monthYear = req.query.monthYear || new Date().toISOString().slice(0, 7);
+      monthYear = monthYear || new Date().toISOString().slice(0, 7);
       where.date = { startsWith: monthYear };
     }
 
