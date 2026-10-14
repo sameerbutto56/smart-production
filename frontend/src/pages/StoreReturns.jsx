@@ -83,6 +83,22 @@ const StoreReturns = ({ refreshKey }) => {
     setProcessingId(null);
   };
 
+  const redispatchCase = async (record) => {
+    const notes = window.prompt(`Re-dispatch Order #${record.orderNumber || ''} back to Dispatch Profile?\n\nEnter optional instructions or notes (or leave empty):`, '');
+    if (notes === null) return; // User cancelled prompt
+    
+    setProcessingId(record.id);
+    try {
+      const res = await api.post(`/api/return-exchange/${record.id}/store-redispatch`, { notes: notes.trim() });
+      toast.success(res.data?.message || `Order #${record.orderNumber} re-dispatched to Dispatch`);
+      await fetchCases();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to re-dispatch');
+      await fetchCases();
+    }
+    setProcessingId(null);
+  };
+
   const acceptProduct = async (record, idx, item) => {
     const pd = item.productDetails || item;
     const maxQty = item.quantity || 1;
@@ -196,6 +212,16 @@ const StoreReturns = ({ refreshKey }) => {
                 <p className="text-[10px] theme-text-muted mt-0.5">Initiated by {c.handledBy || c.deliveryReturnedBy || 'System'} • {fmtDateTime(c.createdAt)}</p>
               </div>
               <div className="flex items-center gap-2">
+                {(c.status === 'PENDING' || c.status === 'FAISAL_APPROVED') && (
+                  <>
+                    <button onClick={() => acceptCase(c)} disabled={processingId === c.id} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
+                      <Box size={14} /> Accept
+                    </button>
+                    <button onClick={() => redispatchCase(c)} disabled={processingId === c.id} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
+                      <Truck size={14} /> Re-dispatch
+                    </button>
+                  </>
+                )}
                 {c.status === 'RESTOCKED' && (
                   <button onClick={() => completeReturnCase(c)} disabled={processingId === c.id || completingId === c.id} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
                     <CheckCircle2 size={14} /> {completingId === c.id ? 'Completing...' : 'Complete Return'}
@@ -280,8 +306,11 @@ const StoreReturns = ({ refreshKey }) => {
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <button onClick={() => acceptCase(c)} disabled={processingId === c.id} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
+                    <button onClick={() => acceptCase(c)} disabled={processingId === c.id} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
                       <Box size={14} /> Accept Return
+                    </button>
+                    <button onClick={() => redispatchCase(c)} disabled={processingId === c.id} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
+                      <Truck size={14} /> Re-dispatch
                     </button>
                   </div>
                 )}
@@ -293,6 +322,9 @@ const StoreReturns = ({ refreshKey }) => {
                     </button>
                     <button onClick={() => runProduction(c)} disabled={processingId === c.id} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50">
                       <Factory size={14} /> Route to Production
+                    </button>
+                    <button onClick={() => redispatchCase(c)} disabled={processingId === c.id} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
+                      <Truck size={14} /> Re-dispatch
                     </button>
                   </div>
                 )}

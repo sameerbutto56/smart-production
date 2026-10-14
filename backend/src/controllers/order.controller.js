@@ -4040,6 +4040,7 @@ const getOrderTimeline = async (req, res) => {
       CANCELLATION_APPROVED: 'Cancellation Approved',
       CANCELLATION_REJECTED: 'Cancellation Rejected',
       REDISPATCH_REQUESTED: 'Re-Dispatch Requested',
+      STORE_REDISPATCH: 'Store Re-Dispatch',
       MANUAL_PRODUCT_AMOUNT_ADJUSTED: 'Product Amount Adjusted'
     };
 

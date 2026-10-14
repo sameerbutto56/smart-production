@@ -579,6 +579,153 @@ const storeAccept = async (req, res) => {
   }
 };
 
+// POST /api/return-exchange/:id/store-redispatch
+// Re-dispatch a returned order from Store Returns queue directly back to Dispatch Profile.
+const storeRedispatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body || {};
+
+    const allowedRoles = ['STORE', 'STORE_EMPLOYEE', 'ADMIN', 'SUPER_ADMIN', 'FAISAL'];
+    const isAuthorized = allowedRoles.includes(req.user?.role) || (Array.isArray(req.user?.profiles) && req.user.profiles.includes('STORE'));
+    if (!isAuthorized) {
+      return res.status(403).json({ message: 'Only Store staff and Administrators can re-dispatch returned orders' });
+    }
+
+    let record = await prisma.returnExchange.findUnique({
+      where: { id },
+      include: { order: true }
+    });
+
+    if (!record) {
+      record = await prisma.returnExchange.findFirst({
+        where: { orderId: id, type: 'RETURN', routedTo: 'STORE' },
+        orderBy: { createdAt: 'desc' },
+        include: { order: true }
+      });
+    }
+
+    if (!record) {
+      return res.status(404).json({ message: 'Return record not found' });
+    }
+
+    if (record.type !== 'RETURN') {
+      return res.status(400).json({ message: 'Only RETURN cases can be re-dispatched from Store' });
+    }
+
+    const TERMINAL_OR_INVALID_STATUSES = ['COMPLETED', 'RESTOCKED', 'ROUTED_TO_PRODUCTION', 'IN_PRODUCTION', 'REDISPATCHED', 'CANCELLED'];
+    if (TERMINAL_OR_INVALID_STATUSES.includes(record.status)) {
+      return res.status(400).json({ message: `Cannot re-dispatch: this return is already ${record.status}` });
+    }
+
+    const order = record.order;
+    if (!order) {
+      return res.status(404).json({ message: 'Associated order not found' });
+    }
+
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      return res.status(400).json({ message: `Order #${order.orderNumber} is ${order.status} and cannot be re-dispatched` });
+    }
+
+    if (order.currentStage === 'DISPATCH' && record.status === 'REDISPATCHED') {
+      return res.status(409).json({ message: `Order #${order.orderNumber} has already been transferred to Dispatch` });
+    }
+
+    const userName = req.user?.name || 'Store';
+    const userId = req.user?.id || 'SYSTEM';
+
+    const result = await prisma.$transaction(async (tx) => {
+      // a) Update ReturnExchange case
+      const updatedCase = await tx.returnExchange.update({
+        where: { id: record.id },
+        data: {
+          status: 'REDISPATCHED',
+          routedTo: 'DISPATCH',
+          storeProcessedBy: userName,
+          storeProcessedById: req.user?.id || null,
+          storeProcessedAt: new Date(),
+          warehouseNotes: notes ? `Store Re-dispatch: ${notes}` : (record.warehouseNotes || null),
+          dispatchNotes: notes || record.dispatchNotes || 'Re-dispatched from Store Returns'
+        }
+      });
+
+      // b) Ensure single active DISPATCH stage with SLA deadline
+      await ensureSingleActiveDispatchStage(order.id, order.priority, tx);
+
+      // c) Reset order fields to DISPATCH PENDING
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          ...DISPATCH_RESET_FIELDS,
+          deliveryType: null
+        }
+      });
+
+      // d) Add to Routing History
+      await tx.routingHistory.create({
+        data: {
+          orderId: order.id,
+          sentByUserId: req.user?.id || null,
+          previousStage: 'STORE',
+          newStage: 'DISPATCH',
+          sentToStage: 'DISPATCH',
+          remarks: notes 
+            ? `Re-dispatched from Store Returns to Dispatch Profile by ${userName}. Notes: ${notes}`
+            : `Re-dispatched from Store Returns to Dispatch Profile by ${userName}`
+        }
+      });
+
+      // e) Add to Audit Log
+      await tx.auditLog.create({
+        data: {
+          orderId: order.id,
+          action: 'STORE_REDISPATCH',
+          details: `Order #${order.orderNumber} re-dispatched from Store Returns to Dispatch Profile by ${userName}.${notes ? ` Notes: ${notes}` : ''} Performed: ${new Date().toLocaleString('en-GB')}.`,
+          performedBy: userId
+        }
+      });
+
+      // f) Clear seen tasks for dispatch so it appears in unseen for all dispatchers
+      await tx.seenTask.deleteMany({
+        where: { orderId: order.id, stageName: 'DISPATCH' }
+      }).catch(() => {});
+
+      return updatedCase;
+    }, { timeout: 30000 });
+
+    // Notifications & Realtime Socket broadcast
+    await notify.create(req, {
+      type: 'stage_task',
+      moduleName: 'Dispatch',
+      path: '/dispatch',
+      role: 'DISPATCH',
+      title: 'Returned Order Re-Dispatched',
+      message: `Order #${order.orderNumber} re-dispatched from Store Returns — awaiting dispatch`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      action: 'Store → Dispatch (Re-Dispatch)',
+      employeeName: userName
+    }).catch(() => {});
+
+    const io = req.app?.get('io');
+    if (io) {
+      io.emit('order-updated', { orderId: order.id });
+      io.emit('return-exchange-updated', { caseId: record.id, orderId: order.id });
+      io.emit('task-routed', { orderId: order.id, stage: 'DISPATCH' });
+    }
+
+    res.json({
+      success: true,
+      message: `Order #${order.orderNumber} re-dispatched to Dispatch Profile successfully`,
+      case: result
+    });
+  } catch (error) {
+    console.error('Error in storeRedispatch:', error);
+    res.status(500).json({ message: 'Failed to re-dispatch returned order', error: error.message });
+  }
+};
+
 const rescheduleDelivery = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -2634,4 +2781,4 @@ const getCompletedReturns = async (req, res) => {
   }
 };
 
-module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, processByStore, completeReturn, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns };
+module.exports = { lookupOrder, createReturnExchange, rescheduleDelivery, approveWarehouse, approveFaisal, storeAccept, storeRedispatch, processByStore, completeReturn, dispatchReplacement, getCaseHistory, getAllCases, checkStockAvailability, sendToStore, getCase, restockOriginal, updateStatus, trackReplacement, getReplacementJobSheetOrder, routeReplacement, redispatchOrder, acceptReturn, searchReturns, sendReturnToStore, getIncomingReturns, acceptProduct, restockProduct, bulkCompleteStaleReturns, getCompletedReturns };

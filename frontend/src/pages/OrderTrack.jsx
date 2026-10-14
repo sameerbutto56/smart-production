@@ -72,6 +72,7 @@ const getEntryColors = (entry) => {
   if (entry.action === 'RETURNED_FOR_CORRECTION' || entry.action === 'DELIVERY_FAILED') return ENTRY_COLORS.FAILED;
   if (entry.action === 'RESUBMITTED_AFTER_VERIFICATION' || entry.action?.includes('EDIT')) return ENTRY_COLORS.EDIT;
   if (entry.action === 'WORKFLOW_RESTARTED') return ENTRY_COLORS.RESTART;
+  if (entry.action === 'STORE_REDISPATCH' || entry.action === 'REDISPATCH_REQUESTED') return ENTRY_COLORS.ROUTED;
   if (entry.status === 'VERIFIED') return ENTRY_COLORS.VERIFIED;
   if (entry.status === 'RETURNED') return ENTRY_COLORS.FAILED;
   if (entry.status === 'RESUBMITTED') return ENTRY_COLORS.EDIT;

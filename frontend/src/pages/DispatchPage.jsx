@@ -11,7 +11,7 @@ import { debounce } from '../utils/debounce';
 import { printDispatchSheet } from '../utils/printReport';
 import { formatDateOnly, formatDateTime } from '../utils/dateTime';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
-import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck, RefreshCw } from 'lucide-react';
+import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck, RefreshCw, RotateCcw } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 
@@ -561,6 +561,11 @@ const DispatchPage = () => {
                         {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
                         {order.forwardedBy === 'Khawar' && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">FORWARDED BY KHAWAR</span>}
                         {order.dispatchOfficer && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">ASSIGNED: {order.dispatchOfficer}</span>}
+                        {order.returnExchangeCases?.length > 0 && (
+                          <span className="text-xs md:text-sm font-black px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shadow-sm">
+                            <RotateCcw size={11} className="text-purple-400" /> RE-DISPATCH (RETURNED)
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
@@ -580,6 +585,68 @@ const DispatchPage = () => {
                       </button>
                     </div>
                   </div>
+
+                  {expandedOrderId === order.id && (
+                    <div className="mt-4 pt-4 border-t border-gray-800 space-y-3">
+                      {order.returnExchangeCases?.[0] && (
+                        <div className="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-4">
+                          <div className="flex items-center gap-2 text-purple-300 font-black text-xs uppercase tracking-wider mb-2">
+                            <RotateCcw size={14} /> Re-dispatched Return Order Details
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-gray-400">Return Reason:</span>{' '}
+                              <span className="text-amber-300 font-bold">{order.returnExchangeCases[0].returnReason || 'N/A'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Returned From:</span>{' '}
+                              <span className="text-white font-bold">{order.returnExchangeCases[0].returnSource || 'Delivery'}</span>
+                            </div>
+                            {order.returnExchangeCases[0].deliveryReturnedBy && (
+                              <div>
+                                <span className="text-gray-400">Delivery Returned By:</span>{' '}
+                                <span className="text-white font-bold">{order.returnExchangeCases[0].deliveryReturnedBy}</span>
+                              </div>
+                            )}
+                            {order.returnExchangeCases[0].storeProcessedBy && (
+                              <div>
+                                <span className="text-gray-400">Re-dispatched From Store By:</span>{' '}
+                                <span className="text-purple-300 font-bold">{order.returnExchangeCases[0].storeProcessedBy}</span>
+                              </div>
+                            )}
+                            {(order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes) && (
+                              <div className="sm:col-span-2 mt-1 pt-1 border-t border-purple-500/20">
+                                <span className="text-gray-400">Store Instructions/Notes:</span>{' '}
+                                <span className="text-purple-200 font-medium">{order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Delivery Address</p>
+                          <p className="text-white font-bold mt-0.5">{order.address || 'N/A'}, {order.city || ''}</p>
+                        </div>
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Payment</p>
+                          <p className="text-amber-400 font-bold mt-0.5">PKR {(order.totalPrice || 0).toLocaleString()} ({order.paymentStatus || 'PENDING'})</p>
+                        </div>
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Delivery Method</p>
+                          <p className="text-cyan-400 font-bold mt-0.5">{order.deliveryMethod || order.deliveryType || 'Standard'}</p>
+                        </div>
+                      </div>
+
+                      {order.instructionNotes && (
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800 text-xs">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Special Instructions</p>
+                          <p className="text-gray-300 font-medium mt-0.5">{order.instructionNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -608,6 +675,11 @@ const DispatchPage = () => {
                         {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
                         {order.forwardedBy === 'Khawar' && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">FORWARDED BY KHAWAR</span>}
                         {order.dispatchOfficer && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">ASSIGNED: {order.dispatchOfficer}</span>}
+                        {order.returnExchangeCases?.length > 0 && (
+                          <span className="text-xs md:text-sm font-black px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shadow-sm">
+                            <RotateCcw size={11} className="text-purple-400" /> RE-DISPATCH (RETURNED)
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
@@ -625,6 +697,68 @@ const DispatchPage = () => {
                       </button>
                     </div>
                   </div>
+
+                  {expandedOrderId === order.id && (
+                    <div className="mt-4 pt-4 border-t border-gray-800 space-y-3">
+                      {order.returnExchangeCases?.[0] && (
+                        <div className="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-4">
+                          <div className="flex items-center gap-2 text-purple-300 font-black text-xs uppercase tracking-wider mb-2">
+                            <RotateCcw size={14} /> Re-dispatched Return Order Details
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-gray-400">Return Reason:</span>{' '}
+                              <span className="text-amber-300 font-bold">{order.returnExchangeCases[0].returnReason || 'N/A'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Returned From:</span>{' '}
+                              <span className="text-white font-bold">{order.returnExchangeCases[0].returnSource || 'Delivery'}</span>
+                            </div>
+                            {order.returnExchangeCases[0].deliveryReturnedBy && (
+                              <div>
+                                <span className="text-gray-400">Delivery Returned By:</span>{' '}
+                                <span className="text-white font-bold">{order.returnExchangeCases[0].deliveryReturnedBy}</span>
+                              </div>
+                            )}
+                            {order.returnExchangeCases[0].storeProcessedBy && (
+                              <div>
+                                <span className="text-gray-400">Re-dispatched From Store By:</span>{' '}
+                                <span className="text-purple-300 font-bold">{order.returnExchangeCases[0].storeProcessedBy}</span>
+                              </div>
+                            )}
+                            {(order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes) && (
+                              <div className="sm:col-span-2 mt-1 pt-1 border-t border-purple-500/20">
+                                <span className="text-gray-400">Store Instructions/Notes:</span>{' '}
+                                <span className="text-purple-200 font-medium">{order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Delivery Address</p>
+                          <p className="text-white font-bold mt-0.5">{order.address || 'N/A'}, {order.city || ''}</p>
+                        </div>
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Payment</p>
+                          <p className="text-amber-400 font-bold mt-0.5">PKR {(order.totalPrice || 0).toLocaleString()} ({order.paymentStatus || 'PENDING'})</p>
+                        </div>
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Delivery Method</p>
+                          <p className="text-cyan-400 font-bold mt-0.5">{order.deliveryMethod || order.deliveryType || 'Standard'}</p>
+                        </div>
+                      </div>
+
+                      {order.instructionNotes && (
+                        <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800 text-xs">
+                          <p className="text-gray-500 text-[10px] uppercase font-bold">Special Instructions</p>
+                          <p className="text-gray-300 font-medium mt-0.5">{order.instructionNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </div>

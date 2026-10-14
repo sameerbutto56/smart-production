@@ -91,7 +91,25 @@ const getDispatchProfileOrders = async (req, res) => {
         select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true }
       },
       createdBy: { select: { name: true, role: true } },
-      postexShipments: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, trackingNumber: true, shipmentNumber: true, status: true, integrationMode: true, totalAmount: true, codAmount: true, destinationCity: true, errorMessage: true, bookedAt: true, deliveredAt: true } }
+      postexShipments: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, trackingNumber: true, shipmentNumber: true, status: true, integrationMode: true, totalAmount: true, codAmount: true, destinationCity: true, errorMessage: true, bookedAt: true, deliveredAt: true } },
+      returnExchangeCases: {
+        where: { type: 'RETURN' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          returnReason: true,
+          returnSource: true,
+          deliveryReturnedBy: true,
+          deliveryReturnedAt: true,
+          storeProcessedBy: true,
+          storeProcessedAt: true,
+          dispatchNotes: true,
+          warehouseNotes: true
+        }
+      }
     };
 
     const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
