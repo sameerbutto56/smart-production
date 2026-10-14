@@ -751,7 +751,22 @@ const AllOrders = () => {
 
   const activeReturnRecords = useMemo(() => {
     if (!selectedReturnDelayCategory) return [];
-    return returnReplacementDelays.records[selectedReturnDelayCategory] || [];
+    if (selectedReturnDelayCategory === 'all' || selectedReturnDelayCategory === 'all_returns' || selectedReturnDelayCategory === 'returns_delayed') {
+      const all = [
+        ...(returnReplacementDelays.records?.csrReturns || []),
+        ...(returnReplacementDelays.records?.inventoryViewReturns || []),
+        ...(returnReplacementDelays.records?.storeReturns || []),
+        ...(returnReplacementDelays.records?.replacementOrders || []),
+      ];
+      const seen = new Set();
+      return all.filter(item => {
+        const id = item.caseId || item.orderId;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+    }
+    return returnReplacementDelays.records?.[selectedReturnDelayCategory] || [];
   }, [selectedReturnDelayCategory, returnReplacementDelays]);
 
   const handleResetFilters = useCallback(() => {
@@ -910,20 +925,37 @@ const AllOrders = () => {
           { key: 'in_dispatch', label: '📦 In Dispatch', value: summaryCounts.in_dispatch, cls: 'bg-violet-600/10 border-violet-500/20 text-violet-400' },
           { key: 'out_for_delivery', label: '🛵 Out of Delivery', value: summaryCounts.out_for_delivery, cls: 'bg-pink-600/10 border-pink-500/20 text-pink-400' },
           { key: 'delayed', label: '🔴 Delayed', value: summaryCounts.delayed, cls: 'bg-red-600/10 border-red-500/20 text-red-400' },
+          { key: 'returns_delayed', label: '↩️ Returns Delay', value: returnReplacementDelays?.counts?.total || 0, cls: 'bg-rose-600/10 border-rose-500/20 text-rose-400' },
           { key: 'urgent', label: '🟡 Urgent', value: summaryCounts.urgent, cls: 'bg-yellow-600/10 border-yellow-500/20 text-yellow-400' },
           { key: 'standard', label: '🟢 Standard', value: summaryCounts.standard, cls: 'bg-emerald-600/10 border-emerald-500/20 text-emerald-400' },
           { key: 'custom', label: '🧵 Custom', value: summaryCounts.custom, cls: 'bg-purple-600/10 border-purple-500/20 text-purple-400' },
-        ].map((c) => (
-          <button
-            key={c.key}
-            onClick={() => setFilterCategory(filterCategory === c.key ? 'all' : c.key)}
-            className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-left transition-all ${c.cls} ${filterCategory === c.key ? 'ring-2 ring-offset-1 ring-blue-500' : 'hover:brightness-125'}`}
-            title={`${c.label} orders in selected date range`}
-          >
-            <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{c.label}</span>
-            <span className="text-sm md:text-base font-black">{c.value}</span>
-          </button>
-        ))}
+        ].map((c) => {
+          const isSelected = c.key === 'returns_delayed' ? !!selectedReturnDelayCategory : filterCategory === c.key;
+          return (
+            <button
+              key={c.key}
+              onClick={() => {
+                if (c.key === 'returns_delayed') {
+                  if (selectedReturnDelayCategory) {
+                    setSelectedReturnDelayCategory(null);
+                  } else {
+                    setSelectedReturnDelayCategory('all_returns');
+                    setFilterDepartment(null);
+                    setFilterDelayStage(null);
+                  }
+                } else {
+                  setSelectedReturnDelayCategory(null);
+                  setFilterCategory(filterCategory === c.key ? 'all' : c.key);
+                }
+              }}
+              className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-left transition-all ${c.cls} ${isSelected ? 'ring-2 ring-offset-1 ring-blue-500' : 'hover:brightness-125'}`}
+              title={`${c.label} orders`}
+            >
+              <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{c.label}</span>
+              <span className="text-sm md:text-base font-black">{c.value}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Operational phase & category filter chips */}
@@ -938,23 +970,39 @@ const AllOrders = () => {
           { key: 'in_dispatch', label: '📦 In Dispatch', count: summaryCounts.in_dispatch },
           { key: 'out_for_delivery', label: '🛵 Out of Delivery', count: summaryCounts.out_for_delivery },
           { key: 'delayed', label: '🔴 Delayed', count: summaryCounts.delayed },
+          { key: 'returns_delayed', label: '↩️ Returns Delay', count: returnReplacementDelays?.counts?.total || 0 },
           { key: 'urgent', label: '🟡 Urgent', count: summaryCounts.urgent },
           { key: 'super_urgent', label: '🟠 Super Urgent', count: summaryCounts.super_urgent },
           { key: 'standard', label: '🟢 Standard', count: summaryCounts.standard },
           { key: 'custom', label: '🧵 Custom', count: summaryCounts.custom },
         ].map((chip) => {
-          const active = filterCategory === chip.key;
+          const active = chip.key === 'returns_delayed'
+            ? !!selectedReturnDelayCategory
+            : filterCategory === chip.key;
           return (
             <button
               key={chip.key}
               onClick={() => {
-                setFilterCategory(active ? 'all' : chip.key);
-                if (chip.key !== 'delayed') setFilterDepartment(null);
+                if (chip.key === 'returns_delayed') {
+                  if (selectedReturnDelayCategory) {
+                    setSelectedReturnDelayCategory(null);
+                  } else {
+                    setSelectedReturnDelayCategory('all_returns');
+                    setFilterDepartment(null);
+                    setFilterDelayStage(null);
+                  }
+                } else {
+                  setSelectedReturnDelayCategory(null);
+                  setFilterCategory(active ? 'all' : chip.key);
+                  if (chip.key !== 'delayed') setFilterDepartment(null);
+                }
               }}
               className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest border transition-all flex items-center gap-1.5 ${active
-                ? chip.key === 'delayed'
-                  ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 animate-delayed-badge'
-                  : 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/40'
+                ? chip.key === 'returns_delayed'
+                  ? 'bg-rose-600 text-white border-rose-500 shadow-lg shadow-rose-900/40 animate-pulse'
+                  : chip.key === 'delayed'
+                    ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 animate-delayed-badge'
+                    : 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/40'
                 : 'theme-bg-subtle theme-border theme-text-secondary hover:bg-gray-800 hover:text-white'}`}
             >
               <span>{chip.label}</span>
@@ -997,17 +1045,17 @@ const AllOrders = () => {
                   ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40'
                   : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'}`}
               >
-                {dept} Delay: ({count})
+                {dept} ({count})
               </button>
             );
           })}
 
           {/* Return & Replacement department delays */}
           {[
-            { key: 'csrReturns', label: 'CSR Returns Delay', count: returnReplacementDelays?.counts?.csrReturns || 0, icon: '📞' },
-            { key: 'inventoryViewReturns', label: 'Inventory View Returns Delay', count: returnReplacementDelays?.counts?.inventoryViewReturns || 0, icon: '📋' },
-            { key: 'storeReturns', label: 'Store Returns Delay', count: returnReplacementDelays?.counts?.storeReturns || 0, icon: '🏬' },
-            { key: 'replacementOrders', label: 'Replacement Orders Delay', count: returnReplacementDelays?.counts?.replacementOrders || 0, icon: '🔄' },
+            { key: 'storeReturns', label: 'Store Returns', count: returnReplacementDelays?.counts?.storeReturns || 0, icon: '🏬' },
+            { key: 'inventoryViewReturns', label: 'Inventory View Returns', count: returnReplacementDelays?.counts?.inventoryViewReturns || 0, icon: '📋' },
+            { key: 'csrReturns', label: 'CSR Returns', count: returnReplacementDelays?.counts?.csrReturns || 0, icon: '📞' },
+            { key: 'replacementOrders', label: 'Replacement Orders', count: returnReplacementDelays?.counts?.replacementOrders || 0, icon: '🔄' },
           ].map(item => {
             const active = selectedReturnDelayCategory === item.key;
             return (
@@ -1029,10 +1077,7 @@ const AllOrders = () => {
                     : 'bg-gray-800/40 text-gray-400 border-gray-700/50 hover:bg-gray-800'}`}
               >
                 <span>{item.icon}</span>
-                <span>{item.label}:</span>
-                <span className={`px-1.5 py-0.2 rounded font-black ${item.count > 0 ? (active ? 'bg-black/40 text-white' : 'bg-amber-500/20 text-amber-300') : 'text-gray-400'}`}>
-                  {item.count}
-                </span>
+                <span>{item.label} ({item.count})</span>
               </button>
             );
           })}
@@ -1049,15 +1094,16 @@ const AllOrders = () => {
       )}
 
       {/* Stage-wise delayed summary (click to filter delayed orders stuck in that stage) */}
-      {stageDelays.length > 0 && (
+      {(stageDelays.length > 0 || (returnReplacementDelays?.counts?.total > 0)) && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-black uppercase tracking-widest theme-text-muted">Delayed by Stage:</span>
           {stageDelays.map(({ stage, label, count }) => {
-            const active = filterDelayStage === stage;
+            const active = filterDelayStage === stage && !selectedReturnDelayCategory;
             return (
               <button
                 key={stage}
                 onClick={() => {
+                  setSelectedReturnDelayCategory(null);
                   setFilterDelayStage(active ? null : stage);
                   setFilterCategory('delayed');
                   setFilterDepartment(null);
@@ -1070,9 +1116,39 @@ const AllOrders = () => {
               </button>
             );
           })}
-          {filterDelayStage && (
+
+          {/* Return delay categories also in stage view */}
+          {[
+            { key: 'storeReturns', label: 'Store Returns', count: returnReplacementDelays?.counts?.storeReturns || 0 },
+            { key: 'inventoryViewReturns', label: 'Inventory View Returns', count: returnReplacementDelays?.counts?.inventoryViewReturns || 0 },
+            { key: 'csrReturns', label: 'CSR Returns', count: returnReplacementDelays?.counts?.csrReturns || 0 },
+            { key: 'replacementOrders', label: 'Replacement Orders', count: returnReplacementDelays?.counts?.replacementOrders || 0 },
+          ].filter(item => item.count > 0).map(item => {
+            const active = selectedReturnDelayCategory === item.key;
+            return (
+              <button
+                key={`stage-${item.key}`}
+                onClick={() => {
+                  if (active) {
+                    setSelectedReturnDelayCategory(null);
+                  } else {
+                    setSelectedReturnDelayCategory(item.key);
+                    setFilterDepartment(null);
+                    setFilterDelayStage(null);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-all ${active
+                  ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-900/40'
+                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'}`}
+              >
+                {item.label} ({item.count})
+              </button>
+            );
+          })}
+
+          {(filterDelayStage || selectedReturnDelayCategory) && (
             <button
-              onClick={() => { setFilterDelayStage(null); }}
+              onClick={() => { setFilterDelayStage(null); setSelectedReturnDelayCategory(null); }}
               className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-widest theme-text-muted hover:text-white"
             >
               ✕ Clear
@@ -1229,6 +1305,7 @@ const AllOrders = () => {
               </button>
               <div>
                 <h2 className="text-lg md:text-xl font-black text-white flex items-center gap-2">
+                  {(selectedReturnDelayCategory === 'all_returns' || selectedReturnDelayCategory === 'all' || selectedReturnDelayCategory === 'returns_delayed') && '↩️ All Return & Replacement Delays'}
                   {selectedReturnDelayCategory === 'csrReturns' && '📞 CSR Returns Delay'}
                   {selectedReturnDelayCategory === 'inventoryViewReturns' && '📋 Inventory View Returns Delay'}
                   {selectedReturnDelayCategory === 'storeReturns' && '🏬 Store Returns Delay'}
@@ -1238,6 +1315,7 @@ const AllOrders = () => {
                   </span>
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">
+                  {(selectedReturnDelayCategory === 'all_returns' || selectedReturnDelayCategory === 'all' || selectedReturnDelayCategory === 'returns_delayed') && 'Consolidated live view of all overdue returns and replacements exceeding configured department SLA thresholds.'}
                   {selectedReturnDelayCategory === 'csrReturns' && 'Pending CSR action, delivery boy return intake, or customer outreach beyond SLA threshold.'}
                   {selectedReturnDelayCategory === 'inventoryViewReturns' && 'Pending Inventory View inspection, acceptance, or routing beyond SLA threshold.'}
                   {selectedReturnDelayCategory === 'storeReturns' && 'Pending Store acceptance, restocking, or return resolution beyond SLA threshold.'}
@@ -1262,6 +1340,34 @@ const AllOrders = () => {
                 Close View
               </button>
             </div>
+          </div>
+
+          {/* Quick Sub-Category Tabs */}
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { key: 'all_returns', label: 'All Delayed Returns', count: returnReplacementDelays?.counts?.total || 0, icon: '↩️' },
+              { key: 'storeReturns', label: 'Store Returns', count: returnReplacementDelays?.counts?.storeReturns || 0, icon: '🏬' },
+              { key: 'inventoryViewReturns', label: 'Inventory View Returns', count: returnReplacementDelays?.counts?.inventoryViewReturns || 0, icon: '📋' },
+              { key: 'csrReturns', label: 'CSR Returns', count: returnReplacementDelays?.counts?.csrReturns || 0, icon: '📞' },
+              { key: 'replacementOrders', label: 'Replacement Orders', count: returnReplacementDelays?.counts?.replacementOrders || 0, icon: '🔄' },
+            ].map(tab => {
+              const isActive = (selectedReturnDelayCategory === tab.key) ||
+                (tab.key === 'all_returns' && ['all', 'all_returns', 'returns_delayed'].includes(selectedReturnDelayCategory));
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setSelectedReturnDelayCategory(tab.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-950/40'
+                      : 'bg-gray-800/60 text-gray-400 border-gray-700 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label} ({tab.count})</span>
+                </button>
+              );
+            })}
           </div>
 
           {activeReturnRecords.length === 0 ? (
