@@ -39,10 +39,15 @@ const djb2 = (s) => {
 
 const generateBarcode = (itemId, size, color, attempt = 0) => {
   const prefix = 'POS';
-  const raw = itemId.replace(/-/g, '').slice(0, 8);
+  const str = String(itemId || '').trim();
+  const rawHex = str.replace(/-/g, '').slice(0, 8);
+  const parsedHex = parseInt(rawHex, 16);
+  const itemHash = !isNaN(parsedHex) && /^[0-9a-fA-F]+$/.test(rawHex)
+    ? parsedHex
+    : djb2(str);
   const variantStr = `${size || ''}|${color || ''}|${attempt}`;
   const fullHash = djb2(variantStr);
-  const base = ((parseInt(raw, 16) || 0) + fullHash).toString(36).toUpperCase().slice(0, 8);
+  const base = ((itemHash || 0) + fullHash).toString(36).toUpperCase().slice(0, 8);
   return `${prefix}${base}`;
 };
 
@@ -498,16 +503,46 @@ const createVariant = async (req, res) => {
       }
     });
 
+    // Ensure barcode does not collide with another item in this outlet
+    let attempt = 0;
+    while (await prisma.outletInventory.findFirst({
+      where: {
+        barcode: canonicalBarcode,
+        outletName: outlet,
+        ...(existing?.id ? { id: { not: existing.id } } : {})
+      }
+    })) {
+      attempt++;
+      if (attempt > 50) {
+        canonicalBarcode = `POS${Date.now().toString(36).toUpperCase().slice(-6)}${attempt}`;
+        break;
+      }
+      canonicalBarcode = generateBarcode(productId, cSize, cColor, attempt);
+    }
+
+    if (matchedMasterVariant && matchedMasterVariant.barcode !== canonicalBarcode) {
+      matchedMasterVariant.barcode = canonicalBarcode;
+      await prisma.inventoryItem.update({
+        where: { id: storeItem.id },
+        data: { variants }
+      }).catch(() => {});
+    }
+
     if (existing) {
       const updated = await prisma.outletInventory.update({
         where: { id: existing.id },
         data: {
           stock: parseInt(stock || 0),
           price: price !== null && price !== '' ? parseFloat(price) : existing.price,
-          barcode: canonicalBarcode
+          barcode: canonicalBarcode || existing.barcode,
+          isActive: true,
+          deletedAt: null
         }
       });
       cache.delPattern(CACHE_KEY_PREFIX);
+      cache.delPattern('products:');
+      const io = req.app.get('io');
+      if (io) io.emit('pos:inventory-updated', { action: 'UPDATE_VARIANT', variantId: updated.id, outlet });
       return res.json(updated);
     }
 
@@ -523,13 +558,57 @@ const createVariant = async (req, res) => {
         stock: parseInt(stock || 0),
         price: price !== null && price !== '' ? parseFloat(price) : (storeItem.price || null),
         imageUrl: storeItem.imageUrl,
-        metadata: JSON.stringify({ sourceStoreItemId: storeItem.id })
+        metadata: JSON.stringify({ sourceStoreItemId: storeItem.id }),
+        isActive: true,
+        deletedAt: null
       }
     });
     cache.delPattern(CACHE_KEY_PREFIX);
+    cache.delPattern('products:');
+    const io = req.app.get('io');
+    if (io) io.emit('pos:inventory-updated', { action: 'CREATE_VARIANT', variantId: item.id, outlet });
     return res.json(item);
   } catch (error) {
+    console.error('[createVariant] error:', error);
     res.status(500).json({ message: 'Failed to create inventory item', error: error.message });
+  }
+};
+
+const getProductVariants = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const outlet = getOutletName(req);
+    const storeItem = await prisma.inventoryItem.findUnique({ where: { id: productId } });
+    if (!storeItem) return res.status(404).json({ message: 'Store product not found' });
+
+    let outletVariants = [];
+    if (outlet) {
+      outletVariants = await prisma.outletInventory.findMany({
+        where: {
+          outletName: outlet,
+          name: storeItem.name,
+          isActive: true
+        }
+      });
+    }
+
+    let masterVariants = [];
+    if (storeItem.variants) {
+      try {
+        masterVariants = typeof storeItem.variants === 'string' ? JSON.parse(storeItem.variants) : storeItem.variants;
+      } catch (e) {}
+    }
+
+    res.json({
+      productId: storeItem.id,
+      name: storeItem.name,
+      category: storeItem.category,
+      outlet: outlet || 'ALL',
+      outletVariants,
+      masterVariants
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get product variants', error: error.message });
   }
 };
 
@@ -2362,6 +2441,7 @@ module.exports = {
   getPosInventory,
   getProducts,
   getVariant,
+  getProductVariants,
   updateVariantStock, updateVariantPrice,
   createVariant, deleteVariant, deleteProductVariants, updateVariant,
   reactivateVariant, reactivateProductVariants,

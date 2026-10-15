@@ -3,6 +3,7 @@ const {
   getPosInventory,
   getProducts,
   getVariant,
+  getProductVariants,
   updateVariantStock, updateVariantPrice,
   createVariant,   deleteVariant, deleteProductVariants, updateVariant,
   reactivateVariant, reactivateProductVariants,
@@ -43,6 +44,7 @@ router.get('/variants/:id', authenticate, getVariant);
 router.put('/variants/:id/stock', authenticate, updateVariantStock);
 router.put('/variants/:id/price', authenticate, updateVariantPrice);
 router.put('/variants/:id', authenticate, updateVariant);
+router.get('/products/:productId/variants', authenticate, getProductVariants);
 router.post('/products/:productId/variants', authenticate, createVariant);
 router.delete('/variants/:id', authenticate, deleteVariant);
 router.post('/variants/:id/reactivate', authenticate, reactivateVariant);

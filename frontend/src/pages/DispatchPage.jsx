@@ -377,10 +377,33 @@ const DispatchPage = () => {
     setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => { document.body.removeChild(iframe); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 1000); }, 300);
   };
 
+  const [redispatchOnly, setRedispatchOnly] = useState(false);
+
+  const isOrderRedispatched = (order) => Boolean(
+    order.isStoreRedispatch ||
+    order.hasStoreRedispatchAuthorization ||
+    (order.returnExchangeCases?.[0]?.status === 'REDISPATCHED' && order.returnExchangeCases?.[0]?.storeProcessedBy)
+  );
+
   const getFiltered = (items) => {
     let list = items;
+    if (redispatchOnly) {
+      list = list.filter(isOrderRedispatched);
+    }
     const q = search.toLowerCase();
-    if (q) list = list.filter(o => o.customerName?.toLowerCase().includes(q) || (o.orderNumber || '').toLowerCase().includes(q) || o.outletName?.toLowerCase().includes(q) || o.city?.toLowerCase().includes(q));
+    if (q) {
+      if (q === 'redispatch' || q === 're-dispatch') {
+        list = list.filter(isOrderRedispatched);
+      } else {
+        list = list.filter(o =>
+          o.customerName?.toLowerCase().includes(q) ||
+          (o.orderNumber || '').toLowerCase().includes(q) ||
+          o.outletName?.toLowerCase().includes(q) ||
+          o.city?.toLowerCase().includes(q) ||
+          (isOrderRedispatched(o) && 're-dispatch returned'.includes(q))
+        );
+      }
+    }
     if (methodFilter) list = list.filter(o => (o.deliveryMethod || '').toLowerCase().includes(methodFilter.toLowerCase()));
     return list;
   };
@@ -531,6 +554,19 @@ const DispatchPage = () => {
               className="w-full theme-input border-2 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition-all text-sm font-bold" />
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setRedispatchOnly(prev => !prev)}
+              className={`px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 ${
+                redispatchOnly
+                  ? 'bg-purple-600 border-purple-500 text-white shadow-md'
+                  : 'theme-input text-gray-400 hover:text-white'
+              }`}
+              title="Filter store-authorized re-dispatched orders only"
+            >
+              <RotateCcw size={13} className={redispatchOnly ? 'text-white' : 'text-purple-400'} />
+              <span>Re-dispatch Only</span>
+            </button>
             <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
               className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
               <option value="">All Methods</option>
@@ -561,7 +597,7 @@ const DispatchPage = () => {
                         {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
                         {order.forwardedBy === 'Khawar' && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">FORWARDED BY KHAWAR</span>}
                         {order.dispatchOfficer && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">ASSIGNED: {order.dispatchOfficer}</span>}
-                        {order.returnExchangeCases?.length > 0 && (
+                        {isOrderRedispatched(order) && (
                           <span className="text-xs md:text-sm font-black px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shadow-sm">
                             <RotateCcw size={11} className="text-purple-400" /> RE-DISPATCH (RETURNED)
                           </span>
@@ -588,7 +624,7 @@ const DispatchPage = () => {
 
                   {expandedOrderId === order.id && (
                     <div className="mt-4 pt-4 border-t border-gray-800 space-y-3">
-                      {order.returnExchangeCases?.[0] && (
+                      {isOrderRedispatched(order) && (order.storeRedispatchDetails || order.returnExchangeCases?.[0]) && (
                         <div className="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-4">
                           <div className="flex items-center gap-2 text-purple-300 font-black text-xs uppercase tracking-wider mb-2">
                             <RotateCcw size={14} /> Re-dispatched Return Order Details
@@ -596,28 +632,30 @@ const DispatchPage = () => {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                             <div>
                               <span className="text-gray-400">Return Reason:</span>{' '}
-                              <span className="text-amber-300 font-bold">{order.returnExchangeCases[0].returnReason || 'N/A'}</span>
+                              <span className="text-amber-300 font-bold">{(order.storeRedispatchDetails?.returnReason || order.returnExchangeCases?.[0]?.returnReason) || 'N/A'}</span>
                             </div>
                             <div>
                               <span className="text-gray-400">Returned From:</span>{' '}
-                              <span className="text-white font-bold">{order.returnExchangeCases[0].returnSource || 'Delivery'}</span>
+                              <span className="text-white font-bold">{(order.storeRedispatchDetails?.returnSource || order.returnExchangeCases?.[0]?.returnSource) || 'Delivery'}</span>
                             </div>
-                            {order.returnExchangeCases[0].deliveryReturnedBy && (
+                            {(order.storeRedispatchDetails?.deliveryReturnedBy || order.returnExchangeCases?.[0]?.deliveryReturnedBy) && (
                               <div>
                                 <span className="text-gray-400">Delivery Returned By:</span>{' '}
-                                <span className="text-white font-bold">{order.returnExchangeCases[0].deliveryReturnedBy}</span>
+                                <span className="text-white font-bold">{order.storeRedispatchDetails?.deliveryReturnedBy || order.returnExchangeCases[0].deliveryReturnedBy}</span>
                               </div>
                             )}
-                            {order.returnExchangeCases[0].storeProcessedBy && (
+                            {(order.storeRedispatchDetails?.storeProcessedBy || order.returnExchangeCases?.[0]?.storeProcessedBy) && (
                               <div>
                                 <span className="text-gray-400">Re-dispatched From Store By:</span>{' '}
-                                <span className="text-purple-300 font-bold">{order.returnExchangeCases[0].storeProcessedBy}</span>
+                                <span className="text-purple-300 font-bold">{order.storeRedispatchDetails?.storeProcessedBy || order.returnExchangeCases[0].storeProcessedBy}</span>
                               </div>
                             )}
-                            {(order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes) && (
+                            {(order.storeRedispatchDetails?.dispatchNotes || order.storeRedispatchDetails?.warehouseNotes || order.returnExchangeCases?.[0]?.dispatchNotes || order.returnExchangeCases?.[0]?.warehouseNotes) && (
                               <div className="sm:col-span-2 mt-1 pt-1 border-t border-purple-500/20">
                                 <span className="text-gray-400">Store Instructions/Notes:</span>{' '}
-                                <span className="text-purple-200 font-medium">{order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes}</span>
+                                <span className="text-purple-200 font-medium">
+                                  {order.storeRedispatchDetails?.dispatchNotes || order.storeRedispatchDetails?.warehouseNotes || order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -675,7 +713,7 @@ const DispatchPage = () => {
                         {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
                         {order.forwardedBy === 'Khawar' && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">FORWARDED BY KHAWAR</span>}
                         {order.dispatchOfficer && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">ASSIGNED: {order.dispatchOfficer}</span>}
-                        {order.returnExchangeCases?.length > 0 && (
+                        {isOrderRedispatched(order) && (
                           <span className="text-xs md:text-sm font-black px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shadow-sm">
                             <RotateCcw size={11} className="text-purple-400" /> RE-DISPATCH (RETURNED)
                           </span>
@@ -700,7 +738,7 @@ const DispatchPage = () => {
 
                   {expandedOrderId === order.id && (
                     <div className="mt-4 pt-4 border-t border-gray-800 space-y-3">
-                      {order.returnExchangeCases?.[0] && (
+                      {isOrderRedispatched(order) && (order.storeRedispatchDetails || order.returnExchangeCases?.[0]) && (
                         <div className="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-4">
                           <div className="flex items-center gap-2 text-purple-300 font-black text-xs uppercase tracking-wider mb-2">
                             <RotateCcw size={14} /> Re-dispatched Return Order Details
@@ -708,28 +746,30 @@ const DispatchPage = () => {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                             <div>
                               <span className="text-gray-400">Return Reason:</span>{' '}
-                              <span className="text-amber-300 font-bold">{order.returnExchangeCases[0].returnReason || 'N/A'}</span>
+                              <span className="text-amber-300 font-bold">{(order.storeRedispatchDetails?.returnReason || order.returnExchangeCases?.[0]?.returnReason) || 'N/A'}</span>
                             </div>
                             <div>
                               <span className="text-gray-400">Returned From:</span>{' '}
-                              <span className="text-white font-bold">{order.returnExchangeCases[0].returnSource || 'Delivery'}</span>
+                              <span className="text-white font-bold">{(order.storeRedispatchDetails?.returnSource || order.returnExchangeCases?.[0]?.returnSource) || 'Delivery'}</span>
                             </div>
-                            {order.returnExchangeCases[0].deliveryReturnedBy && (
+                            {(order.storeRedispatchDetails?.deliveryReturnedBy || order.returnExchangeCases?.[0]?.deliveryReturnedBy) && (
                               <div>
                                 <span className="text-gray-400">Delivery Returned By:</span>{' '}
-                                <span className="text-white font-bold">{order.returnExchangeCases[0].deliveryReturnedBy}</span>
+                                <span className="text-white font-bold">{order.storeRedispatchDetails?.deliveryReturnedBy || order.returnExchangeCases[0].deliveryReturnedBy}</span>
                               </div>
                             )}
-                            {order.returnExchangeCases[0].storeProcessedBy && (
+                            {(order.storeRedispatchDetails?.storeProcessedBy || order.returnExchangeCases?.[0]?.storeProcessedBy) && (
                               <div>
                                 <span className="text-gray-400">Re-dispatched From Store By:</span>{' '}
-                                <span className="text-purple-300 font-bold">{order.returnExchangeCases[0].storeProcessedBy}</span>
+                                <span className="text-purple-300 font-bold">{order.storeRedispatchDetails?.storeProcessedBy || order.returnExchangeCases[0].storeProcessedBy}</span>
                               </div>
                             )}
-                            {(order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes) && (
+                            {(order.storeRedispatchDetails?.dispatchNotes || order.storeRedispatchDetails?.warehouseNotes || order.returnExchangeCases?.[0]?.dispatchNotes || order.returnExchangeCases?.[0]?.warehouseNotes) && (
                               <div className="sm:col-span-2 mt-1 pt-1 border-t border-purple-500/20">
                                 <span className="text-gray-400">Store Instructions/Notes:</span>{' '}
-                                <span className="text-purple-200 font-medium">{order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes}</span>
+                                <span className="text-purple-200 font-medium">
+                                  {order.storeRedispatchDetails?.dispatchNotes || order.storeRedispatchDetails?.warehouseNotes || order.returnExchangeCases[0].dispatchNotes || order.returnExchangeCases[0].warehouseNotes}
+                                </span>
                               </div>
                             )}
                           </div>

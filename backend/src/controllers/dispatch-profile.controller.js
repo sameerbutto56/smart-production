@@ -67,6 +67,56 @@ const getStageDurations = async (priority = 'NORMAL') => {
   return adjusted;
 };
 
+// Strict Business Rule for Re-dispatch:
+// Only orders explicitly marked Re-dispatch by an authorized Store user (action: 'STORE_REDISPATCH',
+// ReturnExchange.status: 'REDISPATCHED', routedTo: 'DISPATCH', storeProcessedBy: not null)
+// may enter or be labeled as Re-dispatch in Dispatch Profile.
+//
+// An order is strictly disqualified if:
+// - It was returned from delivery without Store re-dispatch.
+// - It is currently in Store Profile -> Returns or Inventory View returns.
+// - Store accepted the return but did not click Re-dispatch.
+// - It was returned AGAIN after a previous re-dispatch.
+// - Its order status is RETURNED or terminal.
+const evaluateStoreRedispatchStatus = (order) => {
+  const latestReturnCase = order.returnExchangeCases?.[0] || null;
+  const storeRedispatchAudit = (order.auditLogs || []).find(a => a.action === 'STORE_REDISPATCH');
+  const returnAudit = (order.auditLogs || []).find(a =>
+    ['DELIVERY_AUTO_RETURNED', 'DISPATCH_RETURNED', 'COURIER_RETURNED'].includes(a.action)
+  );
+
+  // If a return audit occurred AFTER the store re-dispatch audit, the order was returned again
+  // and is in a new return cycle that has not yet been re-dispatched by Store.
+  const isReturnedAgainAfterRedispatch = Boolean(
+    returnAudit && storeRedispatchAudit &&
+    new Date(returnAudit.timestamp) > new Date(storeRedispatchAudit.timestamp)
+  );
+
+  // Check if the order is currently in an active return queue (Store or Inventory View)
+  const hasPendingStoreReturn = Boolean(
+    latestReturnCase &&
+    ['PENDING', 'ACCEPTED', 'FAISAL_APPROVED', 'RESTOCKED', 'STORE_RECEIVE'].includes(latestReturnCase.status) &&
+    ['STORE', 'INVENTORY_VIEW'].includes(latestReturnCase.routedTo)
+  );
+
+  const hasStoreRedispatchAuthorization = Boolean(
+    latestReturnCase &&
+    latestReturnCase.status === 'REDISPATCHED' &&
+    latestReturnCase.routedTo === 'DISPATCH' &&
+    latestReturnCase.storeProcessedBy &&
+    storeRedispatchAudit &&
+    !isReturnedAgainAfterRedispatch &&
+    order.status !== 'RETURNED'
+  );
+
+  return {
+    hasStoreRedispatchAuthorization,
+    hasPendingStoreReturn,
+    latestReturnCase,
+    storeRedispatchAudit
+  };
+};
+
 // GET /api/dispatch-profile/orders?employeeName=Khawar&cityFilter=all
 const getDispatchProfileOrders = async (req, res) => {
   try {
@@ -92,14 +142,30 @@ const getDispatchProfileOrders = async (req, res) => {
       },
       createdBy: { select: { name: true, role: true } },
       postexShipments: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, trackingNumber: true, shipmentNumber: true, status: true, integrationMode: true, totalAmount: true, codAmount: true, destinationCity: true, errorMessage: true, bookedAt: true, deliveredAt: true } },
+      auditLogs: {
+        where: {
+          action: {
+            in: [
+              'STORE_REDISPATCH',
+              'DELIVERY_AUTO_RETURNED',
+              'DISPATCH_RETURNED',
+              'COURIER_RETURNED'
+            ]
+          }
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 5,
+        select: { action: true, timestamp: true, details: true }
+      },
       returnExchangeCases: {
         where: { type: 'RETURN' },
         orderBy: { createdAt: 'desc' },
-        take: 1,
+        take: 2,
         select: {
           id: true,
           type: true,
           status: true,
+          routedTo: true,
           returnReason: true,
           returnSource: true,
           deliveryReturnedBy: true,
@@ -107,7 +173,8 @@ const getDispatchProfileOrders = async (req, res) => {
           storeProcessedBy: true,
           storeProcessedAt: true,
           dispatchNotes: true,
-          warehouseNotes: true
+          warehouseNotes: true,
+          createdAt: true
         }
       }
     };
@@ -115,12 +182,12 @@ const getDispatchProfileOrders = async (req, res) => {
     const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
 
     // Single Source of Truth: The active Dispatch queue strictly contains orders
-    // whose current active phase is 'DISPATCH' and status is not terminal.
+    // whose current active phase is 'DISPATCH' and status is not terminal or returned.
     // Orders in OUT_FOR_DELIVERY, DELIVERED, or COMPLETED do not appear in Dispatch.
     const dispatchOrders = await prisma.order.findMany({
       where: {
         currentStage: 'DISPATCH',
-        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] }
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
       },
       select: baseSelect,
       orderBy: baseOrder
@@ -130,6 +197,42 @@ const getDispatchProfileOrders = async (req, res) => {
     const seen = [];
 
     for (const order of dispatchOrders) {
+      const {
+        hasStoreRedispatchAuthorization,
+        hasPendingStoreReturn,
+        latestReturnCase,
+        storeRedispatchAudit
+      } = evaluateStoreRedispatchStatus(order);
+
+      // Exclude orders that are currently in Returns queue (Store / Inventory View)
+      // or that were returned from delivery without an authentic Store re-dispatch.
+      if (hasPendingStoreReturn || order.status === 'RETURNED' || (order.dispatchStatus === 'RETURNED' && !storeRedispatchAudit)) {
+        continue;
+      }
+
+      order.isStoreRedispatch = hasStoreRedispatchAuthorization;
+      order.hasStoreRedispatchAuthorization = hasStoreRedispatchAuthorization;
+
+      if (hasStoreRedispatchAuthorization) {
+        order.returnExchangeCases = [latestReturnCase];
+        order.storeRedispatchDetails = {
+          caseId: latestReturnCase.id,
+          returnReason: latestReturnCase.returnReason,
+          returnSource: latestReturnCase.returnSource,
+          deliveryReturnedBy: latestReturnCase.deliveryReturnedBy,
+          deliveryReturnedAt: latestReturnCase.deliveryReturnedAt,
+          storeProcessedBy: latestReturnCase.storeProcessedBy,
+          storeProcessedAt: latestReturnCase.storeProcessedAt,
+          dispatchNotes: latestReturnCase.dispatchNotes,
+          warehouseNotes: latestReturnCase.warehouseNotes,
+          redispatchedAt: storeRedispatchAudit.timestamp
+        };
+      } else {
+        // Strip non-redispatch return cases so normal orders never leak re-dispatch flags/details
+        order.returnExchangeCases = [];
+        order.storeRedispatchDetails = null;
+      }
+
       const activeStage = (order.stages || []).slice().reverse().find(s => s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
       // An order is only claimed in the active cycle if the active stage is IN_PROGRESS.
       // If the stage is PENDING, nobody has claimed it yet in this cycle -> unassigned/unseen.
@@ -157,7 +260,7 @@ const getDispatchProfileOrders = async (req, res) => {
         currentStage: 'OUT_FOR_DELIVERY',
         dispatchOfficer: employeeName,
         dispatchStatus: { notIn: TERMINAL_DISPATCH },
-        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] }
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
       },
       select: baseSelect,
       orderBy: baseOrder
@@ -167,6 +270,36 @@ const getDispatchProfileOrders = async (req, res) => {
       o.deliveryMethod === 'Enamels Delivery' ||
       o.currentStage === 'ENAMELS_DELIVERY'
     ));
+
+    for (const order of active) {
+      const {
+        hasStoreRedispatchAuthorization,
+        latestReturnCase,
+        storeRedispatchAudit
+      } = evaluateStoreRedispatchStatus(order);
+
+      order.isStoreRedispatch = hasStoreRedispatchAuthorization;
+      order.hasStoreRedispatchAuthorization = hasStoreRedispatchAuthorization;
+
+      if (hasStoreRedispatchAuthorization) {
+        order.returnExchangeCases = [latestReturnCase];
+        order.storeRedispatchDetails = {
+          caseId: latestReturnCase.id,
+          returnReason: latestReturnCase.returnReason,
+          returnSource: latestReturnCase.returnSource,
+          deliveryReturnedBy: latestReturnCase.deliveryReturnedBy,
+          deliveryReturnedAt: latestReturnCase.deliveryReturnedAt,
+          storeProcessedBy: latestReturnCase.storeProcessedBy,
+          storeProcessedAt: latestReturnCase.storeProcessedAt,
+          dispatchNotes: latestReturnCase.dispatchNotes,
+          warehouseNotes: latestReturnCase.warehouseNotes,
+          redispatchedAt: storeRedispatchAudit.timestamp
+        };
+      } else {
+        order.returnExchangeCases = [];
+        order.storeRedispatchDetails = null;
+      }
+    }
 
     res.json({
       unseen,

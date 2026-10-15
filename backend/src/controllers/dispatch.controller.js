@@ -404,6 +404,43 @@ const markPickedUp = async (req, res) => {
   }
 };
 
+// Strict Store Re-dispatch authorization evaluator
+const evaluateStoreRedispatchStatus = (order) => {
+  const latestReturnCase = order.returnExchangeCases?.[0] || null;
+  const storeRedispatchAudit = (order.auditLogs || []).find(a => a.action === 'STORE_REDISPATCH');
+  const returnAudit = (order.auditLogs || []).find(a =>
+    ['DELIVERY_AUTO_RETURNED', 'DISPATCH_RETURNED', 'COURIER_RETURNED'].includes(a.action)
+  );
+
+  const isReturnedAgainAfterRedispatch = Boolean(
+    returnAudit && storeRedispatchAudit &&
+    new Date(returnAudit.timestamp) > new Date(storeRedispatchAudit.timestamp)
+  );
+
+  const hasPendingStoreReturn = Boolean(
+    latestReturnCase &&
+    ['PENDING', 'ACCEPTED', 'FAISAL_APPROVED', 'RESTOCKED', 'STORE_RECEIVE'].includes(latestReturnCase.status) &&
+    ['STORE', 'INVENTORY_VIEW'].includes(latestReturnCase.routedTo)
+  );
+
+  const hasStoreRedispatchAuthorization = Boolean(
+    latestReturnCase &&
+    latestReturnCase.status === 'REDISPATCHED' &&
+    latestReturnCase.routedTo === 'DISPATCH' &&
+    latestReturnCase.storeProcessedBy &&
+    storeRedispatchAudit &&
+    !isReturnedAgainAfterRedispatch &&
+    order.status !== 'RETURNED'
+  );
+
+  return {
+    hasStoreRedispatchAuthorization,
+    hasPendingStoreReturn,
+    latestReturnCase,
+    storeRedispatchAudit
+  };
+};
+
 // Dispatch dashboard with 3 categories: unseen, seen, active
 const getDispatchDashboard = async (req, res) => {
   try {
@@ -417,11 +454,11 @@ const getDispatchDashboard = async (req, res) => {
       baseWhere.outletName = outletName;
     }
 
-    const orders = await prisma.order.findMany({
+    const rawOrders = await prisma.order.findMany({
       where: {
         ...baseWhere,
         currentStage: 'DISPATCH',
-        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] }
+        status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED', 'RETURNED'] }
       },
       select: {
         id: true, orderNumber: true, customerName: true, customerPhone: true,
@@ -436,7 +473,42 @@ const getDispatchDashboard = async (req, res) => {
         riderAcceptedAt: true, noResponseCount: true,
         stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true } },
         createdBy: { select: { name: true, role: true } },
-        postexShipments: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, trackingNumber: true, shipmentNumber: true, status: true, integrationMode: true, totalAmount: true, codAmount: true, destinationCity: true, errorMessage: true, bookedAt: true, deliveredAt: true } }
+        postexShipments: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, trackingNumber: true, shipmentNumber: true, status: true, integrationMode: true, totalAmount: true, codAmount: true, destinationCity: true, errorMessage: true, bookedAt: true, deliveredAt: true } },
+        auditLogs: {
+          where: {
+            action: {
+              in: [
+                'STORE_REDISPATCH',
+                'DELIVERY_AUTO_RETURNED',
+                'DISPATCH_RETURNED',
+                'COURIER_RETURNED'
+              ]
+            }
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 5,
+          select: { action: true, timestamp: true, details: true }
+        },
+        returnExchangeCases: {
+          where: { type: 'RETURN' },
+          orderBy: { createdAt: 'desc' },
+          take: 2,
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            routedTo: true,
+            returnReason: true,
+            returnSource: true,
+            deliveryReturnedBy: true,
+            deliveryReturnedAt: true,
+            storeProcessedBy: true,
+            storeProcessedAt: true,
+            dispatchNotes: true,
+            warehouseNotes: true,
+            createdAt: true
+          }
+        }
       },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });
@@ -445,7 +517,41 @@ const getDispatchDashboard = async (req, res) => {
     const unseen = [];
     const seen = [];
 
-    for (const order of orders) {
+    for (const order of rawOrders) {
+      const {
+        hasStoreRedispatchAuthorization,
+        hasPendingStoreReturn,
+        latestReturnCase,
+        storeRedispatchAudit
+      } = evaluateStoreRedispatchStatus(order);
+
+      // Exclude orders that are currently in Returns queue or un-redispatched returns
+      if (hasPendingStoreReturn || order.status === 'RETURNED' || (order.dispatchStatus === 'RETURNED' && !storeRedispatchAudit)) {
+        continue;
+      }
+
+      order.isStoreRedispatch = hasStoreRedispatchAuthorization;
+      order.hasStoreRedispatchAuthorization = hasStoreRedispatchAuthorization;
+
+      if (hasStoreRedispatchAuthorization) {
+        order.returnExchangeCases = [latestReturnCase];
+        order.storeRedispatchDetails = {
+          caseId: latestReturnCase.id,
+          returnReason: latestReturnCase.returnReason,
+          returnSource: latestReturnCase.returnSource,
+          deliveryReturnedBy: latestReturnCase.deliveryReturnedBy,
+          deliveryReturnedAt: latestReturnCase.deliveryReturnedAt,
+          storeProcessedBy: latestReturnCase.storeProcessedBy,
+          storeProcessedAt: latestReturnCase.storeProcessedAt,
+          dispatchNotes: latestReturnCase.dispatchNotes,
+          warehouseNotes: latestReturnCase.warehouseNotes,
+          redispatchedAt: storeRedispatchAudit.timestamp
+        };
+      } else {
+        order.returnExchangeCases = [];
+        order.storeRedispatchDetails = null;
+      }
+
       const activeStage = (order.stages || []).slice().reverse().find(s => s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
       const isClaimedInThisCycle = activeStage && activeStage.status === 'IN_PROGRESS';
       const owner = isClaimedInThisCycle ? (order.dispatchOfficer || null) : null;

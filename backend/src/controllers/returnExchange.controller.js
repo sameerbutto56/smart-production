@@ -2077,6 +2077,22 @@ const redispatchOrder = async (req, res) => {
       return res.status(400).json({ message: 'This order has a pending delivery return that must be accepted before re-dispatch. Go to Return & Exchange → Order Lookup to accept the return first.' });
     }
 
+    // Protection: If this return is routed to Store, CSR / Inventory View cannot re-dispatch it directly.
+    // It is strictly under Store's authority and can only be re-dispatched by Store from Store Profile → Returns.
+    const storeReturnCase = await prisma.returnExchange.findFirst({
+      where: {
+        orderId: order.id,
+        type: 'RETURN',
+        routedTo: 'STORE',
+        status: { in: ['PENDING', 'ACCEPTED', 'RESTOCKED', 'STORE_RECEIVE', 'FAISAL_APPROVED'] }
+      }
+    });
+    if (storeReturnCase) {
+      return res.status(400).json({
+        message: 'This returned order is currently under Store responsibility. It can only be re-dispatched by an authorized Store user from Store Profile → Returns.'
+      });
+    }
+
     // POS/Inventory lock check
     const pendingAudit = await getPendingAudit(prisma, { type: 'OUTLET', outletName: order.outletName });
     if (pendingAudit) {
