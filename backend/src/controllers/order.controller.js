@@ -1809,8 +1809,21 @@ const clearHistory = async (req, res) => {
     const orderIds = completedOrders.map(o => o.id);
     
     if (orderIds.length > 0) {
-      await prisma.orderStage.deleteMany({ where: { orderId: { in: orderIds } } });
-      await prisma.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
+      await prisma.returnExchange.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.orderCancellationRequest.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.deliveryAttempt.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.deliveryPayment.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.noResponseLog.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.deliveryCharge.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.orderAcceptance.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.postExShipment.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.orderEditRequest.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.orderStage.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.auditLog.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.routingHistory.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.dispatchLog.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.seenTask.deleteMany({ where: { orderId: { in: orderIds } } }).catch(() => {});
+      await prisma.order.updateMany({ where: { replacementCaseId: { in: orderIds } }, data: { replacementCaseId: null } }).catch(() => {});
       await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
     }
 
@@ -2273,9 +2286,21 @@ const deleteOrder = async (req, res) => {
     });
 
     // 3. Delete child records
-    await prisma.orderEditRequest.deleteMany({ where: { orderId } });
-    await prisma.orderStage.deleteMany({ where: { orderId } });
-    await prisma.auditLog.deleteMany({ where: { orderId } });
+    await prisma.returnExchange.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.orderCancellationRequest.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.deliveryAttempt.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.deliveryPayment.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.noResponseLog.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.deliveryCharge.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.orderAcceptance.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.postExShipment.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.orderEditRequest.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.orderStage.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.routingHistory.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.dispatchLog.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.seenTask.deleteMany({ where: { orderId } }).catch(() => {});
+    await prisma.order.updateMany({ where: { replacementCaseId: orderId }, data: { replacementCaseId: null } }).catch(() => {});
     await prisma.order.delete({ where: { id: orderId } });
 
     const io = req.app.get('io');
