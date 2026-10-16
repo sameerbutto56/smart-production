@@ -1,5 +1,43 @@
 ## Goals
-### Implemented This Session — Admin Profile → Orders: Instant Data Loading, Error/Empty States & Filter Reliability (deployed & live-verified)
+### Implemented This Session — Admin Profile → Product Data: Inventory Stock Report with Real-Time Location Distribution, Category Summaries & Export (deployed & live-verified)
+- **Objective & Requirements**:
+  1. Extend **Admin Profile → Product Data** (`/product-data` rendered by `frontend/src/pages/ProductDataPage.jsx`) to display real-time physical inventory stock alongside existing sales, sold quantity, and sales remaining.
+  2. Location filter at top: `All Locations` (combined), `Warehouse`, and dynamic list of individual outlets (`Johar Town`, `Jail Road`, etc.) retrieved directly from configured inventory records without hardcoding.
+  3. Additional interactive filters: Category, Product Name / Barcode / SKU search, and Variant (Size/Color) filter, plus a `Reset Filters` button.
+  4. 6 Inventory Summary Cards:
+     - Total Stock Quantity
+     - Total Distinct Products / Variants
+     - Warehouse Stock
+     - Outlet Stock
+     - Low Stock Items (`0 < stock <= 5`)
+     - Out-of-Stock Items (`stock === 0`)
+  5. Distinction Ribbon: Clearly distinguishes Physical Stock, Active Allocations, Available Stock, Units Sold in Period, and Sales Remaining (Unsold), with clear warnings that physical inventory remaining and period sales remaining are distinct values.
+  6. Category-Wise Inventory Table:
+     - Columns: `Category`, `Warehouse Stock`, `Outlet Stock`, `Total Stock`, `% of Total`, and `Filter by Category` action button.
+     - Clicking a category filters the product-level inventory ledger.
+     - Category totals equal the sum of their underlying product variants, with uncategorized products visible under "Uncategorized".
+  7. Detailed Product-Wise Inventory Ledger:
+     - Columns: `Product Name`, `Category`, `Variant (Size/Color)`, `SKU / Barcode`, `Warehouse Stock`, `Outlet Stock`, `Total Physical Stock`, `Reserved / Allocated`, `Available Stock`, `Sold Quantity` (in period), `Sales Remaining` (clearly distinguished).
+     - Full pagination (25, 50, 100/page), sorting by name, stock, available, sold, warehouse, outlet, and status pills (`All`, `In Stock`, `Low Stock`, `Out of Stock`).
+  8. Outlet-Wise Stock Distribution Modal:
+     - Clicking "Breakdown" opens a modal displaying exact quantity held at Warehouse, Johar Town, Jail Road, etc., with status badges and visual share percentages.
+  9. Export to CSV / Excel:
+     - Exports complete filtered dataset (`limit: 'all'`) preserving location-level breakdown so Admin can audit totals.
+  10. Performance & Caching:
+      - 60s in-memory base cache (`cache.set('product-data:inventory-stock:base')`) and sales map cache, delivering <10ms response times on filter and page changes.
+      - Integrated automatic cache invalidation in `backend/src/utils/cache.js` whenever POS, Warehouse, or Transfer stock changes occur.
+- **Backend & Frontend Implementation**:
+  - `backend/src/controllers/productData.controller.js`: Added `fetchBaseInventory`, `fetchSalesMapForPeriod`, and `getInventoryStockReport`, exporting `getInventoryStockReport`.
+  - `backend/src/routes/productData.routes.js`: Registered `GET /inventory-stock` protected by `authenticate` and `ADMIN_ROLES`.
+  - `backend/src/utils/cache.js`: Enhanced `delPattern` to automatically invalidate `product-data:inventory-stock` when inventory, POS, or transfer records change.
+  - `frontend/src/pages/ProductDataPage.jsx`: Added `inventory-stock` tab to `TABS`, 6 metric cards, filter toolbar, category summary table, product-wise ledger table, export handler, and location breakdown modal.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-inventory-stock-report.cjs`: 100% Pass across all 25 test assertions.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly (`ProductDataPage-ClQwjy8h.js.br 77.24kb`).
+  - Git commit & push: committed to `main` branch (`b08dcd68`).
+  - Deployed to Vercel production (`smart-production-v2.vercel.app`) and live health check verified (`https://smart-production-v2.vercel.app/api/health` returned HTTP 200 `{"status":"ok"}`).
+
+### Implemented Prior Session — Admin Profile → Orders: Instant Data Loading, Error/Empty States & Filter Reliability (deployed & live-verified)
 - **Problem & Root Causes**:
   1. In **Admin Profile → Orders** (`AllOrders.jsx` at `/orders`), orders did not appear immediately on first load, often requiring 3–4 manual page refreshes.
   2. Applying filters such as "Delayed Orders" initially showed 0 records or inconsistent counts until refreshed.
