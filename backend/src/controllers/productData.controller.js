@@ -905,9 +905,487 @@ const getProductDataOrders = async (req, res) => {
   }
 };
 
+/**
+ * Helper to fetch base inventory from DB with in-memory caching
+ */
+async function fetchBaseInventory(forceRefresh = false) {
+  const cacheKey = 'product-data:inventory-stock:base';
+  if (!forceRefresh) {
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+  }
+
+  const [warehouseItems, outletItems, activeAllocations, outletGroups] = await Promise.all([
+    prisma.inventoryItem.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        stock: true,
+        variants: true,
+        color: true,
+        size: true,
+        imageUrl: true
+      }
+    }),
+    prisma.outletInventory.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        color: true,
+        size: true,
+        stock: true,
+        barcode: true,
+        outletName: true,
+        imageUrl: true
+      }
+    }),
+    prisma.allocation.findMany({
+      where: { status: 'ACTIVE' },
+      select: { itemName: true, itemCategory: true, color: true, size: true, quantity: true }
+    }),
+    prisma.outletInventory.groupBy({
+      by: ['outletName'],
+      where: { isActive: true }
+    })
+  ]);
+
+  const norm = (s) => (s || '').trim().toLowerCase();
+  const configuredOutlets = outletGroups.map(o => o.outletName).filter(Boolean);
+  const locationList = ['All Locations', 'Warehouse', ...configuredOutlets];
+
+  // Allocation map
+  const allocMap = new Map();
+  for (const a of activeAllocations) {
+    const key = `${norm(a.itemName)}__${norm(a.color)}__${norm(a.size)}`;
+    allocMap.set(key, (allocMap.get(key) || 0) + (a.quantity || 0));
+  }
+
+  const variantMap = new Map();
+  const categoriesSet = new Set();
+
+  for (const item of warehouseItems) {
+    const cat = (item.category || 'Uncategorized').trim();
+    if (cat) categoriesSet.add(cat);
+    let variants = [];
+    if (item.variants) {
+      variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
+    }
+    if (Array.isArray(variants) && variants.length > 0) {
+      for (const v of variants) {
+        const key = `${norm(item.name)}__${norm(v.color)}__${norm(v.size)}`;
+        if (!variantMap.has(key)) {
+          variantMap.set(key, {
+            key,
+            productName: item.name,
+            category: cat || 'Uncategorized',
+            color: (v.color || '').trim(),
+            size: (v.size || 'Standard').trim(),
+            barcode: v.barcode || '',
+            sku: v.sku || '',
+            imageUrl: v.imageUrl || item.imageUrl || null,
+            warehouseStock: 0,
+            outletStockByLocation: {},
+            totalOutletStock: 0
+          });
+        }
+        const obj = variantMap.get(key);
+        obj.warehouseStock += Number(v.stock || 0);
+        if (v.barcode && !obj.barcode) obj.barcode = v.barcode;
+        if (v.sku && !obj.sku) obj.sku = v.sku;
+        if (!obj.imageUrl && (v.imageUrl || item.imageUrl)) obj.imageUrl = v.imageUrl || item.imageUrl;
+      }
+    } else {
+      const key = `${norm(item.name)}__${norm(item.color)}__${norm(item.size)}`;
+      if (!variantMap.has(key)) {
+        variantMap.set(key, {
+          key,
+          productName: item.name,
+          category: cat || 'Uncategorized',
+          color: (item.color || '').trim(),
+          size: (item.size || 'Standard').trim(),
+          barcode: '',
+          sku: '',
+          imageUrl: item.imageUrl || null,
+          warehouseStock: 0,
+          outletStockByLocation: {},
+          totalOutletStock: 0
+        });
+      }
+      variantMap.get(key).warehouseStock += Number(item.stock || 0);
+    }
+  }
+
+  for (const oi of outletItems) {
+    const cat = (oi.category || 'Uncategorized').trim();
+    if (cat) categoriesSet.add(cat);
+    const key = `${norm(oi.name)}__${norm(oi.color)}__${norm(oi.size)}`;
+    if (!variantMap.has(key)) {
+      variantMap.set(key, {
+        key,
+        productName: oi.name,
+        category: cat || 'Uncategorized',
+        color: (oi.color || '').trim(),
+        size: (oi.size || 'Standard').trim(),
+        barcode: oi.barcode || '',
+        sku: '',
+        imageUrl: oi.imageUrl || null,
+        warehouseStock: 0,
+        outletStockByLocation: {},
+        totalOutletStock: 0
+      });
+    }
+    const obj = variantMap.get(key);
+    const outName = oi.outletName || 'Unknown';
+    obj.outletStockByLocation[outName] = (obj.outletStockByLocation[outName] || 0) + Number(oi.stock || 0);
+    obj.totalOutletStock += Number(oi.stock || 0);
+    if (oi.barcode && !obj.barcode) obj.barcode = oi.barcode;
+    if (!obj.imageUrl && oi.imageUrl) obj.imageUrl = oi.imageUrl;
+  }
+
+  const allVariants = Array.from(variantMap.values()).map(v => {
+    const totalPhysical = v.warehouseStock + v.totalOutletStock;
+    const allocated = allocMap.get(v.key) || 0;
+    return {
+      ...v,
+      totalPhysicalStock: totalPhysical,
+      allocatedStock: allocated,
+      availableStock: Math.max(0, totalPhysical - allocated)
+    };
+  });
+
+  const categories = Array.from(categoriesSet).sort((a, b) => a.localeCompare(b));
+
+  const result = {
+    variants: allVariants,
+    locations: locationList,
+    categories,
+    configuredOutlets,
+    cachedAt: new Date().toISOString()
+  };
+
+  cache.set(cacheKey, result, 60000); // 60s in-memory cache
+  return result;
+}
+
+/**
+ * Helper to fetch sales map for a given date range and outlet
+ */
+async function fetchSalesMapForPeriod(dateRange, selectedOutlet, forceRefresh = false) {
+  const norm = (s) => (s || '').trim().toLowerCase();
+  const outletKey = norm(selectedOutlet) || 'all';
+  const rangeKey = dateRange ? `${dateRange.gte?.getTime() || 0}_${dateRange.lte?.getTime() || 0}` : 'all';
+  const cacheKey = `product-data:sales-map:${outletKey}:${rangeKey}`;
+
+  if (!forceRefresh) {
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+  }
+
+  const posWhere = { refundedAt: null };
+  if (dateRange) posWhere.createdAt = dateRange;
+  if (selectedOutlet && selectedOutlet !== 'All Locations' && selectedOutlet !== 'Warehouse') {
+    posWhere.outletName = { contains: selectedOutlet, mode: 'insensitive' };
+  } else if (selectedOutlet === 'Warehouse') {
+    const emptyMap = new Map();
+    cache.set(cacheKey, emptyMap, 60000);
+    return emptyMap;
+  }
+
+  const orderWhere = { status: { notIn: ['CANCELLED', 'REJECTED'] } };
+  if (dateRange) orderWhere.createdAt = dateRange;
+  if (selectedOutlet && selectedOutlet !== 'All Locations' && selectedOutlet !== 'Warehouse') {
+    orderWhere.outletName = { contains: selectedOutlet, mode: 'insensitive' };
+  } else if (selectedOutlet === 'Warehouse') {
+    const emptyMap = new Map();
+    cache.set(cacheKey, emptyMap, 60000);
+    return emptyMap;
+  }
+
+  const [posSales, orders] = await Promise.all([
+    prisma.posSale.findMany({
+      where: posWhere,
+      select: {
+        outletName: true,
+        items: {
+          select: { productName: true, color: true, size: true, quantity: true }
+        }
+      }
+    }),
+    prisma.order.findMany({
+      where: orderWhere,
+      select: {
+        outletName: true,
+        productDetails: true,
+        quantity: true
+      }
+    })
+  ]);
+
+  const salesMap = new Map();
+  const addSale = (name, color, size, qty) => {
+    if (!name) return;
+    const key = `${norm(name)}__${norm(color)}__${norm(size)}`;
+    salesMap.set(key, (salesMap.get(key) || 0) + (qty || 1));
+  };
+
+  for (const s of posSales) {
+    if (Array.isArray(s.items)) {
+      for (const it of s.items) {
+        addSale(it.productName, it.color, it.size, it.quantity);
+      }
+    }
+  }
+
+  for (const o of orders) {
+    const items = Array.isArray(o.productDetails) ? o.productDetails : [];
+    if (items.length > 0) {
+      for (const it of items) {
+        const pd = it.productDetails || {};
+        const pName = pd.productType || pd.name || it.name || 'Enamels Scrub';
+        const pColor = pd.color || it.color || '';
+        const pSize = pd.size || it.size || 'Standard';
+        addSale(pName, pColor, pSize, it.quantity || 1);
+      }
+    } else {
+      addSale('Enamels Scrub', '', 'Standard', o.quantity || 1);
+    }
+  }
+
+  cache.set(cacheKey, salesMap, 60000);
+  return salesMap;
+}
+
+/**
+ * GET /api/analytics/product-data/inventory-stock
+
+ * Real-time unified inventory stock report across Warehouse and Outlets
+ */
+const getInventoryStockReport = async (req, res) => {
+  try {
+    const {
+      location = 'All Locations',
+      category = '',
+      search = '',
+      variant = '',
+      status = 'all', // all, in_stock, low_stock, out_of_stock
+      sortBy = 'name', // name, category, stock, available, sold, warehouse, outlet
+      sortOrder = 'asc',
+      page = 1,
+      limit = 50,
+      preset = 'all',
+      dateFrom,
+      dateTo,
+      refresh = 'false'
+    } = req.query;
+
+    const forceRefresh = refresh === 'true' || refresh === '1';
+    const baseData = await fetchBaseInventory(forceRefresh);
+
+    const dateRange = buildDateRange(preset, dateFrom, dateTo);
+    const salesMap = await fetchSalesMapForPeriod(dateRange, location, forceRefresh);
+
+    const norm = (s) => (s || '').trim().toLowerCase();
+    const qSearch = norm(search);
+    const qVariant = norm(variant);
+    const qCategory = norm(category);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const isAll = limit === 'all' || limit === '0';
+    const pageSize = isAll ? 0 : Math.min(200, Math.max(10, parseInt(limit, 10) || 50));
+
+    // Map all variants to scoped location data
+    const scopedVariants = baseData.variants.map(v => {
+      let physicalStock = 0;
+      let allocatedStock = 0;
+      let availableStock = 0;
+
+      if (location === 'Warehouse') {
+        physicalStock = v.warehouseStock;
+        allocatedStock = v.allocatedStock;
+        availableStock = Math.max(0, physicalStock - allocatedStock);
+      } else if (location && location !== 'All Locations') {
+        physicalStock = v.outletStockByLocation[location] || 0;
+        allocatedStock = 0;
+        availableStock = physicalStock;
+      } else {
+        physicalStock = v.totalPhysicalStock;
+        allocatedStock = v.allocatedStock;
+        availableStock = Math.max(0, physicalStock - allocatedStock);
+      }
+
+      const soldQty = salesMap.get(v.key) || 0;
+      const salesRemaining = Math.max(0, availableStock - soldQty);
+
+      const locationBreakdown = [
+        { location: 'Warehouse', quantity: v.warehouseStock },
+        ...baseData.configuredOutlets.map(outName => ({
+          location: outName,
+          quantity: v.outletStockByLocation[outName] || 0
+        }))
+      ];
+
+      return {
+        id: v.key,
+        productName: v.productName,
+        category: v.category,
+        color: v.color,
+        size: v.size,
+        sku: v.sku,
+        barcode: v.barcode,
+        imageUrl: v.imageUrl,
+        warehouseStock: v.warehouseStock,
+        outletStock: location === 'Warehouse' ? 0 : (location !== 'All Locations' ? (v.outletStockByLocation[location] || 0) : v.totalOutletStock),
+        totalPhysicalStock: v.totalPhysicalStock,
+        physicalStock,
+        allocatedStock,
+        availableStock,
+        soldQuantity: soldQty,
+        salesRemaining,
+        locationBreakdown
+      };
+    });
+
+    // Compute Category Breakdown (across all variants in this location scope)
+    const categoryTotalsMap = new Map();
+    for (const v of scopedVariants) {
+      const cat = v.category || 'Uncategorized';
+      if (!categoryTotalsMap.has(cat)) {
+        categoryTotalsMap.set(cat, {
+          category: cat,
+          warehouseStock: 0,
+          outletStock: 0,
+          totalStock: 0,
+          variantCount: 0
+        });
+      }
+      const cStat = categoryTotalsMap.get(cat);
+      cStat.warehouseStock += v.warehouseStock;
+      cStat.outletStock += v.outletStock;
+      cStat.totalStock += v.physicalStock;
+      cStat.variantCount += 1;
+    }
+
+    const categoriesBreakdown = Array.from(categoryTotalsMap.values())
+      .sort((a, b) => b.totalStock - a.totalStock || a.category.localeCompare(b.category));
+
+    // Filter variants based on active criteria
+    let filtered = scopedVariants;
+
+    if (qCategory && qCategory !== 'all') {
+      filtered = filtered.filter(v => norm(v.category) === qCategory);
+    }
+
+    if (qSearch) {
+      filtered = filtered.filter(v =>
+        norm(v.productName).includes(qSearch) ||
+        norm(v.color).includes(qSearch) ||
+        norm(v.size).includes(qSearch) ||
+        norm(v.barcode).includes(qSearch) ||
+        norm(v.sku).includes(qSearch)
+      );
+    }
+
+    if (qVariant) {
+      filtered = filtered.filter(v =>
+        norm(v.size).includes(qVariant) ||
+        norm(v.color).includes(qVariant)
+      );
+    }
+
+    if (status === 'in_stock') {
+      filtered = filtered.filter(v => v.physicalStock > 0);
+    } else if (status === 'low_stock') {
+      filtered = filtered.filter(v => v.physicalStock > 0 && v.physicalStock <= 5);
+    } else if (status === 'out_of_stock') {
+      filtered = filtered.filter(v => v.physicalStock === 0);
+    }
+
+    // Summary metrics (calculated on the filtered set)
+    let totalStock = 0;
+    let totalWarehouseStock = 0;
+    let totalOutletStock = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+    let totalAllocated = 0;
+    let totalAvailable = 0;
+    let totalSold = 0;
+
+    for (const v of filtered) {
+      totalStock += v.physicalStock;
+      totalWarehouseStock += v.warehouseStock;
+      totalOutletStock += v.outletStock;
+      totalAllocated += v.allocatedStock;
+      totalAvailable += v.availableStock;
+      totalSold += v.soldQuantity;
+
+      if (v.physicalStock === 0) {
+        outOfStockCount++;
+      } else if (v.physicalStock <= 5) {
+        lowStockCount++;
+      }
+    }
+
+    const summary = {
+      totalStock,
+      totalVariants: filtered.length,
+      warehouseStock: totalWarehouseStock,
+      outletStock: totalOutletStock,
+      lowStockCount,
+      outOfStockCount,
+      totalAllocated,
+      totalAvailable,
+      totalSold,
+      salesRemaining: Math.max(0, totalAvailable - totalSold)
+    };
+
+    // Sort variants
+    filtered.sort((a, b) => {
+      let diff = 0;
+      if (sortBy === 'name') diff = a.productName.localeCompare(b.productName);
+      else if (sortBy === 'category') diff = a.category.localeCompare(b.category);
+      else if (sortBy === 'stock') diff = a.physicalStock - b.physicalStock;
+      else if (sortBy === 'available') diff = a.availableStock - b.availableStock;
+      else if (sortBy === 'sold') diff = a.soldQuantity - b.soldQuantity;
+      else if (sortBy === 'warehouse') diff = a.warehouseStock - b.warehouseStock;
+      else if (sortBy === 'outlet') diff = a.outletStock - b.outletStock;
+      else diff = a.productName.localeCompare(b.productName);
+
+      return sortOrder === 'desc' ? -diff : diff;
+    });
+
+    // Pagination
+    const totalCount = filtered.length;
+    const paginated = isAll ? filtered : filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+
+    res.json({
+      summary,
+      categoriesBreakdown,
+      variants: paginated,
+      pagination: {
+        page: pageNum,
+        limit: isAll ? totalCount : pageSize,
+        total: totalCount,
+        totalPages: isAll ? 1 : Math.ceil(totalCount / pageSize)
+      },
+      locations: baseData.locations,
+      configuredOutlets: baseData.configuredOutlets,
+      allCategories: baseData.categories,
+      lastUpdated: baseData.cachedAt
+    });
+  } catch (err) {
+    console.error('[getInventoryStockReport] error:', err);
+    res.status(500).json({ message: 'Error generating inventory stock report', error: err.message });
+  }
+};
+
 module.exports = {
   getOutlets,
   getProductsCatalog,
   getProductDataSummary,
-  getProductDataOrders
+  getProductDataOrders,
+  getInventoryStockReport
 };
+

@@ -67,7 +67,13 @@ const delPattern = (pattern) => {
   for (const key of store.keys()) {
     if (key.startsWith(pattern)) del(key);
   }
+  if (pattern.startsWith('pos:') || pattern.startsWith('inventory:') || pattern.startsWith('transfer:')) {
+    for (const key of store.keys()) {
+      if (key.startsWith('product-data:inventory-stock')) del(key);
+    }
+  }
 };
+
 
 /** Invalidate specific keys */
 const delKeys = (...keys) => {

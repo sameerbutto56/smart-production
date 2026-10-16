@@ -21,7 +21,19 @@ import {
   ShoppingBag,
   Percent,
   Receipt,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Boxes,
+  Warehouse,
+  Store,
+  Eye,
+  ArrowUpDown,
+  RotateCcw,
+  AlertTriangle,
+  Tag,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  X
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -36,6 +48,7 @@ const PRESETS = [
 ];
 
 const TABS = [
+  { id: 'inventory-stock', label: 'Inventory Stock Report', icon: Boxes },
   { id: 'sales', label: 'Product Sales', icon: ShoppingBag },
   { id: 'discount', label: 'Discounts', icon: Percent },
   { id: 'customization', label: 'Customization', icon: Sparkles },
@@ -44,6 +57,7 @@ const TABS = [
   { id: 'employees', label: 'Employee Activity', icon: User },
   { id: 'drilldown', label: 'Order Drill-Down', icon: Receipt },
 ];
+
 
 export default function ProductDataPage() {
   // Filters
@@ -67,6 +81,22 @@ export default function ProductDataPage() {
   const [drilldownTotal, setDrilldownTotal] = useState(0);
   const [drilldownFilter, setDrilldownFilter] = useState('all');
   const [drilldownSearch, setDrilldownSearch] = useState('');
+
+  // Inventory Stock Report states
+  const [stockLocation, setStockLocation] = useState('All Locations');
+  const [stockCategory, setStockCategory] = useState('');
+  const [stockSearch, setStockSearch] = useState('');
+  const [stockVariant, setStockVariant] = useState('');
+  const [stockStatus, setStockStatus] = useState('all'); // all, in_stock, low_stock, out_of_stock
+  const [stockPage, setStockPage] = useState(1);
+  const [stockLimit, setStockLimit] = useState(50);
+  const [stockSortBy, setStockSortBy] = useState('name');
+  const [stockSortOrder, setStockSortOrder] = useState('asc');
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockData, setStockData] = useState(null);
+  const [breakdownModalItem, setBreakdownModalItem] = useState(null);
+  const [showCategoryTable, setShowCategoryTable] = useState(true);
+
 
   // Fetch Outlets
   useEffect(() => {
@@ -139,6 +169,145 @@ export default function ProductDataPage() {
   useEffect(() => {
     fetchDrilldown();
   }, [fetchDrilldown]);
+
+  // Fetch Inventory Stock Report
+  const fetchInventoryStock = useCallback(async (isRefresh = false) => {
+    setStockLoading(true);
+    try {
+      const params = {
+        location: stockLocation,
+        category: stockCategory,
+        search: stockSearch,
+        variant: stockVariant,
+        status: stockStatus,
+        sortBy: stockSortBy,
+        sortOrder: stockSortOrder,
+        page: stockPage,
+        limit: stockLimit,
+        preset,
+        refresh: isRefresh ? 'true' : 'false'
+      };
+      if (preset === 'custom') {
+        if (dateFrom) params.dateFrom = dateFrom;
+        if (dateTo) params.dateTo = dateTo;
+      }
+      const res = await api.get('/api/analytics/product-data/inventory-stock', { params });
+      setStockData(res.data);
+      if (isRefresh) toast.success('Inventory stock refreshed');
+    } catch (err) {
+      console.error('Error fetching inventory stock report:', err);
+      toast.error('Failed to load inventory stock report');
+    } finally {
+      setStockLoading(false);
+    }
+  }, [stockLocation, stockCategory, stockSearch, stockVariant, stockStatus, stockSortBy, stockSortOrder, stockPage, stockLimit, preset, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (activeTab === 'inventory-stock') {
+      fetchInventoryStock();
+    }
+  }, [activeTab, fetchInventoryStock]);
+
+  // Export CSV handler
+  const handleExportStockReport = async () => {
+    try {
+      toast.loading('Generating inventory export...', { id: 'export-stock' });
+      const params = {
+        location: stockLocation,
+        category: stockCategory,
+        search: stockSearch,
+        variant: stockVariant,
+        status: stockStatus,
+        sortBy: stockSortBy,
+        sortOrder: stockSortOrder,
+        limit: 'all',
+        preset
+      };
+      if (preset === 'custom') {
+        if (dateFrom) params.dateFrom = dateFrom;
+        if (dateTo) params.dateTo = dateTo;
+      }
+      const res = await api.get('/api/analytics/product-data/inventory-stock', { params });
+      const variants = res.data?.variants || [];
+      const configuredOutlets = res.data?.configuredOutlets || [];
+
+      if (!variants.length) {
+        toast.error('No inventory records found for export', { id: 'export-stock' });
+        return;
+      }
+
+      // Build CSV
+      const headers = [
+        'Product Name',
+        'Category',
+        'Color',
+        'Size',
+        'SKU',
+        'Barcode',
+        'Warehouse Stock',
+        ...configuredOutlets.map(o => `${o} Stock`),
+        'Total Physical Stock',
+        'Reserved / Allocated',
+        'Available Stock',
+        'Sold Qty (Period)',
+        'Sales Remaining (Unsold)'
+      ];
+
+      const csvRows = [headers.join(',')];
+
+      for (const v of variants) {
+        const outletCols = configuredOutlets.map(o => {
+          const breakdown = v.locationBreakdown?.find(lb => lb.location === o);
+          return breakdown ? breakdown.quantity : 0;
+        });
+
+        const row = [
+          `"${(v.productName || '').replace(/"/g, '""')}"`,
+          `"${(v.category || '').replace(/"/g, '""')}"`,
+          `"${(v.color || '').replace(/"/g, '""')}"`,
+          `"${(v.size || '').replace(/"/g, '""')}"`,
+          `"${(v.sku || '').replace(/"/g, '""')}"`,
+          `"${(v.barcode || '').replace(/"/g, '""')}"`,
+          v.warehouseStock || 0,
+          ...outletCols,
+          v.totalPhysicalStock || 0,
+          v.allocatedStock || 0,
+          v.availableStock || 0,
+          v.soldQuantity || 0,
+          v.salesRemaining || 0
+        ];
+        csvRows.push(row.join(','));
+      }
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Inventory_Stock_Report_${stockLocation.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${variants.length} inventory records`, { id: 'export-stock' });
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast.error('Failed to export inventory report', { id: 'export-stock' });
+    }
+  };
+
+  // Reset Filters handler
+  const handleResetStockFilters = () => {
+    setStockLocation('All Locations');
+    setStockCategory('');
+    setStockSearch('');
+    setStockVariant('');
+    setStockStatus('all');
+    setStockPage(1);
+    setStockSortBy('name');
+    setStockSortOrder('asc');
+    toast.success('Inventory filters reset to default');
+  };
+
 
   // Date banner string
   const activeDateBanner = useMemo(() => {
@@ -445,6 +614,11 @@ export default function ProductDataPage() {
             >
               <Icon className={`w-4 h-4 ${isActive ? 'text-purple-400' : 'text-slate-500'}`} />
               {tab.label}
+              {tab.id === 'inventory-stock' && stockData?.summary?.totalVariants > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-900/50 text-indigo-300 font-bold">
+                  {stockData.summary.totalStock.toLocaleString()}
+                </span>
+              )}
               {tab.id === 'sales' && summaryData?.productSales?.length > 0 && (
                 <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400 font-normal">
                   {summaryData.productSales.length}
@@ -460,10 +634,781 @@ export default function ProductDataPage() {
         })}
       </div>
 
+
       {/* TAB CONTENTS */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl">
+        {/* 0. INVENTORY STOCK REPORT TAB */}
+        {activeTab === 'inventory-stock' && (
+          <div className="space-y-6">
+            {/* Header & Primary Action Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+                    <Boxes className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black text-white flex items-center gap-2">
+                      Inventory Stock Report
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                        Live Ledger
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Real-time physical stock across Warehouse and Outlets, active allocations, period sales & unsold remaining
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                {stockData?.lastUpdated && (
+                  <span className="text-[11px] text-slate-400 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                    Updated: {new Date(stockData.lastUpdated).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                )}
+                <button
+                  onClick={() => fetchInventoryStock(true)}
+                  disabled={stockLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition"
+                  title="Force re-fetch from database"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${stockLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+                <button
+                  onClick={handleExportStockReport}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white border border-emerald-500 hover:bg-emerald-500 shadow-md shadow-emerald-600/20 transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Export CSV / Excel
+                </button>
+                <button
+                  onClick={handleResetStockFilters}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-950 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"
+                  title="Clear all filters"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Comprehensive Filter Toolbar */}
+            <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* 1. Location Filter */}
+                <div>
+                  <label className="block text-[10px] uppercase font-black tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-indigo-400" /> Location
+                  </label>
+                  <select
+                    value={stockLocation}
+                    onChange={e => {
+                      setStockLocation(e.target.value);
+                      setStockPage(1);
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-indigo-500 outline-none transition cursor-pointer"
+                  >
+                    {(stockData?.locations || ['All Locations', 'Warehouse', 'Johar Town', 'Jail Road']).map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Category Filter */}
+                <div>
+                  <label className="block text-[10px] uppercase font-black tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-purple-400" /> Category
+                  </label>
+                  <select
+                    value={stockCategory}
+                    onChange={e => {
+                      setStockCategory(e.target.value);
+                      setStockPage(1);
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-purple-500 outline-none transition cursor-pointer"
+                  >
+                    <option value="">All Categories</option>
+                    {(stockData?.allCategories || []).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Product Search Filter */}
+                <div>
+                  <label className="block text-[10px] uppercase font-black tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Search className="w-3 h-3 text-emerald-400" /> Product Name / Barcode
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search name, barcode, SKU..."
+                      value={stockSearch}
+                      onChange={e => {
+                        setStockSearch(e.target.value);
+                        setStockPage(1);
+                      }}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 outline-none transition"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                    {stockSearch && (
+                      <button
+                        onClick={() => { setStockSearch(''); setStockPage(1); }}
+                        className="absolute right-2.5 top-2 text-slate-500 hover:text-white text-xs font-bold"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Variant (Color/Size) Filter */}
+                <div>
+                  <label className="block text-[10px] uppercase font-black tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Layers className="w-3 h-3 text-cyan-400" /> Variant (Color / Size)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="e.g. M, Navy Blue, XL..."
+                      value={stockVariant}
+                      onChange={e => {
+                        setStockVariant(e.target.value);
+                        setStockPage(1);
+                      }}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-slate-500 focus:border-cyan-500 outline-none transition"
+                    />
+                    <Layers className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                    {stockVariant && (
+                      <button
+                        onClick={() => { setStockVariant(''); setStockPage(1); }}
+                        className="absolute right-2.5 top-2 text-slate-500 hover:text-white text-xs font-bold"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Filter Pills & Quick Toggles */}
+              <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+                    <SlidersHorizontal className="w-3 h-3 text-indigo-400" /> Status:
+                  </span>
+                  {[
+                    { id: 'all', label: 'All Items', count: stockData?.summary?.totalVariants },
+                    { id: 'in_stock', label: 'In Stock', count: (stockData?.summary?.totalVariants || 0) - (stockData?.summary?.outOfStockCount || 0) },
+                    { id: 'low_stock', label: 'Low Stock (1-5)', count: stockData?.summary?.lowStockCount, badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+                    { id: 'out_of_stock', label: 'Out of Stock (0)', count: stockData?.summary?.outOfStockCount, badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40' }
+                  ].map(st => {
+                    const active = stockStatus === st.id;
+                    return (
+                      <button
+                        key={st.id}
+                        onClick={() => {
+                          setStockStatus(st.id);
+                          setStockPage(1);
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
+                          active
+                            ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        {st.label}
+                        {st.count != null && (
+                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                            st.badgeColor && !active ? st.badgeColor : 'bg-slate-800 text-slate-300'
+                          }`}>
+                            {st.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Scope Note */}
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Scope: <strong className="text-white">{stockLocation}</strong>
+                  {stockCategory && <> • Category: <strong className="text-purple-300">{stockCategory}</strong></>}
+                </span>
+              </div>
+            </div>
+
+            {/* 6 TOP INVENTORY SUMMARY CARDS */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Card 1: Total Stock Quantity */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between hover:border-indigo-500/40 transition">
+                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-indigo-300">Total Stock</span>
+                  <Boxes className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="text-2xl font-black text-white">
+                  {stockLoading ? '...' : (stockData?.summary?.totalStock ?? 0).toLocaleString()}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 font-medium">
+                  Physical units at {stockLocation === 'All Locations' ? 'All Locations' : stockLocation}
+                </div>
+              </div>
+
+              {/* Card 2: Distinct Products / Variants */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between hover:border-purple-500/40 transition">
+                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-purple-300">Variants</span>
+                  <Layers className="w-4 h-4 text-purple-400" />
+                </div>
+                <div className="text-2xl font-black text-purple-200">
+                  {stockLoading ? '...' : (stockData?.summary?.totalVariants ?? 0).toLocaleString()}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 font-medium">Distinct product lines</div>
+              </div>
+
+              {/* Card 3: Warehouse Stock */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between hover:border-emerald-500/40 transition">
+                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-emerald-300">Warehouse</span>
+                  <Warehouse className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-2xl font-black text-emerald-300">
+                  {stockLoading ? '...' : (stockData?.summary?.warehouseStock ?? 0).toLocaleString()}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 font-medium">Central Warehouse</div>
+              </div>
+
+              {/* Card 4: Outlet Stock */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between hover:border-cyan-500/40 transition">
+                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-cyan-300">Outlet Stock</span>
+                  <Store className="w-4 h-4 text-cyan-400" />
+                </div>
+                <div className="text-2xl font-black text-cyan-300">
+                  {stockLoading ? '...' : (stockData?.summary?.outletStock ?? 0).toLocaleString()}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 font-medium">
+                  {stockLocation === 'Warehouse' ? 'Not selected' : (stockLocation === 'All Locations' ? 'All Retail Outlets' : stockLocation)}
+                </div>
+              </div>
+
+              {/* Card 5: Low Stock Items */}
+              <div className="bg-slate-900/90 border border-amber-500/30 bg-amber-950/10 rounded-2xl p-3.5 flex flex-col justify-between hover:border-amber-400 transition">
+                <div className="flex items-center justify-between text-amber-300 mb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-wider">Low Stock</span>
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="text-2xl font-black text-amber-300">
+                  {stockLoading ? '...' : (stockData?.summary?.lowStockCount ?? 0).toLocaleString()}
+                </div>
+                <div className="text-[10px] text-amber-400/80 mt-1 font-semibold">1 to 5 units remaining</div>
+              </div>
+
+              {/* Card 6: Out-of-Stock Items */}
+              <div className="bg-slate-900/90 border border-rose-500/30 bg-rose-950/10 rounded-2xl p-3.5 flex flex-col justify-between hover:border-rose-400 transition">
+                <div className="flex items-center justify-between text-rose-300 mb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-wider">Out of Stock</span>
+                  <XCircle className="w-4 h-4 text-rose-400" />
+                </div>
+                <div className="text-2xl font-black text-rose-300">
+                  {stockLoading ? '...' : (stockData?.summary?.outOfStockCount ?? 0).toLocaleString()}
+                </div>
+                <div className="text-[10px] text-rose-400/80 mt-1 font-semibold">0 physical units</div>
+              </div>
+            </div>
+
+            {/* Critical Metric Distinction Ribbon */}
+            <div className="rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 p-3.5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 font-bold">Physical Stock:</span>
+                  <span className="font-black text-white">{stockLoading ? '...' : (stockData?.summary?.totalStock || 0).toLocaleString()}</span>
+                </div>
+                <span className="text-slate-600">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-400/90 font-bold">− Reserved / Allocated:</span>
+                  <span className="font-black text-amber-300">{stockLoading ? '...' : (stockData?.summary?.totalAllocated || 0).toLocaleString()}</span>
+                </div>
+                <span className="text-slate-600">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-emerald-400 font-bold">= Available Stock:</span>
+                  <span className="font-black text-emerald-300">{stockLoading ? '...' : (stockData?.summary?.totalAvailable || 0).toLocaleString()}</span>
+                </div>
+                <span className="text-slate-600">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-purple-400 font-bold">Sold (Active Period):</span>
+                  <span className="font-black text-purple-300">{stockLoading ? '...' : (stockData?.summary?.totalSold || 0).toLocaleString()}</span>
+                </div>
+                <span className="text-slate-600">•</span>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30">
+                  <span className="text-amber-300 font-black">Sales Remaining (Unsold):</span>
+                  <span className="font-black text-amber-200">{stockLoading ? '...' : (stockData?.summary?.salesRemaining || 0).toLocaleString()}</span>
+                </div>
+              </div>
+              <span className="text-[10px] text-slate-500 font-medium italic">
+                * Physical inventory remaining and period sales remaining are distinct values.
+              </span>
+            </div>
+
+            {/* Category-Wise Stock Breakdown (Collapsible) */}
+            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl overflow-hidden">
+              <button
+                onClick={() => setShowCategoryTable(prev => !prev)}
+                className="w-full px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center justify-between text-left hover:bg-slate-800/50 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs font-black text-white">Category-Wise Stock Summary</span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    ({stockData?.categoriesBreakdown?.length || 0} Categories • Click row to filter product ledger below)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span>{showCategoryTable ? 'Hide Table' : 'Show Table'}</span>
+                  {showCategoryTable ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </div>
+              </button>
+
+              {showCategoryTable && (
+                <div className="overflow-x-auto p-3">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-black tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-2.5 px-3">Category</th>
+                        <th className="py-2.5 px-3 text-right">Warehouse Stock</th>
+                        <th className="py-2.5 px-3 text-right">Outlet Stock</th>
+                        <th className="py-2.5 px-3 text-right">Total Physical Stock</th>
+                        <th className="py-2.5 px-3 text-center">Variants</th>
+                        <th className="py-2.5 px-3 text-right">% of Total</th>
+                        <th className="py-2.5 px-3 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                      {stockLoading ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-6 text-slate-500">Loading category totals...</td>
+                        </tr>
+                      ) : !stockData?.categoriesBreakdown?.length ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-6 text-slate-500">No categories found matching filters.</td>
+                        </tr>
+                      ) : (
+                        stockData.categoriesBreakdown.map((cat, idx) => {
+                          const totalAll = stockData.summary.totalStock || 1;
+                          const pct = ((cat.totalStock / totalAll) * 100).toFixed(1);
+                          const isSelected = stockCategory.toLowerCase() === cat.category.toLowerCase();
+                          return (
+                            <tr
+                              key={idx}
+                              onClick={() => {
+                                setStockCategory(isSelected ? '' : cat.category);
+                                setStockPage(1);
+                              }}
+                              className={`cursor-pointer transition ${
+                                isSelected ? 'bg-purple-900/30 hover:bg-purple-900/40' : 'hover:bg-slate-900/60'
+                              }`}
+                            >
+                              <td className="py-2.5 px-3 font-bold text-white flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-lg text-[11px] font-black ${
+                                  isSelected ? 'bg-purple-500 text-white' : 'bg-slate-800 text-purple-300'
+                                }`}>
+                                  {cat.category}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-emerald-400 font-mono font-bold">
+                                {cat.warehouseStock.toLocaleString()}
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-cyan-400 font-mono font-bold">
+                                {cat.outletStock.toLocaleString()}
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-white font-mono font-black">
+                                {cat.totalStock.toLocaleString()}
+                              </td>
+                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                                {cat.variantCount}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-purple-500 rounded-full"
+                                      style={{ width: `${Math.min(100, Math.max(0, Number(pct)))}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] font-mono text-slate-400 font-bold">{pct}%</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setStockCategory(isSelected ? '' : cat.category);
+                                    setStockPage(1);
+                                  }}
+                                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition border ${
+                                    isSelected
+                                      ? 'bg-purple-600 text-white border-purple-500'
+                                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+                                  }`}
+                                >
+                                  {isSelected ? 'Active Filter' : 'Filter Ledger'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                    {/* Summary Footer Row */}
+                    {stockData?.categoriesBreakdown?.length > 0 && (
+                      <tfoot className="bg-slate-950 font-black text-xs border-t-2 border-slate-800 text-white">
+                        <tr>
+                          <td className="py-3 px-3 uppercase tracking-wider text-slate-400">Total Across Categories</td>
+                          <td className="py-3 px-3 text-right text-emerald-400 font-mono">
+                            {(stockData.summary.warehouseStock || 0).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3 text-right text-cyan-400 font-mono">
+                            {(stockData.summary.outletStock || 0).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3 text-right text-indigo-300 font-mono font-black text-sm">
+                            {(stockData.summary.totalStock || 0).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3 text-center text-slate-400 font-mono">
+                            {stockData.summary.totalVariants}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-400">100.0%</td>
+                          <td className="py-3 px-3 text-center text-[10px] text-emerald-400 font-bold">100% Balanced</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Detailed Product-Wise Inventory Ledger */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    Product & Variant Stock Ledger
+                    <span className="text-xs font-normal text-slate-400">
+                      (Showing {stockData?.variants?.length || 0} of {stockData?.pagination?.total || 0} variants)
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Sortable ledger with location quantities, reserved allocations, and period sales
+                  </p>
+                </div>
+
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400 text-[11px]">Rows per page:</span>
+                  <select
+                    value={stockLimit}
+                    onChange={e => {
+                      setStockLimit(Number(e.target.value));
+                      setStockPage(1);
+                    }}
+                    className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white outline-none focus:border-indigo-500 font-bold"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Main Ledger Table */}
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-black tracking-wider border-b border-slate-800">
+                    <tr>
+                      <th className="py-3 px-3">#</th>
+                      <th
+                        className="py-3 px-3 cursor-pointer hover:text-white transition"
+                        onClick={() => {
+                          setStockSortBy('name');
+                          setStockSortOrder(o => (stockSortBy === 'name' && o === 'asc' ? 'desc' : 'asc'));
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          Product Name
+                          <ArrowUpDown className="w-3 h-3 text-slate-500" />
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 cursor-pointer hover:text-white transition"
+                        onClick={() => {
+                          setStockSortBy('category');
+                          setStockSortOrder(o => (stockSortBy === 'category' && o === 'asc' ? 'desc' : 'asc'));
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          Category
+                          <ArrowUpDown className="w-3 h-3 text-slate-500" />
+                        </div>
+                      </th>
+                      <th className="py-3 px-3">Color & Size</th>
+                      <th className="py-3 px-3">SKU / Barcode</th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-white transition"
+                        onClick={() => {
+                          setStockSortBy('warehouse');
+                          setStockSortOrder(o => (stockSortBy === 'warehouse' && o === 'asc' ? 'desc' : 'asc'));
+                        }}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Warehouse
+                          <ArrowUpDown className="w-3 h-3 text-slate-500" />
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-white transition"
+                        onClick={() => {
+                          setStockSortBy('outlet');
+                          setStockSortOrder(o => (stockSortBy === 'outlet' && o === 'asc' ? 'desc' : 'asc'));
+                        }}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          {stockLocation === 'All Locations' || stockLocation === 'Warehouse' ? 'Outlets' : stockLocation}
+                          <ArrowUpDown className="w-3 h-3 text-slate-500" />
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-white transition"
+                        onClick={() => {
+                          setStockSortBy('stock');
+                          setStockSortOrder(o => (stockSortBy === 'stock' && o === 'asc' ? 'desc' : 'asc'));
+                        }}
+                      >
+                        <div className="flex items-center justify-end gap-1 text-indigo-300">
+                          Total Stock
+                          <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                        </div>
+                      </th>
+                      <th className="py-3 px-3 text-right text-amber-300">Allocated</th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-white transition"
+                        onClick={() => {
+                          setStockSortBy('available');
+                          setStockSortOrder(o => (stockSortBy === 'available' && o === 'asc' ? 'desc' : 'asc'));
+                        }}
+                      >
+                        <div className="flex items-center justify-end gap-1 text-emerald-300">
+                          Available
+                          <ArrowUpDown className="w-3 h-3 text-emerald-400" />
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-white transition"
+                        onClick={() => {
+                          setStockSortBy('sold');
+                          setStockSortOrder(o => (stockSortBy === 'sold' && o === 'asc' ? 'desc' : 'asc'));
+                        }}
+                      >
+                        <div className="flex items-center justify-end gap-1 text-purple-300">
+                          Sold ({preset})
+                          <ArrowUpDown className="w-3 h-3 text-purple-400" />
+                        </div>
+                      </th>
+                      <th className="py-3 px-3 text-right text-amber-300">Sales Remaining</th>
+                      <th className="py-3 px-3 text-center">Locations</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-medium">
+                    {stockLoading ? (
+                      <tr>
+                        <td colSpan={13} className="text-center py-12 text-slate-500">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                            <span>Loading inventory records...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : !stockData?.variants?.length ? (
+                      <tr>
+                        <td colSpan={13} className="text-center py-12 text-slate-500">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Package className="w-8 h-8 text-slate-600" />
+                            <span className="font-bold text-slate-400">No inventory products found matching your active filters.</span>
+                            <button
+                              onClick={handleResetStockFilters}
+                              className="mt-1 px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-bold text-slate-300 hover:text-white"
+                            >
+                              Reset Filters & Show All
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      stockData.variants.map((v, idx) => {
+                        const rowNum = ((stockPage - 1) * stockLimit) + idx + 1;
+                        const isZero = v.physicalStock === 0;
+                        const isLow = v.physicalStock > 0 && v.physicalStock <= 5;
+                        return (
+                          <tr
+                            key={v.id || idx}
+                            className={`hover:bg-slate-800/40 transition ${
+                              isZero ? 'bg-rose-950/5' : (isLow ? 'bg-amber-950/5' : '')
+                            }`}
+                          >
+                            <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">{rowNum}</td>
+                            <td className="py-3 px-3 font-bold text-white">
+                              <div className="flex items-center gap-2.5">
+                                {v.imageUrl ? (
+                                  <img
+                                    src={v.imageUrl}
+                                    alt={v.productName}
+                                    className="w-8 h-8 rounded-lg object-contain bg-slate-900 border border-slate-800 p-0.5"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600">
+                                    <Package className="w-4 h-4" />
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-bold text-white hover:text-indigo-300 transition">
+                                    {v.productName}
+                                  </div>
+                                  {isZero && (
+                                    <span className="text-[9px] font-bold text-rose-400">Out of Stock</span>
+                                  )}
+                                  {isLow && (
+                                    <span className="text-[9px] font-bold text-amber-400">Low Stock ({v.physicalStock} left)</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-purple-300">
+                                {v.category}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {v.color && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-900 border border-slate-800 text-slate-300">
+                                    {v.color}
+                                  </span>
+                                )}
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-950/60 border border-indigo-800/50 text-indigo-300">
+                                  {v.size || 'Standard'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 font-mono text-[11px] text-slate-400">
+                              <div>{v.sku || '—'}</div>
+                              {v.barcode && (
+                                <div className="text-[10px] text-slate-500 font-sans flex items-center gap-1">
+                                  <Hash className="w-2.5 h-2.5" /> {v.barcode}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
+                              {v.warehouseStock.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">
+                              {v.outletStock.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-black text-white text-sm">
+                              {v.physicalStock.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold">
+                              {v.allocatedStock > 0 ? (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  {v.allocatedStock}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">0</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-black text-emerald-300">
+                              {v.availableStock.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-purple-300">
+                              {v.soldQuantity.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-black text-amber-300">
+                              <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                                {v.salesRemaining.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                onClick={() => setBreakdownModalItem(v)}
+                                className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500 hover:bg-indigo-950/40 text-[10px] font-bold flex items-center gap-1 mx-auto transition"
+                                title="Inspect distribution across warehouse and outlets"
+                              >
+                                <Eye className="w-3 h-3 text-indigo-400" />
+                                Breakdown
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Footer */}
+              {stockData?.pagination && stockData.pagination.totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 text-xs">
+                  <span className="text-slate-500">
+                    Showing {((stockPage - 1) * stockLimit) + 1} to {Math.min(stockData.pagination.total, stockPage * stockLimit)} of {stockData.pagination.total} variants
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setStockPage(p => Math.max(1, p - 1))}
+                      disabled={stockPage <= 1 || stockLoading}
+                      className="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 font-bold"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    {Array.from({ length: Math.min(5, stockData.pagination.totalPages) }, (_, i) => {
+                      let pageNumber = stockPage - 2 + i;
+                      if (stockPage <= 3) pageNumber = i + 1;
+                      else if (stockPage >= stockData.pagination.totalPages - 2) {
+                        pageNumber = stockData.pagination.totalPages - 4 + i;
+                      }
+                      if (pageNumber < 1 || pageNumber > stockData.pagination.totalPages) return null;
+                      return (
+                        <button
+                          key={pageNumber}
+                          onClick={() => setStockPage(pageNumber)}
+                          className={`w-7 h-7 rounded-lg text-xs font-bold transition border ${
+                            stockPage === pageNumber
+                              ? 'bg-indigo-600 text-white border-indigo-500'
+                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setStockPage(p => Math.min(stockData.pagination.totalPages, p + 1))}
+                      disabled={stockPage >= stockData.pagination.totalPages || stockLoading}
+                      className="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 font-bold"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 1. PRODUCT SALES TAB */}
         {activeTab === 'sales' && (
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -993,6 +1938,169 @@ export default function ProductDataPage() {
           </div>
         )}
       </div>
+
+      {/* LOCATION BREAKDOWN MODAL */}
+      {breakdownModalItem && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                {breakdownModalItem.imageUrl ? (
+                  <img
+                    src={breakdownModalItem.imageUrl}
+                    alt={breakdownModalItem.productName}
+                    className="w-12 h-12 rounded-xl object-contain bg-slate-950 border border-slate-800 p-1"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-indigo-400">
+                    <Boxes className="w-6 h-6" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-base font-black text-white">{breakdownModalItem.productName}</h3>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-purple-300">
+                      {breakdownModalItem.category}
+                    </span>
+                    {breakdownModalItem.color && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-950 border border-slate-800 text-slate-300">
+                        Color: {breakdownModalItem.color}
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950/60 border border-indigo-800/50 text-indigo-300">
+                      Size: {breakdownModalItem.size}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setBreakdownModalItem(null)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Identifier & Total Stock Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Total Physical</span>
+                <span className="text-base font-black text-white font-mono">
+                  {breakdownModalItem.totalPhysicalStock.toLocaleString()}
+                </span>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Allocated</span>
+                <span className="text-base font-black text-amber-400 font-mono">
+                  {breakdownModalItem.allocatedStock.toLocaleString()}
+                </span>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Available</span>
+                <span className="text-base font-black text-emerald-400 font-mono">
+                  {breakdownModalItem.availableStock.toLocaleString()}
+                </span>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Period Sold</span>
+                <span className="text-base font-black text-purple-400 font-mono">
+                  {breakdownModalItem.soldQuantity.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Outlet Breakdown Table */}
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                Physical Stock Distribution by Location
+              </h4>
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-black tracking-wider border-b border-slate-800">
+                    <tr>
+                      <th className="py-2.5 px-3">Location</th>
+                      <th className="py-2.5 px-3">Variant</th>
+                      <th className="py-2.5 px-3 text-right">Quantity</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
+                      <th className="py-2.5 px-3 text-right">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-medium">
+                    {(breakdownModalItem.locationBreakdown || []).map((loc, idx) => {
+                      const total = breakdownModalItem.totalPhysicalStock || 1;
+                      const sharePct = ((loc.quantity / total) * 100).toFixed(0);
+                      const isZero = loc.quantity === 0;
+                      const isLow = loc.quantity > 0 && loc.quantity <= 5;
+                      const isWarehouse = loc.location.toLowerCase().includes('warehouse');
+                      return (
+                        <tr key={idx} className="hover:bg-slate-900/50 transition">
+                          <td className="py-2.5 px-3 font-bold text-white flex items-center gap-2">
+                            {isWarehouse ? (
+                              <Warehouse className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Store className="w-3.5 h-3.5 text-cyan-400" />
+                            )}
+                            {loc.location}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-400 text-[11px]">
+                            {breakdownModalItem.color || 'Standard'} / {breakdownModalItem.size}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-black text-white text-sm">
+                            {loc.quantity.toLocaleString()}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {isZero ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300">
+                                Out of Stock
+                              </span>
+                            ) : isLow ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                                Low ({loc.quantity})
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
+                                In Stock
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-12 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${isWarehouse ? 'bg-emerald-500' : 'bg-cyan-500'}`}
+                                  style={{ width: `${Math.min(100, Math.max(0, Number(sharePct)))}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-400 font-bold">{sharePct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              <span className="text-[11px] text-slate-500">
+                Barcode: <strong className="text-slate-300 font-mono">{breakdownModalItem.barcode || '—'}</strong>
+                {breakdownModalItem.sku && <> • SKU: <strong className="text-slate-300 font-mono">{breakdownModalItem.sku}</strong></>}
+              </span>
+              <button
+                onClick={() => setBreakdownModalItem(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs font-bold hover:bg-slate-700 transition"
+              >
+                Close Breakdown
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
