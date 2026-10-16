@@ -212,11 +212,13 @@ const StoreReturns = ({ refreshKey }) => {
                 <p className="text-[10px] theme-text-muted mt-0.5">Initiated by {c.handledBy || c.deliveryReturnedBy || 'System'} • {fmtDateTime(c.createdAt)}</p>
               </div>
               <div className="flex items-center gap-2">
-                {(c.status === 'PENDING' || c.status === 'FAISAL_APPROVED') && (
+                {(c.status === 'PENDING' || c.status === 'FAISAL_APPROVED' || c.status === 'ACCEPTED') && (
                   <>
-                    <button onClick={() => acceptCase(c)} disabled={processingId === c.id} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
-                      <Box size={14} /> Accept
-                    </button>
+                    {c.status !== 'ACCEPTED' && (
+                      <button onClick={() => acceptCase(c)} disabled={processingId === c.id} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
+                        <Box size={14} /> Accept
+                      </button>
+                    )}
                     <button onClick={() => redispatchCase(c)} disabled={processingId === c.id} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center gap-1 disabled:opacity-50 transition-all">
                       <Truck size={14} /> Re-dispatch
                     </button>

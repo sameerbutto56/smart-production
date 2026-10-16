@@ -599,42 +599,117 @@ const storeRedispatch = async (req, res) => {
 
     if (!record) {
       record = await prisma.returnExchange.findFirst({
-        where: { orderId: id, type: 'RETURN', routedTo: 'STORE' },
+        where: {
+          OR: [
+            { orderId: id },
+            { orderNumber: id }
+          ],
+          type: 'RETURN',
+          routedTo: 'STORE'
+        },
         orderBy: { createdAt: 'desc' },
         include: { order: true }
       });
     }
 
     if (!record) {
-      return res.status(404).json({ message: 'Return record not found' });
+      // Check if id corresponds to an Order directly (by id or orderNumber)
+      const targetOrder = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { id },
+            { orderNumber: id }
+          ]
+        },
+        include: {
+          returnExchangeCases: {
+            orderBy: { createdAt: 'desc' }
+          }
+        }
+      });
+
+      if (targetOrder) {
+        const returnCase = targetOrder.returnExchangeCases?.find(c => c.type === 'RETURN');
+        if (returnCase) {
+          record = returnCase;
+          record.order = targetOrder;
+        } else {
+          // Normal order without an eligible return record
+          if (targetOrder.status === 'COMPLETED') {
+            return res.status(400).json({ message: `Order #${targetOrder.orderNumber} is completed and cannot be re-dispatched` });
+          }
+          if (targetOrder.status === 'CANCELLED') {
+            return res.status(400).json({ message: `Order #${targetOrder.orderNumber} is CANCELLED and cannot be re-dispatched` });
+          }
+          return res.status(400).json({ message: `Order #${targetOrder.orderNumber} has no eligible return record for re-dispatch` });
+        }
+      } else {
+        return res.status(404).json({ message: 'Return record not found' });
+      }
     }
 
     if (record.type !== 'RETURN') {
       return res.status(400).json({ message: 'Only RETURN cases can be re-dispatched from Store' });
     }
 
-    const TERMINAL_OR_INVALID_STATUSES = ['COMPLETED', 'RESTOCKED', 'ROUTED_TO_PRODUCTION', 'IN_PRODUCTION', 'REDISPATCHED', 'CANCELLED'];
-    if (TERMINAL_OR_INVALID_STATUSES.includes(record.status)) {
-      return res.status(400).json({ message: `Cannot re-dispatch: this return is already ${record.status}` });
-    }
-
-    const order = record.order;
+    const order = record.order || (await prisma.order.findUnique({ where: { id: record.orderId } }));
     if (!order) {
       return res.status(404).json({ message: 'Associated order not found' });
     }
 
-    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
-      return res.status(400).json({ message: `Order #${order.orderNumber} is ${order.status} and cannot be re-dispatched` });
-    }
-
-    if (order.currentStage === 'DISPATCH' && record.status === 'REDISPATCHED') {
+    // Duplicate check: already re-dispatched or already active in Dispatch
+    if (record.status === 'REDISPATCHED' || order.currentStage === 'DISPATCH') {
       return res.status(409).json({ message: `Order #${order.orderNumber} has already been transferred to Dispatch` });
     }
+
+    const TERMINAL_OR_INVALID_STATUSES = ['COMPLETED', 'RESTOCKED', 'ROUTED_TO_PRODUCTION', 'IN_PRODUCTION', 'CANCELLED'];
+    if (TERMINAL_OR_INVALID_STATUSES.includes(record.status)) {
+      return res.status(400).json({ message: `Cannot re-dispatch: this return is already ${record.status}` });
+    }
+
+    if (record.routedTo && record.routedTo !== 'STORE') {
+      return res.status(400).json({ message: `Cannot re-dispatch: this return is currently routed to ${record.routedTo}, not Store` });
+    }
+
+    if (order.status === 'CANCELLED') {
+      return res.status(400).json({ message: `Order #${order.orderNumber} is CANCELLED and cannot be re-dispatched` });
+    }
+
+    // NOTE: If order.status === 'COMPLETED', but the order has a valid, active return record at Store,
+    // it has legitimately entered the return workflow and IS eligible for Store Re-dispatch.
 
     const userName = req.user?.name || 'Store';
     const userId = req.user?.id || 'SYSTEM';
 
     const result = await prisma.$transaction(async (tx) => {
+      // Concurrency protection: re-validate inside transaction
+      const freshRecord = await tx.returnExchange.findUnique({
+        where: { id: record.id }
+      });
+      if (!freshRecord || freshRecord.status === 'REDISPATCHED') {
+        const err = new Error(`Order #${order.orderNumber} has already been transferred to Dispatch`);
+        err.statusCode = 409;
+        throw err;
+      }
+      if (TERMINAL_OR_INVALID_STATUSES.includes(freshRecord.status)) {
+        const err = new Error(`Cannot re-dispatch: this return is already ${freshRecord.status}`);
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const freshOrder = await tx.order.findUnique({
+        where: { id: order.id }
+      });
+      if (!freshOrder || freshOrder.status === 'CANCELLED') {
+        const err = new Error(`Order #${order.orderNumber} is CANCELLED and cannot be re-dispatched`);
+        err.statusCode = 400;
+        throw err;
+      }
+      if (freshOrder.currentStage === 'DISPATCH') {
+        const err = new Error(`Order #${order.orderNumber} has already been transferred to Dispatch`);
+        err.statusCode = 409;
+        throw err;
+      }
       // a) Update ReturnExchange case
       const updatedCase = await tx.returnExchange.update({
         where: { id: record.id },
@@ -721,6 +796,9 @@ const storeRedispatch = async (req, res) => {
       case: result
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
     console.error('Error in storeRedispatch:', error);
     res.status(500).json({ message: 'Failed to re-dispatch returned order', error: error.message });
   }

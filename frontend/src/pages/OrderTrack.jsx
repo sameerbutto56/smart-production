@@ -83,6 +83,7 @@ const getEntryColors = (entry) => {
 // Status badge text + styling derived from the entry's action/status
 const getStatusBadge = (entry) => {
   if (entry.action === 'BALANCE_CLEARED') return { text: 'BALANCE CLEARED', cls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' };
+  if (entry.action === 'STORE_REDISPATCH' || entry.action === 'REDISPATCH_REQUESTED') return { text: 'RE-DISPATCHED', cls: 'bg-purple-500/20 text-purple-400 border-purple-500/40' };
   if (entry.action === 'CANCELLATION_REQUESTED') return { text: 'REQUESTED', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
   if (entry.action === 'CANCELLATION_APPROVED' || entry.action === 'ORDER_CANCELLED') return { text: 'CANCELLED', cls: 'bg-red-500/20 text-red-300 border-red-500/40' };
   if (entry.action === 'CANCELLATION_REJECTED') return { text: 'REJECTED', cls: 'bg-rose-500/20 text-rose-300 border-rose-500/40' };
