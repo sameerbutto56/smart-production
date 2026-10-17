@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import api from '../services/api';
+import socket from '../socket';
 import useCache from '../hooks/useCache';
 import {
   Package, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
@@ -233,6 +234,25 @@ const WarehouseDashboard = () => {
       fetchDemands();
     }
   }, [activeTab, allocPage, cartsPage, demandFilter]);
+
+  // Real-time synchronization for demands
+  useEffect(() => {
+    const handleDemandSync = () => {
+      if (activeTab === 'demands') {
+        fetchDemands();
+      }
+    };
+    socket.on('demand:new', handleDemandSync);
+    socket.on('demand:updated', handleDemandSync);
+    socket.on('demand:dispatched', handleDemandSync);
+    socket.on('demand:accepted', handleDemandSync);
+    return () => {
+      socket.off('demand:new', handleDemandSync);
+      socket.off('demand:updated', handleDemandSync);
+      socket.off('demand:dispatched', handleDemandSync);
+      socket.off('demand:accepted', handleDemandSync);
+    };
+  }, [activeTab]);
 
   // Cache-first: inventory tab
   const { data: inventory = [], loading, refresh: refreshInventory } = useCache(
@@ -1579,6 +1599,8 @@ const WarehouseDashboard = () => {
                     <option value="PENDING">Pending</option>
                     <option value="APPROVED">Approved</option>
                     <option value="PARTIALLY_APPROVED">Partially Approved</option>
+                    <option value="DISPATCHED">Dispatched (In Transit)</option>
+                    <option value="COMPLETED">Completed</option>
                     <option value="REJECTED">Rejected</option>
                   </select>
                   <button onClick={() => { setDemandSearch(''); setDemandFilter(''); fetchDemands(); }}
@@ -1589,7 +1611,7 @@ const WarehouseDashboard = () => {
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 <div className="glass p-4 rounded-xl border-2 border-gray-900">
                   <p className="text-2xl font-black theme-text-primary">{demandStats.total}</p>
                   <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Total</p>
@@ -1603,8 +1625,12 @@ const WarehouseDashboard = () => {
                   <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Approved</p>
                 </div>
                 <div className="glass p-4 rounded-xl border-2 border-gray-900">
-                  <p className="text-2xl font-black text-blue-400">{demandStats.partiallyApproved}</p>
-                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Partial</p>
+                  <p className="text-2xl font-black text-purple-400">{demandStats.dispatched || 0}</p>
+                  <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">In Transit</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-2xl font-black text-teal-400">{demandStats.completed || 0}</p>
+                  <p className="text-[10px] font-black text-teal-300 uppercase tracking-widest">Completed</p>
                 </div>
                 <div className="glass p-4 rounded-xl border-2 border-gray-900">
                   <p className="text-2xl font-black text-red-400">{demandStats.rejected}</p>
@@ -1632,8 +1658,19 @@ const WarehouseDashboard = () => {
                         className="glass p-4 md:p-6 rounded-xl md:rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                           <div className="flex items-center space-x-4">
-                            <div className={`p-3 rounded-xl ${isPending ? 'bg-yellow-500/10 text-yellow-400' : req.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400' : req.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                              {isPending ? <Clock size={18} /> : req.status === 'REJECTED' ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
+                            <div className={`p-3 rounded-xl ${
+                              isPending ? 'bg-yellow-500/10 text-yellow-400' :
+                              req.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400' :
+                              req.status === 'DISPATCHED' ? 'bg-purple-500/10 text-purple-400' :
+                              req.status === 'COMPLETED' ? 'bg-teal-500/10 text-teal-400' :
+                              req.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' :
+                              'bg-blue-500/10 text-blue-400'
+                            }`}>
+                              {isPending ? <Clock size={18} /> :
+                               req.status === 'DISPATCHED' ? <Truck size={18} /> :
+                               req.status === 'COMPLETED' ? <CheckCircle size={18} /> :
+                               req.status === 'REJECTED' ? <XCircle size={18} /> :
+                               <CheckCircle2 size={18} />}
                             </div>
                             <div>
                               <p className="font-black theme-text-primary">{req.outletName}</p>
@@ -1648,6 +1685,8 @@ const WarehouseDashboard = () => {
                             <span className={`px-3 py-1 rounded-full text-xs font-black uppercase border ${
                               req.status === 'PENDING' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
                               req.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                              req.status === 'DISPATCHED' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                              req.status === 'COMPLETED' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' :
                               req.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                               'bg-blue-500/10 text-blue-400 border-blue-500/20'
                             }`}>{req.status.replace('_', ' ')}</span>
@@ -1680,18 +1719,33 @@ const WarehouseDashboard = () => {
                           </table>
                         </div>
 
-                        {/* Dispatch / In Transit */}
-                        {!isPending && (req.status === 'APPROVED' || req.status === 'PARTIALLY_APPROVED') && (
+                        {/* Dispatch / In Transit / Completed */}
+                        {!isPending && req.status !== 'REJECTED' && (
                           <div className="mt-3 pt-3 border-t theme-border">
-                            {!req.dispatchedAt && !req.acceptedAt && !req.deliveredAt ? (
+                            {(req.status === 'APPROVED' || req.status === 'PARTIALLY_APPROVED') && !req.dispatchedAt && !req.acceptedAt && !req.deliveredAt ? (
                               <div className="flex justify-end">
                                 <button onClick={() => openDemandDispatch(req)}
-                                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2 active:scale-95">
+                                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2 active:scale-95 shadow-lg shadow-indigo-600/20">
                                   <Truck size={14} />
                                   <span>Dispatch / Send</span>
                                 </button>
                               </div>
-                            ) : (
+                            ) : (req.acceptedAt || req.status === 'COMPLETED') ? (
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center space-x-2">
+                                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-teal-500/10 text-teal-400 border-teal-500/20">
+                                    {req.deliveryChannel === 'ENAMELS' ? 'Enamels Delivery Boy' : 'Self Delivery'}
+                                  </span>
+                                  {req.deliveryChannel === 'ENAMELS' && req.deliveryBoyName && (
+                                    <span className="text-xs theme-text-muted font-bold">{req.deliveryBoyName}</span>
+                                  )}
+                                </div>
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-teal-500/10 text-teal-400 border-teal-500/20 flex items-center space-x-1">
+                                  <CheckCircle size={12} className="inline mr-1" />
+                                  <span>Accepted by Outlet — {formatDateTime(req.acceptedAt || req.updatedAt)}</span>
+                                </span>
+                              </div>
+                            ) : (req.dispatchedAt || req.status === 'DISPATCHED') ? (
                               <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center space-x-2">
                                   <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
@@ -1701,11 +1755,12 @@ const WarehouseDashboard = () => {
                                     <span className="text-xs theme-text-muted font-bold">{req.deliveryBoyName}</span>
                                   )}
                                 </div>
-                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                                  🚚 In Transit — {formatDateTime(req.dispatchedAt)}
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse flex items-center space-x-1">
+                                  <Truck size={12} className="inline mr-1" />
+                                  <span>In Transit — {formatDateTime(req.dispatchedAt)}</span>
                                 </span>
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         )}
 

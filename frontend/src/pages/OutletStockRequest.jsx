@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import api from '../services/api';
+import socket from '../socket';
 import {
     ShoppingCart, Package, Building2,
     RefreshCcw, Search, Plus, Minus, Send, ClipboardList,
-    Warehouse, Trash2, Download, ArrowLeftRight, CheckCircle
+    Warehouse, Trash2, Download, ArrowLeftRight, CheckCircle, Truck, Clock, CheckCircle2, XCircle, Filter
   } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -52,6 +53,25 @@ const OutletStockRequest = () => {
   const [requestNotes, setRequestNotes] = useState('');
   // Per-product selection state (size/color chosen by user, not from server)
   const [productSelections, setProductSelections] = useState({});
+  const [requestsFilter, setRequestsFilter] = useState('ALL');
+
+  // Real-time synchronization for demands
+  useEffect(() => {
+    const handleSync = () => {
+      refreshRequests();
+      refreshCatalog();
+    };
+    socket.on('demand:new', handleSync);
+    socket.on('demand:updated', handleSync);
+    socket.on('demand:dispatched', handleSync);
+    socket.on('demand:accepted', handleSync);
+    return () => {
+      socket.off('demand:new', handleSync);
+      socket.off('demand:updated', handleSync);
+      socket.off('demand:dispatched', handleSync);
+      socket.off('demand:accepted', handleSync);
+    };
+  }, [refreshRequests, refreshCatalog]);
 
   const setProductSelection = (productId, field, value) => {
     setProductSelections(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), [field]: value } }));
@@ -66,6 +86,7 @@ const OutletStockRequest = () => {
       await api.put(`/api/demand/${reqId}/accept`, {});
       toast.success('Request accepted! Stock added to outlet inventory.');
       refreshRequests();
+      refreshCatalog();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to accept request');
     }
@@ -133,6 +154,7 @@ const OutletStockRequest = () => {
       toast.success('Demand request submitted to Store');
       setCartItems([]);
       setRequestNotes('');
+      refreshRequests();
       setActiveTab('requests');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to submit demand request');
@@ -154,6 +176,8 @@ const OutletStockRequest = () => {
       case 'PENDING': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
       case 'APPROVED': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
       case 'PARTIALLY_APPROVED': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+      case 'DISPATCHED': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      case 'COMPLETED': return 'bg-teal-500/10 text-teal-400 border-teal-500/20';
       case 'REJECTED': return 'bg-red-500/10 text-red-400 border-red-500/20';
       default: return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
     }
@@ -161,9 +185,22 @@ const OutletStockRequest = () => {
 
   const statusCounts = {
     pending: myRequests.filter(r => r.status === 'PENDING').length,
-    approved: myRequests.filter(r => ['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status)).length,
+    approved: myRequests.filter(r => ['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status) && !r.dispatchedAt && !r.acceptedAt).length,
+    dispatched: myRequests.filter(r => (r.status === 'DISPATCHED' || (['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status) && r.dispatchedAt)) && !r.acceptedAt).length,
+    completed: myRequests.filter(r => r.status === 'COMPLETED' || !!r.acceptedAt).length,
     rejected: myRequests.filter(r => r.status === 'REJECTED').length,
   };
+
+  const filteredRequests = myRequests.filter(r => {
+    if (requestsFilter === 'DISPATCHED') {
+      return (r.status === 'DISPATCHED' || (['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status) && r.dispatchedAt)) && !r.acceptedAt;
+    }
+    if (requestsFilter === 'PENDING') return r.status === 'PENDING';
+    if (requestsFilter === 'APPROVED') return ['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status) && !r.dispatchedAt && !r.acceptedAt;
+    if (requestsFilter === 'COMPLETED') return r.status === 'COMPLETED' || !!r.acceptedAt;
+    if (requestsFilter === 'REJECTED') return r.status === 'REJECTED';
+    return true;
+  });
 
   // Filter inventory visibility
   const filteredOutletInv = outletInventory.filter(item =>
@@ -206,7 +243,11 @@ const OutletStockRequest = () => {
             activeTab === 'requests' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:text-white hover:bg-gray-800'
           }`}>
           <ClipboardList size={14} />
-          <span>My Requests {statusCounts.pending > 0 && <span className="ml-1 bg-yellow-500 text-white px-1.5 py-0.5 rounded-full">{statusCounts.pending}</span>}</span>
+          <span>My Requests {statusCounts.dispatched > 0 ? (
+            <span className="ml-1 bg-purple-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black animate-pulse">{statusCounts.dispatched} IN TRANSIT</span>
+          ) : statusCounts.pending > 0 ? (
+            <span className="ml-1 bg-yellow-500 text-white px-1.5 py-0.5 rounded-full">{statusCounts.pending}</span>
+          ) : null}</span>
         </button>
         <button onClick={() => setActiveTab('inventory')}
           className={`px-4 md:px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center space-x-2 ${
@@ -388,42 +429,94 @@ const OutletStockRequest = () => {
               ) : (
                 <>
                   {/* Status Counts */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="glass p-4 rounded-2xl border-2 theme-border">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <button onClick={() => setRequestsFilter('PENDING')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all ${requestsFilter === 'PENDING' ? 'border-yellow-500 bg-yellow-500/15 shadow-md shadow-yellow-500/20' : 'theme-border glass hover:border-gray-700'}`}>
                       <p className="text-2xl font-black text-yellow-400">{statusCounts.pending}</p>
-                      <p className="text-xs font-black theme-text-muted uppercase tracking-widest">Pending</p>
-                    </div>
-                    <div className="glass p-4 rounded-2xl border-2 theme-border">
+                      <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest mt-1">Pending</p>
+                    </button>
+                    <button onClick={() => setRequestsFilter('DISPATCHED')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all ${requestsFilter === 'DISPATCHED' ? 'border-purple-500 bg-purple-500/15 shadow-md shadow-purple-500/20' : 'theme-border glass hover:border-gray-700'}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-2xl font-black text-purple-400">{statusCounts.dispatched}</p>
+                        {statusCounts.dispatched > 0 && <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />}
+                      </div>
+                      <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest mt-1">In Transit (Accept)</p>
+                    </button>
+                    <button onClick={() => setRequestsFilter('APPROVED')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all ${requestsFilter === 'APPROVED' ? 'border-emerald-500 bg-emerald-500/15 shadow-md shadow-emerald-500/20' : 'theme-border glass hover:border-gray-700'}`}>
                       <p className="text-2xl font-black text-emerald-400">{statusCounts.approved}</p>
-                      <p className="text-xs font-black theme-text-muted uppercase tracking-widest">Approved</p>
-                    </div>
-                    <div className="glass p-4 rounded-2xl border-2 theme-border">
+                      <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest mt-1">Awaiting Send</p>
+                    </button>
+                    <button onClick={() => setRequestsFilter('COMPLETED')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all ${requestsFilter === 'COMPLETED' ? 'border-teal-500 bg-teal-500/15 shadow-md shadow-teal-500/20' : 'theme-border glass hover:border-gray-700'}`}>
+                      <p className="text-2xl font-black text-teal-400">{statusCounts.completed}</p>
+                      <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest mt-1">Completed</p>
+                    </button>
+                    <button onClick={() => setRequestsFilter('REJECTED')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all ${requestsFilter === 'REJECTED' ? 'border-red-500 bg-red-500/15 shadow-md shadow-red-500/20' : 'theme-border glass hover:border-gray-700'}`}>
                       <p className="text-2xl font-black text-red-400">{statusCounts.rejected}</p>
-                      <p className="text-xs font-black theme-text-muted uppercase tracking-widest">Rejected</p>
+                      <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest mt-1">Rejected</p>
+                    </button>
+                  </div>
+
+                  {/* Filter Toolbar */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center space-x-2">
+                      <Filter size={14} className="theme-text-muted" />
+                      <span className="text-xs font-black uppercase tracking-wider theme-text-muted">Filter:</span>
+                      {['ALL', 'DISPATCHED', 'PENDING', 'APPROVED', 'COMPLETED', 'REJECTED'].map(f => (
+                        <button key={f} onClick={() => setRequestsFilter(f)}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${
+                            requestsFilter === f ? 'bg-blue-600 text-white shadow' : 'theme-bg-subtle theme-text-secondary hover:text-white'
+                          }`}>
+                          {f === 'DISPATCHED' ? 'In Transit' : f}
+                        </button>
+                      ))}
                     </div>
+                    {requestsFilter !== 'ALL' && (
+                      <button onClick={() => setRequestsFilter('ALL')} className="text-xs font-bold text-blue-400 hover:underline">
+                        Show All ({myRequests.length})
+                      </button>
+                    )}
                   </div>
 
                   {/* Request Cards */}
                   <div className="space-y-3">
-                    {myRequests.length === 0 ? (
+                    {filteredRequests.length === 0 ? (
                       <div className="text-center py-16">
                         <ClipboardList size={48} className="mx-auto text-gray-700 mb-4" />
-                        <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No demand requests yet</p>
+                        <p className="theme-text-muted font-black text-xs uppercase tracking-widest">
+                          {requestsFilter === 'ALL' ? 'No demand requests yet' : `No ${requestsFilter.toLowerCase()} demands found`}
+                        </p>
+                        {requestsFilter !== 'ALL' && (
+                          <button onClick={() => setRequestsFilter('ALL')} className="mt-3 text-xs font-bold text-blue-400 hover:underline">
+                            View All Requests
+                          </button>
+                        )}
                       </div>
                     ) : (
-                      myRequests.map((req, i) => {
+                      filteredRequests.map((req, i) => {
                         const sc = getStatusColor(req.status);
                         const items = typeof req.items === 'string' ? JSON.parse(req.items) : req.items;
                         const totalRequested = items.reduce((s, it) => s + (it.requestedQty || 0), 0);
                         const totalApproved = items.reduce((s, it) => s + (it.approvedQty || 0), 0);
+                        const isDispatched = req.status === 'DISPATCHED' || (req.dispatchedAt && !req.acceptedAt);
                         return (
                           <motion.div key={req.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                            className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-gray-800 transition-all">
+                            className={`glass p-4 md:p-6 rounded-2xl border-2 transition-all ${
+                              isDispatched && !req.acceptedAt ? 'border-purple-500/50 shadow-lg shadow-purple-500/10' : 'theme-border hover:border-gray-800'
+                            }`}>
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center space-x-3">
                                 <span className={`px-3 py-1 rounded-full text-xs font-black uppercase border ${sc}`}>
-                                  {req.status.replace('_', ' ')}
+                                  {req.status === 'DISPATCHED' ? 'In Transit / Dispatched' : req.status.replace('_', ' ')}
                                 </span>
+                                {req.transferNumber && (
+                                  <span className="text-xs font-mono font-bold text-white bg-gray-800/80 px-2 py-0.5 rounded">
+                                    {req.transferNumber}
+                                  </span>
+                                )}
                                 <p className="text-xs theme-text-muted font-bold">{formatDateOnly(req.createdAt)}</p>
                               </div>
                               <div className="text-right">
@@ -441,8 +534,10 @@ const OutletStockRequest = () => {
                                     {it.color && <span className="theme-text-muted">Color: {it.color}</span>}
                                   </div>
                                   <div className="flex items-center space-x-3">
-                                    <span className="theme-text-muted">{it.requestedQty}x</span>
-                                    {it.approvedQty > 0 && <span className="text-emerald-400 font-bold">{it.approvedQty}x</span>}
+                                    <span className="theme-text-muted">{it.requestedQty}x req</span>
+                                    {it.approvedQty > 0 && <span className="text-emerald-400 font-bold">{it.approvedQty}x app</span>}
+                                    {it.dispatchedQty > 0 && <span className="text-purple-300 font-bold">{it.dispatchedQty}x sent</span>}
+                                    {it.acceptedQty > 0 && <span className="text-teal-300 font-bold">✓ {it.acceptedQty}x accepted</span>}
                                   </div>
                                 </div>
                               ))}
@@ -469,32 +564,45 @@ const OutletStockRequest = () => {
                                   )}
                                 </div>
                                 {req.dispatchedAt && (
-                                  <span className="text-[10px] font-black uppercase text-amber-400">
-                                    🚚 In Transit — {formatDateTime(req.dispatchedAt)}
+                                  <span className="text-[10px] font-black uppercase text-amber-400 flex items-center gap-1.5">
+                                    <Truck size={12} /> In Transit — {formatDateTime(req.dispatchedAt)}
                                   </span>
                                 )}
                               </div>
                             )}
-                            {/* Accept button — available only after dispatch (In Transit) */}
-                            {(req.status === 'APPROVED' || req.status === 'PARTIALLY_APPROVED') && !req.acceptedAt && (
-                              <div className="mt-3 flex justify-end">
-                                {req.dispatchedAt ? (
-                                  <button onClick={() => acceptRequest(req.id)} disabled={acceptingId === req.id}
-                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2 active:scale-95">
-                                    {acceptingId === req.id ? <RefreshCcw size={14} className="animate-spin" /> : <Download size={14} />}
-                                    <span>{acceptingId === req.id ? 'Accepting...' : 'Accept & Add to POS Stock'}</span>
-                                  </button>
-                                ) : (
-                                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
-                                    Awaiting Dispatch — stock adds after warehouse dispatches
-                                  </span>
-                                )}
+                            {/* Accept button — available for approved / dispatched requests that are not yet accepted */}
+                            {['APPROVED', 'PARTIALLY_APPROVED', 'DISPATCHED'].includes(req.status) && !req.acceptedAt && (
+                              <div className="mt-3 pt-3 border-t theme-border flex items-center justify-between gap-3 flex-wrap">
+                                <div className="text-[11px] font-bold text-gray-300">
+                                  {req.dispatchedAt || req.status === 'DISPATCHED' ? (
+                                    <span className="text-emerald-400 flex items-center gap-1">
+                                      <CheckCircle2 size={13} /> Dispatched by Store — Ready to accept into POS Inventory
+                                    </span>
+                                  ) : (
+                                    <span className="text-yellow-400 flex items-center gap-1">
+                                      <Clock size={13} /> Approved by Store — Awaiting physical dispatch
+                                    </span>
+                                  )}
+                                </div>
+                                <div>
+                                  {req.dispatchedAt || req.status === 'DISPATCHED' ? (
+                                    <button onClick={() => acceptRequest(req.id)} disabled={acceptingId === req.id}
+                                      className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center space-x-2 active:scale-95">
+                                      {acceptingId === req.id ? <RefreshCcw size={14} className="animate-spin" /> : <Download size={14} />}
+                                      <span>{acceptingId === req.id ? 'Accepting...' : 'Accept & Add to POS Stock'}</span>
+                                    </button>
+                                  ) : (
+                                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                                      Awaiting Dispatch — stock adds after warehouse dispatches
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             )}
-                            {req.acceptedAt && (
+                            {(req.acceptedAt || req.status === 'COMPLETED') && (
                               <div className="mt-3 flex justify-end">
-                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                                  ✓ Accepted {formatDateOnly(req.acceptedAt)}
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 flex items-center gap-1">
+                                  <CheckCircle size={12} /> Accepted {req.acceptedAt ? formatDateTime(req.acceptedAt) : ''}
                                 </span>
                               </div>
                             )}

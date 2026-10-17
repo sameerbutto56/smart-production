@@ -99,8 +99,17 @@ const createDemandRequest = async (req, res) => {
 const getMyDemandRequests = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 200;
+    const outletName = req.user?.outletName ||
+      (req.user?.name?.toLowerCase().includes('johar') ? 'Johar Town' :
+       req.user?.name?.toLowerCase().includes('jail') ? 'Jail Road' :
+       req.user?.name?.toLowerCase().includes('abbottabad') ? 'Abbottabad' : req.user?.name || '');
     const demands = await prisma.outletDemandRequest.findMany({
-      where: { outletId: req.user.id },
+      where: {
+        OR: [
+          { outletId: req.user.id },
+          ...(outletName ? [{ outletName: { equals: outletName, mode: 'insensitive' } }] : [])
+        ]
+      },
       orderBy: { createdAt: 'desc' },
       take: limit
     });
@@ -289,14 +298,16 @@ const getInventoryForOutlet = async (req, res) => {
 
 const getDemandStats = async (req, res) => {
   try {
-    const [pending, approved, partially, rejected, total] = await Promise.all([
+    const [pending, approved, partially, rejected, dispatched, completed, total] = await Promise.all([
       prisma.outletDemandRequest.count({ where: { status: 'PENDING' } }),
       prisma.outletDemandRequest.count({ where: { status: 'APPROVED' } }),
       prisma.outletDemandRequest.count({ where: { status: 'PARTIALLY_APPROVED' } }),
       prisma.outletDemandRequest.count({ where: { status: 'REJECTED' } }),
+      prisma.outletDemandRequest.count({ where: { status: 'DISPATCHED' } }),
+      prisma.outletDemandRequest.count({ where: { status: 'COMPLETED' } }),
       prisma.outletDemandRequest.count()
     ]);
-    res.json({ pending, approved, partiallyApproved: partially, rejected, total });
+    res.json({ pending, approved, partiallyApproved: partially, rejected, dispatched, completed, total });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching demand stats', error: error.message });
   }
@@ -673,6 +684,7 @@ const dispatchDemandRequest = async (req, res) => {
       cache.delPattern('warehouse:');
       cache.delPattern('products:');
       cache.delPattern('product-data:');
+      cache.delPattern('outlet:');
     } catch (cacheErr) {
       console.error('Cache invalidation error after demand dispatch:', cacheErr);
     }
@@ -680,6 +692,7 @@ const dispatchDemandRequest = async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.emit('demand:updated', { id, transferNumber: existing.transferNumber, status: 'DISPATCHED', outletName: existing.outletName });
+      io.emit('demand:dispatched', { id, transferNumber: existing.transferNumber, status: 'DISPATCHED', outletName: existing.outletName });
       io.emit('inventory-updated', { source: 'demand-dispatch', demandId: id });
     }
 
@@ -760,9 +773,13 @@ const acceptDemandRequest = async (req, res) => {
             });
           }
           if (!inv) {
-            results.push({ productName: it.productName, status: 'SKIPPED', reason: 'No warehouse product found' });
-            updatedDemandItems.push({ ...it, acceptedQty: 0, inTransitQty: 0 });
-            continue;
+            inv = {
+              id: it.inventoryItemId || null,
+              name: it.productName,
+              category: it.category || '',
+              price: it.price || 0,
+              variants: []
+            };
           }
 
           const itemColorNorm = normStr(it.color);
@@ -1042,6 +1059,7 @@ const acceptDemandRequest = async (req, res) => {
       cache.delPattern('warehouse:');
       cache.delPattern('products:');
       cache.delPattern('product-data:');
+      cache.delPattern('outlet:');
     } catch (cacheErr) {
       console.error('Cache invalidation error after demand accept:', cacheErr);
     }
@@ -1049,6 +1067,12 @@ const acceptDemandRequest = async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.emit('demand:accepted', {
+        id,
+        outletName,
+        transferNumber,
+        status: 'COMPLETED'
+      });
+      io.emit('demand:updated', {
         id,
         outletName,
         transferNumber,
