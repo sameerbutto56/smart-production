@@ -1,5 +1,30 @@
 ## Goals
-### Implemented This Session — Admin Profile → Product Data: Inventory Stock Report with Real-Time Location Distribution, Category Summaries & Export (deployed & live-verified)
+### Implemented This Session — Faisal Profile: Removed Employee Data Option & Permissions (deployed & live-verified)
+- **Objective & Requirements**:
+  - Remove the "Employee Data" option completely from the Faisal (`FAISAL`) profile and navigation.
+  - Keep Employee Data fully intact and accessible for authorized administrative profiles (`SUPER_ADMIN`, `ADMIN`, `CEO`).
+  - Do not disturb any other Faisal profile features (Order Entry, Orders, Cancellations, Replacements, Notes, Office Supply).
+- **Backend & Frontend Implementation**:
+  - `frontend/src/components/Layout.jsx`:
+    - Removed `'FAISAL'` from `roles` in `navItems` for `Employee Data`.
+    - Removed `|| user?.role === 'FAISAL'` from the top-bar quick navigation action button condition.
+  - `frontend/src/utils/featureRegistry.js`:
+    - Removed `'FAISAL'` from `defaultProfiles` for `EMPLOYEE_DATA_VIEW`.
+  - `backend/src/utils/featureRegistry.js`:
+    - Removed `'FAISAL'` from `defaultProfiles` for `EMPLOYEE_DATA_VIEW`.
+  - `backend/src/routes/employee.routes.js`:
+    - Updated `adminOnly` route middleware from `[authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'])]` to `[authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO'])]`.
+- **Verification**:
+  - Multi-point automated script verified:
+    - Faisal role is not in `Layout.jsx` sidebar `navItems` for Employee Data.
+    - Faisal role is not in `Layout.jsx` top-bar action button.
+    - Faisal role is not in `EMPLOYEE_DATA_VIEW` permissions in frontend and backend feature registries.
+    - Faisal role is blocked by `authorize(['SUPER_ADMIN', 'ADMIN', 'CEO'])` on `/api/employees/*`.
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Git committed (`8f1444bf`) and pushed to `main`.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app` (Live health check HTTP 200 OK verified).
+
+### Implemented Prior Session — Admin Profile → Product Data: Inventory Stock Report with Real-Time Location Distribution, Category Summaries & Export (deployed & live-verified)
 - **Objective & Requirements**:
   1. Extend **Admin Profile → Product Data** (`/product-data` rendered by `frontend/src/pages/ProductDataPage.jsx`) to display real-time physical inventory stock alongside existing sales, sold quantity, and sales remaining.
   2. Location filter at top: `All Locations` (combined), `Warehouse`, and dynamic list of individual outlets (`Johar Town`, `Jail Road`, etc.) retrieved directly from configured inventory records without hardcoding.
