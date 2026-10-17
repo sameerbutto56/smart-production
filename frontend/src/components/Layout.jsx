@@ -107,7 +107,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Software Settings', path: '/software-settings', icon: Settings, roles: ['SOFTWARE_SETTINGS'] },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'], featureId: 'DASHBOARD_VIEW' },
     { name: 'Product Data', path: '/product-data', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO'], featureId: 'PRODUCT_DATA_VIEW' },
-    { name: 'Employee Data', path: '/employee-data', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'], featureId: 'EMPLOYEE_DATA_VIEW' },
+    { name: 'Employee Data', path: '/employee-data', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN', 'CEO'], featureId: 'EMPLOYEE_DATA_VIEW' },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'], featureId: 'OUTLET_DASHBOARD' },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'], featureId: 'OUTLET_POS' },
     { name: 'Orders', path: '/outlet-orders', icon: ClipboardList, roles: ['OUTLET'], featureId: 'OUTLET_ORDER_VIEW' },
@@ -688,7 +688,7 @@ const Layout = () => {
                 <span className="hidden sm:inline">Product Data</span>
               </Link>
             )}
-            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'CEO' || user?.role === 'FAISAL') && hasPermission('EMPLOYEE_DATA_VIEW') && (
+            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'CEO') && hasPermission('EMPLOYEE_DATA_VIEW') && (
               <Link
                 to="/employee-data"
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${

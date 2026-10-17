@@ -3,7 +3,7 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const employeeController = require('../controllers/employee.controller');
 
-const adminOnly = [authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'])];
+const adminOnly = [authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'CEO'])];
 
 // --- Late Deduction Cases & Review (Three-Late Policy) ---
 router.get('/deductions/cases', ...adminOnly, employeeController.getLateDeductionCases);

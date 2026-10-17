@@ -50,7 +50,7 @@ export const FEATURES = [
     name: 'Employee Data',
     description: 'Complete employee management, attendance tracking, and monthly payroll calculation system.',
     module: 'DASHBOARD',
-    defaultProfiles: ['SUPER_ADMIN', 'ADMIN', 'CEO', 'FAISAL'],
+    defaultProfiles: ['SUPER_ADMIN', 'ADMIN', 'CEO'],
   },
 
   // ── ORDERS ──
