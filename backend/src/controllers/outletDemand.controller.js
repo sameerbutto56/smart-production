@@ -31,18 +31,46 @@ const createDemandRequest = async (req, res) => {
        req.user?.name?.toLowerCase().includes('jail') ? 'Jail Road' :
        req.user?.name?.toLowerCase().includes('abbottabad') ? 'Abbottabad' : req.user?.name || 'Outlet');
 
+    const normStr = (s) => (s || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+
+    // Enrich demand items with canonical warehouse item info and variant barcode
+    const enrichedItems = [];
+    for (const i of items) {
+      let inv = null;
+      if (i.inventoryItemId) {
+        inv = await prisma.inventoryItem.findUnique({ where: { id: i.inventoryItemId } });
+      }
+      if (!inv && i.productName) {
+        inv = await prisma.inventoryItem.findFirst({
+          where: { name: { equals: i.productName, mode: 'insensitive' } }
+        });
+      }
+      let matchedVariant = null;
+      if (inv && Array.isArray(inv.variants)) {
+        matchedVariant = inv.variants.find(v =>
+          normStr(v.color) === normStr(i.color) &&
+          normStr(v.size) === normStr(i.size)
+        );
+      }
+      enrichedItems.push({
+        inventoryItemId: inv?.id || i.inventoryItemId || null,
+        productName: inv?.name || i.productName,
+        size: matchedVariant?.size?.trim() || i.size || '',
+        color: matchedVariant?.color?.trim() || i.color || '',
+        barcode: i.barcode || matchedVariant?.barcode || null,
+        requestedQty: parseInt(i.requestedQty, 10) || 1,
+        approvedQty: 0,
+        dispatchedQty: 0,
+        inTransitQty: 0,
+        acceptedQty: 0
+      });
+    }
+
     const demand = await prisma.outletDemandRequest.create({
       data: {
         outletId: req.user.id,
         outletName,
-        items: items.map(i => ({
-          inventoryItemId: i.inventoryItemId || null,
-          productName: i.productName,
-          size: i.size || '',
-          color: i.color || '',
-          requestedQty: parseInt(i.requestedQty) || 1,
-          approvedQty: 0
-        })),
+        items: enrichedItems,
         notes: notes || '',
         status: 'PENDING',
         transferNumber: await generateTransferNumber()
@@ -292,21 +320,61 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
   return `${prefix}${base}`;
 };
 
-const deductWarehouseStock = async (inventoryItemId, color, size, qty, tx) => {
-  if (!inventoryItemId || !qty || qty <= 0) return false;
+const checkWarehouseStockAvailability = async (item, tx) => {
   const client = tx || prisma;
-  const inv = await client.inventoryItem.findUnique({ where: { id: inventoryItemId } });
-  if (!inv) return false;
+  let inv = null;
+  if (item.inventoryItemId) {
+    inv = await client.inventoryItem.findUnique({ where: { id: item.inventoryItemId } });
+  }
+  if (!inv && item.productName) {
+    inv = await client.inventoryItem.findFirst({
+      where: { name: { equals: item.productName, mode: 'insensitive' } }
+    });
+  }
+  if (!inv) {
+    return { available: 0, exists: false, error: `Warehouse product "${item.productName}" not found.` };
+  }
+  const normStr = (s) => (s || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+  const itemColorNorm = normStr(item.color);
+  const itemSizeNorm = normStr(item.size);
+
+  if (Array.isArray(inv.variants) && inv.variants.length > 0) {
+    const matched = inv.variants.find(v =>
+      (!itemColorNorm || normStr(v.color) === itemColorNorm) &&
+      (!itemSizeNorm || normStr(v.size) === itemSizeNorm)
+    );
+    const stock = matched ? (matched.stock || 0) : 0;
+    return { available: stock, exists: true, inv, matchedVariant: matched };
+  }
+  return { available: inv.stock || 0, exists: true, inv, matchedVariant: null };
+};
+
+const deductWarehouseStock = async (inventoryItemId, productName, color, size, qty, tx) => {
+  if (!qty || qty <= 0) return 0;
+  const client = tx || prisma;
+  let inv = null;
+  if (inventoryItemId) {
+    inv = await client.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+  }
+  if (!inv && productName) {
+    inv = await client.inventoryItem.findFirst({
+      where: { name: { equals: productName, mode: 'insensitive' } }
+    });
+  }
+  if (!inv) return 0;
+
+  const normStr = (s) => (s || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+  const targetColorNorm = normStr(color);
+  const targetSizeNorm = normStr(size);
 
   let deductedQty = 0;
 
   if (Array.isArray(inv.variants) && inv.variants.length > 0) {
-    // Find the matching variant in variants JSON (case-insensitive, empty color/size = any)
     let found = false;
     const variants = inv.variants.map(v => {
       if (found) return v;
-      const matchColor = !color || (v.color || '').toString().toLowerCase() === String(color).toLowerCase();
-      const matchSize = !size || (v.size || '').toString().toLowerCase() === String(size).toLowerCase();
+      const matchColor = !targetColorNorm || normStr(v.color) === targetColorNorm;
+      const matchSize = !targetSizeNorm || normStr(v.size) === targetSizeNorm;
       if (!matchColor || !matchSize) return v;
       const deduct = Math.min(qty, v.stock || 0);
       if (deduct <= 0) return v;
@@ -315,20 +383,20 @@ const deductWarehouseStock = async (inventoryItemId, color, size, qty, tx) => {
       return { ...v, stock: (v.stock || 0) - deduct };
     });
     if (found) {
-      // Recompute total stock from variants so Dashboard/Reports always stay consistent
       const newTotal = variants.reduce((s, v) => s + (v.stock || 0), 0);
       await client.inventoryItem.update({
-        where: { id: inventoryItemId },
+        where: { id: inv.id },
         data: { variants, stock: newTotal }
       });
     }
   } else {
-    // Simple stock field — clamp so stock never goes negative
     deductedQty = Math.min(qty, inv.stock || 0);
-    await client.inventoryItem.update({
-      where: { id: inventoryItemId },
-      data: { stock: { decrement: deductedQty } }
-    });
+    if (deductedQty > 0) {
+      await client.inventoryItem.update({
+        where: { id: inv.id },
+        data: { stock: { decrement: deductedQty } }
+      });
+    }
   }
   return deductedQty;
 };
@@ -347,8 +415,6 @@ const dispatchDemandRequest = async (req, res) => {
     const isStaff = userRole === 'STORE' || userRole === 'STORE_EMPLOYEE' || ['ADMIN', 'SUPER_ADMIN'].includes(userRole);
     if (!isStaff) return res.status(403).json({ message: 'Only the warehouse/store can dispatch a demand' });
 
-    // Only two dispatch channels exist now — Enamels Delivery Boy or Self Delivery.
-    // The legacy NBD rider/employee-selection step is removed entirely.
     const channel = deliveryChannel || 'SELF_DELIVERY';
     if (channel !== 'ENAMELS' && channel !== 'SELF_DELIVERY') {
       return res.status(400).json({ message: 'Invalid delivery channel. Use ENAMELS or SELF_DELIVERY.' });
@@ -362,8 +428,7 @@ const dispatchDemandRequest = async (req, res) => {
     let deductedSummary = [];
     let abbottabadFinancialData = null;
 
-    // Atomic dispatch: guard (only non-dispatched approved) + warehouse stock
-    // deduction + Abbottabad financials & amount ledger + dispatch fields in ONE 30s transaction.
+    // Atomic dispatch: guard + warehouse stock validation & deduction + Abbottabad financials + dispatch fields
     await prisma.$transaction(async (tx) => {
       const recheck = await tx.outletDemandRequest.findUnique({ where: { id } });
       if (!recheck || (recheck.status !== 'APPROVED' && recheck.status !== 'PARTIALLY_APPROVED') || recheck.dispatchedAt) {
@@ -373,16 +438,38 @@ const dispatchDemandRequest = async (req, res) => {
       }
 
       const items = typeof recheck.items === 'string' ? JSON.parse(recheck.items) : recheck.items;
+
+      // 1. Validate available warehouse stock before any deduction
+      for (const item of items || []) {
+        const approvedQty = parseInt(item.approvedQty, 10) || 0;
+        if (approvedQty <= 0) continue;
+        const avail = await checkWarehouseStockAvailability(item, tx);
+        if (!avail.exists) {
+          const err = new Error(avail.error);
+          err.code = 'PRODUCT_NOT_FOUND';
+          throw err;
+        }
+        if (avail.available < approvedQty) {
+          const err = new Error(`Insufficient warehouse stock for "${item.productName}${item.size ? ' (' + item.size + ')' : ''}". Available stock: ${avail.available}, approved to dispatch: ${approvedQty}.`);
+          err.code = 'INSUFFICIENT_STOCK';
+          throw err;
+        }
+      }
+
       let totalProductValue = 0;
       let totalCostValue = 0;
       let costPriceMissing = false;
       const missingProducts = [];
       const itemFinancials = [];
+      const updatedDispatchedItems = [];
 
       for (const item of items || []) {
-        const approvedQty = parseInt(item.approvedQty) || 0;
-        if (approvedQty <= 0) continue;
-        const deducted = await deductWarehouseStock(item.inventoryItemId, item.color, item.size, approvedQty, tx);
+        const approvedQty = parseInt(item.approvedQty, 10) || 0;
+        if (approvedQty <= 0) {
+          updatedDispatchedItems.push({ ...item, dispatchedQty: 0, inTransitQty: 0 });
+          continue;
+        }
+        const deducted = await deductWarehouseStock(item.inventoryItemId, item.productName, item.color, item.size, approvedQty, tx);
         if (deducted > 0) {
           deductedCount++;
           deductedSummary.push(`${item.productName}${item.size ? ' ' + item.size : ''}: ${deducted}`);
@@ -403,6 +490,12 @@ const dispatchDemandRequest = async (req, res) => {
             tx
           }).catch(() => {});
         }
+
+        updatedDispatchedItems.push({
+          ...item,
+          dispatchedQty: deducted,
+          inTransitQty: deducted
+        });
 
         if (isAbbottabad) {
           // Resolve actual selling price
@@ -556,10 +649,12 @@ const dispatchDemandRequest = async (req, res) => {
       await tx.outletDemandRequest.update({
         where: { id },
         data: {
+          status: 'DISPATCHED',
           dispatchedAt: new Date(),
           dispatchedById: req.user.id,
           deliveryChannel: channel,
-          deliveryBoyName: channel === 'ENAMELS' ? 'Enamels Delivery' : null
+          deliveryBoyName: channel === 'ENAMELS' ? 'Enamels Delivery' : null,
+          items: updatedDispatchedItems
         }
       });
 
@@ -577,6 +672,7 @@ const dispatchDemandRequest = async (req, res) => {
       cache.delPattern('pos:');
       cache.delPattern('warehouse:');
       cache.delPattern('products:');
+      cache.delPattern('product-data:');
     } catch (cacheErr) {
       console.error('Cache invalidation error after demand dispatch:', cacheErr);
     }
@@ -593,6 +689,9 @@ const dispatchDemandRequest = async (req, res) => {
   } catch (error) {
     if (error.code === 'DEMAND_NOT_DISPATCHABLE') {
       return res.status(409).json({ message: error.message });
+    }
+    if (error.code === 'INSUFFICIENT_STOCK' || error.code === 'PRODUCT_NOT_FOUND') {
+      return res.status(400).json({ message: error.message });
     }
     res.status(500).json({ message: 'Error dispatching demand request', error: error.message });
   }
@@ -614,16 +713,11 @@ const acceptDemandRequest = async (req, res) => {
     // Atomic accept: claim (acceptedAt null -> set) + outlet-inventory additions + audit
     // log in ONE transaction, with an in-tx conditional re-check so two concurrent
     // accepts (e.g. a double-click / simultaneous API calls) can NEVER both apply.
-    // Previously the acceptedAt guard + write happened first and the actual inventory
-    // additions ran asynchronously in setImmediate OUTSIDE the guard — so a double click
-    // could pass the guard twice and both background blocks would increment outlet POS
-    // stock twice. setImmediate also risked Vercel terminating the function (no guarantee
-    // background work after res.json() completes). 30s tx fits within maxDuration=60.
     try {
       await prisma.$transaction(async (tx) => {
         // Idempotency/claim: only one caller can flip acceptedAt null -> set.
         const claim = await tx.outletDemandRequest.updateMany({
-          where: { id, acceptedAt: null },
+          where: { id, acceptedAt: null, status: { in: ['APPROVED', 'PARTIALLY_APPROVED', 'DISPATCHED'] } },
           data: { acceptedAt: new Date(), acceptedById: req.user.id, status: 'COMPLETED' }
         });
         if (claim.count === 0) {
@@ -632,28 +726,45 @@ const acceptDemandRequest = async (req, res) => {
           throw err;
         }
 
-        const items = typeof existing.items === 'string' ? JSON.parse(existing.items) : existing.items;
+        const rawItems = typeof existing.items === 'string' ? JSON.parse(existing.items) : existing.items;
+        const normStr = (s) => (s || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
 
-        for (const it of items) {
-          if (!it.approvedQty || it.approvedQty <= 0) continue;
+        const updatedDemandItems = [];
+
+        for (const it of rawItems) {
+          const dispatchedQty = parseInt(it.dispatchedQty, 10) || parseInt(it.approvedQty, 10) || 0;
+          if (dispatchedQty <= 0) {
+            updatedDemandItems.push({ ...it, acceptedQty: 0, inTransitQty: 0 });
+            continue;
+          }
+
+          // Support optional item-level acceptedQty from req.body.items
+          let acceptedQty = dispatchedQty;
+          if (Array.isArray(req.body?.items)) {
+            const bodyMatch = req.body.items.find(b =>
+              (b.inventoryItemId && b.inventoryItemId === it.inventoryItemId) ||
+              (normStr(b.productName) === normStr(it.productName) && normStr(b.color) === normStr(it.color) && normStr(b.size) === normStr(it.size))
+            );
+            if (bodyMatch && bodyMatch.acceptedQty !== undefined) {
+              acceptedQty = Math.max(0, parseInt(bodyMatch.acceptedQty, 10) || 0);
+            }
+          }
 
           let inv = null;
           if (it.inventoryItemId) {
             inv = await tx.inventoryItem.findUnique({ where: { id: it.inventoryItemId } });
           }
-          if (!inv) {
-            const invItems = await tx.inventoryItem.findMany({
-              where: { name: { contains: it.productName, mode: 'insensitive' } }
+          if (!inv && it.productName) {
+            inv = await tx.inventoryItem.findFirst({
+              where: { name: { equals: it.productName, mode: 'insensitive' } }
             });
-            inv = invItems[0] || null;
           }
           if (!inv) {
             results.push({ productName: it.productName, status: 'SKIPPED', reason: 'No warehouse product found' });
+            updatedDemandItems.push({ ...it, acceptedQty: 0, inTransitQty: 0 });
             continue;
           }
 
-          // Normalize colors and sizes for matching (collapses multiple spaces, trims, lowercases)
-          const normStr = (s) => (s || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
           const itemColorNorm = normStr(it.color);
           const itemSizeNorm = normStr(it.size);
 
@@ -668,106 +779,137 @@ const acceptDemandRequest = async (req, res) => {
           const variantBarcode = it.barcode || matchedVariant?.barcode || null;
           const canonicalColor = matchedVariant?.color ? matchedVariant.color.trim() : (it.color ? it.color.trim().replace(/\s+/g, ' ') : null);
           const canonicalSize = matchedVariant?.size ? matchedVariant.size.trim() : (it.size ? it.size.trim().replace(/\s+/g, ' ') : null);
+          const masterPrice = resolveMasterPrice(inv, canonicalColor, canonicalSize);
 
-          // Find existing outlet inventory item:
+          if (acceptedQty <= 0) {
+            results.push({ productName: it.productName, status: 'ZERO_ACCEPTED', acceptedQty: 0 });
+            updatedDemandItems.push({ ...it, acceptedQty: 0, inTransitQty: 0 });
+            continue;
+          }
+
+          // ─── Step 1: Search for an existing ACTIVE OutletInventory record ───
           let oi = null;
 
-          // 1. By variantBarcode if known
+          // 1a. By canonical variant barcode (ACTIVE only)
           if (variantBarcode) {
             oi = await tx.outletInventory.findFirst({
               where: {
                 outletName: existing.outletName,
-                barcode: variantBarcode
+                barcode: variantBarcode,
+                isActive: true,
+                deletedAt: null
               }
             });
           }
 
-          // 2. By matching product name + normalized color + normalized size in this outlet
+          // 1b. By product name + normalized color + normalized size (ACTIVE only)
           if (!oi) {
-            const existingOutletItems = await tx.outletInventory.findMany({
+            const activeOutletItems = await tx.outletInventory.findMany({
               where: {
                 outletName: existing.outletName,
-                name: { equals: inv.name, mode: 'insensitive' }
+                name: { equals: inv.name, mode: 'insensitive' },
+                isActive: true,
+                deletedAt: null
               }
             });
-            oi = existingOutletItems.find(o =>
+            oi = activeOutletItems.find(o =>
               normStr(o.color) === itemColorNorm &&
               normStr(o.size) === itemSizeNorm
             ) || null;
           }
 
-          // 3. By candidate generated barcode
-          const generatedBc = generateBarcode(inv.id, canonicalSize, canonicalColor);
-          const candidateBc = variantBarcode || generatedBc;
-          if (!oi && candidateBc) {
-            oi = await tx.outletInventory.findFirst({
+          // 1c. By metadata sourceStoreItemId + color + size (ACTIVE only)
+          if (!oi && inv.id) {
+            const metaOutletItems = await tx.outletInventory.findMany({
               where: {
                 outletName: existing.outletName,
-                barcode: candidateBc
+                isActive: true,
+                deletedAt: null,
+                metadata: { contains: inv.id }
               }
             });
+            oi = metaOutletItems.find(o =>
+              normStr(o.color) === itemColorNorm &&
+              normStr(o.size) === itemSizeNorm
+            ) || null;
           }
 
-          const masterPrice = resolveMasterPrice(inv, canonicalColor, canonicalSize);
-          const approvedQtyInt = parseInt(it.approvedQty) || 0;
-
+          // ─── Step 2: If NO active record found, check for an ARCHIVED/SOFT-DELETED record to REACTIVATE ───
           if (!oi) {
-            // Guarantee barcode does not collide with ANY existing record in this outlet
-            let bc = candidateBc;
-            let attempt = 0;
-            while (await tx.outletInventory.findFirst({ where: { outletName: existing.outletName, barcode: bc } })) {
-              attempt++;
-              bc = generateBarcode(inv.id, canonicalSize, canonicalColor, attempt);
-              if (attempt > 25) break;
+            let archived = null;
+            if (variantBarcode) {
+              archived = await tx.outletInventory.findFirst({
+                where: {
+                  outletName: existing.outletName,
+                  barcode: variantBarcode,
+                  OR: [{ isActive: false }, { deletedAt: { not: null } }]
+                }
+              });
             }
+            if (!archived) {
+              const allOutletItems = await tx.outletInventory.findMany({
+                where: {
+                  outletName: existing.outletName,
+                  name: { equals: inv.name, mode: 'insensitive' },
+                  OR: [{ isActive: false }, { deletedAt: { not: null } }]
+                }
+              });
+              archived = allOutletItems.find(o =>
+                normStr(o.color) === itemColorNorm &&
+                normStr(o.size) === itemSizeNorm
+              ) || null;
+            }
+            if (archived) {
+              oi = archived;
+            }
+          }
 
-            const created = await tx.outletInventory.create({
-              data: {
-                outletName: existing.outletName,
-                name: inv.name,
-                category: inv.category || '',
-                color: canonicalColor,
-                size: canonicalSize,
-                fabric: inv.fabric || null,
-                barcode: bc,
-                stock: approvedQtyInt,
-                price: masterPrice != null ? masterPrice : parseFloat(inv.price) || 0,
-                metadata: JSON.stringify({ sourceStoreItemId: inv.id })
-              }
-            });
-
-            await recordInventoryMovement({
-              movementType: 'TRANSFER_IN',
-              location: existing.outletName,
-              productId: created.id,
-              productName: created.name,
-              color: created.color,
-              size: created.size,
-              barcode: bc,
-              previousQty: 0,
-              newQty: approvedQtyInt,
-              difference: approvedQtyInt,
-              referenceId: transferNumber,
-              notes: `Outlet demand received from Warehouse`,
-              performedBy: req.user?.name || 'Staff',
-              tx
-            });
-          } else {
+          // ─── Step 3: Update existing or reactivated record ───
+          if (oi) {
             const prevStock = oi.stock || 0;
-            const newStock = prevStock + approvedQtyInt;
-            const updateData = { stock: { increment: approvedQtyInt } };
+            const newStock = prevStock + acceptedQty;
+            const updateData = {
+              stock: newStock,
+              isActive: true,
+              deletedAt: null
+            };
+
             const currentPrice = parseFloat(oi.price);
-            if ((!Number.isNaN(currentPrice) && currentPrice > 0) === false && masterPrice != null) {
+            if ((Number.isNaN(currentPrice) || currentPrice <= 0) && masterPrice != null) {
               updateData.price = masterPrice;
             }
-            if (!oi.barcode && candidateBc) {
-              updateData.barcode = candidateBc;
+
+            // Sync canonical barcode if safe
+            if (variantBarcode && oi.barcode !== variantBarcode) {
+              const barcodeCollision = await tx.outletInventory.findFirst({
+                where: {
+                  outletName: existing.outletName,
+                  barcode: variantBarcode,
+                  id: { not: oi.id }
+                }
+              });
+              if (!barcodeCollision) {
+                updateData.barcode = variantBarcode;
+              } else if (barcodeCollision.isActive === false || barcodeCollision.deletedAt !== null) {
+                // Free up the canonical barcode from the old deleted row
+                await tx.outletInventory.update({
+                  where: { id: barcodeCollision.id },
+                  data: { barcode: `${variantBarcode}_archived_${Date.now()}` }
+                });
+                updateData.barcode = variantBarcode;
+              }
+            } else if (!oi.barcode && variantBarcode) {
+              updateData.barcode = variantBarcode;
             }
+
             if (canonicalColor && (!oi.color || normStr(oi.color) !== normStr(canonicalColor))) {
               updateData.color = canonicalColor;
             }
             if (canonicalSize && (!oi.size || normStr(oi.size) !== normStr(canonicalSize))) {
               updateData.size = canonicalSize;
+            }
+            if (inv.category && (!oi.category || normStr(oi.category) !== normStr(inv.category))) {
+              updateData.category = inv.category;
             }
 
             await tx.outletInventory.update({
@@ -782,25 +924,95 @@ const acceptDemandRequest = async (req, res) => {
               productName: oi.name,
               color: oi.color,
               size: oi.size,
-              barcode: oi.barcode || candidateBc,
+              barcode: updateData.barcode || oi.barcode || variantBarcode,
               previousQty: prevStock,
               newQty: newStock,
-              difference: approvedQtyInt,
+              difference: acceptedQty,
               referenceId: transferNumber,
-              notes: `Outlet demand received from Warehouse`,
+              notes: `Outlet demand received from Warehouse (${acceptedQty} units accepted)`,
               performedBy: req.user?.name || 'Staff',
               tx
             });
+
+            results.push({
+              productName: it.productName,
+              color: it.color,
+              size: it.size,
+              status: 'ACCEPTED',
+              qty: acceptedQty,
+              action: 'UPDATED'
+            });
+          } else {
+            // ─── Step 4: Create new record if none exists ───
+            let bc = variantBarcode || generateBarcode(inv.id, canonicalSize, canonicalColor);
+            let attempt = 0;
+            while (await tx.outletInventory.findFirst({ where: { outletName: existing.outletName, barcode: bc } })) {
+              attempt++;
+              bc = generateBarcode(inv.id, canonicalSize, canonicalColor, attempt);
+              if (attempt > 25) {
+                bc = `POS${Date.now().toString(36).toUpperCase().slice(-6)}${attempt}`;
+                break;
+              }
+            }
+
+            const created = await tx.outletInventory.create({
+              data: {
+                outletName: existing.outletName,
+                name: inv.name,
+                category: inv.category || '',
+                color: canonicalColor,
+                size: canonicalSize,
+                fabric: inv.fabric || null,
+                barcode: bc,
+                stock: acceptedQty,
+                price: masterPrice != null ? masterPrice : (parseFloat(inv.price) || 0),
+                metadata: JSON.stringify({ sourceStoreItemId: inv.id }),
+                isActive: true,
+                deletedAt: null
+              }
+            });
+
+            await recordInventoryMovement({
+              movementType: 'TRANSFER_IN',
+              location: existing.outletName,
+              productId: created.id,
+              productName: created.name,
+              color: created.color,
+              size: created.size,
+              barcode: bc,
+              previousQty: 0,
+              newQty: acceptedQty,
+              difference: acceptedQty,
+              referenceId: transferNumber,
+              notes: `Outlet demand received from Warehouse (${acceptedQty} units created)`,
+              performedBy: req.user?.name || 'Staff',
+              tx
+            });
+
+            results.push({
+              productName: it.productName,
+              color: it.color,
+              size: it.size,
+              status: 'ACCEPTED',
+              qty: acceptedQty,
+              action: 'CREATED'
+            });
           }
 
-          results.push({
-            productName: it.productName,
-            color: it.color,
-            size: it.size,
-            status: 'ACCEPTED',
-            qty: it.approvedQty
+          updatedDemandItems.push({
+            ...it,
+            acceptedQty,
+            inTransitQty: 0
           });
         }
+
+        // Update items in the demand record to record accepted and clear in-transit
+        await tx.outletDemandRequest.update({
+          where: { id },
+          data: {
+            items: updatedDemandItems
+          }
+        });
       }, { timeout: 30000 });
     } catch (txErr) {
       if (txErr.code === 'DEMAND_ALREADY_ACCEPTED') {
@@ -824,9 +1036,12 @@ const acceptDemandRequest = async (req, res) => {
       }
     }
 
-    // Cache + socket + notify stay outside the transaction (fail-soft).
+    // Invalidate all relevant inventory caches
     try {
       cache.delPattern('pos:');
+      cache.delPattern('warehouse:');
+      cache.delPattern('products:');
+      cache.delPattern('product-data:');
     } catch (cacheErr) {
       console.error('Cache invalidation error after demand accept:', cacheErr);
     }
