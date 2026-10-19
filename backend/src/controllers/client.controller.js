@@ -381,19 +381,33 @@ const updateClient = async (req, res) => {
       }
     }
 
+    // Preserve valid existing values if the user leaves a field blank
+    const updatedName = (name !== undefined && String(name).trim()) ? String(name).trim() : existing.name;
+    const updatedGender = gender !== undefined && gender ? gender : existing.gender;
+    const updatedAddress = (permanentAddress !== undefined && String(permanentAddress).trim()) ? String(permanentAddress).trim() : existing.permanentAddress;
+    const updatedCity = (city !== undefined && String(city).trim()) ? String(city).trim() : existing.city;
+    const updatedChart = measurementChart !== undefined && measurementChart ? measurementChart : existing.measurementChart;
+    const parsedIncomingSizeDetails = sizeDetails !== undefined ? parseJsonField(sizeDetails) : undefined;
+    const updatedSizeDetails = (parsedIncomingSizeDetails && Object.keys(parsedIncomingSizeDetails).length > 0)
+      ? parsedIncomingSizeDetails
+      : existing.sizeDetails;
+    const updatedStandardSizes = (Array.isArray(standardSizes) && standardSizes.length > 0)
+      ? standardSizes
+      : existing.standardSizes;
+
     const client = await prisma.client.update({
       where: { id: req.params.id },
       data: {
-        ...(name !== undefined && { name: name.trim() }),
-        ...(gender !== undefined && { gender }),
-        ...(phone !== undefined && { phone: cleanPrimaryPhone }),
-        ...(additionalPhones !== undefined && { additionalPhones: cleanAdditionalPhones }),
-        ...(permanentAddress !== undefined && { permanentAddress: permanentAddress ? permanentAddress.trim() : null }),
-        ...(deliveryAddresses !== undefined && { deliveryAddresses: cleanDeliveryAddresses }),
-        ...(city !== undefined && { city: city ? city.trim() : null }),
-        ...(measurementChart !== undefined && { measurementChart }),
-        ...(sizeDetails !== undefined && { sizeDetails: parseJsonField(sizeDetails) }),
-        ...(standardSizes !== undefined && { standardSizes })
+        name: updatedName,
+        gender: updatedGender,
+        phone: cleanPrimaryPhone,
+        additionalPhones: cleanAdditionalPhones,
+        permanentAddress: updatedAddress || null,
+        deliveryAddresses: cleanDeliveryAddresses,
+        city: updatedCity || null,
+        measurementChart: updatedChart || null,
+        sizeDetails: updatedSizeDetails,
+        standardSizes: updatedStandardSizes
       }
     });
     res.json(client);

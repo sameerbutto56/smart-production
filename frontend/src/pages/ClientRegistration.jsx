@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import {
   Search, Plus, User, Phone, MapPin, Ruler, X, Save, Trash2, Edit2,
   ChevronDown, ChevronUp, Building2, ShoppingCart, Lock, Clock,
-  Calendar, Package, Check, RotateCcw, AlertTriangle, ShieldCheck, Sparkles, Filter
+  Calendar, Package, Check, RotateCcw, AlertTriangle, ShieldCheck, Sparkles, Filter,
+  UserCheck, UserPlus, Users, CheckCircle2, ArrowRight, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
@@ -55,6 +56,8 @@ const ClientRegistration = () => {
   const [loadingDetails, setLoadingDetails] = useState({});
 
   const [duplicateModalData, setDuplicateModalData] = useState(null);
+  const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
+  const [phoneVerification, setPhoneVerification] = useState(null);
 
   const [form, setForm] = useState({
     name: '', gender: 'Male', phone: '',
@@ -76,6 +79,185 @@ const ClientRegistration = () => {
     setExtraMeasurements(copy);
   };
 
+  const loadClientIntoForm = useCallback((client, opts = {}) => {
+    setSelectedClient(client);
+
+    // Identify missing mandatory fields for customer profile completion
+    const missing = [];
+    if (!client.name || !String(client.name).trim()) missing.push('Customer Name');
+    if (!client.permanentAddress && !client.city) missing.push('Address / City');
+    const hasSizes = Array.isArray(client.standardSizes) && client.standardSizes.length > 0;
+    const hasCustom = client.sizeDetails && (
+      (typeof client.sizeDetails === 'string' && client.sizeDetails.length > 5) ||
+      (typeof client.sizeDetails === 'object' && Object.keys(client.sizeDetails).length > 0)
+    );
+    if (!hasSizes && !hasCustom && !client.measurementChart) {
+      missing.push('Measurements / Size Chart');
+    }
+
+    setForm({
+      name: client.name || '',
+      gender: client.gender || 'Male',
+      phone: client.phone || '',
+      permanentAddress: client.permanentAddress || '',
+      city: client.city || '',
+      measurementChart: client.measurementChart || '',
+      sizeDetails: typeof client.sizeDetails === 'string' ? client.sizeDetails : JSON.stringify(client.sizeDetails || {}),
+      clientNumber: client.clientNumber || '',
+      standardSizes: Array.isArray(client.standardSizes) ? client.standardSizes : [],
+      outletName: client.outletName || ''
+    });
+
+    if (client.sizeDetails) {
+      try {
+        const parsed = typeof client.sizeDetails === 'string' ? JSON.parse(client.sizeDetails) : client.sizeDetails;
+        if (parsed && typeof parsed === 'object') {
+          const { _extra, ...rest } = parsed;
+          setCustomMeasurements(rest || {});
+          setExtraMeasurements(Array.isArray(_extra) ? _extra : []);
+        } else {
+          setCustomMeasurements({});
+          setExtraMeasurements([]);
+        }
+      } catch {
+        setCustomMeasurements({});
+        setExtraMeasurements([]);
+      }
+    } else {
+      setCustomMeasurements({});
+      setExtraMeasurements([]);
+    }
+
+    setAdditionalPhones(Array.isArray(client.additionalPhones) ? client.additionalPhones : []);
+    setDeliveryAddresses(Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses : []);
+
+    if (missing.length > 0) {
+      setPhoneVerification({
+        status: 'incomplete',
+        client,
+        missing,
+        message: `Existing customer profile loaded with missing details (${missing.join(', ')}). Complete the missing fields below.`
+      });
+      if (!opts.silent) {
+        toast(`Existing customer loaded (${client.name}). Missing: ${missing.join(', ')}`, { icon: '⚠️' });
+      }
+    } else {
+      setPhoneVerification({
+        status: 'exists',
+        client,
+        missing: [],
+        message: 'This customer is already registered. Existing details have been loaded.'
+      });
+      if (!opts.silent) {
+        toast.success(`Existing customer loaded: ${client.name} (#${client.clientNumber || 'N/A'})`);
+      }
+    }
+
+    setTab('register');
+  }, []);
+
+  const handlePhoneLookup = useCallback(async (phoneVal) => {
+    const raw = String(phoneVal || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length < 7) {
+      setPhoneVerification(null);
+      return;
+    }
+
+    setPhoneLookupLoading(true);
+    try {
+      const res = await api.get('/api/clients/search', {
+        params: { q: raw, allOutlets: 'true' }
+      });
+      const matches = Array.isArray(res.data) ? res.data : [];
+
+      if (matches.length === 0) {
+        setPhoneVerification({
+          status: 'new',
+          phone: raw,
+          message: 'New customer — complete registration details below.'
+        });
+        setSelectedClient(null);
+      } else if (matches.length === 1) {
+        const matched = matches[0];
+        try {
+          const fullRes = await api.get(`/api/clients/${matched.id}`);
+          loadClientIntoForm(fullRes.data || matched);
+        } catch {
+          loadClientIntoForm(matched);
+        }
+      } else {
+        setPhoneVerification({
+          status: 'multiple',
+          phone: raw,
+          matches,
+          message: `${matches.length} registered customers share this phone number. Select one:`
+        });
+      }
+    } catch (err) {
+      console.error('Phone lookup error:', err);
+    }
+    setPhoneLookupLoading(false);
+  }, [loadClientIntoForm]);
+
+  // Debounced auto-lookup on phone input change
+  useEffect(() => {
+    if (tab !== 'register') return;
+    const raw = String(form.phone || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length < 7) {
+      if (!selectedClient) {
+        setPhoneVerification(null);
+      }
+      return;
+    }
+
+    // If currently selected client already has this phone, don't re-query
+    if (selectedClient && selectedClient.phone && selectedClient.phone.replace(/\D/g, '') === digits) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      handlePhoneLookup(raw);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [form.phone, tab, selectedClient, handlePhoneLookup]);
+
+  const selectCandidate = useCallback(async (candidate) => {
+    try {
+      const fullRes = await api.get(`/api/clients/${candidate.id}`);
+      loadClientIntoForm(fullRes.data || candidate);
+    } catch {
+      loadClientIntoForm(candidate);
+    }
+  }, [loadClientIntoForm]);
+
+  const registerAsNewWithSharedPhone = () => {
+    setSelectedClient(null);
+    setPhoneVerification({
+      status: 'new_shared',
+      phone: form.phone,
+      message: 'Registering new customer profile with shared family phone number.'
+    });
+    setForm(prev => ({
+      name: '',
+      gender: 'Male',
+      phone: prev.phone,
+      permanentAddress: '',
+      city: '',
+      measurementChart: '',
+      sizeDetails: '',
+      clientNumber: '',
+      standardSizes: [],
+      outletName: ''
+    }));
+    setCustomMeasurements({});
+    setExtraMeasurements([]);
+    setAdditionalPhones([]);
+    setDeliveryAddresses([]);
+  };
+
   const resetForm = () => {
     setForm({
       name: '', gender: 'Male', phone: '',
@@ -90,9 +272,19 @@ const ClientRegistration = () => {
     setDeliveryAddresses([]);
     setSelectedClient(null);
     setDuplicateModalData(null);
+    setPhoneVerification(null);
+    setPhoneLookupLoading(false);
   };
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handlePhoneChange = (e) => {
+    const val = e.target.value;
+    setForm(prev => ({ ...prev, phone: val }));
+    if (!val || val.trim().length < 7) {
+      setPhoneVerification(null);
+    }
+  };
 
   const handleMeasurementChange = (key, val) => {
     setCustomMeasurements(prev => ({ ...prev, [key]: val }));
@@ -157,7 +349,7 @@ const ClientRegistration = () => {
         additionalPhones: additionalPhones.filter(p => p && p.trim()),
         deliveryAddresses: deliveryAddresses.filter(a => a && a.trim()),
         outletName: selectedClient ? selectedClient.outletName : (isAdmin ? (form.outletName || 'Johar Town') : (outletName || 'Johar Town')),
-        ...(options.force && { force: true })
+        ...(options.force || phoneVerification?.status === 'new_shared' ? { force: true } : {})
       };
 
       if (selectedClient) {
@@ -167,12 +359,12 @@ const ClientRegistration = () => {
           setSearchResults(prev => prev.map(c => c.id === res.data.id ? res.data : c));
         }
         setClientDetails(prev => ({ ...prev, [res.data.id]: res.data }));
-        setSelectedClient(res.data);
+        loadClientIntoForm(res.data, { silent: true });
         toast.success('Customer profile updated successfully');
       } else {
         const res = await api.post('/api/clients', payload);
-        setForm(f => ({ ...f, clientNumber: res.data.clientNumber || '' }));
         setClients(prev => [res.data, ...prev]);
+        loadClientIntoForm(res.data, { silent: true });
         toast.success(`Client registered successfully! Client #: ${res.data.clientNumber || 'N/A'}`);
       }
       setDuplicateModalData(null);
@@ -382,43 +574,373 @@ const ClientRegistration = () => {
       {/* REGISTER / EDIT FORM */}
       {tab === 'register' && (
         <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
-          {selectedClient && (
-            <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-3.5">
+          {/* STEP 1: PHONE NUMBER FIRST (SEARCH & IDENTIFICATION) */}
+          <div className="glass p-5 md:p-6 rounded-2xl border-2 theme-border space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Edit2 size={16} className="text-amber-400" />
-                <span className="text-sm font-black text-amber-400">Editing: {selectedClient.name} (Client #{selectedClient.clientNumber})</span>
-                <span className="text-xs font-bold text-gray-400 bg-gray-800 px-2 py-0.5 rounded-lg border border-gray-700">
-                  Registered at {selectedClient.outletName}
-                </span>
+                <div className="p-2 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                  <Phone size={18} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black theme-text-primary uppercase tracking-wider flex items-center gap-2">
+                    1. Customer Phone Number
+                    <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+                      Primary Identification & Search
+                    </span>
+                  </h2>
+                  <p className="text-xs font-bold text-gray-400">
+                    Enter the phone number first. The system searches across all outlets and auto-loads existing records.
+                  </p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="text-xs font-black text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-xl border border-gray-700 transition-all cursor-pointer"
-              >
-                Cancel & Register New
-              </button>
+              {(form.phone || selectedClient || phoneVerification) && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="text-xs font-black text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-xl border border-gray-700 transition-all cursor-pointer flex items-center gap-1 self-start sm:self-auto"
+                >
+                  <RotateCcw size={12} />
+                  Clear / New Customer
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                    <Phone size={18} />
+                  </div>
+                  <input
+                    name="phone"
+                    value={form.phone}
+                    onChange={handlePhoneChange}
+                    onBlur={() => {
+                      if (form.phone && form.phone.replace(/\D/g, '').length >= 7) {
+                        handlePhoneLookup(form.phone);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (form.phone && form.phone.replace(/\D/g, '').length >= 7) {
+                          handlePhoneLookup(form.phone);
+                        }
+                      }
+                    }}
+                    required
+                    autoFocus
+                    className="w-full bg-gray-900 border-2 border-gray-700 focus:border-blue-500 rounded-xl py-3.5 pl-12 pr-4 text-base font-extrabold text-white placeholder-gray-500 outline-none transition-all"
+                    placeholder="Enter phone number (e.g. 0300-1234567 or 03001234567)"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  {phoneLookupLoading ? (
+                    <div className="px-5 py-3.5 bg-blue-600/20 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-black flex items-center gap-2 whitespace-nowrap animate-pulse">
+                      <RefreshCw size={14} className="animate-spin" />
+                      Searching...
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handlePhoneLookup(form.phone)}
+                      disabled={!form.phone || form.phone.replace(/\D/g, '').length < 7}
+                      className="px-5 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-black text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer shadow-lg shadow-blue-900/30"
+                    >
+                      <Search size={14} />
+                      Verify Phone
+                    </button>
+                  )}
+                </div>
+              </div>
+              <span className="text-[11px] text-gray-500 font-bold block mt-1.5">
+                Checks primary and alternate phone numbers across Johar Town, Jail Road, Abbottabad, and all outlets.
+              </span>
+            </div>
+
+            {/* Additional Phones Section inside Phone block */}
+            <div className="pt-2 border-t border-gray-800/80">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="text-xs font-bold theme-text-secondary block">
+                    Additional / Alternate Phone Numbers (Up to 4+ numbers)
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-bold block">
+                    Customers can be found by searching ANY of these alternate numbers.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={addPhone}
+                  className="text-xs font-black text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer bg-blue-500/10 px-2.5 py-1.5 rounded-lg border border-blue-500/20"
+                >
+                  <Plus size={12} />Add Alt Phone
+                </button>
+              </div>
+              <div className="space-y-2">
+                {additionalPhones.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="px-2.5 py-2 rounded-xl text-xs font-black bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 shrink-0">
+                      Alt #{i + 1}
+                    </span>
+                    <input
+                      value={p}
+                      onChange={(e) => updatePhone(i, e.target.value)}
+                      className="flex-1 bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-2 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                      placeholder={i === 0 ? "Alternate Phone #1 (e.g. 0312-XXXXXXX)" : i === 1 ? "Alternate Phone #2 (e.g. 0321-XXXXXXX)" : `Alternate Phone #${i + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhone(i)}
+                      className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                      title="Remove number"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* DYNAMIC STATUS ALERT BANNERS: SCENARIOS A, B, C, D */}
+          {phoneVerification?.status === 'exists' && phoneVerification.client && (
+            <div className="bg-gradient-to-r from-emerald-950/70 via-gray-900 to-emerald-950/50 border-2 border-emerald-500/50 rounded-2xl p-5 space-y-3 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/40 shrink-0">
+                    <UserCheck size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-base font-black text-emerald-300">
+                        This customer is already registered. Existing details have been loaded.
+                      </span>
+                      <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
+                        Complete Profile
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-gray-300 mt-1">
+                      <span className="text-white font-black text-sm">{phoneVerification.client.name}</span>
+                      {phoneVerification.client.clientNumber && ` • Client #${phoneVerification.client.clientNumber}`}
+                      {` • Registered at `}
+                      <span className="text-amber-300 font-bold">{phoneVerification.client.outletName || 'Johar Town'}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleProceedToOrder(phoneVerification.client)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/40 cursor-pointer"
+                  >
+                    <ShoppingCart size={15} />
+                    Proceed to Order
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+              {!canEditClient(phoneVerification.client) && (
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+                  <Lock size={14} className="shrink-0" />
+                  <span>
+                    Owned by {phoneVerification.client.outletName}. Customer registration details and address are protected and cannot be modified by other outlets. You can proceed to create orders directly.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Basic Information */}
+          {phoneVerification?.status === 'incomplete' && phoneVerification.client && (
+            <div className="bg-gradient-to-r from-amber-950/70 via-gray-900 to-amber-950/50 border-2 border-amber-500/50 rounded-2xl p-5 space-y-3 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40 shrink-0">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-base font-black text-amber-300">
+                        Existing Customer Profile Loaded — Missing Details Detected
+                      </span>
+                      <span className="text-[10px] font-black bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/40">
+                        Incomplete Profile
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-gray-300 mt-1">
+                      <span className="text-white font-black text-sm">{phoneVerification.client.name}</span>
+                      {phoneVerification.client.clientNumber && ` • Client #${phoneVerification.client.clientNumber}`}
+                      {` • Registered at `}
+                      <span className="text-amber-300 font-bold">{phoneVerification.client.outletName || 'Johar Town'}</span>
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <span className="text-[11px] font-bold text-gray-400">Please complete highlighted fields:</span>
+                      {phoneVerification.missing.map((m, idx) => (
+                        <span key={idx} className="text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                          ⚠️ {m}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleProceedToOrder(phoneVerification.client)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/40 cursor-pointer"
+                  >
+                    <ShoppingCart size={15} />
+                    Proceed to Order
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+              {!canEditClient(phoneVerification.client) && (
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+                  <Lock size={14} className="shrink-0" />
+                  <span>
+                    Owned by {phoneVerification.client.outletName}. Profile details are locked for editing by other branches, but you can create orders directly.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {phoneVerification?.status === 'new' && (
+            <div className="bg-gradient-to-r from-blue-950/70 via-gray-900 to-indigo-950/50 border-2 border-blue-500/50 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/40 shrink-0">
+                  <UserPlus size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-blue-300">
+                      New customer — complete registration details below.
+                    </span>
+                    <span className="text-[10px] font-black bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/40">
+                      Unregistered Phone
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-gray-400 mt-0.5">
+                    No customer found with phone <span className="text-white font-extrabold">{phoneVerification.phone}</span>. Fill in the profile fields below to register.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {phoneVerification?.status === 'multiple' && (
+            <div className="bg-gradient-to-r from-purple-950/70 via-gray-900 to-indigo-950/60 border-2 border-purple-500/50 rounded-2xl p-5 space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-500/20 text-purple-400 rounded-xl border border-purple-500/40 shrink-0">
+                    <Users size={24} />
+                  </div>
+                  <div>
+                    <span className="text-sm font-black text-purple-200 block">
+                      {phoneVerification.matches.length} Registered Customers Share This Phone Number
+                    </span>
+                    <p className="text-xs font-bold text-gray-400 mt-0.5">
+                      Select the matching customer below to load their profile, or register a new customer with this shared phone:
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={registerAsNewWithSharedPhone}
+                  className="text-xs font-black text-purple-300 hover:text-white bg-purple-500/20 hover:bg-purple-600 px-3.5 py-2.5 rounded-xl border border-purple-500/30 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 self-start sm:self-auto"
+                >
+                  <UserPlus size={14} />
+                  Register as New Family Member
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {phoneVerification.matches.map(c => (
+                  <div key={c.id} className="bg-gray-900/90 border border-purple-500/30 rounded-xl p-3.5 flex flex-col justify-between gap-2.5 hover:border-purple-400 transition-all">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-black text-white">{c.name}</span>
+                        <span className="text-[10px] font-black text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-lg border border-purple-500/30">
+                          #{c.clientNumber}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-bold text-gray-400 flex items-center gap-2 flex-wrap">
+                        <span>Branch: <span className="text-amber-300">{c.outletName}</span></span>
+                        <span>•</span>
+                        <span>Phone: <span className="text-gray-200">{c.phone}</span></span>
+                      </div>
+                      {c.permanentAddress && (
+                        <p className="text-[11px] font-medium text-gray-400 truncate">
+                          📍 {c.permanentAddress}{c.city ? `, ${c.city}` : ''}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 pt-1 border-t border-gray-800">
+                      <button
+                        type="button"
+                        onClick={() => selectCandidate(c)}
+                        className="flex-1 text-xs font-black bg-purple-600 hover:bg-purple-500 text-white py-2 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <CheckCircle2 size={13} />
+                        Load This Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleProceedToOrder(c)}
+                        className="text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                        title="Proceed to Order"
+                      >
+                        <ShoppingCart size={13} />
+                        Order
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phoneVerification?.status === 'new_shared' && (
+            <div className="bg-purple-950/40 border-2 border-purple-500/40 rounded-xl p-3 flex items-center justify-between text-xs font-bold text-purple-200">
+              <span>Registering new customer profile with shared family phone: <strong className="text-white">{phoneVerification.phone}</strong></span>
+              <span className="text-[10px] bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30">Shared Phone Mode</span>
+            </div>
+          )}
+
+          {/* STEP 2: CUSTOMER PROFILE & BASIC DETAILS */}
           <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border space-y-4">
-            <h2 className="text-sm font-black theme-text-primary uppercase tracking-widest flex items-center gap-2">
-              <User size={14} />
-              Basic Customer Information
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black theme-text-primary uppercase tracking-widest flex items-center gap-2">
+                <User size={14} />
+                2. Customer Profile Information
+              </h2>
+              {phoneVerification?.missing?.includes('Customer Name') && (
+                <span className="text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                  ⚠️ Name Required
+                </span>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-bold theme-text-secondary block mb-1">Customer Name *</label>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold theme-text-secondary block mb-1">
+                  Customer Name * {phoneVerification?.missing?.includes('Customer Name') && <span className="text-amber-400 font-extrabold">(Missing in Profile)</span>}
+                </label>
                 <input
                   name="name"
                   value={form.name}
                   onChange={handleChange}
                   required
-                  className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-                  placeholder="Full name"
+                  className={`w-full bg-gray-900 border-2 ${
+                    phoneVerification?.missing?.includes('Customer Name')
+                      ? 'border-amber-500 focus:border-amber-400 ring-2 ring-amber-500/20'
+                      : 'border-gray-700 focus:border-blue-500'
+                  } rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 outline-none transition-all`}
+                  placeholder="Full customer name"
                 />
               </div>
+
               <div>
                 <label className="text-xs font-bold theme-text-secondary block mb-1">Gender</label>
                 <select
@@ -430,76 +952,20 @@ const ClientRegistration = () => {
                   {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-bold theme-text-secondary block mb-1">
-                  Primary Mobile Phone Number *
-                </label>
-                <input
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-                  placeholder="03XX-XXXXXXX"
-                />
-                <span className="text-[10px] text-gray-500 font-bold block mt-1">
-                  Main contact number used for primary identification and cross-outlet lookup.
-                </span>
-              </div>
             </div>
 
-            {form.clientNumber && (
+            {form.clientNumber ? (
               <div className="bg-blue-900/30 border border-blue-700/60 rounded-xl px-4 py-2.5 inline-flex items-center gap-3">
                 <div>
                   <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">Assigned Client #</span>
                   <p className="text-lg font-black text-blue-300">#{form.clientNumber}</p>
                 </div>
               </div>
+            ) : (
+              <div className="bg-gray-800/40 border border-gray-700/60 rounded-xl px-3 py-2 inline-flex items-center gap-2">
+                <span className="text-[11px] font-bold text-gray-400">Client # will be automatically assigned upon registration</span>
+              </div>
             )}
-
-            {/* Additional Phones */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-bold theme-text-secondary block">
-                    Additional / Alternate Phone Numbers (Up to 4+ numbers)
-                  </label>
-                  <span className="text-[10px] text-gray-500 font-bold block">
-                    Customer can be searched and found by primary OR any alternate phone number.
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={addPhone}
-                  className="text-xs font-black text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer bg-blue-500/10 px-2.5 py-1.5 rounded-lg border border-blue-500/20"
-                >
-                  <Plus size={12} />Add Phone
-                </button>
-              </div>
-              <div className="space-y-2">
-                {additionalPhones.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="px-2.5 py-2.5 rounded-xl text-xs font-black bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 shrink-0">
-                      Alt #{i + 1}
-                    </span>
-                    <input
-                      value={p}
-                      onChange={(e) => updatePhone(i, e.target.value)}
-                      className="flex-1 bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-                      placeholder={i === 0 ? "Alternate Phone #1 (e.g. 0312-XXXXXXX)" : i === 1 ? "Alternate Phone #2 (e.g. 0321-XXXXXXX)" : `Alternate Phone #${i + 1}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePhone(i)}
-                      className="p-2.5 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
-                      title="Remove number"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Address Information */}
@@ -507,32 +973,51 @@ const ClientRegistration = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black theme-text-primary uppercase tracking-widest flex items-center gap-2">
                 <MapPin size={14} />
-                Address & Delivery Details
+                3. Address & Delivery Details
               </h2>
-              {selectedClient && (
-                <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30">
-                  Owned by {selectedClient.outletName}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {phoneVerification?.missing?.includes('Address / City') && (
+                  <span className="text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                    ⚠️ Missing in Profile
+                  </span>
+                )}
+                {selectedClient && (
+                  <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30">
+                    Owned by {selectedClient.outletName}
+                  </span>
+                )}
+              </div>
             </div>
             <div>
-              <label className="text-xs font-bold theme-text-secondary block mb-1">City</label>
+              <label className="text-xs font-bold theme-text-secondary block mb-1">
+                City {phoneVerification?.missing?.includes('Address / City') && !form.city && <span className="text-amber-400 font-extrabold">(Missing)</span>}
+              </label>
               <input
                 name="city"
                 value={form.city}
                 onChange={handleChange}
-                className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                className={`w-full bg-gray-900 border-2 ${
+                  phoneVerification?.missing?.includes('Address / City') && !form.city
+                    ? 'border-amber-500/80 focus:border-amber-400 ring-2 ring-amber-500/20'
+                    : 'border-gray-700 focus:border-blue-500'
+                } rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 outline-none transition-all`}
                 placeholder="e.g. Lahore, Abbottabad, Islamabad"
               />
             </div>
             <div>
-              <label className="text-xs font-bold theme-text-secondary block mb-1">Permanent / Registered Address</label>
+              <label className="text-xs font-bold theme-text-secondary block mb-1">
+                Permanent / Registered Address {phoneVerification?.missing?.includes('Address / City') && !form.permanentAddress && <span className="text-amber-400 font-extrabold">(Missing)</span>}
+              </label>
               <textarea
                 name="permanentAddress"
                 value={form.permanentAddress}
                 onChange={handleChange}
                 rows={2}
-                className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none resize-none"
+                className={`w-full bg-gray-900 border-2 ${
+                  phoneVerification?.missing?.includes('Address / City') && !form.permanentAddress
+                    ? 'border-amber-500/80 focus:border-amber-400 ring-2 ring-amber-500/20'
+                    : 'border-gray-700 focus:border-blue-500'
+                } rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 outline-none resize-none transition-all`}
                 placeholder="Official permanent address"
               />
             </div>
@@ -610,11 +1095,18 @@ const ClientRegistration = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black theme-text-primary uppercase tracking-widest flex items-center gap-2">
                 <Ruler size={14} />
-                Custom Tailoring Measurements (Inches)
+                4. Custom Tailoring Measurements (Inches)
               </h2>
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/30">
-                Always Persisted
-              </span>
+              <div className="flex items-center gap-2">
+                {phoneVerification?.missing?.includes('Measurements / Size Chart') && (
+                  <span className="text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                    ⚠️ Missing in Profile
+                  </span>
+                )}
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/30">
+                  Always Persisted
+                </span>
+              </div>
             </div>
             <p className="text-xs font-bold text-gray-400">
               Enter custom measurements below. They will be saved to the client profile and prefill automatically when creating orders.
@@ -718,24 +1210,54 @@ const ClientRegistration = () => {
             </div>
           )}
 
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer shadow-lg shadow-blue-900/30"
-            >
-              <Save size={18} />
-              {saving ? 'Saving...' : selectedClient ? 'Update Customer Profile' : 'Register New Customer'}
-            </button>
-            {selectedClient && (
-              <button
-                type="button"
-                onClick={() => handleProceedToOrder(selectedClient)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-4 rounded-2xl transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-900/30"
-              >
-                <ShoppingCart size={18} />
-                Proceed to Order
-              </button>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            {selectedClient ? (
+              <>
+                <button
+                  type="submit"
+                  disabled={saving || !canEditClient(selectedClient)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-lg shadow-blue-900/30"
+                >
+                  <Save size={18} />
+                  {saving ? 'Saving...' : canEditClient(selectedClient) ? 'Save Customer Profile Changes' : `Profile Owned by ${selectedClient.outletName} (View Only)`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleProceedToOrder(selectedClient)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-4 rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-900/30"
+                >
+                  <ShoppingCart size={18} />
+                  Proceed to Order with #{selectedClient.clientNumber}
+                  <ArrowRight size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-4 py-4 rounded-2xl transition-all flex items-center justify-center gap-1 cursor-pointer border border-gray-700 text-xs"
+                >
+                  <RotateCcw size={14} />
+                  Search Another
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer shadow-lg shadow-blue-900/30"
+                >
+                  <Save size={18} />
+                  {saving ? 'Registering...' : 'Register Customer & Assign Client #'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-5 py-4 rounded-2xl transition-all flex items-center justify-center gap-1 cursor-pointer border border-gray-700 text-xs"
+                >
+                  <RotateCcw size={14} />
+                  Reset Form
+                </button>
+              </>
             )}
           </div>
         </form>
