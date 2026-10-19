@@ -1,5 +1,40 @@
 ## Goals
-### Implemented This Session — Faisal Profile: Removed Employee Data Option & Permissions (deployed & live-verified)
+### Implemented This Session — Shared Client Registration, Complete Customer Profiles & One-Click Proceed to Order (deployed & live-verified)
+- **Objective & Requirements**:
+  1. Upgrade Outlet Client Registration and POS/Order Entry so customers registered at any outlet (Johar Town, Jail Road, Abbottabad, etc.) can be searched and used at every other outlet.
+  2. Branch-specific ownership & editing guard: The branch that originally registered the customer owns its registration details and address. Non-owning branches can search, view, and create orders for the customer, but cannot edit or overwrite registration details. Enforced in backend (`PUT /api/clients/:id`) and frontend.
+  3. Custom measurement persistence: Custom measurements entered during registration reliably save and persist in the database, even if standard sizes or different dropdown options are selected. Both standard sizes and custom measurements are preserved independently.
+  4. Search All Clients → Show Details displays the customer's complete profile, standard sizes, structured custom measurements, and previous order history (queried from orders by phone).
+  5. One-Click "Proceed to Order": Primary action button opens POS/Order Entry with the customer's saved details prefilled, generating a new unique order number.
+  6. "Repeat Order" on past orders: Loads past order items, sizes, and customizations directly into Order Entry.
+  7. Thermal Printer Customer Slip (58mm/80mm): Printable from Order Entry (upon placement and in review preview) and Order Lookup modal with header, outlet details, order number, customer profile, ordered items, tailoring measurements, and payment summary.
+- **Backend & Frontend Implementation**:
+  - `backend/src/controllers/client.controller.js`:
+    - `getOutletName`: Normalizes outlet names across branches.
+    - `searchClients` & `getClients`: Cross-branch search enabled across all active clients across all outlets.
+    - `updateClient`: Enforces branch-level ownership guard. Blocks non-owning branches with HTTP 403 `Only <Outlet> staff or an administrator can edit this customer's registration profile.`
+    - `getClientById`: Returns complete profile and customer's previous order history (`recentOrders`).
+  - `backend/src/controllers/outletOrder.controller.js`:
+    - `lookupClientByNumber`: Supports `id` / `clientId` lookup; removed restrictive `source: 'OUTLET'` filter so all past customer orders are returned.
+  - `frontend/src/utils/POSPrint.js`:
+    - Exported `printOutletOrderThermalSlip(order)` formatted for standard 80mm/58mm thermal printers.
+  - `frontend/src/pages/ClientRegistration.jsx`:
+    - Cross-outlet search enabled with optional branch filter pill dropdown (`ALL`, `Johar Town`, `Jail Road`, `Abbottabad`).
+    - Ownership badge (`Registered at <Outlet>`) and lock state for non-owning branches.
+    - Custom measurement persistence without clearing on chart change or standard size selection.
+    - Expanded "Show Details" view with complete profile, custom measurement table, recent order history with "Repeat Order" button, and prominent "Proceed to Order" button.
+  - `frontend/src/pages/OutletOrderEntry.jsx`:
+    - Added auto-load effect for `clientNumber`, `clientId`, `phone`, and `repeatOrderId`.
+    - Integrated thermal slip printing on order placement screen and Step 3 review preview.
+  - `frontend/src/pages/OutletOrderLookup.jsx`:
+    - Added "Print Thermal Slip" button in the order details modal footer.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-shared-clients.cjs`: 11 of 11 tests passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 0 bundling errors.
+  - Git committed (`4c7fdf99`) and pushed to `main`.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app` (Live health check HTTP 200 OK verified).
+
+### Implemented Prior Session — Faisal Profile: Removed Employee Data Option & Permissions (deployed & live-verified)
 - **Objective & Requirements**:
   - Remove the "Employee Data" option completely from the Faisal (`FAISAL`) profile and navigation.
   - Keep Employee Data fully intact and accessible for authorized administrative profiles (`SUPER_ADMIN`, `ADMIN`, `CEO`).
