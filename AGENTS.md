@@ -1,5 +1,37 @@
 ## Goals
-### Implemented This Session — Shared Client Registration, Complete Customer Profiles & One-Click Proceed to Order (deployed & live-verified)
+### Implemented This Session — Multi-Phone Number, Name & Address-Based Customer Search & Duplicate Detection (deployed & live-verified)
+- **Objective & Requirements**:
+  1. Multi-phone number support: Support 1 primary phone number + multiple additional phone numbers (Alt #1, Alt #2, Alt #3, etc.) per customer profile linked to the canonical customer ID.
+  2. Multi-phone search & normalization: Customers can be found by searching primary or ANY additional phone number, with full normalization across phone formatting (spaces, hyphens, +92, 0092, 92, without leading zero: `03001234567` ↔ `0300-1234567` ↔ `+92 300 1234567` ↔ `3001234567`).
+  3. Name-based search: Full name and multi-word token AND search (case-insensitive, handles out-of-order words).
+  4. Address-based search: Finds customers by address fragments (area, locality, block, street, city) across `permanentAddress`, `deliveryAddresses`, and `city`.
+  5. Client ID search: Supports numeric and hashed client numbers (`1004`, `#1004`).
+  6. Duplicate detection on registration: Checks submitted primary and additional phones against all existing active clients. Returns HTTP 409 `DUPLICATE_PHONE` with existing customer details. Allows shared family numbers via explicit confirmation (`force: true`).
+  7. Multi-match selection: Displays candidate results with primary phone, alternate phone pills, outlet badge, and address snippet without auto-merging.
+  8. POS Order Entry integration: `lookupClientByNumber` supports multi-phone, name, address, and clientNumber lookup, and links all past orders placed under ANY of the customer's phone numbers.
+  9. Resolved string clientNumber collision bug in `generateClientNumber` using numeric max query.
+- **Backend & Frontend Implementation**:
+  - `backend/src/utils/phoneUtils.js`: Normalization, display formatting, and search variant generation (`getPhoneSearchVariants`).
+  - `backend/src/controllers/client.controller.js`:
+    - Updated `searchClients`: Integrated PostgreSQL `ILIKE ANY` and `ILIKE ALL` queries for phone variants, name tokens, address fragments, delivery addresses, and client numbers.
+    - Updated `createClient` and `updateClient`: Added `findDuplicatePhoneClient` duplicate check across all submitted phones, supporting `force: true` bypass for shared family phones. Fixed `generateClientNumber` numeric max calculation.
+    - Updated `getClientById`: Queries past order history across all of the customer's phone numbers with all variants.
+  - `backend/src/controllers/outletOrder.controller.js`:
+    - Updated `lookupClientByNumber`: Unified multi-field lookup supporting `q`, `phone`, `name`, `number`, `address`, `id`, `orderNumber`, and populated `recentOrders` across all client phone variants.
+  - `frontend/src/pages/ClientRegistration.jsx`:
+    - Enhanced search input placeholder and client cards with primary phone, alternate phone pill tags, and address snippet.
+    - Added Duplicate Phone Warning modal offering "View & Load Existing Customer Profile", "Register Anyway (Shared Family Phone)", or "Cancel & Edit Number".
+    - Added structured alternate phone inputs with "Alt #1", "Alt #2" badges.
+  - `frontend/src/pages/OutletOrderEntry.jsx`:
+    - Updated `handleLookup` to pass unified `q` search parameter.
+    - Enhanced multi-client search result display with primary/alternate phone badges, outlet badge, and address snippet.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-multi-phone-and-address-search.cjs`: 32 of 32 tests passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 0 bundling errors.
+  - Git committed and pushed to `main`.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app` (Live health check verified).
+
+### Implemented Prior Session — Shared Client Registration, Complete Customer Profiles & One-Click Proceed to Order (deployed & live-verified)
 - **Objective & Requirements**:
   1. Upgrade Outlet Client Registration and POS/Order Entry so customers registered at any outlet (Johar Town, Jail Road, Abbottabad, etc.) can be searched and used at every other outlet.
   2. Branch-specific ownership & editing guard: The branch that originally registered the customer owns its registration details and address. Non-owning branches can search, view, and create orders for the customer, but cannot edit or overwrite registration details. Enforced in backend (`PUT /api/clients/:id`) and frontend.

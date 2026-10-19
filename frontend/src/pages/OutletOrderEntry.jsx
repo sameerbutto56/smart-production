@@ -466,8 +466,8 @@ const OutletOrderEntry = () => {
   }, []);
 
   const handleLookup = useCallback(async () => {
-    const q = searchQuery.trim();
-    if (!q) return toast.error('Enter phone number or name');
+    const q = (searchQuery || '').trim();
+    if (!q) return toast.error('Enter phone number, name, address, or client #');
     setLookupLoading(true);
     setLookedUp(false);
     setClientData(null);
@@ -475,7 +475,7 @@ const OutletOrderEntry = () => {
     setShowResults(false);
     try {
       const isPhone = /^[\d\-+ ]{7,}$/.test(q);
-      const params = isPhone ? { phone: q } : { name: q };
+      const params = { q, ...(isPhone ? { phone: q } : { name: q }) };
       const res = await api.get('/api/outlet-orders/lookup', { params });
       const { clients } = res.data;
       if (clients.length === 1) {
@@ -1223,10 +1223,10 @@ const OutletOrderEntry = () => {
                 <button onClick={() => setCustomerMode(null)} className="text-xs font-bold text-gray-500 hover:text-white flex items-center gap-1">
                   <ChevronLeft size={12} /> Back
                 </button>
-                <p className="text-sm font-bold text-gray-400">Search by phone number or name:</p>
+                <p className="text-sm font-bold text-gray-400">Search by phone (primary or additional), name, address, or client #:</p>
                 <div className="flex gap-2">
                   <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setLookedUp(false); setShowResults(false); }}
-                    placeholder="Phone number or name"
+                    placeholder="Search by phone, alternate phone, name, address, or client #..."
                     className="flex-1 bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-lg font-black text-white placeholder-gray-500 focus:border-amber-500 outline-none" />
                   <button onClick={handleLookup} disabled={lookupLoading || !searchQuery.trim()}
                     className="bg-amber-600 hover:bg-amber-500 text-white font-black px-6 py-3 rounded-xl disabled:opacity-50">
@@ -1239,9 +1239,25 @@ const OutletOrderEntry = () => {
                     <div className="max-h-64 overflow-y-auto space-y-2">
                       {searchResults.map(({ client, recentOrders: ro }, i) => (
                         <button key={i} onClick={() => selectClient(client, ro)}
-                          className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-3 text-left">
-                          <p className="text-sm font-black text-white">{client.name} <span className="text-blue-400 text-xs">#{client.clientNumber}</span></p>
-                          <p className="text-xs text-gray-400">{client.phone}{client.city ? ` — ${client.city}` : ''}</p>
+                          className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-3 text-left transition-all">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-black text-white">{client.name} <span className="text-blue-400 text-xs">#{client.clientNumber}</span></p>
+                            {client.outletName && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                {client.outletName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-400">
+                            <span className="font-mono text-blue-300 font-bold">Primary: {client.phone}</span>
+                            {Array.isArray(client.additionalPhones) && client.additionalPhones.filter(Boolean).length > 0 && (
+                              <span className="font-mono text-indigo-300">Alt: {client.additionalPhones.filter(Boolean).join(', ')}</span>
+                            )}
+                            {client.city && <span className="text-gray-300">• {client.city}</span>}
+                          </div>
+                          {client.permanentAddress && (
+                            <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">{client.permanentAddress}</p>
+                          )}
                         </button>
                       ))}
                     </div>

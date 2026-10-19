@@ -1,4 +1,6 @@
 const prisma = require('../prisma');
+const { Prisma } = require('@prisma/client');
+const { normalizePhone, formatPhoneDisplay, getPhoneSearchVariants, isValidPhone } = require('../utils/phoneUtils');
 
 const getOutletName = (req) => {
   let name = req.user?.name || req.query.outlet || req.headers['x-outlet-name'] || '';
@@ -24,26 +26,129 @@ const parseJsonField = (val) => {
 };
 
 const generateClientNumber = async () => {
-  // Find the highest existing clientNumber, then increment
-  const last = await prisma.client.findFirst({ where: { clientNumber: { not: null } }, orderBy: { clientNumber: 'desc' }, select: { clientNumber: true } });
-  let next = last?.clientNumber ? parseInt(last.clientNumber, 10) + 1 : 1000;
-  if (next > 99999) next = 1000; // wrap if exceeds 5 digits
-  return String(next);
+  try {
+    const [row] = await prisma.$queryRaw`
+      SELECT MAX(CAST("clientNumber" AS BIGINT)) as "maxNum"
+      FROM "public"."Client"
+      WHERE "clientNumber" ~ '^[0-9]+'
+    `;
+    let next = row?.maxNum ? Number(row.maxNum) + 1 : 1000;
+    while (true) {
+      const exists = await prisma.client.findFirst({
+        where: { clientNumber: String(next) },
+        select: { id: true }
+      });
+      if (!exists) return String(next);
+      next++;
+    }
+  } catch (err) {
+    console.error('generateClientNumber error:', err);
+    while (true) {
+      const rand = String(Math.floor(10000 + Math.random() * 90000));
+      const exists = await prisma.client.findFirst({
+        where: { clientNumber: rand },
+        select: { id: true }
+      });
+      if (!exists) return rand;
+    }
+  }
+};
+
+const findDuplicatePhoneClient = async (submittedPhones, excludeId = null) => {
+  if (!Array.isArray(submittedPhones) || submittedPhones.length === 0) return null;
+  const terms = new Set();
+  submittedPhones.forEach(p => {
+    if (!p) return;
+    const variants = getPhoneSearchVariants(p);
+    variants.forEach(v => terms.add(v));
+    const norm = normalizePhone(p);
+    if (norm) terms.add(norm);
+    const digits = String(p).replace(/\D/g, '');
+    if (digits.length >= 7) terms.add(digits);
+  });
+
+  const termArr = Array.from(terms).filter(Boolean);
+  if (termArr.length === 0) return null;
+
+  const patterns = termArr.map(t => `%${t}%`);
+
+  const rows = await prisma.$queryRaw`
+    SELECT id, "clientNumber", name, phone, "outletName", "additionalPhones", "permanentAddress", city, gender, "standardSizes", "measurementChart", "sizeDetails"
+    FROM "public"."Client"
+    WHERE "isActive" = true
+      ${excludeId ? Prisma.sql`AND id <> ${excludeId}` : Prisma.empty}
+      AND (
+        phone = ANY(${termArr}::text[])
+        OR phone LIKE ANY(${patterns}::text[])
+        OR "additionalPhones"::text ILIKE ANY(${patterns}::text[])
+      )
+    LIMIT 1
+  `;
+
+  return rows && rows.length > 0 ? rows[0] : null;
 };
 
 const createClient = async (req, res) => {
   try {
-    const { name, gender, phone, additionalPhones, permanentAddress, deliveryAddresses, city, measurementChart, sizeDetails, standardSizes, outletName } = req.body;
+    const {
+      name, gender, phone, additionalPhones,
+      permanentAddress, deliveryAddresses, city,
+      measurementChart, sizeDetails, standardSizes, outletName,
+      force, allowSharedPhone
+    } = req.body;
+
     const resolvedOutlet = outletName || getOutletName(req);
-    if (!name || !phone || !resolvedOutlet) return res.status(400).json({ message: 'Name, phone, and outlet are required' });
+    if (!name || !phone || !resolvedOutlet) {
+      return res.status(400).json({ message: 'Name, phone, and outlet are required' });
+    }
+
+    const cleanPrimaryPhone = String(phone).trim();
+    const cleanAdditionalPhones = Array.isArray(additionalPhones)
+      ? additionalPhones.map(p => String(p).trim()).filter(Boolean)
+      : [];
+
+    const cleanDeliveryAddresses = Array.isArray(deliveryAddresses)
+      ? deliveryAddresses.map(a => typeof a === 'string' ? a.trim() : a).filter(Boolean)
+      : [];
+
+    // Duplicate phone check across primary and additional phone numbers
+    if (!force && !allowSharedPhone) {
+      const allPhones = [cleanPrimaryPhone, ...cleanAdditionalPhones];
+      const dup = await findDuplicatePhoneClient(allPhones);
+      if (dup) {
+        return res.status(409).json({
+          code: 'DUPLICATE_PHONE',
+          message: `A customer with phone number ${dup.phone} is already registered: ${dup.name} (Client #${dup.clientNumber || 'N/A'}, ${dup.outletName || 'Outlet'}).`,
+          existingClient: {
+            id: dup.id,
+            name: dup.name,
+            phone: dup.phone,
+            additionalPhones: dup.additionalPhones,
+            clientNumber: dup.clientNumber,
+            outletName: dup.outletName,
+            permanentAddress: dup.permanentAddress,
+            city: dup.city,
+            gender: dup.gender,
+            standardSizes: dup.standardSizes,
+            measurementChart: dup.measurementChart,
+            sizeDetails: dup.sizeDetails
+          },
+          matchedPhone: dup.phone
+        });
+      }
+    }
+
     const clientNumber = await generateClientNumber();
     const client = await prisma.client.create({
       data: {
-        clientNumber, name, gender, phone,
-        additionalPhones: additionalPhones || [],
-        permanentAddress: permanentAddress || null,
-        deliveryAddresses: deliveryAddresses || [],
-        city: city || null,
+        clientNumber,
+        name: name.trim(),
+        gender: gender || 'Male',
+        phone: cleanPrimaryPhone,
+        additionalPhones: cleanAdditionalPhones,
+        permanentAddress: permanentAddress ? permanentAddress.trim() : null,
+        deliveryAddresses: cleanDeliveryAddresses,
+        city: city ? city.trim() : null,
         measurementChart: measurementChart || null,
         sizeDetails: parseJsonField(sizeDetails),
         standardSizes: standardSizes || null,
@@ -51,8 +156,10 @@ const createClient = async (req, res) => {
         createdById: req.user?.id || null
       }
     });
+
     res.status(201).json(client);
   } catch (error) {
+    console.error('Error creating client:', error);
     res.status(500).json({ message: 'Error creating client', error: error.message });
   }
 };
@@ -74,23 +181,73 @@ const getClients = async (req, res) => {
 const searchClients = async (req, res) => {
   try {
     const { q, outlet, allOutlets } = req.query;
-    if (!q) return res.json([]);
+    if (!q || !q.trim()) return res.json([]);
     const cleanQ = q.trim();
-    const where = {
-      isActive: true,
-      OR: [
-        { name: { contains: cleanQ, mode: 'insensitive' } },
-        { phone: { contains: cleanQ } },
-        { clientNumber: { contains: cleanQ } }
-      ]
-    };
-    // Only restrict to outlet if explicitly provided and allOutlets is not true
-    if (outlet && allOutlets !== 'true' && allOutlets !== true && outlet !== 'ALL') {
-      where.outletName = outlet;
+
+    const digitsOnly = cleanQ.replace(/\D/g, '');
+    const hasDigits = digitsOnly.length >= 3;
+    const phoneVariants = hasDigits ? getPhoneSearchVariants(cleanQ) : [];
+    const phonePatterns = phoneVariants.length > 0 ? phoneVariants.map(v => `%${v}%`) : ['__NEVER_MATCH__'];
+    if (hasDigits && digitsOnly.length >= 7) {
+      phonePatterns.push(`%${digitsOnly}%`);
     }
-    const clients = await prisma.client.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50 });
-    res.json(clients);
+
+    const generalPattern = `%${cleanQ}%`;
+    const words = cleanQ.split(/\s+/).filter(w => w.length > 0);
+    const wordPatterns = words.map(w => `%${w}%`);
+    const hashNum = cleanQ.startsWith('#') ? cleanQ.slice(1).trim() : cleanQ;
+
+    // Filter by outlet if specified and not ALL
+    const outletFilter = (outlet && allOutlets !== 'true' && allOutlets !== true && outlet !== 'ALL') ? outlet : null;
+
+    let rows;
+    if (words.length > 1) {
+      rows = await prisma.$queryRaw`
+        SELECT id, "clientNumber", name, gender, phone, "additionalPhones", "permanentAddress", "deliveryAddresses", city, "measurementChart", "sizeDetails", "standardSizes", "outletName", "createdAt", "updatedAt"
+        FROM "public"."Client"
+        WHERE "isActive" = true
+          ${outletFilter ? Prisma.sql`AND "outletName" = ${outletFilter}` : Prisma.empty}
+          AND (
+            "phone" ILIKE ANY(${phonePatterns}::text[])
+            OR "additionalPhones"::text ILIKE ANY(${phonePatterns}::text[])
+            OR "name" ILIKE ${generalPattern}
+            OR "name" ILIKE ALL(${wordPatterns}::text[])
+            OR "permanentAddress" ILIKE ${generalPattern}
+            OR "permanentAddress" ILIKE ALL(${wordPatterns}::text[])
+            OR "city" ILIKE ${generalPattern}
+            OR "deliveryAddresses"::text ILIKE ${generalPattern}
+            OR "clientNumber" ILIKE ${generalPattern}
+            OR "clientNumber" = ${cleanQ}
+            OR "clientNumber" = ${hashNum}
+          )
+        ORDER BY "createdAt" DESC
+        LIMIT 50
+      `;
+    } else {
+      rows = await prisma.$queryRaw`
+        SELECT id, "clientNumber", name, gender, phone, "additionalPhones", "permanentAddress", "deliveryAddresses", city, "measurementChart", "sizeDetails", "standardSizes", "outletName", "createdAt", "updatedAt"
+        FROM "public"."Client"
+        WHERE "isActive" = true
+          ${outletFilter ? Prisma.sql`AND "outletName" = ${outletFilter}` : Prisma.empty}
+          AND (
+            "phone" ILIKE ANY(${phonePatterns}::text[])
+            OR "additionalPhones"::text ILIKE ANY(${phonePatterns}::text[])
+            OR "name" ILIKE ${generalPattern}
+            OR "permanentAddress" ILIKE ${generalPattern}
+            OR "city" ILIKE ${generalPattern}
+            OR "deliveryAddresses"::text ILIKE ${generalPattern}
+            OR "clientNumber" ILIKE ${generalPattern}
+            OR "clientNumber" = ${cleanQ}
+            OR "clientNumber" = ${hashNum}
+          )
+        ORDER BY "createdAt" DESC
+        LIMIT 50
+      `;
+    }
+
+    res.json(rows);
   } catch (error) {
+    console.error('Error searching clients:', error);
     res.status(500).json({ message: 'Error searching clients', error: error.message });
   }
 };
@@ -100,51 +257,62 @@ const getClientById = async (req, res) => {
     const client = await prisma.client.findUnique({ where: { id: req.params.id } });
     if (!client) return res.status(404).json({ message: 'Client not found' });
 
-    // Fetch order history for this client by phone or additionalPhones
-    const phones = [client.phone, ...(Array.isArray(client.additionalPhones) ? client.additionalPhones : [])]
+    // Fetch order history for this client across primary phone and all additional phones with variants
+    const allPhones = [client.phone, ...(Array.isArray(client.additionalPhones) ? client.additionalPhones : [])]
       .filter(Boolean)
       .map(p => String(p).trim());
 
     let recentOrders = [];
-    if (phones.length > 0) {
-      const orConditions = phones.flatMap(p => {
+    if (allPhones.length > 0) {
+      const orConditions = [];
+      const seenSearchTerms = new Set();
+
+      allPhones.forEach(p => {
+        const variants = getPhoneSearchVariants(p);
+        variants.forEach(v => {
+          if (!seenSearchTerms.has(v)) {
+            seenSearchTerms.add(v);
+            orConditions.push({ customerPhone: { contains: v } });
+          }
+        });
         const clean = p.replace(/\D/g, '');
-        const conditions = [{ customerPhone: { contains: p } }];
-        if (clean.length >= 7) {
-          conditions.push({ customerPhone: { contains: clean } });
+        if (clean.length >= 7 && !seenSearchTerms.has(clean)) {
+          seenSearchTerms.add(clean);
+          orConditions.push({ customerPhone: { contains: clean } });
         }
-        return conditions;
       });
 
-      recentOrders = await prisma.order.findMany({
-        where: { OR: orConditions },
-        orderBy: { createdAt: 'desc' },
-        take: 15,
-        select: {
-          id: true,
-          orderNumber: true,
-          createdAt: true,
-          outletName: true,
-          source: true,
-          customerName: true,
-          customerPhone: true,
-          productDetails: true,
-          totalPrice: true,
-          advanceAmount: true,
-          advancePaid: true,
-          balanceAmount: true,
-          currentStage: true,
-          status: true,
-          deliveryMethod: true,
-          sizeData: true,
-          customization: true,
-          engravingRequired: true,
-          engravingText: true,
-          engravingInstructions: true,
-          instructionNotes: true,
-          measurementSpecialNote: true
-        }
-      });
+      if (orConditions.length > 0) {
+        recentOrders = await prisma.order.findMany({
+          where: { OR: orConditions },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            orderNumber: true,
+            createdAt: true,
+            outletName: true,
+            source: true,
+            customerName: true,
+            customerPhone: true,
+            productDetails: true,
+            totalPrice: true,
+            advanceAmount: true,
+            advancePaid: true,
+            balanceAmount: true,
+            currentStage: true,
+            status: true,
+            deliveryMethod: true,
+            sizeData: true,
+            customization: true,
+            engravingRequired: true,
+            engravingText: true,
+            engravingInstructions: true,
+            instructionNotes: true,
+            measurementSpecialNote: true
+          }
+        });
+      }
     }
 
     res.json({ ...client, recentOrders });
@@ -170,17 +338,59 @@ const updateClient = async (req, res) => {
       }
     }
 
-    const { name, gender, phone, additionalPhones, permanentAddress, deliveryAddresses, city, measurementChart, sizeDetails, standardSizes } = req.body;
+    const {
+      name, gender, phone, additionalPhones,
+      permanentAddress, deliveryAddresses, city,
+      measurementChart, sizeDetails, standardSizes,
+      force, allowSharedPhone
+    } = req.body;
+
+    const cleanPrimaryPhone = phone !== undefined ? String(phone).trim() : existing.phone;
+    const cleanAdditionalPhones = additionalPhones !== undefined
+      ? (Array.isArray(additionalPhones) ? additionalPhones.map(p => String(p).trim()).filter(Boolean) : [])
+      : (Array.isArray(existing.additionalPhones) ? existing.additionalPhones : []);
+
+    const cleanDeliveryAddresses = deliveryAddresses !== undefined
+      ? (Array.isArray(deliveryAddresses) ? deliveryAddresses.map(a => typeof a === 'string' ? a.trim() : a).filter(Boolean) : [])
+      : (Array.isArray(existing.deliveryAddresses) ? existing.deliveryAddresses : []);
+
+    // Duplicate phone check against other active clients
+    if (!force && !allowSharedPhone && (phone !== undefined || additionalPhones !== undefined)) {
+      const allPhones = [cleanPrimaryPhone, ...cleanAdditionalPhones];
+      const dup = await findDuplicatePhoneClient(allPhones, req.params.id);
+      if (dup) {
+        return res.status(409).json({
+          code: 'DUPLICATE_PHONE',
+          message: `A customer with phone number ${dup.phone} is already registered: ${dup.name} (Client #${dup.clientNumber || 'N/A'}, ${dup.outletName || 'Outlet'}).`,
+          existingClient: {
+            id: dup.id,
+            name: dup.name,
+            phone: dup.phone,
+            additionalPhones: dup.additionalPhones,
+            clientNumber: dup.clientNumber,
+            outletName: dup.outletName,
+            permanentAddress: dup.permanentAddress,
+            city: dup.city,
+            gender: dup.gender,
+            standardSizes: dup.standardSizes,
+            measurementChart: dup.measurementChart,
+            sizeDetails: dup.sizeDetails
+          },
+          matchedPhone: dup.phone
+        });
+      }
+    }
+
     const client = await prisma.client.update({
       where: { id: req.params.id },
       data: {
-        ...(name !== undefined && { name }),
+        ...(name !== undefined && { name: name.trim() }),
         ...(gender !== undefined && { gender }),
-        ...(phone !== undefined && { phone }),
-        ...(additionalPhones !== undefined && { additionalPhones }),
-        ...(permanentAddress !== undefined && { permanentAddress }),
-        ...(deliveryAddresses !== undefined && { deliveryAddresses }),
-        ...(city !== undefined && { city }),
+        ...(phone !== undefined && { phone: cleanPrimaryPhone }),
+        ...(additionalPhones !== undefined && { additionalPhones: cleanAdditionalPhones }),
+        ...(permanentAddress !== undefined && { permanentAddress: permanentAddress ? permanentAddress.trim() : null }),
+        ...(deliveryAddresses !== undefined && { deliveryAddresses: cleanDeliveryAddresses }),
+        ...(city !== undefined && { city: city ? city.trim() : null }),
         ...(measurementChart !== undefined && { measurementChart }),
         ...(sizeDetails !== undefined && { sizeDetails: parseJsonField(sizeDetails) }),
         ...(standardSizes !== undefined && { standardSizes })

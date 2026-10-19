@@ -54,6 +54,8 @@ const ClientRegistration = () => {
   const [clientDetails, setClientDetails] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
 
+  const [duplicateModalData, setDuplicateModalData] = useState(null);
+
   const [form, setForm] = useState({
     name: '', gender: 'Male', phone: '',
     permanentAddress: '', city: '',
@@ -87,6 +89,7 @@ const ClientRegistration = () => {
     setAdditionalPhones([]);
     setDeliveryAddresses([]);
     setSelectedClient(null);
+    setDuplicateModalData(null);
   };
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -120,8 +123,8 @@ const ClientRegistration = () => {
     return client.outletName.toLowerCase().trim() === outletName.toLowerCase().trim();
   }, [isAdmin, outletName]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, options = {}) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) {
       return toast.error('Name and phone are required');
     }
@@ -153,7 +156,8 @@ const ClientRegistration = () => {
         standardSizes: form.standardSizes || [],
         additionalPhones: additionalPhones.filter(p => p && p.trim()),
         deliveryAddresses: deliveryAddresses.filter(a => a && a.trim()),
-        outletName: selectedClient ? selectedClient.outletName : (isAdmin ? (form.outletName || 'Johar Town') : (outletName || 'Johar Town'))
+        outletName: selectedClient ? selectedClient.outletName : (isAdmin ? (form.outletName || 'Johar Town') : (outletName || 'Johar Town')),
+        ...(options.force && { force: true })
       };
 
       if (selectedClient) {
@@ -171,8 +175,13 @@ const ClientRegistration = () => {
         setClients(prev => [res.data, ...prev]);
         toast.success(`Client registered successfully! Client #: ${res.data.clientNumber || 'N/A'}`);
       }
+      setDuplicateModalData(null);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error saving client');
+      if (err.response?.status === 409 && err.response?.data?.code === 'DUPLICATE_PHONE') {
+        setDuplicateModalData(err.response.data);
+      } else {
+        toast.error(err.response?.data?.message || 'Error saving client');
+      }
     }
     setSaving(false);
   };
@@ -422,7 +431,9 @@ const ClientRegistration = () => {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold theme-text-secondary block mb-1">Phone Number *</label>
+                <label className="text-xs font-bold theme-text-secondary block mb-1">
+                  Primary Mobile Phone Number *
+                </label>
                 <input
                   name="phone"
                   value={form.phone}
@@ -431,6 +442,9 @@ const ClientRegistration = () => {
                   className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
                   placeholder="03XX-XXXXXXX"
                 />
+                <span className="text-[10px] text-gray-500 font-bold block mt-1">
+                  Main contact number used for primary identification and cross-outlet lookup.
+                </span>
               </div>
             </div>
 
@@ -444,30 +458,41 @@ const ClientRegistration = () => {
             )}
 
             {/* Additional Phones */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold theme-text-secondary">Additional / Alternate Phone Numbers</label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-bold theme-text-secondary block">
+                    Additional / Alternate Phone Numbers (Up to 4+ numbers)
+                  </label>
+                  <span className="text-[10px] text-gray-500 font-bold block">
+                    Customer can be searched and found by primary OR any alternate phone number.
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={addPhone}
-                  className="text-xs font-black text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-black text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer bg-blue-500/10 px-2.5 py-1.5 rounded-lg border border-blue-500/20"
                 >
                   <Plus size={12} />Add Phone
                 </button>
               </div>
               <div className="space-y-2">
                 {additionalPhones.map((p, i) => (
-                  <div key={i} className="flex gap-2">
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="px-2.5 py-2.5 rounded-xl text-xs font-black bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 shrink-0">
+                      Alt #{i + 1}
+                    </span>
                     <input
                       value={p}
                       onChange={(e) => updatePhone(i, e.target.value)}
                       className="flex-1 bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-                      placeholder="Alternate phone number"
+                      placeholder={i === 0 ? "Alternate Phone #1 (e.g. 0312-XXXXXXX)" : i === 1 ? "Alternate Phone #2 (e.g. 0321-XXXXXXX)" : `Alternate Phone #${i + 1}`}
                     />
                     <button
                       type="button"
                       onClick={() => removePhone(i)}
                       className="p-2.5 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                      title="Remove number"
                     >
                       <X size={14} />
                     </button>
@@ -729,7 +754,7 @@ const ClientRegistration = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-gray-900 border-2 border-gray-700 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-                placeholder="Search across all outlets by customer name, phone, or client #..."
+                placeholder="Search across all outlets by phone (primary or additional), name, address, locality, or client #..."
               />
             </div>
             <div>
@@ -760,7 +785,7 @@ const ClientRegistration = () => {
               <div className="glass p-12 rounded-2xl text-center space-y-2">
                 <AlertTriangle size={32} className="text-amber-400 mx-auto" />
                 <p className="text-base font-black text-white">No clients found matching "{searchQuery}"</p>
-                <p className="text-xs font-bold text-gray-500">Try searching by mobile number without country code or dashes.</p>
+                <p className="text-xs font-bold text-gray-500">Search by primary phone, any alternate phone, customer name, street/area address, or client #.</p>
               </div>
             ) : (searchQuery ? searchResults : clients).map(client => {
               const isOwner = canEditClient(client);
@@ -791,7 +816,7 @@ const ClientRegistration = () => {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400 font-bold">
                         <span className="flex items-center gap-1 text-blue-400 font-mono">
                           <Phone size={13} />
-                          {client.phone}
+                          Primary: {client.phone}
                         </span>
                         {client.city && (
                           <span className="flex items-center gap-1 text-gray-300">
@@ -806,6 +831,17 @@ const ClientRegistration = () => {
                           </span>
                         )}
                       </div>
+
+                      {Array.isArray(client.additionalPhones) && client.additionalPhones.filter(Boolean).length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Alternate Phones:</span>
+                          {client.additionalPhones.filter(Boolean).map((altP, pIdx) => (
+                            <span key={pIdx} className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                              {altP}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                       {client.permanentAddress && (
                         <p className="text-xs text-gray-400 line-clamp-1">
@@ -1114,6 +1150,90 @@ const ClientRegistration = () => {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* DUPLICATE PHONE WARNING MODAL */}
+      {duplicateModalData && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-900 border-2 border-amber-500/60 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl shadow-amber-950/50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400 shrink-0">
+                <AlertTriangle size={28} />
+              </div>
+              <div className="space-y-1 flex-1">
+                <h3 className="text-lg font-black text-white">Phone Number Already Registered</h3>
+                <p className="text-xs text-gray-400 font-bold leading-relaxed">
+                  A registered customer profile already matches phone number{' '}
+                  <span className="text-amber-400 font-mono font-black">{duplicateModalData.matchedPhone}</span>.
+                </p>
+              </div>
+            </div>
+
+            {/* Existing Customer Profile Card */}
+            {duplicateModalData.existingClient && (
+              <div className="bg-gray-800/80 border border-gray-700 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-base font-black text-white">{duplicateModalData.existingClient.name}</p>
+                  <span className="px-2 py-0.5 rounded text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                    Client #{duplicateModalData.existingClient.clientNumber || 'N/A'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-400">
+                  <div>
+                    <span className="text-gray-500 block text-[10px] uppercase">Registered Branch:</span>
+                    <span className="text-emerald-400">{duplicateModalData.existingClient.outletName || 'Outlet'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block text-[10px] uppercase">Primary Phone:</span>
+                    <span className="text-blue-300 font-mono">{duplicateModalData.existingClient.phone}</span>
+                  </div>
+                  {duplicateModalData.existingClient.permanentAddress && (
+                    <div className="col-span-2">
+                      <span className="text-gray-500 block text-[10px] uppercase">Address:</span>
+                      <span className="text-gray-300 line-clamp-1">{duplicateModalData.existingClient.permanentAddress}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const existing = duplicateModalData.existingClient;
+                  setDuplicateModalData(null);
+                  handleEdit(existing);
+                  toast.success(`Loaded existing customer #${existing.clientNumber}`);
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-900/30 transition-all cursor-pointer"
+              >
+                <User size={14} />
+                View & Load Existing Customer Profile
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDuplicateModalData(null);
+                  handleSubmit(null, { force: true });
+                }}
+                className="w-full bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 font-black py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <ShieldCheck size={14} />
+                Register Anyway (Different Customer / Shared Family Phone)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDuplicateModalData(null)}
+                className="w-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Cancel & Edit Phone Number
+              </button>
+            </div>
           </div>
         </div>
       )}

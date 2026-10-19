@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const { Prisma } = require('@prisma/client');
 const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const bcrypt = require('bcryptjs');
@@ -7,6 +8,7 @@ const { resolvePktDateRange } = require('../utils/workingHours');
 const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 const { createAuditLog } = require('./order-helpers');
 const { attachDelayInfoToOrders, DEFAULT_DELAY_CONFIG } = require('../utils/orderDelay');
+const { getPhoneSearchVariants, normalizePhone } = require('../utils/phoneUtils');
 
 const loadDelayConfig = async () => {
   try {
@@ -347,11 +349,68 @@ const createOutletOrder = async (req, res) => {
   }
 };
 
+const fetchRecentOrdersForClient = async (client) => {
+  if (!client) return [];
+  const allPhones = [client.phone, ...(Array.isArray(client.additionalPhones) ? client.additionalPhones : [])]
+    .filter(Boolean)
+    .map(p => String(p).trim());
+
+  if (allPhones.length === 0) return [];
+  const orConditions = [];
+  const seen = new Set();
+  allPhones.forEach(p => {
+    const variants = getPhoneSearchVariants(p);
+    variants.forEach(v => {
+      if (!seen.has(v)) {
+        seen.add(v);
+        orConditions.push({ customerPhone: { contains: v } });
+      }
+    });
+    const clean = p.replace(/\D/g, '');
+    if (clean.length >= 7 && !seen.has(clean)) {
+      seen.add(clean);
+      orConditions.push({ customerPhone: { contains: clean } });
+    }
+  });
+
+  if (orConditions.length === 0) return [];
+  return prisma.order.findMany({
+    where: { OR: orConditions },
+    orderBy: { createdAt: 'desc' },
+    take: 15,
+    select: {
+      id: true,
+      orderNumber: true,
+      createdAt: true,
+      outletName: true,
+      productDetails: true,
+      totalPrice: true,
+      advanceAmount: true,
+      advancePaid: true,
+      balanceAmount: true,
+      currentStage: true,
+      status: true,
+      deliveryMethod: true,
+      sizeData: true,
+      customization: true,
+      engravingRequired: true,
+      engravingText: true,
+      engravingInstructions: true,
+      logoRequired: true,
+      engravingNames: true,
+      engravingLogos: true,
+      instructionNotes: true,
+      measurementSpecialNote: true,
+      orderDestination: true
+    }
+  });
+};
+
 const lookupClientByNumber = async (req, res) => {
   try {
-    const { number, phone, name, orderNumber, id, clientId } = req.query;
+    const { number, phone, name, orderNumber, id, clientId, q, address } = req.query;
 
-    // Support order number lookup: find the order, then look up client by phone
+    // Support order number lookup: find the order, then look up client by phone or name
     if (orderNumber) {
       const order = await prisma.order.findUnique({
         where: { orderNumber },
@@ -359,21 +418,30 @@ const lookupClientByNumber = async (req, res) => {
       });
       if (!order) return res.status(404).json({ message: 'Order not found' });
 
-      // Find client by phone
-      const clients = order.customerPhone ? await prisma.client.findMany({
-        where: { phone: { contains: order.customerPhone }, isActive: true },
-        orderBy: { createdAt: 'desc' },
-        take: 20
-      }) : [];
+      let clients = [];
+      if (order.customerPhone) {
+        const variants = getPhoneSearchVariants(order.customerPhone);
+        const patterns = variants.map(v => `%${v}%`);
+        clients = await prisma.$queryRaw`
+          SELECT id, "clientNumber", name, gender, phone, "additionalPhones", "permanentAddress", "deliveryAddresses", city, "measurementChart", "sizeDetails", "standardSizes", "outletName", "createdAt", "updatedAt"
+          FROM "public"."Client"
+          WHERE "isActive" = true
+            AND (
+              "phone" ILIKE ANY(${patterns}::text[])
+              OR "additionalPhones"::text ILIKE ANY(${patterns}::text[])
+              OR "name" ILIKE ${'%' + (order.customerName || '') + '%'}
+            )
+          ORDER BY "createdAt" DESC
+          LIMIT 20
+        `;
+      }
 
-      // Build result with sizeData from the found order
       const result = clients.length > 0 ? clients.map(client => ({
         client,
         recentOrders: [],
         sizeData: order.sizeData
       })) : [];
 
-      // If no client found, return order info as fallback
       if (result.length === 0) {
         return res.json({
           clients: [{
@@ -393,33 +461,90 @@ const lookupClientByNumber = async (req, res) => {
         });
       }
 
-      // Fetch recent orders for found clients
       for (const entry of result) {
-        const orders = await prisma.order.findMany({
-          where: { customerPhone: entry.client.phone },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-          select: { id: true, orderNumber: true, createdAt: true, outletName: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true, deliveryMethod: true, status: true }
-        });
-        entry.recentOrders = orders || [];
+        entry.recentOrders = await fetchRecentOrdersForClient(entry.client);
       }
 
       return res.json({ clients: result });
     }
 
-    let where = { isActive: true };
-    if (id || clientId) where.id = id || clientId;
-    else if (number) where.clientNumber = number;
-    else if (phone) where.phone = { contains: phone };
-    else if (name) where.name = { contains: name, mode: 'insensitive' };
-    else return res.status(400).json({ message: 'Provide client number, phone, name, id, or orderNumber' });
+    // Direct ID lookup
+    if (id || clientId) {
+      const client = await prisma.client.findFirst({
+        where: { id: id || clientId, isActive: true }
+      });
+      if (!client) return res.status(404).json({ message: 'Client not found' });
+      const recentOrders = await fetchRecentOrdersForClient(client);
+      return res.json({
+        clients: [{ client, recentOrders }]
+      });
+    }
 
-    const clients = await prisma.client.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    });
-    if (clients.length === 0) return res.status(404).json({ message: 'Client not found' });
+    const searchTerm = (q || phone || name || number || address || '').trim();
+    if (!searchTerm) {
+      return res.status(400).json({ message: 'Provide client number, phone, name, id, or search query' });
+    }
+
+    const cleanQ = searchTerm;
+    const digitsOnly = cleanQ.replace(/\D/g, '');
+    const hasDigits = digitsOnly.length >= 3;
+    const phoneVariants = hasDigits ? getPhoneSearchVariants(cleanQ) : [];
+    const phonePatterns = phoneVariants.length > 0 ? phoneVariants.map(v => `%${v}%`) : ['__NEVER_MATCH__'];
+    if (hasDigits && digitsOnly.length >= 7) {
+      phonePatterns.push(`%${digitsOnly}%`);
+    }
+
+    const generalPattern = `%${cleanQ}%`;
+    const words = cleanQ.split(/\s+/).filter(w => w.length > 0);
+    const wordPatterns = words.map(w => `%${w}%`);
+    const hashNum = cleanQ.startsWith('#') ? cleanQ.slice(1).trim() : cleanQ;
+
+    let clients;
+    if (words.length > 1) {
+      clients = await prisma.$queryRaw`
+        SELECT id, "clientNumber", name, gender, phone, "additionalPhones", "permanentAddress", "deliveryAddresses", city, "measurementChart", "sizeDetails", "standardSizes", "outletName", "createdAt", "updatedAt"
+        FROM "public"."Client"
+        WHERE "isActive" = true
+          AND (
+            "phone" ILIKE ANY(${phonePatterns}::text[])
+            OR "additionalPhones"::text ILIKE ANY(${phonePatterns}::text[])
+            OR "name" ILIKE ${generalPattern}
+            OR "name" ILIKE ALL(${wordPatterns}::text[])
+            OR "permanentAddress" ILIKE ${generalPattern}
+            OR "permanentAddress" ILIKE ALL(${wordPatterns}::text[])
+            OR "city" ILIKE ${generalPattern}
+            OR "deliveryAddresses"::text ILIKE ${generalPattern}
+            OR "clientNumber" ILIKE ${generalPattern}
+            OR "clientNumber" = ${cleanQ}
+            OR "clientNumber" = ${hashNum}
+          )
+        ORDER BY "createdAt" DESC
+        LIMIT 20
+      `;
+    } else {
+      clients = await prisma.$queryRaw`
+        SELECT id, "clientNumber", name, gender, phone, "additionalPhones", "permanentAddress", "deliveryAddresses", city, "measurementChart", "sizeDetails", "standardSizes", "outletName", "createdAt", "updatedAt"
+        FROM "public"."Client"
+        WHERE "isActive" = true
+          AND (
+            "phone" ILIKE ANY(${phonePatterns}::text[])
+            OR "additionalPhones"::text ILIKE ANY(${phonePatterns}::text[])
+            OR "name" ILIKE ${generalPattern}
+            OR "permanentAddress" ILIKE ${generalPattern}
+            OR "city" ILIKE ${generalPattern}
+            OR "deliveryAddresses"::text ILIKE ${generalPattern}
+            OR "clientNumber" ILIKE ${generalPattern}
+            OR "clientNumber" = ${cleanQ}
+            OR "clientNumber" = ${hashNum}
+          )
+        ORDER BY "createdAt" DESC
+        LIMIT 20
+      `;
+    }
+
+    if (!clients || clients.length === 0) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
 
     const result = clients.map(client => ({
       client,
@@ -427,13 +552,7 @@ const lookupClientByNumber = async (req, res) => {
     }));
 
     for (const entry of result) {
-      const orders = await prisma.order.findMany({
-        where: { customerPhone: entry.client.phone },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-        select: { id: true, orderNumber: true, createdAt: true, outletName: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true, deliveryMethod: true, status: true }
-      });
-      entry.recentOrders = orders || [];
+      entry.recentOrders = await fetchRecentOrdersForClient(entry.client);
     }
 
     res.json({ clients: result });
