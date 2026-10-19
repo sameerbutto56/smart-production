@@ -349,13 +349,13 @@ const createOutletOrder = async (req, res) => {
 
 const lookupClientByNumber = async (req, res) => {
   try {
-    const { number, phone, name, orderNumber } = req.query;
+    const { number, phone, name, orderNumber, id, clientId } = req.query;
 
     // Support order number lookup: find the order, then look up client by phone
     if (orderNumber) {
       const order = await prisma.order.findUnique({
         where: { orderNumber },
-        select: { customerPhone: true, customerName: true, sizeData: true, id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true }
+        select: { customerPhone: true, customerName: true, sizeData: true, id: true, orderNumber: true, createdAt: true, outletName: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true }
       });
       if (!order) return res.status(404).json({ message: 'Order not found' });
 
@@ -396,10 +396,10 @@ const lookupClientByNumber = async (req, res) => {
       // Fetch recent orders for found clients
       for (const entry of result) {
         const orders = await prisma.order.findMany({
-          where: { customerPhone: entry.client.phone, source: 'OUTLET' },
+          where: { customerPhone: entry.client.phone },
           orderBy: { createdAt: 'desc' },
-          take: 3,
-          select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true }
+          take: 10,
+          select: { id: true, orderNumber: true, createdAt: true, outletName: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true, deliveryMethod: true, status: true }
         });
         entry.recentOrders = orders || [];
       }
@@ -408,10 +408,11 @@ const lookupClientByNumber = async (req, res) => {
     }
 
     let where = { isActive: true };
-    if (number) where.clientNumber = number;
+    if (id || clientId) where.id = id || clientId;
+    else if (number) where.clientNumber = number;
     else if (phone) where.phone = { contains: phone };
     else if (name) where.name = { contains: name, mode: 'insensitive' };
-    else return res.status(400).json({ message: 'Provide client number, phone, name, or orderNumber' });
+    else return res.status(400).json({ message: 'Provide client number, phone, name, id, or orderNumber' });
 
     const clients = await prisma.client.findMany({
       where,
@@ -427,10 +428,10 @@ const lookupClientByNumber = async (req, res) => {
 
     for (const entry of result) {
       const orders = await prisma.order.findMany({
-        where: { customerPhone: entry.client.phone, source: 'OUTLET' },
+        where: { customerPhone: entry.client.phone },
         orderBy: { createdAt: 'desc' },
-        take: 3,
-        select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true }
+        take: 10,
+        select: { id: true, orderNumber: true, createdAt: true, outletName: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true, deliveryMethod: true, status: true }
       });
       entry.recentOrders = orders || [];
     }

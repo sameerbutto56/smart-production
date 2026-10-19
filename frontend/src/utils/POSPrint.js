@@ -1037,3 +1037,154 @@ export const printPosFinancialSummary = ({
     printW.print();
   }, 300);
 };
+
+/**
+ * Outlet Order Thermal Slip (Customer Copy)
+ * Formatted for standard 80mm/58mm thermal printers with full order details,
+ * customization, measurements, and payment summary.
+ */
+export async function printOutletOrderThermalSlip(order) {
+  if (!order) return;
+  const logoUrl = await getThermalLogoBlobUrl();
+  const outlet = order.outletName || 'Outlet';
+  const phone = phones[outlet] || '';
+  const pf = (n) => (n || 0).toLocaleString();
+
+  // Parse products
+  let products = [];
+  if (Array.isArray(order.products)) {
+    products = order.products;
+  } else if (order.productDetails) {
+    try {
+      products = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    } catch {
+      products = [];
+    }
+  }
+
+  // Parse custom measurements
+  let measurements = null;
+  if (order.sizeData) {
+    measurements = typeof order.sizeData === 'string' ? (() => { try { return JSON.parse(order.sizeData); } catch { return null; } })() : order.sizeData;
+  }
+
+  const customerName = order.customerName || 'Walk-in Customer';
+  const customerPhone = order.customerPhone || '';
+  const clientNum = order.clientNumber || '';
+  const address = order.address || order.permanentAddress || '';
+  const city = order.city || '';
+  const orderNum = order.orderNumber || 'N/A';
+  const dateStr = formatDateTime(order.createdAt || new Date());
+  const placedBy = order.placedByEmployeeName || order.placedBy || order.cashierName || '';
+
+  const grandTotal = parseFloat(order.totalPrice || order.grandTotal || 0);
+  const advPaid = parseFloat(order.advanceAmount || order.advancePaid || 0);
+  const balDue = order.balanceAmount != null ? parseFloat(order.balanceAmount) : Math.max(0, grandTotal - advPaid);
+  const isPaid = (order.paymentStatus === 'PAID') || (balDue <= 0.01);
+
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Order Slip - ${orderNum}</title><style>
+    ${getThermalMasterCSS()}
+  </style></head><body>
+    <div class="header">
+      <img src="${logoUrl}" alt="ENAMELS" style="height:75px;margin-bottom:4px;">
+      <p style="font-size:12px;font-style:italic;margin-bottom:6px;">Premium Medical Apparels</p>
+      <div class="banner">OUTLET CUSTOMER ORDER SLIP</div>
+      <p style="font-size:15px;font-weight:900;">${outlet}</p>
+      ${phone ? `<p style="font-size:13px;">${phone}</p>` : ''}
+    </div>
+    <div style="border:2px solid #000;border-radius:4px;padding:6px;text-align:center;margin:6px 0;">
+      <div style="font-size:11px;font-weight:bold;text-transform:uppercase;">ORDER NUMBER</div>
+      <div style="font-size:22px;font-weight:900;letter-spacing:1px;">${orderNum}</div>
+    </div>
+    <table class="info-table">
+      <tr><td class="label">Date / Time:</td><td class="val">${dateStr}</td></tr>
+      ${placedBy ? `<tr><td class="label">Order Taken By:</td><td class="val">${placedBy}</td></tr>` : ''}
+      <tr><td class="label">Customer Name:</td><td class="val" style="font-weight:900;">${customerName}</td></tr>
+      <tr><td class="label">Phone:</td><td class="val" style="font-weight:900;">${customerPhone}</td></tr>
+      ${clientNum ? `<tr><td class="label">Client #:</td><td class="val" style="font-weight:900;">#${clientNum}</td></tr>` : ''}
+      ${address ? `<tr><td class="label">Delivery Address:</td><td class="val">${address}${city ? ` (${city})` : ''}</td></tr>` : city ? `<tr><td class="label">City:</td><td class="val">${city}</td></tr>` : ''}
+      ${order.deliveryType ? `<tr><td class="label">Delivery Method:</td><td class="val">${order.deliveryType}</td></tr>` : ''}
+      ${order.priority && order.priority !== 'NORMAL' ? `<tr><td class="label">Priority:</td><td class="val" style="font-weight:900;">${order.priority}</td></tr>` : ''}
+    </table>
+    <hr/>
+    <div class="section-label">ORDERED ITEMS (${products.reduce((s, p) => s + (parseInt(p.quantity) || 1), 0)} PCS)</div>
+    <div class="items">
+      <div class="items-heading">
+        <span class="col-item">ITEM / DETAILS</span>
+        <span class="col-qty">QTY × RATE</span>
+        <span class="col-total">TOTAL</span>
+      </div>
+      ${products.map(p => {
+        const qty = parseInt(p.quantity) || 1;
+        const rate = parseFloat(p.unitPrice || p.price || 0);
+        const lineTotal = rate * qty;
+        const name = p.name || p.productName || 'Custom Scrub';
+        const variantParts = [p.color, p.size, p.fabric].filter(Boolean);
+        const hasEngraving = p.engravingRequired || (Array.isArray(p.engravingLines) && p.engravingLines.length > 0);
+        return `
+          <div class="item" style="border-bottom:1px solid #000;padding:5px 0;">
+            <div class="item-name" style="font-size:15px;font-weight:900;">${name}</div>
+            ${variantParts.length ? `<div class="item-variant" style="font-size:13px;font-weight:bold;">${variantParts.join(' • ')}</div>` : ''}
+            ${p.matchingCap ? `<div style="font-size:12px;">+ Matching Cap (${p.matchingCapQty || 1} pcs)</div>` : ''}
+            ${hasEngraving ? `
+              <div style="font-size:12px;background:#f0f0f0;padding:2px 4px;margin-top:2px;border-radius:2px;">
+                <strong>Engraving / Embroidery:</strong><br/>
+                ${(p.engravingLines || []).filter(Boolean).map(l => `&bull; ${l}`).join('<br/>')}
+                ${p.engravingThreadColor ? `<br/>Thread: ${p.engravingThreadColor}` : ''}
+                ${p.engravingPlacement ? ` | Placement: ${p.engravingPlacement}` : ''}
+              </div>
+            ` : ''}
+            ${p.stitchingNotes ? `<div style="font-size:11px;font-style:italic;">Notes: ${p.stitchingNotes}</div>` : ''}
+            <div class="item-line" style="margin-top:3px;">
+              <span>${qty} × ${pf(rate)}</span>
+              <span class="item-total" style="font-weight:900;">₨${pf(lineTotal)}</span>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    ${measurements && typeof measurements === 'object' ? `
+      <div class="section-label" style="margin-top:8px;">CUSTOM MEASUREMENTS (INCHES)</div>
+      <div style="border:1px solid #000;padding:4px;font-size:12px;margin:4px 0;">
+        <table style="width:100%;border-collapse:collapse;">
+          ${Object.entries(measurements)
+            .filter(([k, v]) => k !== '_extra' && k !== '_standardSize' && v && typeof v !== 'object')
+            .map(([k, v]) => `<tr><td style="padding:2px;font-weight:bold;text-transform:capitalize;">${k.replace(/([A-Z])/g, ' $1')}:</td><td style="padding:2px;text-align:right;">${v}"</td></tr>`)
+            .join('')}
+          ${Array.isArray(measurements._extra) ? measurements._extra.filter(e => e.name && e.value).map(e => `<tr><td style="padding:2px;font-weight:bold;">${e.name}:</td><td style="padding:2px;text-align:right;">${e.value}"</td></tr>`).join('') : ''}
+        </table>
+      </div>
+    ` : ''}
+    <div class="section-label" style="margin-top:8px;">PAYMENT SUMMARY</div>
+    <table class="summary">
+      <tr class="sub"><td>Total Order Amount</td><td class="value">₨${pf(grandTotal)}</td></tr>
+      <tr><td>Advance Paid</td><td class="value">₨${pf(advPaid)}</td></tr>
+      <tr class="final" style="font-size:18px;">
+        <td>Remaining Balance</td>
+        <td class="value">₨${pf(balDue)}</td>
+      </tr>
+    </table>
+    <div class="badge" style="margin:8px 0;font-size:15px;padding:6px;">
+      ${isPaid ? '✓ FULLY PAID — ORDER CONFIRMED' : `BALANCE DUE ON COLLECTION: ₨${pf(balDue)}`}
+    </div>
+    ${order.notes || order.instructionNotes ? `
+      <div style="font-size:12px;border:1px dashed #000;padding:4px;margin:6px 0;">
+        <strong>Special Instructions:</strong><br/>
+        ${order.notes || order.instructionNotes}
+      </div>
+    ` : ''}
+    <div class="sig" style="margin-top:12px;">
+      <div>Customer Signature:<br/><span style="display:inline-block;width:120px;border-bottom:1px solid #000;margin-top:18px;"></span></div>
+      <div class="line" style="margin-top:18px;">Outlet Authorized Stamp</div>
+    </div>
+    <div style="text-align:center;font-size:11px;margin-top:8px;font-style:italic;">
+      Thank you for choosing Enamels! Please bring this slip when collecting your order.<br/>
+      For online tracking & queries: support@enamels.com
+    </div>
+  </body></html>`;
+
+  printThermalDocument(html, `Order Slip - ${orderNum}`, () => {
+    if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl);
+  });
+}
+

@@ -22,8 +22,10 @@ import {
   X,
   CreditCard,
   Receipt,
-  ArrowRight
+  ArrowRight,
+  Printer
 } from 'lucide-react';
+import { printOutletOrderThermalSlip } from '../utils/POSPrint';
 import toast from 'react-hot-toast';
 
 const STAGE_LABELS = {
@@ -729,8 +731,15 @@ export default function OutletOrderLookup() {
             {/* Modal Footer */}
             <div className="p-4 border-t border-slate-800 flex justify-end gap-2 bg-slate-950/60">
               <button
+                onClick={() => printOutletOrderThermalSlip(currentOrder)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              >
+                <Printer size={14} />
+                Print Thermal Slip
+              </button>
+              <button
                 onClick={() => setSelectedOrderData(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
                 Close
               </button>

@@ -2,9 +2,10 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock, Trash2, Save } from 'lucide-react';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock, Trash2, Save, FileText } from 'lucide-react';
 import { formatDateOnly, formatDateTime, formatTimeOnly } from '../utils/dateTime';
 import { printJobSheet } from '../utils/printReport';
+import { printOutletOrderThermalSlip } from '../utils/POSPrint';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Customer', 'Products', 'Measurements', 'Review'];
@@ -98,6 +99,10 @@ const OutletOrderEntry = () => {
   const outletName = user?.name || 'Outlet';
   const [searchParams] = useSearchParams();
   const prefilledOrderNumber = searchParams.get('orderNumber') || '';
+  const prefilledClientNumber = searchParams.get('clientNumber') || '';
+  const prefilledClientId = searchParams.get('clientId') || '';
+  const prefilledPhone = searchParams.get('phone') || '';
+  const repeatOrderId = searchParams.get('repeatOrderId') || '';
 
   const employeeOutlet = (() => {
     const n = (user?.name || '').toLowerCase();
@@ -581,6 +586,84 @@ const OutletOrderEntry = () => {
     toast.success(`Client ${client.name} loaded`);
   }, []);
 
+  // ── Auto-load client when navigated with clientNumber, clientId, phone or repeatOrderId ──
+  const clientLoadedRef = useRef(false);
+  useEffect(() => {
+    if (clientLoadedRef.current) return;
+    const clientTarget = prefilledClientNumber || prefilledClientId || prefilledPhone;
+    if (!clientTarget) return;
+
+    const loadPrefilledClient = async () => {
+      clientLoadedRef.current = true;
+      setCustomerMode('existing');
+      setLookupLoading(true);
+      try {
+        const params = prefilledClientId
+          ? { id: prefilledClientId }
+          : prefilledClientNumber
+          ? { number: prefilledClientNumber }
+          : { phone: prefilledPhone };
+
+        const res = await api.get('/api/outlet-orders/lookup', { params });
+        const { clients } = res.data;
+        if (Array.isArray(clients) && clients.length > 0) {
+          const target = clients[0];
+          selectClient(target.client, target.recentOrders);
+          setSearchQuery(target.client.phone || target.client.clientNumber || '');
+          setLookedUp(true);
+
+          // If repeatOrderId is present, find that past order and populate products/customizations
+          if (repeatOrderId && Array.isArray(target.recentOrders)) {
+            const pastOrder = target.recentOrders.find(o => o.id === repeatOrderId || o.orderNumber === repeatOrderId);
+            if (pastOrder) {
+              let pastProducts = [];
+              try {
+                pastProducts = typeof pastOrder.productDetails === 'string'
+                  ? JSON.parse(pastOrder.productDetails)
+                  : (Array.isArray(pastOrder.productDetails) ? pastOrder.productDetails : []);
+              } catch {}
+
+              if (pastProducts.length > 0) {
+                setProducts(pastProducts.map((p, idx) => ({
+                  _tempId: Date.now() + idx,
+                  name: p.name || p.productType || 'Custom Scrub',
+                  fabric: p.fabric || p.fabricType || '',
+                  color: p.color || '',
+                  size: p.size || '',
+                  quantity: parseInt(p.quantity) || 1,
+                  unitPrice: parseFloat(p.unitPrice || p.price) || 0,
+                  design: p.design || '',
+                  stitchingNotes: p.stitchingNotes || '',
+                  accessories: p.accessories || '',
+                  sleeveLength: p.sleeveLength || '',
+                  shirtLength: p.shirtLength || '',
+                  gender: p.gender || 'Male',
+                  matchingCap: !!p.matchingCap,
+                  matchingCapQty: parseInt(p.matchingCapQty) || 0,
+                  capCharges: p.matchingCap ? (parseInt(p.matchingCapQty) || 0) * 500 : 0,
+                  engravingRequired: !!p.engravingRequired,
+                  engravingType: p.engravingType || 'direct',
+                  engravingLines: Array.isArray(p.engravingLines) ? p.engravingLines : [],
+                  engravingThreadColor: p.engravingThreadColor || '',
+                  engravingPlacement: p.engravingPlacement || 'LeftChest',
+                  logoEntries: Array.isArray(p.logoEntries) ? p.logoEntries : [],
+                  engravingInstructions: p.engravingInstructions || ''
+                })));
+                toast.success(`Repeated past order items for Customer #${target.client.clientNumber}`);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to prefill client:', err);
+      } finally {
+        setLookupLoading(false);
+      }
+    };
+
+    loadPrefilledClient();
+  }, [prefilledClientNumber, prefilledClientId, prefilledPhone, repeatOrderId, selectClient]);
+
   const handleStartNewCustomer = useCallback(() => {
     setCustomerMode('new');
     setClientData(null);
@@ -814,6 +897,32 @@ const OutletOrderEntry = () => {
     printJobSheet(previewOrder, user?.role || 'OUTLET', 'en');
   };
 
+  const handlePrintThermalSlipPreview = () => {
+    const previewOrder = {
+      orderNumber: orderNumber || 'DRAFT',
+      customerName: customer.name || 'Walk-in Customer',
+      customerPhone: customer.phone || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      clientNumber: clientData?.clientNumber || null,
+      outletName,
+      source: 'OUTLET',
+      priority,
+      deliveryType,
+      type: 'STANDARD',
+      paymentStatus: paymentStatus || 'UNPAID',
+      balanceAmount: balanceAmount ? parseFloat(balanceAmount) : 0,
+      totalPrice: totalAmount,
+      advanceAmount: advanceAmount ? parseFloat(advanceAmount) : 0,
+      notes: specialNotes || null,
+      products,
+      sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
+      placedByEmployeeName: employee?.name || user?.name || null,
+      createdAt: new Date().toISOString()
+    };
+    printOutletOrderThermalSlip(previewOrder);
+  };
+
   const resetAll = useCallback(() => {
     clearSavedDraft();
     setStep(0);
@@ -855,27 +964,72 @@ const OutletOrderEntry = () => {
   }, [resetAll]);
 
   if (submitted) {
+    const slipOrder = createdOrder || {
+      orderNumber,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      address: customer.address,
+      city: customer.city,
+      clientNumber: clientData?.clientNumber || null,
+      outletName,
+      products,
+      sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
+      totalPrice: totalAmount,
+      advanceAmount: advance,
+      balanceAmount: balance,
+      paymentStatus,
+      priority,
+      deliveryType,
+      notes: specialNotes,
+      placedByEmployeeName: employee?.name || user?.name,
+      createdAt: new Date().toISOString()
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-gray-900 border-2 border-emerald-700 rounded-3xl p-8 max-w-md w-full text-center space-y-4">
+        <div className="bg-gray-900 border-2 border-emerald-700 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
           <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle size={40} className="text-emerald-400" />
           </div>
           <h2 className="text-2xl font-black text-white">Order Placed!</h2>
-          <p className="text-lg font-bold text-blue-400">{createdOrder?.orderNumber}</p>
+          <p className="text-2xl font-black text-blue-400 font-mono tracking-wider">{createdOrder?.orderNumber || orderNumber}</p>
           {createdOrder?.invoiceNumber && <p className="text-sm font-bold text-amber-400">Invoice: {createdOrder.invoiceNumber}</p>}
           {priority !== 'NORMAL' && <p className="text-xs font-bold text-red-400">Priority: {PRIORITY_OPTIONS.find(p => p.value === priority)?.label}</p>}
           {customerMode === 'new' && (
             <p className="text-xs font-bold text-emerald-400">Customer saved to Client Registration</p>
           )}
-          <div className="bg-gray-800 rounded-xl p-4 space-y-1 text-sm">
+          <div className="bg-gray-800 rounded-xl p-4 space-y-1.5 text-sm text-left">
+            <p className="text-gray-400">Customer: <span className="text-white font-bold">{customer.name} ({customer.phone})</span></p>
+            {clientData?.clientNumber && <p className="text-gray-400">Client #: <span className="text-blue-400 font-bold">#{clientData.clientNumber}</span></p>}
             <p className="text-gray-400">Total: <span className="text-white font-black">₨{totalAmount.toLocaleString()}</span></p>
             {advance > 0 && <p className="text-gray-400">Advance: <span className="text-emerald-400 font-black">₨{advance.toLocaleString()}</span></p>}
             <p className="text-gray-400">Balance: <span className="text-amber-400 font-black">₨{Math.max(0, balance).toLocaleString()}</span></p>
           </div>
-          <button onClick={resetAll} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm">
-            New Order
-          </button>
+
+          <div className="space-y-2 pt-2">
+            <button
+              onClick={() => printOutletOrderThermalSlip(slipOrder)}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+            >
+              <Printer size={16} />
+              Print Thermal Slip (Customer Copy)
+            </button>
+
+            <button
+              onClick={handlePrintPreviewJobSheet}
+              className="w-full bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 border border-gray-700 transition-all cursor-pointer"
+            >
+              <FileText size={14} />
+              Print Production Job Sheet (A4)
+            </button>
+
+            <button
+              onClick={resetAll}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm transition-all cursor-pointer mt-2"
+            >
+              Start New Order
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1757,13 +1911,17 @@ const OutletOrderEntry = () => {
               )}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={() => setShowJobSheetPreview(true)}
-                className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2">
-                <Printer size={20} /> Preview Job Sheet
+                className="bg-purple-600 hover:bg-purple-500 text-white font-black py-4 px-4 rounded-2xl text-base flex items-center justify-center gap-2 cursor-pointer">
+                <FileText size={18} /> Preview Job Sheet
+              </button>
+              <button onClick={handlePrintThermalSlipPreview}
+                className="bg-slate-700 hover:bg-slate-600 text-white font-black py-4 px-4 rounded-2xl text-base flex items-center justify-center gap-2 cursor-pointer">
+                <Printer size={18} /> Print Thermal Slip
               </button>
               <button onClick={handleSubmit} disabled={submitting}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-900/30">
                 {submitting ? 'Placing Order...' : `Place Order — ₨${totalAmount.toLocaleString()}`}
               </button>
             </div>
