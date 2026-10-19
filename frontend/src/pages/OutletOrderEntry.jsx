@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock } from 'lucide-react';
-import { formatDateOnly } from '../utils/dateTime';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock, Trash2, Save } from 'lucide-react';
+import { formatDateOnly, formatDateTime, formatTimeOnly } from '../utils/dateTime';
 import { printJobSheet } from '../utils/printReport';
 import toast from 'react-hot-toast';
 
@@ -62,6 +62,37 @@ const EMPTY_PRODUCT = {
   logoEntries: [{ name: '', design: '' }], engravingInstructions: ''
 };
 
+// ── Auto-save Persistence Helpers ──
+const getDraftStorageKey = (outlet, emp) => {
+  const o = (outlet || 'outlet').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const e = (emp?.id ? `id_${emp.id}` : (emp?.name ? `name_${emp.name}` : 'shared')).trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+  return `enamels_outlet_order_draft_${o}_${e}`;
+};
+
+const hasDraftData = (d) => {
+  if (!d || typeof d !== 'object') return false;
+  const hasCust = !!(d.customer?.name?.trim() || d.customer?.phone?.trim() || d.customer?.address?.trim() || d.customer?.notes?.trim());
+  const hasProds = Array.isArray(d.products) && d.products.length > 0;
+  const hasNewProd = !!(d.newProduct?.name?.trim());
+  const hasNotes = !!(d.specialNotes?.trim());
+  const hasClient = !!d.clientData;
+  const hasOrderNum = !!(d.orderNumber && d.orderNumber.trim());
+  const hasPayment = !!(d.paymentStatus || (d.advanceAmount && d.advanceAmount > 0) || (d.balanceAmount && String(d.balanceAmount).trim() !== ''));
+  return hasCust || hasProds || hasNewProd || hasNotes || hasClient || hasPayment;
+};
+
+const readDraft = (key) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch (e) {
+    console.error('Error reading outlet order draft:', e);
+  }
+  return null;
+};
+
 const OutletOrderEntry = () => {
   const { user } = useAuth();
   const outletName = user?.name || 'Outlet';
@@ -75,16 +106,36 @@ const OutletOrderEntry = () => {
     return 'Johar Town';
   })();
 
-  // ── Employee login ──
-  const [employee, setEmployee] = useState(() => {
+  // ── Auto-save Draft helpers & Initial synchronous hydration ──
+  const initialEmployee = useMemo(() => {
     try { const s = sessionStorage.getItem('outlet_employee'); return s ? JSON.parse(s) : null; } catch { return null; }
-  });
+  }, []);
+  const initialDraftKey = useMemo(() => {
+    return getDraftStorageKey(employeeOutlet, initialEmployee);
+  }, [employeeOutlet, initialEmployee]);
+
+  const initialDraft = useMemo(() => {
+    return readDraft(initialDraftKey);
+  }, [initialDraftKey]);
+
+  // ── Employee login ──
+  const [employee, setEmployee] = useState(initialEmployee);
   const [employeeList, setEmployeeList] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
   const [employeePassword, setEmployeePassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
+
+  const draftKey = useMemo(() => {
+    return getDraftStorageKey(employeeOutlet, employee);
+  }, [employeeOutlet, employee]);
+
+  const [draftStatus, setDraftStatus] = useState(() => (hasDraftData(initialDraft) ? 'saved' : null));
+  const [draftSavedAt, setDraftSavedAt] = useState(() => initialDraft?.savedAt || null);
+  const [isDraftRestored, setIsDraftRestored] = useState(() => hasDraftData(initialDraft));
+  const isHydratedRef = useRef(true);
+  const saveTimeoutRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -130,47 +181,193 @@ const OutletOrderEntry = () => {
     try { sessionStorage.removeItem('outlet_employee'); } catch {}
   }, []);
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => (typeof initialDraft?.step === 'number' ? initialDraft.step : 0));
 
-  const [customerMode, setCustomerMode] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [customerMode, setCustomerMode] = useState(() => initialDraft?.customerMode || null);
+  const [searchQuery, setSearchQuery] = useState(() => initialDraft?.searchQuery || '');
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
-  const [clientData, setClientData] = useState(null);
-  const [recentOrders, setRecentOrders] = useState([]);
+  const [clientData, setClientData] = useState(() => initialDraft?.clientData || null);
+  const [recentOrders, setRecentOrders] = useState(() => (Array.isArray(initialDraft?.recentOrders) ? initialDraft.recentOrders : []));
   const [lookupLoading, setLookupLoading] = useState(false);
-  const [lookedUp, setLookedUp] = useState(false);
+  const [lookedUp, setLookedUp] = useState(() => !!initialDraft?.lookedUp);
 
-  const [customer, setCustomer] = useState({ name: '', phone: '', address: '', city: '', notes: '' });
+  const [customer, setCustomer] = useState(() => initialDraft?.customer || { name: '', phone: '', address: '', city: '', notes: '' });
 
-  const [orderNumber, setOrderNumber] = useState(prefilledOrderNumber || '');
+  const [orderNumber, setOrderNumber] = useState(() => prefilledOrderNumber || initialDraft?.orderNumber || '');
   const [generatingNumber, setGeneratingNumber] = useState(false);
 
-  const [products, setProducts] = useState([]);
-  const [newProduct, setNewProduct] = useState({ ...EMPTY_PRODUCT });
+  const [products, setProducts] = useState(() => (Array.isArray(initialDraft?.products) ? initialDraft.products : []));
+  const [newProduct, setNewProduct] = useState(() => (initialDraft?.newProduct ? { ...EMPTY_PRODUCT, ...initialDraft.newProduct } : { ...EMPTY_PRODUCT }));
 
-  const [specialNotes, setSpecialNotes] = useState('');
+  const [specialNotes, setSpecialNotes] = useState(() => initialDraft?.specialNotes || '');
 
-  const [sizeData, setSizeData] = useState({});
-  const [clientStandardSizes, setClientStandardSizes] = useState([]);
-  const [clientMeasurements, setClientMeasurements] = useState({});
-  const [sizingMode, setSizingMode] = useState(null);
-  const [selectedStandardSize, setSelectedStandardSize] = useState('');
-  const [clientMeasurementChart, setClientMeasurementChart] = useState('');
+  const [sizeData, setSizeData] = useState(() => initialDraft?.sizeData || {});
+  const [clientStandardSizes, setClientStandardSizes] = useState(() => (Array.isArray(initialDraft?.clientStandardSizes) ? initialDraft.clientStandardSizes : []));
+  const [clientMeasurements, setClientMeasurements] = useState(() => initialDraft?.clientMeasurements || {});
+  const [sizingMode, setSizingMode] = useState(() => initialDraft?.sizingMode || null);
+  const [selectedStandardSize, setSelectedStandardSize] = useState(() => initialDraft?.selectedStandardSize || '');
+  const [clientMeasurementChart, setClientMeasurementChart] = useState(() => initialDraft?.clientMeasurementChart || '');
 
-  const [advanceAmount, setAdvanceAmount] = useState(0);
-  const [priority, setPriority] = useState('NORMAL');
-  const [deliveryType, setDeliveryType] = useState('DELIVERY');
-  const [paymentStatus, setPaymentStatus] = useState('');
-  const [balanceAmount, setBalanceAmount] = useState('');
+  const [advanceAmount, setAdvanceAmount] = useState(() => (initialDraft?.advanceAmount != null ? initialDraft.advanceAmount : 0));
+  const [priority, setPriority] = useState(() => initialDraft?.priority || 'NORMAL');
+  const [deliveryType, setDeliveryType] = useState(() => initialDraft?.deliveryType || 'DELIVERY');
+  const [paymentStatus, setPaymentStatus] = useState(() => initialDraft?.paymentStatus || '');
+  const [balanceAmount, setBalanceAmount] = useState(() => (initialDraft?.balanceAmount != null ? String(initialDraft.balanceAmount) : ''));
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
 
   const [showJobSheetPreview, setShowJobSheetPreview] = useState(false);
-  const [posSaleInfo, setPosSaleInfo] = useState(null);
+  const [posSaleInfo, setPosSaleInfo] = useState(() => initialDraft?.posSaleInfo || null);
   const [posSaleLoading, setPosSaleLoading] = useState(false);
+
+  // ── Clear saved draft ──
+  const clearSavedDraft = useCallback(() => {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch (e) {
+      console.error('Error clearing draft:', e);
+    }
+    setDraftStatus(null);
+    setDraftSavedAt(null);
+    setIsDraftRestored(false);
+  }, [draftKey]);
+
+  // ── When employee logs in, restore their saved draft if found ──
+  useEffect(() => {
+    if (!employee) return;
+    const key = getDraftStorageKey(employeeOutlet, employee);
+    const empDraft = readDraft(key);
+    if (hasDraftData(empDraft)) {
+      setStep(typeof empDraft.step === 'number' ? empDraft.step : 0);
+      setCustomerMode(empDraft.customerMode || null);
+      setSearchQuery(empDraft.searchQuery || '');
+      setLookedUp(!!empDraft.lookedUp);
+      setClientData(empDraft.clientData || null);
+      setRecentOrders(Array.isArray(empDraft.recentOrders) ? empDraft.recentOrders : []);
+      setCustomer(empDraft.customer || { name: '', phone: '', address: '', city: '', notes: '' });
+      if (empDraft.orderNumber) setOrderNumber(empDraft.orderNumber);
+      setDeliveryType(empDraft.deliveryType || 'DELIVERY');
+      setPriority(empDraft.priority || 'NORMAL');
+      setProducts(Array.isArray(empDraft.products) ? empDraft.products : []);
+      if (empDraft.newProduct) setNewProduct({ ...EMPTY_PRODUCT, ...empDraft.newProduct });
+      setSpecialNotes(empDraft.specialNotes || '');
+      setSizeData(empDraft.sizeData || {});
+      setClientStandardSizes(Array.isArray(empDraft.clientStandardSizes) ? empDraft.clientStandardSizes : []);
+      setClientMeasurements(empDraft.clientMeasurements || {});
+      setSizingMode(empDraft.sizingMode || null);
+      setSelectedStandardSize(empDraft.selectedStandardSize || '');
+      setClientMeasurementChart(empDraft.clientMeasurementChart || '');
+      setAdvanceAmount(empDraft.advanceAmount != null ? empDraft.advanceAmount : 0);
+      setBalanceAmount(empDraft.balanceAmount != null ? String(empDraft.balanceAmount) : '');
+      setPaymentStatus(empDraft.paymentStatus || '');
+      if (empDraft.posSaleInfo) setPosSaleInfo(empDraft.posSaleInfo);
+      setDraftSavedAt(empDraft.savedAt || null);
+      setDraftStatus('saved');
+      setIsDraftRestored(true);
+    }
+  }, [employee, employeeOutlet]);
+
+  // ── Auto-save Draft Effect ──
+  useEffect(() => {
+    if (!isHydratedRef.current || submitted) return;
+
+    const currentData = {
+      step,
+      customerMode,
+      searchQuery,
+      lookedUp,
+      clientData,
+      recentOrders,
+      customer,
+      orderNumber,
+      deliveryType,
+      priority,
+      products,
+      newProduct,
+      specialNotes,
+      sizeData,
+      clientStandardSizes,
+      clientMeasurements,
+      sizingMode,
+      selectedStandardSize,
+      clientMeasurementChart,
+      advanceAmount,
+      paymentStatus,
+      balanceAmount,
+      posSaleInfo
+    };
+
+    if (!hasDraftData(currentData)) {
+      return;
+    }
+
+    setDraftStatus('saving');
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(() => {
+      try {
+        const payload = {
+          ...currentData,
+          savedAt: new Date().toISOString(),
+          version: 1
+        };
+        localStorage.setItem(draftKey, JSON.stringify(payload));
+        setDraftStatus('saved');
+        setDraftSavedAt(payload.savedAt);
+      } catch (err) {
+        console.error('Error saving draft to localStorage:', err);
+        setDraftStatus('error');
+      }
+    }, 400);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [
+    draftKey, submitted, step, customerMode, searchQuery, lookedUp, clientData,
+    recentOrders, customer, orderNumber, deliveryType, priority, products,
+    newProduct, specialNotes, sizeData, clientStandardSizes, clientMeasurements,
+    sizingMode, selectedStandardSize, clientMeasurementChart, advanceAmount,
+    paymentStatus, balanceAmount, posSaleInfo
+  ]);
+
+  // ── Flush on BeforeUnload / Component Unmount ──
+  useEffect(() => {
+    const flushDraft = () => {
+      if (!isHydratedRef.current || submitted) return;
+      const currentData = {
+        step, customerMode, searchQuery, lookedUp, clientData, recentOrders,
+        customer, orderNumber, deliveryType, priority, products, newProduct,
+        specialNotes, sizeData, clientStandardSizes, clientMeasurements,
+        sizingMode, selectedStandardSize, clientMeasurementChart, advanceAmount,
+        paymentStatus, balanceAmount, posSaleInfo
+      };
+      if (hasDraftData(currentData)) {
+        try {
+          localStorage.setItem(draftKey, JSON.stringify({
+            ...currentData,
+            savedAt: new Date().toISOString(),
+            version: 1
+          }));
+        } catch {}
+      }
+    };
+
+    window.addEventListener('beforeunload', flushDraft);
+    return () => {
+      window.removeEventListener('beforeunload', flushDraft);
+      flushDraft();
+    };
+  }, [
+    draftKey, submitted, step, customerMode, searchQuery, lookedUp, clientData,
+    recentOrders, customer, orderNumber, deliveryType, priority, products,
+    newProduct, specialNotes, sizeData, clientStandardSizes, clientMeasurements,
+    sizingMode, selectedStandardSize, clientMeasurementChart, advanceAmount,
+    paymentStatus, balanceAmount, posSaleInfo
+  ]);
 
   const fetchPosSaleData = useCallback(async (targetNum) => {
     const q = (targetNum || '').trim();
@@ -229,9 +426,11 @@ const OutletOrderEntry = () => {
   useEffect(() => {
     if (prefilledOrderNumber) {
       setOrderNumber(prefilledOrderNumber);
-      fetchPosSaleData(prefilledOrderNumber);
+      if (!initialDraft || initialDraft.orderNumber !== prefilledOrderNumber || !initialDraft.products?.length) {
+        fetchPosSaleData(prefilledOrderNumber);
+      }
     }
-  }, [prefilledOrderNumber, fetchPosSaleData]);
+  }, [prefilledOrderNumber, fetchPosSaleData, initialDraft]);
 
   useEffect(() => {
     if (!prefilledOrderNumber && !orderNumber) {
@@ -245,7 +444,7 @@ const OutletOrderEntry = () => {
       };
       gen();
     }
-  }, []);
+  }, [prefilledOrderNumber, orderNumber]);
 
   const generateNewOrderNumber = useCallback(async () => {
     setGeneratingNumber(true);
@@ -545,11 +744,32 @@ const OutletOrderEntry = () => {
         balanceAmount: payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || 0) : null
       };
       const res = await api.post('/api/outlet-orders', payload);
+      // CONFIRMED SUCCESS FROM SERVER:
+      clearSavedDraft();
       setCreatedOrder(res.data);
       setSubmitted(true);
       toast.success(`Order ${res.data.orderNumber} placed!`);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to place order');
+      console.error('Failed to place order:', err);
+      // DO NOT clear draft on validation or server failure
+      const errMsg = err.response?.data?.message || 'Failed to place order';
+      // Idempotency check: if order number already exists, verify whether this order was already placed
+      if (errMsg.toLowerCase().includes('already exists') && orderNumber) {
+        try {
+          const verifyRes = await api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(orderNumber.trim())}`);
+          if (verifyRes.data?.found && verifyRes.data.order) {
+            clearSavedDraft();
+            setCreatedOrder(verifyRes.data.order);
+            setSubmitted(true);
+            toast.success(`Order ${orderNumber} verified and placed successfully!`);
+            setSubmitting(false);
+            return;
+          }
+        } catch (verifyErr) {
+          // If verify fails, fall through to error toast
+        }
+      }
+      toast.error(errMsg);
     }
     setSubmitting(false);
   };
@@ -594,7 +814,8 @@ const OutletOrderEntry = () => {
     printJobSheet(previewOrder, user?.role || 'OUTLET', 'en');
   };
 
-  const resetAll = () => {
+  const resetAll = useCallback(() => {
+    clearSavedDraft();
     setStep(0);
     setCustomerMode(null);
     setSearchQuery('');
@@ -613,6 +834,7 @@ const OutletOrderEntry = () => {
     setBalanceAmount('');
     setPriority('NORMAL');
     setDeliveryType('DELIVERY');
+    setPaymentStatus('');
     setSubmitted(false);
     setCreatedOrder(null);
     setClientStandardSizes([]);
@@ -620,7 +842,17 @@ const OutletOrderEntry = () => {
     setSelectedStandardSize('');
     setClientMeasurementChart('');
     setOrderNumber('');
-  };
+    setPosSaleInfo(null);
+    generateNewOrderNumber();
+  }, [clearSavedDraft, generateNewOrderNumber]);
+
+  const handleDiscardDraft = useCallback(() => {
+    if (!window.confirm('Are you sure you want to discard this unfinished draft? All entered fields will be cleared.')) {
+      return;
+    }
+    resetAll();
+    toast.success('Draft discarded. Starting fresh order.');
+  }, [resetAll]);
 
   if (submitted) {
     return (
@@ -710,20 +942,87 @@ const OutletOrderEntry = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20 px-4">
-      <div className="flex items-center gap-4">
-        <div className="p-3 bg-amber-600 rounded-2xl"><ShoppingBag className="text-white" size={24} /></div>
-        <div>
-          <h1 className="text-2xl font-black text-white">Outlet Order Entry</h1>
-          <p className="text-sm font-bold text-gray-400">{outletName}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-amber-600 rounded-2xl"><ShoppingBag className="text-white" size={24} /></div>
+          <div>
+            <h1 className="text-2xl font-black text-white">Outlet Order Entry</h1>
+            <p className="text-sm font-bold text-gray-400">{outletName}</p>
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-2 bg-emerald-700/30 border border-emerald-600 rounded-xl px-3 py-2">
-          <UserCheck size={15} className="text-emerald-400" />
-          <span className="text-xs font-black text-emerald-300">{employee?.name}</span>
-          <button onClick={handleEmployeeLogout} title="Logout employee" className="text-gray-400 hover:text-red-400 ml-1 cursor-pointer">
-            <LogOut size={14} />
-          </button>
+
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap ml-auto">
+          {/* Draft status indicator */}
+          {draftStatus === 'saving' && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold animate-pulse">
+              <RefreshCw size={12} className="animate-spin" />
+              <span>Saving draft…</span>
+            </div>
+          )}
+          {draftStatus === 'saved' && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+              <CheckCircle size={12} />
+              <span>Draft saved {draftSavedAt ? formatTimeOnly(draftSavedAt) : ''}</span>
+            </div>
+          )}
+          {draftStatus === 'error' && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold">
+              <AlertTriangle size={12} />
+              <span>Could not save draft</span>
+            </div>
+          )}
+
+          {/* Discard draft button */}
+          {(hasDraftData({ customer, products, newProduct, specialNotes, clientData, advanceAmount, balanceAmount, paymentStatus, orderNumber }) || isDraftRestored) && (
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              title="Discard unfinished draft and start fresh"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 hover:border-red-600 text-red-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
+            >
+              <Trash2 size={13} />
+              <span className="hidden sm:inline">Discard Draft</span>
+            </button>
+          )}
+
+          {/* Employee badge */}
+          <div className="flex items-center gap-2 bg-emerald-700/30 border border-emerald-600 rounded-xl px-3 py-1.5">
+            <UserCheck size={15} className="text-emerald-400" />
+            <span className="text-xs font-black text-emerald-300">{employee?.name}</span>
+            <button onClick={handleEmployeeLogout} title="Logout employee" className="text-gray-400 hover:text-red-400 ml-1 cursor-pointer">
+              <LogOut size={14} />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Restored draft notice */}
+      {isDraftRestored && (
+        <div className="bg-amber-950/40 border border-amber-600/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-amber-300 font-bold">
+            <CheckCircle size={16} className="text-amber-400 shrink-0" />
+            <span>
+              Restored unfinished draft {draftSavedAt ? `from ${formatDateTime(draftSavedAt)}` : ''}. All entered customer, product, and customization data is preserved.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsDraftRestored(false)}
+              className="text-gray-400 hover:text-white text-xs font-bold px-2.5 py-1 rounded-lg hover:bg-gray-800 transition-all cursor-pointer"
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="text-red-400 hover:text-red-300 text-xs font-bold underline cursor-pointer"
+            >
+              Discard Draft
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {STEPS.map((s, i) => (
