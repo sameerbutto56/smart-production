@@ -1001,6 +1001,23 @@ const lookupOrderWithFinancials = async (req, res) => {
       });
       order = matches[0] || null;
     }
+    if (!order) {
+      const linkedPosSale = await prisma.posSale.findFirst({
+        where: { OR: [{ receiptNumber: q }, { orderNumber: q }, { clientRequestId: q }] },
+        select: { orderId: true, orderNumber: true }
+      });
+      if (linkedPosSale?.orderId) {
+        order = await prisma.order.findUnique({
+          where: { id: linkedPosSale.orderId },
+          select: orderSelect
+        });
+      } else if (linkedPosSale?.orderNumber) {
+        order = await prisma.order.findUnique({
+          where: { orderNumber: linkedPosSale.orderNumber },
+          select: orderSelect
+        });
+      }
+    }
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     // 2. Find linked POS sale(s) by orderNumber or orderId
@@ -1132,12 +1149,20 @@ const lookupPosSaleForOrderEntry = async (req, res) => {
     });
 
     // 2. Check if Order already exists in DB
+    const orderQueryConditions = [
+      { orderNumber: q },
+      { invoiceNumber: q }
+    ];
+    if (posSale?.orderId) {
+      orderQueryConditions.push({ id: posSale.orderId });
+    }
+    if (posSale?.orderNumber) {
+      orderQueryConditions.push({ orderNumber: posSale.orderNumber });
+    }
+
     const existingOrder = await prisma.order.findFirst({
       where: {
-        OR: [
-          { orderNumber: q },
-          { invoiceNumber: q }
-        ]
+        OR: orderQueryConditions
       },
       select: {
         id: true,
@@ -1201,7 +1226,7 @@ const lookupPosSaleForOrderEntry = async (req, res) => {
           size: it.size,
           alterationCharges: it.alterationCharges
         })),
-        orderExists: !!existingOrder,
+        orderExists: !!existingOrder || !!posSale.orderId,
         existingOrder: existingOrder || null
       });
     }

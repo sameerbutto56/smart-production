@@ -123,10 +123,21 @@ const readDraft = (key) => {
         try { localStorage.removeItem(key); } catch {}
         return null;
       }
+      if (parsed.posSaleInfo?.orderNumber && completedRegistry.includes(parsed.posSaleInfo.orderNumber.trim())) {
+        try { localStorage.removeItem(key); } catch {}
+        return null;
+      }
+      if (parsed.posSaleInfo?.receiptNumber && completedRegistry.includes(parsed.posSaleInfo.receiptNumber.trim())) {
+        try { localStorage.removeItem(key); } catch {}
+        return null;
+      }
       const lastCompleted = sessionStorage.getItem('enamels_last_completed_order');
       if (lastCompleted && parsed.orderNumber && parsed.orderNumber.trim() === lastCompleted.trim()) {
         try { localStorage.removeItem(key); } catch {}
         return null;
+      }
+      if (parsed.posSaleInfo?.orderExists) {
+        delete parsed.posSaleInfo;
       }
       return parsed;
     }
@@ -183,6 +194,7 @@ const OutletOrderEntry = () => {
   const [isDraftRestored, setIsDraftRestored] = useState(() => hasDraftData(initialDraft));
   const isHydratedRef = useRef(true);
   const isOrderSubmittedRef = useRef(false);
+  const isDraftClearedRef = useRef(false);
   const saveTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -273,6 +285,7 @@ const OutletOrderEntry = () => {
 
   // ── Clear saved draft ──
   const clearSavedDraft = useCallback(() => {
+    isDraftClearedRef.current = true;
     try {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -293,21 +306,62 @@ const OutletOrderEntry = () => {
     setIsDraftRestored(false);
   }, [draftKey]);
 
+  const applyDraftState = useCallback((draft) => {
+    if (!draft || typeof draft !== 'object') return;
+    if (prefilledClientNumber || prefilledClientId || prefilledPhone || repeatOrderId) {
+      clearSavedDraft();
+      return;
+    }
+    setStep(typeof draft.step === 'number' ? draft.step : 0);
+    setCustomerMode(draft.customerMode || null);
+    setSearchQuery(draft.searchQuery || '');
+    setLookedUp(!!draft.lookedUp);
+    setClientData(draft.clientData || null);
+    setRecentOrders(Array.isArray(draft.recentOrders) ? draft.recentOrders : []);
+    setCustomer(draft.customer || { name: '', phone: '', address: '', city: '', notes: '' });
+    if (draft.orderNumber) setOrderNumber(draft.orderNumber);
+    setDeliveryType(draft.deliveryType || 'DELIVERY');
+    setPriority(draft.priority || 'NORMAL');
+    setProducts(Array.isArray(draft.products) ? draft.products : []);
+    if (draft.newProduct) setNewProduct({ ...EMPTY_PRODUCT, ...draft.newProduct });
+    setSpecialNotes(draft.specialNotes || '');
+    setSizeData(draft.sizeData || {});
+    setClientStandardSizes(Array.isArray(draft.clientStandardSizes) ? draft.clientStandardSizes : []);
+    setClientMeasurements(draft.clientMeasurements || {});
+    setSizingMode(draft.sizingMode || null);
+    setSelectedStandardSize(draft.selectedStandardSize || '');
+    setClientMeasurementChart(draft.clientMeasurementChart || '');
+    setAdvanceAmount(draft.advanceAmount != null ? draft.advanceAmount : 0);
+    setBalanceAmount(draft.balanceAmount != null ? String(draft.balanceAmount) : '');
+    setPaymentStatus(draft.paymentStatus || '');
+    if (draft.posSaleInfo && !draft.posSaleInfo.orderExists) {
+      setPosSaleInfo(draft.posSaleInfo);
+    } else {
+      setPosSaleInfo(null);
+    }
+    setDraftSavedAt(draft.savedAt || null);
+    setDraftStatus('saved');
+    setIsDraftRestored(true);
+  }, [prefilledClientNumber, prefilledClientId, prefilledPhone, repeatOrderId, clearSavedDraft]);
+
   // ── Auto-purge draft if its orderNumber was already placed and exists in database ──
   useEffect(() => {
     const draftNum = initialDraft?.orderNumber;
-    if (draftNum && String(draftNum).trim().length >= 3) {
-      api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(draftNum.trim())}`)
+    const posNum = initialDraft?.posSaleInfo?.orderNumber || initialDraft?.posSaleInfo?.receiptNumber;
+    const checkTarget = draftNum || posNum;
+    if (checkTarget && String(checkTarget).trim().length >= 3) {
+      api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(String(checkTarget).trim())}`)
         .then(res => {
           if (res.data?.found && res.data?.order) {
-            markOrderCompletedInRegistry(draftNum);
+            markOrderCompletedInRegistry(checkTarget);
+            if (draftNum) markOrderCompletedInRegistry(draftNum);
             clearSavedDraft();
             resetAll();
           }
         })
         .catch(() => {});
     }
-  }, [initialDraft?.orderNumber]);
+  }, [initialDraft?.orderNumber, initialDraft?.posSaleInfo]);
 
   // ── When employee logs in, restore their saved draft if found ──
   useEffect(() => {
@@ -315,38 +369,38 @@ const OutletOrderEntry = () => {
     const key = getDraftStorageKey(employeeOutlet, employee);
     const empDraft = readDraft(key);
     if (hasDraftData(empDraft)) {
-      setStep(typeof empDraft.step === 'number' ? empDraft.step : 0);
-      setCustomerMode(empDraft.customerMode || null);
-      setSearchQuery(empDraft.searchQuery || '');
-      setLookedUp(!!empDraft.lookedUp);
-      setClientData(empDraft.clientData || null);
-      setRecentOrders(Array.isArray(empDraft.recentOrders) ? empDraft.recentOrders : []);
-      setCustomer(empDraft.customer || { name: '', phone: '', address: '', city: '', notes: '' });
-      if (empDraft.orderNumber) setOrderNumber(empDraft.orderNumber);
-      setDeliveryType(empDraft.deliveryType || 'DELIVERY');
-      setPriority(empDraft.priority || 'NORMAL');
-      setProducts(Array.isArray(empDraft.products) ? empDraft.products : []);
-      if (empDraft.newProduct) setNewProduct({ ...EMPTY_PRODUCT, ...empDraft.newProduct });
-      setSpecialNotes(empDraft.specialNotes || '');
-      setSizeData(empDraft.sizeData || {});
-      setClientStandardSizes(Array.isArray(empDraft.clientStandardSizes) ? empDraft.clientStandardSizes : []);
-      setClientMeasurements(empDraft.clientMeasurements || {});
-      setSizingMode(empDraft.sizingMode || null);
-      setSelectedStandardSize(empDraft.selectedStandardSize || '');
-      setClientMeasurementChart(empDraft.clientMeasurementChart || '');
-      setAdvanceAmount(empDraft.advanceAmount != null ? empDraft.advanceAmount : 0);
-      setBalanceAmount(empDraft.balanceAmount != null ? String(empDraft.balanceAmount) : '');
-      setPaymentStatus(empDraft.paymentStatus || '');
-      if (empDraft.posSaleInfo) setPosSaleInfo(empDraft.posSaleInfo);
-      setDraftSavedAt(empDraft.savedAt || null);
-      setDraftStatus('saved');
-      setIsDraftRestored(true);
+      if (prefilledClientNumber || prefilledClientId || prefilledPhone || repeatOrderId) {
+        clearSavedDraft();
+        return;
+      }
+      const draftNum = empDraft.orderNumber;
+      const posNum = empDraft.posSaleInfo?.orderNumber || empDraft.posSaleInfo?.receiptNumber;
+      const checkTarget = draftNum || posNum;
+      if (checkTarget && String(checkTarget).trim().length >= 3) {
+        api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(String(checkTarget).trim())}`)
+          .then(res => {
+            if (res.data?.found && res.data?.order) {
+              markOrderCompletedInRegistry(checkTarget);
+              if (draftNum) markOrderCompletedInRegistry(draftNum);
+              clearSavedDraft();
+              resetAll();
+              return;
+            }
+            applyDraftState(empDraft);
+          })
+          .catch(() => {
+            applyDraftState(empDraft);
+          });
+      } else {
+        applyDraftState(empDraft);
+      }
     }
-  }, [employee, employeeOutlet, submitted]);
+  }, [employee, employeeOutlet, submitted, prefilledClientNumber, prefilledClientId, prefilledPhone, repeatOrderId, applyDraftState, clearSavedDraft]);
 
   // ── Auto-save Draft Effect ──
   useEffect(() => {
     if (!isHydratedRef.current || submitted || isOrderSubmittedRef.current) return;
+    if (isDraftClearedRef.current) return;
 
     const currentData = {
       step,
@@ -383,7 +437,7 @@ const OutletOrderEntry = () => {
 
     saveTimeoutRef.current = setTimeout(() => {
       try {
-        if (isOrderSubmittedRef.current) return;
+        if (isOrderSubmittedRef.current || isDraftClearedRef.current || submitted) return;
         const payload = {
           ...currentData,
           savedAt: new Date().toISOString(),
@@ -413,6 +467,7 @@ const OutletOrderEntry = () => {
   useEffect(() => {
     const flushDraft = () => {
       if (!isHydratedRef.current || submitted || isOrderSubmittedRef.current) return;
+      if (isDraftClearedRef.current) return;
       const currentData = {
         step, customerMode, searchQuery, lookedUp, clientData, recentOrders,
         customer, orderNumber, deliveryType, priority, products, newProduct,
@@ -422,7 +477,7 @@ const OutletOrderEntry = () => {
       };
       if (hasDraftData(currentData)) {
         try {
-          if (isOrderSubmittedRef.current) return;
+          if (isOrderSubmittedRef.current || isDraftClearedRef.current || submitted) return;
           localStorage.setItem(draftKey, JSON.stringify({
             ...currentData,
             savedAt: new Date().toISOString(),
@@ -435,7 +490,7 @@ const OutletOrderEntry = () => {
     window.addEventListener('beforeunload', flushDraft);
     return () => {
       window.removeEventListener('beforeunload', flushDraft);
-      if (!isOrderSubmittedRef.current && !submitted) {
+      if (!isOrderSubmittedRef.current && !submitted && !isDraftClearedRef.current) {
         flushDraft();
       }
     };
@@ -455,6 +510,12 @@ const OutletOrderEntry = () => {
       const res = await api.get(`/api/outlet-orders/pos-sale-lookup/${encodeURIComponent(q)}`);
       const data = res.data;
       if (data && data.found) {
+        if (data.orderExists) {
+          toast.error(`Order ${data.orderNumber || q} (Receipt: ${data.receiptNumber || 'N/A'}) was already placed in the database. Starting a fresh order.`);
+          setPosSaleInfo(null);
+          generateNewOrderNumber();
+          return;
+        }
         setPosSaleInfo(data);
         // Pre-fill customer info (fully editable)
         if (data.customerName || data.customerPhone) {
@@ -588,6 +649,7 @@ const OutletOrderEntry = () => {
   }, [clientMeasurements]);
 
   const selectClient = useCallback((client, orders) => {
+    setPosSaleInfo(null);
     setClientData(client);
     setShowResults(false);
     setSearchResults([]);
@@ -665,6 +727,13 @@ const OutletOrderEntry = () => {
       clientLoadedRef.current = true;
       setCustomerMode('existing');
       setLookupLoading(true);
+      setPosSaleInfo(null);
+      if (!repeatOrderId) {
+        setProducts([]);
+        setAdvanceAmount(0);
+        setBalanceAmount('');
+        setPaymentStatus('');
+      }
       try {
         const params = prefilledClientId
           ? { id: prefilledClientId }
@@ -736,6 +805,11 @@ const OutletOrderEntry = () => {
     setCustomerMode('new');
     setClientData(null);
     setRecentOrders([]);
+    setPosSaleInfo(null);
+    setProducts([]);
+    setAdvanceAmount(0);
+    setBalanceAmount('');
+    setPaymentStatus('');
     setCustomer({ name: '', phone: '', address: '', city: '', notes: '' });
     setSizeData({});
     setClientMeasurements({});
@@ -770,6 +844,11 @@ const OutletOrderEntry = () => {
   }, []);
 
   const CAP_UNIT_PRICE = 500;
+  const handleDisconnectPosSale = useCallback(() => {
+    setPosSaleInfo(null);
+    toast.success('POS Bill disconnected. Order total and payments are now calculated from current items.');
+  }, []);
+
   const totalAmount = useMemo(() => {
     if (posSaleInfo?.grandTotal > 0) return posSaleInfo.grandTotal;
     const prodTotal = products.reduce((sum, p) => {
@@ -973,6 +1052,7 @@ const OutletOrderEntry = () => {
       const res = await api.post('/api/outlet-orders', payload);
       // CONFIRMED SUCCESS FROM SERVER:
       isOrderSubmittedRef.current = true;
+      isDraftClearedRef.current = true;
       const finalPlacedOrderNum = res.data?.orderNumber || orderNumber;
       if (finalPlacedOrderNum) {
         markOrderCompletedInRegistry(finalPlacedOrderNum);
@@ -997,6 +1077,7 @@ const OutletOrderEntry = () => {
           const verifyRes = await api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(orderNumber.trim())}`);
           if (verifyRes.data?.found && verifyRes.data.order) {
             isOrderSubmittedRef.current = true;
+            isDraftClearedRef.current = true;
             markOrderCompletedInRegistry(orderNumber);
             try {
               sessionStorage.setItem('enamels_last_completed_order', orderNumber);
@@ -1094,6 +1175,7 @@ const OutletOrderEntry = () => {
 
   const resetAll = useCallback(() => {
     isOrderSubmittedRef.current = false;
+    isDraftClearedRef.current = true;
     clearSavedDraft();
     try {
       window.history.replaceState({}, '', window.location.pathname);
@@ -1126,6 +1208,9 @@ const OutletOrderEntry = () => {
     setOrderNumber('');
     setPosSaleInfo(null);
     generateNewOrderNumber();
+    setTimeout(() => {
+      isDraftClearedRef.current = false;
+    }, 500);
   }, [clearSavedDraft, generateNewOrderNumber]);
 
   const handleDiscardDraft = useCallback(() => {
@@ -1309,16 +1394,16 @@ const OutletOrderEntry = () => {
             </div>
           )}
 
-          {/* Discard draft button */}
-          {(hasDraftData({ customer, products, newProduct, specialNotes, clientData, advanceAmount, balanceAmount, paymentStatus, orderNumber }) || isDraftRestored) && (
+          {/* Discard draft / Start fresh button */}
+          {(hasDraftData({ customer, products, newProduct, specialNotes, clientData, advanceAmount, balanceAmount, paymentStatus, orderNumber }) || isDraftRestored || posSaleInfo || step > 0) && (
             <button
               type="button"
               onClick={handleDiscardDraft}
-              title="Discard unfinished draft and start fresh"
+              title="Discard data and start fresh order"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 hover:border-red-600 text-red-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
             >
               <Trash2 size={13} />
-              <span className="hidden sm:inline">Discard Draft</span>
+              <span>Start Fresh / Reset</span>
             </button>
           )}
 
@@ -2132,9 +2217,19 @@ const OutletOrderEntry = () => {
                     Payment Status <span className="text-red-400 font-black">* Mandatory</span>
                   </label>
                   {posSaleInfo && (
-                    <span className="inline-block mt-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
-                      From POS ({posSaleInfo.receiptNumber})
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <span className="inline-block text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
+                        From POS ({posSaleInfo.receiptNumber})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectPosSale}
+                        className="text-[10px] font-black text-red-400 hover:text-red-300 bg-red-950/50 hover:bg-red-900/60 border border-red-700/60 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all cursor-pointer"
+                        title="Disconnect POS receipt and calculate total from current products"
+                      >
+                        <X size={10} /> Disconnect POS Bill
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="text-right">
