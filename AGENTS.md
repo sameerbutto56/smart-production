@@ -1,5 +1,40 @@
 ## Goals
-### Implemented This Session — Multi-Phone Number, Name & Address-Based Customer Search & Duplicate Detection (deployed & live-verified)
+### Implemented This Session — Fixed Financial Balance Accuracy, Consistency & Removed Duplicate Inputs (deployed & live-verified)
+- **Objective & Root Causes**:
+  1. Users reported "it still get wrong data of balance" in Outlet Order Entry / POS Order workflow.
+  2. Root Cause 1 (Paid Orders with Zero Advance & Phantom Balance): In older backend logic, when an order was placed as `PAID`, `balanceAmount` was stored as `null` or `0`, while `advanceAmount` was left at `0` unless manually typed. When `lookupOrderWithFinancials`, `POSPrint.js`, or order lookup computed remaining balance via `totalPrice - advanceAmount`, it resulted in `totalPrice - 0 = totalPrice`, falsely showing the full total price as a remaining balance on fully paid orders!
+  3. Root Cause 2 (Missing `paymentStatus` in `select`): In `backend/src/controllers/client.controller.js` (`getClientById`) and `backend/src/controllers/outletOrder.controller.js` (`fetchRecentOrdersForClient`), `paymentStatus` was omitted from Prisma `select`. When customer history was loaded in Client Registration or POS lookup, `paymentStatus` was `undefined`, causing frontend to calculate false balance dues.
+  4. Root Cause 3 (Duplicate Conflicting Step 3 Inputs): Step 3 in `OutletOrderEntry.jsx` had two separate cards both accepting balance inputs: one under the Paid/Balance toggle button and another in the "Total Order Amount" card with both advance and balance inputs, causing state desynchronization.
+- **Backend & Frontend Implementation**:
+  - `backend/src/controllers/outletOrder.controller.js`:
+    - `createOutletOrder`: When `payStatus === 'PAID'`, strictly sets `advanceAmount = totalPrice`, `balanceAmount = 0`, and `paymentStatus = 'PAID'`. When `payStatus === 'BALANCE'`, enforces `advanceAmount + balanceAmount = totalPrice`.
+    - `lookupOrderWithFinancials`: Automatically sets `remaining = 0, balanceAmount = 0, totalPaid = grandTotal` whenever `paymentStatus === 'PAID'` or POS sale remaining balance <= 0.01.
+    - `lookupPosSaleForOrderEntry`: Sets `balanceAmount = 0, paidAmount = grandTotal, paymentStatus = 'PAID'` for paid POS sales or existing paid orders.
+    - `fetchRecentOrdersForClient`: Added `paymentStatus: true` to Prisma query select so order history includes actual payment status.
+  - `backend/src/controllers/order.controller.js`:
+    - `createOrder`: Enforces `isOrderPaid` logic setting `advancePaid: true`, `advanceAmount = effectiveTotalPrice`, `balanceAmount = 0`, and `paymentStatus = 'PAID'`.
+  - `backend/src/controllers/client.controller.js`:
+    - `getClientById`: Added `paymentStatus: true` to `recentOrders` Prisma select.
+  - `frontend/src/utils/POSPrint.js`:
+    - In `printOutletOrderThermalSlip`, when `isPaid` (`order.paymentStatus === 'PAID'` or zero balance), sets `advPaid = grandTotal` and `balDue = 0` so customer thermal slips never print a phantom balance on paid orders.
+  - `frontend/src/utils/printReport.js`:
+    - Updated `isPaidStatus` to detect `statusUpper === 'PAID'` or zero balance, suppressing balance rows and displaying green `ORDER PAID` badge.
+  - `frontend/src/pages/OutletOrderLookup.jsx`:
+    - When `paymentStatus === 'PAID'`, table row and details modal display `Remaining Balance: Rs. 0` in emerald green and full paid amount.
+  - `frontend/src/pages/ClientRegistration.jsx`:
+    - Previous orders display `✓ Fully Paid` badge when `paymentStatus === 'PAID'`, preventing false balance tags.
+  - `frontend/src/pages/OutletOrderEntry.jsx`:
+    - Replaced the conflicting dual balance inputs with a single unified, synchronized payment control card.
+    - Added `handleSelectPaid`, `handleSelectBalance`, `handleAdvanceChange`, and `handleBalanceChange` maintaining 100% mathematical parity: `advanceAmount + balanceAmount = totalAmount`.
+    - In `handleSubmit`, explicitly calculates `computedAdv` and `computedBal`, ensuring `balanceAmount` is strictly `0` when `PAID`.
+    - In `submitted` Order Placed screen and thermal slip preview, displays `computedAdv` and `computedBal` accurately.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-financial-balance-accuracy.cjs`: 14 of 14 tests passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Git committed (`37237cb0`) and pushed to `main`.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app` (Live health check HTTP 200 OK verified).
+
+### Implemented Prior Session — Multi-Phone Number, Name & Address-Based Customer Search & Duplicate Detection (deployed & live-verified)
 - **Objective & Requirements**:
   1. Multi-phone number support: Support 1 primary phone number + multiple additional phone numbers (Alt #1, Alt #2, Alt #3, etc.) per customer profile linked to the canonical customer ID.
   2. Multi-phone search & normalization: Customers can be found by searching primary or ANY additional phone number, with full normalization across phone formatting (spaces, hyphens, +92, 0092, 92, without leading zero: `03001234567` ↔ `0300-1234567` ↔ `+92 300 1234567` ↔ `3001234567`).
