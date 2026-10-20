@@ -3,6 +3,7 @@ const cache = require('../utils/cache');
 const notify = require('../utils/notify');
 const { resolveMasterPrice } = require('../utils/priceSync');
 const { recordInventoryMovement } = require('../utils/inventoryMovement');
+const { isCategoryGenderApplicable } = require('../utils/productConfig');
 
 const generateTransferNumber = async () => {
   const d = new Date();
@@ -52,12 +53,20 @@ const createDemandRequest = async (req, res) => {
           normStr(v.size) === normStr(i.size)
         );
       }
+      const authoritativeCategory = inv?.category || i.category || '';
+      const authoritativeGenderApplicable = typeof inv?.genderApplicable === 'boolean'
+        ? inv.genderApplicable
+        : isCategoryGenderApplicable(authoritativeCategory);
+
       enrichedItems.push({
         inventoryItemId: inv?.id || i.inventoryItemId || null,
         productName: inv?.name || i.productName,
+        category: authoritativeCategory,
+        genderApplicable: authoritativeGenderApplicable,
         size: matchedVariant?.size?.trim() || i.size || '',
         color: matchedVariant?.color?.trim() || i.color || '',
-        barcode: i.barcode || matchedVariant?.barcode || null,
+        barcode: matchedVariant?.barcode || i.barcode || null,
+        price: matchedVariant?.price || (parseFloat(inv?.price) || 0),
         requestedQty: parseInt(i.requestedQty, 10) || 1,
         approvedQty: 0,
         dispatchedQty: 0,
@@ -715,6 +724,9 @@ const acceptDemandRequest = async (req, res) => {
     const { id } = req.params;
     const existing = await prisma.outletDemandRequest.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: 'Demand request not found' });
+    if (existing.acceptedAt || existing.status === 'COMPLETED') {
+      return res.status(409).json({ message: 'This demand has already been accepted.' });
+    }
     if (existing.status !== 'APPROVED' && existing.status !== 'PARTIALLY_APPROVED' && existing.status !== 'DISPATCHED') {
       return res.status(400).json({ message: `Cannot accept a ${existing.status.toLowerCase()} request. Only approved/partially approved/dispatched requests can be accepted.` });
     }
@@ -793,10 +805,16 @@ const acceptDemandRequest = async (req, res) => {
             );
           }
 
-          const variantBarcode = it.barcode || matchedVariant?.barcode || null;
+          const canonicalName = inv.name || it.productName;
           const canonicalColor = matchedVariant?.color ? matchedVariant.color.trim() : (it.color ? it.color.trim().replace(/\s+/g, ' ') : null);
           const canonicalSize = matchedVariant?.size ? matchedVariant.size.trim() : (it.size ? it.size.trim().replace(/\s+/g, ' ') : null);
-          const masterPrice = resolveMasterPrice(inv, canonicalColor, canonicalSize);
+          const warehouseBarcode = matchedVariant?.barcode || it.barcode || null;
+          const masterPrice = resolveMasterPrice(inv, canonicalColor, canonicalSize) || (parseFloat(inv.price) || 0);
+          const authoritativeCategory = inv.category || it.category || '';
+          const authoritativeGenderApplicable = typeof inv.genderApplicable === 'boolean'
+            ? inv.genderApplicable
+            : isCategoryGenderApplicable(authoritativeCategory);
+          const authoritativeFabric = inv.fabric || null;
 
           if (acceptedQty <= 0) {
             results.push({ productName: it.productName, status: 'ZERO_ACCEPTED', acceptedQty: 0 });
@@ -804,119 +822,71 @@ const acceptDemandRequest = async (req, res) => {
             continue;
           }
 
-          // ─── Step 1: Search for an existing ACTIVE OutletInventory record ───
-          let oi = null;
+          // ─── Step 1: Match Existing Variant belonging to THIS Canonical Product at THIS Outlet ───
+          // Candidate rows MUST match product identity (by canonical name or inv.id metadata).
+          // NEVER match a different product even if a barcode matches (prevents Men/Women cross-contamination).
+          const candidateRows = await tx.outletInventory.findMany({
+            where: {
+              outletName: existing.outletName,
+              OR: [
+                { name: { equals: canonicalName, mode: 'insensitive' } },
+                ...(inv.id ? [{ metadata: { contains: inv.id } }] : [])
+              ]
+            }
+          });
 
-          // 1a. By canonical variant barcode (ACTIVE only)
-          if (variantBarcode) {
-            oi = await tx.outletInventory.findFirst({
-              where: {
-                outletName: existing.outletName,
-                barcode: variantBarcode,
-                isActive: true,
-                deletedAt: null
-              }
-            });
-          }
+          // 1a. Look for active matching variant by normalized color and size
+          let oi = candidateRows.find(o =>
+            o.isActive !== false &&
+            o.deletedAt === null &&
+            normStr(o.color) === itemColorNorm &&
+            normStr(o.size) === itemSizeNorm
+          ) || null;
 
-          // 1b. By product name + normalized color + normalized size (ACTIVE only)
+          // 1b. If no active record found, check for an archived / soft-deleted record of this product to reactivate
           if (!oi) {
-            const activeOutletItems = await tx.outletInventory.findMany({
-              where: {
-                outletName: existing.outletName,
-                name: { equals: inv.name, mode: 'insensitive' },
-                isActive: true,
-                deletedAt: null
-              }
-            });
-            oi = activeOutletItems.find(o =>
+            oi = candidateRows.find(o =>
+              (o.isActive === false || o.deletedAt !== null) &&
               normStr(o.color) === itemColorNorm &&
               normStr(o.size) === itemSizeNorm
             ) || null;
           }
 
-          // 1c. By metadata sourceStoreItemId + color + size (ACTIVE only)
-          if (!oi && inv.id) {
-            const metaOutletItems = await tx.outletInventory.findMany({
-              where: {
-                outletName: existing.outletName,
-                isActive: true,
-                deletedAt: null,
-                metadata: { contains: inv.id }
-              }
-            });
-            oi = metaOutletItems.find(o =>
-              normStr(o.color) === itemColorNorm &&
-              normStr(o.size) === itemSizeNorm
-            ) || null;
-          }
-
-          // ─── Step 2: If NO active record found, check for an ARCHIVED/SOFT-DELETED record to REACTIVATE ───
-          if (!oi) {
-            let archived = null;
-            if (variantBarcode) {
-              archived = await tx.outletInventory.findFirst({
-                where: {
-                  outletName: existing.outletName,
-                  barcode: variantBarcode,
-                  OR: [{ isActive: false }, { deletedAt: { not: null } }]
-                }
-              });
-            }
-            if (!archived) {
-              const allOutletItems = await tx.outletInventory.findMany({
-                where: {
-                  outletName: existing.outletName,
-                  name: { equals: inv.name, mode: 'insensitive' },
-                  OR: [{ isActive: false }, { deletedAt: { not: null } }]
-                }
-              });
-              archived = allOutletItems.find(o =>
-                normStr(o.color) === itemColorNorm &&
-                normStr(o.size) === itemSizeNorm
-              ) || null;
-            }
-            if (archived) {
-              oi = archived;
-            }
-          }
-
-          // ─── Step 3: Update existing or reactivated record ───
+          // ─── Step 2 (Case A): Product/Variant Already Exists in Outlet POS Inventory ───
           if (oi) {
             const prevStock = oi.stock || 0;
             const newStock = prevStock + acceptedQty;
             const updateData = {
               stock: newStock,
               isActive: true,
-              deletedAt: null
+              deletedAt: null,
+              category: authoritativeCategory,
+              genderApplicable: authoritativeGenderApplicable
             };
 
             const currentPrice = parseFloat(oi.price);
-            if ((Number.isNaN(currentPrice) || currentPrice <= 0) && masterPrice != null) {
+            if ((Number.isNaN(currentPrice) || currentPrice <= 0) && masterPrice > 0) {
               updateData.price = masterPrice;
             }
 
-            // Sync canonical barcode if safe
-            if (variantBarcode && oi.barcode !== variantBarcode) {
+            // Preserve existing barcode if valid; only assign warehouse barcode if missing
+            if (!oi.barcode && warehouseBarcode) {
               const barcodeCollision = await tx.outletInventory.findFirst({
                 where: {
                   outletName: existing.outletName,
-                  barcode: variantBarcode,
+                  barcode: warehouseBarcode,
                   id: { not: oi.id }
                 }
               });
               if (!barcodeCollision) {
-                updateData.barcode = variantBarcode;
+                updateData.barcode = warehouseBarcode;
               } else if (barcodeCollision.isActive === false || barcodeCollision.deletedAt !== null) {
-                // Free up the canonical barcode from the old deleted row
                 await tx.outletInventory.update({
                   where: { id: barcodeCollision.id },
-                  data: { barcode: `${variantBarcode}_archived_${Date.now()}` }
+                  data: { barcode: `${warehouseBarcode}_archived_${Date.now()}` }
                 });
-                updateData.barcode = variantBarcode;
+                updateData.barcode = warehouseBarcode;
               }
-            } else if (!oi.barcode && variantBarcode) {
-              updateData.barcode = variantBarcode;
             }
 
             if (canonicalColor && (!oi.color || normStr(oi.color) !== normStr(canonicalColor))) {
@@ -925,8 +895,8 @@ const acceptDemandRequest = async (req, res) => {
             if (canonicalSize && (!oi.size || normStr(oi.size) !== normStr(canonicalSize))) {
               updateData.size = canonicalSize;
             }
-            if (inv.category && (!oi.category || normStr(oi.category) !== normStr(inv.category))) {
-              updateData.category = inv.category;
+            if (authoritativeFabric && !oi.fabric) {
+              updateData.fabric = authoritativeFabric;
             }
 
             await tx.outletInventory.update({
@@ -941,7 +911,7 @@ const acceptDemandRequest = async (req, res) => {
               productName: oi.name,
               color: oi.color,
               size: oi.size,
-              barcode: updateData.barcode || oi.barcode || variantBarcode,
+              barcode: updateData.barcode || oi.barcode || warehouseBarcode,
               previousQty: prevStock,
               newQty: newStock,
               difference: acceptedQty,
@@ -960,51 +930,145 @@ const acceptDemandRequest = async (req, res) => {
               action: 'UPDATED'
             });
           } else {
-            // ─── Step 4: Create new record if none exists ───
-            let bc = variantBarcode || generateBarcode(inv.id, canonicalSize, canonicalColor);
-            let attempt = 0;
-            while (await tx.outletInventory.findFirst({ where: { outletName: existing.outletName, barcode: bc } })) {
-              attempt++;
-              bc = generateBarcode(inv.id, canonicalSize, canonicalColor, attempt);
-              if (attempt > 25) {
-                bc = `POS${Date.now().toString(36).toUpperCase().slice(-6)}${attempt}`;
-                break;
+            // ─── Step 3 (Case B): Product/Variant Does Not Exist in POS Inventory ───
+            // Authoritative warehouse variants for this color (or all variants if available)
+            const colorWarehouseVariants = Array.isArray(inv.variants) && inv.variants.length > 0
+              ? inv.variants.filter(v => !itemColorNorm || normStr(v.color) === itemColorNorm)
+              : [];
+
+            const variantsToProcess = colorWarehouseVariants.length > 0
+              ? colorWarehouseVariants
+              : [matchedVariant || {
+                  size: canonicalSize,
+                  color: canonicalColor,
+                  barcode: warehouseBarcode,
+                  price: masterPrice,
+                  sku: null
+                }];
+
+            let primaryCreatedRecord = null;
+
+            for (const wv of variantsToProcess) {
+              const wvSizeNorm = normStr(wv.size);
+              const isTargetVariant = wvSizeNorm === itemSizeNorm;
+              const variantStock = isTargetVariant ? acceptedQty : 0;
+              const wvColor = wv.color ? wv.color.trim() : canonicalColor;
+              const wvSize = wv.size ? wv.size.trim() : canonicalSize;
+
+              // Check if candidate row already exists for this size
+              const existingVariantRow = candidateRows.find(c =>
+                normStr(c.color) === normStr(wvColor) &&
+                normStr(c.size) === wvSizeNorm
+              );
+
+              if (existingVariantRow) {
+                if (isTargetVariant) {
+                  const pStock = existingVariantRow.stock || 0;
+                  const nStock = pStock + acceptedQty;
+                  await tx.outletInventory.update({
+                    where: { id: existingVariantRow.id },
+                    data: {
+                      stock: nStock,
+                      isActive: true,
+                      deletedAt: null,
+                      category: authoritativeCategory,
+                      genderApplicable: authoritativeGenderApplicable
+                    }
+                  });
+                  await recordInventoryMovement({
+                    movementType: 'TRANSFER_IN',
+                    location: existing.outletName,
+                    productId: existingVariantRow.id,
+                    productName: existingVariantRow.name,
+                    color: existingVariantRow.color,
+                    size: existingVariantRow.size,
+                    barcode: existingVariantRow.barcode || wv.barcode,
+                    previousQty: pStock,
+                    newQty: nStock,
+                    difference: acceptedQty,
+                    referenceId: transferNumber,
+                    notes: `Outlet demand received from Warehouse (${acceptedQty} units accepted)`,
+                    performedBy: req.user?.name || 'Staff',
+                    tx
+                  });
+                }
+                continue;
+              }
+
+              // Determine target barcode safely without collisions
+              let targetBc = wv.barcode || (isTargetVariant ? warehouseBarcode : null) || generateBarcode(inv.id, wvSize, wvColor);
+              const barcodeCollision = await tx.outletInventory.findFirst({
+                where: {
+                  outletName: existing.outletName,
+                  barcode: targetBc
+                }
+              });
+
+              if (barcodeCollision) {
+                if (barcodeCollision.isActive === false || barcodeCollision.deletedAt !== null) {
+                  // Release barcode from archived record
+                  await tx.outletInventory.update({
+                    where: { id: barcodeCollision.id },
+                    data: { barcode: `${targetBc}_archived_${Date.now()}` }
+                  });
+                } else if (normStr(barcodeCollision.name) !== normStr(canonicalName)) {
+                  // Barcode collision with active DIFFERENT product: generate a safe unique barcode
+                  console.warn(`[DEMAND_ACCEPT] Barcode collision: ${targetBc} already belongs to ${barcodeCollision.name} at ${existing.outletName}. Generating unique barcode for ${canonicalName} ${wvSize}.`);
+                  let attempt = 0;
+                  let safeBc = generateBarcode(inv.id, wvSize, wvColor, ++attempt);
+                  while (await tx.outletInventory.findFirst({ where: { outletName: existing.outletName, barcode: safeBc } })) {
+                    attempt++;
+                    safeBc = generateBarcode(inv.id, wvSize, wvColor, attempt);
+                    if (attempt > 25) {
+                      safeBc = `POS${Date.now().toString(36).toUpperCase().slice(-6)}${attempt}`;
+                      break;
+                    }
+                  }
+                  targetBc = safeBc;
+                }
+              }
+
+              const createdRow = await tx.outletInventory.create({
+                data: {
+                  outletName: existing.outletName,
+                  name: canonicalName,
+                  category: authoritativeCategory,
+                  genderApplicable: authoritativeGenderApplicable,
+                  color: wvColor,
+                  size: wvSize,
+                  fabric: authoritativeFabric,
+                  barcode: targetBc,
+                  stock: variantStock,
+                  price: wv.price != null ? parseFloat(wv.price) : masterPrice,
+                  metadata: JSON.stringify({
+                    sourceStoreItemId: inv.id,
+                    autoCreated: !isTargetVariant
+                  }),
+                  isActive: true,
+                  deletedAt: null
+                }
+              });
+
+              if (isTargetVariant) {
+                primaryCreatedRecord = createdRow;
+                await recordInventoryMovement({
+                  movementType: 'TRANSFER_IN',
+                  location: existing.outletName,
+                  productId: createdRow.id,
+                  productName: createdRow.name,
+                  color: createdRow.color,
+                  size: createdRow.size,
+                  barcode: targetBc,
+                  previousQty: 0,
+                  newQty: acceptedQty,
+                  difference: acceptedQty,
+                  referenceId: transferNumber,
+                  notes: `Outlet demand received from Warehouse (${acceptedQty} units created)`,
+                  performedBy: req.user?.name || 'Staff',
+                  tx
+                });
               }
             }
-
-            const created = await tx.outletInventory.create({
-              data: {
-                outletName: existing.outletName,
-                name: inv.name,
-                category: inv.category || '',
-                color: canonicalColor,
-                size: canonicalSize,
-                fabric: inv.fabric || null,
-                barcode: bc,
-                stock: acceptedQty,
-                price: masterPrice != null ? masterPrice : (parseFloat(inv.price) || 0),
-                metadata: JSON.stringify({ sourceStoreItemId: inv.id }),
-                isActive: true,
-                deletedAt: null
-              }
-            });
-
-            await recordInventoryMovement({
-              movementType: 'TRANSFER_IN',
-              location: existing.outletName,
-              productId: created.id,
-              productName: created.name,
-              color: created.color,
-              size: created.size,
-              barcode: bc,
-              previousQty: 0,
-              newQty: acceptedQty,
-              difference: acceptedQty,
-              referenceId: transferNumber,
-              notes: `Outlet demand received from Warehouse (${acceptedQty} units created)`,
-              performedBy: req.user?.name || 'Staff',
-              tx
-            });
 
             results.push({
               productName: it.productName,

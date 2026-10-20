@@ -1,5 +1,38 @@
 ## Goals
-### Implemented This Session — Isolated POS Bills, Prevented Zombie Draft Resurrection & Form Contamination in Outlet Order Entry (deployed & live-verified)
+### Implemented This Session — Fixed Demand-to-POS Inventory Product Creation, Variant Mapping, Barcode Synchronization & Historical Data Reconciliation (deployed & live-verified)
+- **Objective & Root Causes**:
+  1. Users reported: *"The Demand workflow still has issues when new products are sent from the warehouse to an outlet. Some products do not appear in the outlet's POS Inventory after the complete Demand process. In other cases, products are added under the wrong category or gender, incorrect quantities are added, or the product and its size variants are created incorrectly. For example, some new Men's and Women's articles were sent through Demand, but after completing the process, certain products appeared under the wrong gender/category or did not appear in POS Inventory at all."*
+  2. Root Cause 1 (Barcode Matching Cross-Contamination): In `acceptDemandRequest`, Step 1 searched for an existing record strictly by `tx.outletInventory.findFirst({ where: { outletName, barcode: variantBarcode } })` WITHOUT verifying the canonical product name or product ID. If an outlet row happened to hold that barcode (e.g. `Sprinter Women New` in Johar Town, or `Sprinter Navy Collar-Men` in Jail Road), the system treated that row as the matched record, adding Men's stock to Women's articles (and vice-versa) while the intended article was never created at the outlet.
+  3. Root Cause 2 (Missing Size Variants Creation on Demand): When an article was sent to an outlet for the first time, `acceptDemandRequest` only created the single received size variant in `OutletInventory`. The remaining canonical size variants (XS, S, M, L, XL, XXL) from the warehouse product master were never created, leaving products incomplete in POS and causing search/filtering failures.
+  4. Root Cause 3 (Barcode Inconsistency & Missing Precedence): In `createDemandRequest`, `i.barcode || matchedVariant?.barcode` favored arbitrary client barcodes over the authoritative warehouse variant barcode.
+  5. Root Cause 4 (Missing Gender Applicability in POS Select): `pos.controller.js` omitted `genderApplicable` from Prisma `select` in `getProducts` and `getPosInventory`, causing the frontend POS to misidentify clothing categories.
+- **Backend & Database Implementation**:
+  - `backend/src/controllers/outletDemand.controller.js`:
+    - Updated `createDemandRequest`: Enriched items with authoritative warehouse barcode (`matchedVariant?.barcode || i.barcode`), canonical category, and `genderApplicable`.
+    - Updated `acceptDemandRequest`:
+      - Resolves authoritative warehouse item (`inv`) by `it.inventoryItemId` or exact product name.
+      - Case A (Existing Product): Queries candidate rows strictly matching the canonical product identity (`name: { equals: canonicalName }` or `metadata: inv.id`). Never matches an unrelated product even if barcodes collide. Updates stock, preserves existing barcodes, ensures category and gender applicability.
+      - Case B (Missing Product / Variant): Automatically creates all missing size variants for the article's color using authoritative warehouse variant barcodes, prices, category, and gender applicability. The received size gets `stock = acceptedQty`, other sizes get `stock = 0`.
+      - Prevents barcode collisions with existing products via conflict warnings and safe unique barcode generation.
+      - Idempotency: Returns HTTP 409 `DEMAND_ALREADY_ACCEPTED` if the demand was already accepted or completed.
+      - Enforces comprehensive cache invalidation (`pos:*`, `warehouse:*`, `products:*`, `product-data:*`, `outlet:*`, `store:*`).
+  - `backend/src/controllers/pos.controller.js`:
+    - Added `genderApplicable: true` to Prisma `select` and return payload in `getProducts` and `getPosInventory`.
+  - Historical Data Reconciliation (`backend/scripts/reconcile-demand-pos-inventory.cjs`):
+    - Johar Town: Reclaimed overcounted 1 S, 6 M, 6 L from `Sprinter Women New` falsely credited from `Sprinter Navy Collar-Men` (TRF-20261020-00001).
+    - Jail Road: Reclaimed overcounted 1 XS, 3 S, 6 M, 6 L, 2 XL, 1 XXL from `Sprinter Navy Collar-Men` and restored `Sprinter Women New` with its authoritative warehouse barcodes and delivered quantities (TRF-20261017-00004).
+    - Johar Town: Created all missing size variants (XS, S, M, XL, XXL) for `Summit Executive Women` with warehouse barcodes and soft-deleted the dummy null/null variant (TRF-20261020-00003).
+    - Johar Town: Consolidated canonical `Pink Nova` variants for `Sprinter Women Influential Pink Nova` and soft-deleted duplicate fake-barcode rows.
+    - Jail Road: Reclaimed Men's stock from `Sprinter SeaGreen-Women` and created `Sprinter Sea Green-Men` with warehouse barcodes (TRF-20261009-00003).
+- **Verification**:
+  - Automated verification test suite `backend/scripts/verify-demand-to-pos-sync.cjs`: 41 of 41 tests passed (100% pass rate) across Cases A, B, C, D, E, F, G, H, I.
+  - Automated test suite `backend/scripts/verify-outlet-order-entry-pos-isolation.cjs`: 10 of 10 passed (100% pass rate).
+  - Automated test suite `backend/scripts/verify-financial-balance-accuracy.cjs`: 15 of 15 passed (100% pass rate).
+  - Automated test suite `backend/scripts/verify-pos-history-clear-balance.cjs`: 8 of 8 passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Deployed to Vercel production and verified live.
+
+### Implemented Prior Session — Isolated POS Bills, Prevented Zombie Draft Resurrection & Form Contamination in Outlet Order Entry (deployed & live-verified)
 - **Objective & Root Causes**:
   1. Users reported: *"Payment Status Mandatory, From POS (RCP-20261019-00007), Total Order Amount ₨14,650, Advance 10, Balance 14640... it still get this details of wrong and when I open outlet order entry it show the details of previous order whenever I place the order"*.
   2. Root Cause 1 (Zombie Draft Auto-Save on Reset/Unmount): In `OutletOrderEntry.jsx`, `flushDraft` ran during React unmount / cleanup. When `resetAll` set `isOrderSubmittedRef.current = false`, the cleanup function ran with the old closure values and immediately re-saved the previous order (including `posSaleInfo`, `totalAmount: 14,650`, customer, products, payments) back into `localStorage.setItem(draftKey, ...)`.

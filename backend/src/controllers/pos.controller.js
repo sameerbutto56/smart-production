@@ -130,7 +130,7 @@ const getPosInventory = async (req, res) => {
     const items = await prisma.outletInventory.findMany({
       where,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true, isActive: true, deletedAt: true, createdAt: true, updatedAt: true }
+      select: { id: true, name: true, category: true, genderApplicable: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true, isActive: true, deletedAt: true, createdAt: true, updatedAt: true }
     });
 
     const masterMap = await getWarehouseMasterImageMap();
@@ -179,6 +179,7 @@ const getPosInventory = async (req, res) => {
         sizes,
         variants: item.variants,
         outletName: item.outletName,
+        genderApplicable: item.genderApplicable,
         isActive: item.isActive !== false,
         deletedAt: item.deletedAt,
         createdAt: item.createdAt,
@@ -288,7 +289,7 @@ const getProducts = async (req, res) => {
     const items = await prisma.outletInventory.findMany({
       where,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true }
+      select: { id: true, name: true, category: true, genderApplicable: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, metadata: true }
     });
 
     const masterMap = await getWarehouseMasterImageMap();
@@ -358,6 +359,7 @@ const getProducts = async (req, res) => {
         colors,
         sizes,
         variants: resolvedVariants || item.variants,
+        genderApplicable: item.genderApplicable,
         outletName: item.outletName
       };
     });
