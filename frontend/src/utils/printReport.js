@@ -1336,8 +1336,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     'DELIVERY': isUrdu ? 'ڈلیوری' : 'DELIVERY',
     'SELF_COLLECTION': isUrdu ? 'خود لینا' : 'SELF COLLECTION',
   };
-  const isPaidStatus = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
-  const isBalanceStatus = order.paymentStatus === 'BALANCE';
+  const isPaidStatus = String(order.paymentStatus || '').toUpperCase() === 'PAID' || String(order.paymentStatus || '').toUpperCase() === 'FULL_PAID' || (order.balanceAmount != null && parseFloat(order.balanceAmount) <= 0.01 && parseFloat(order.totalPrice || 0) > 0);
+  const isBalanceStatus = !isPaidStatus && (String(order.paymentStatus || '').toUpperCase() === 'BALANCE' || (order.balanceAmount != null && parseFloat(order.balanceAmount) > 0.01));
   
   let _payLabel;
   if (isPaidStatus) {

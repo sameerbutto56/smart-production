@@ -300,6 +300,7 @@ const getClientById = async (req, res) => {
             advanceAmount: true,
             advancePaid: true,
             balanceAmount: true,
+            paymentStatus: true,
             currentStage: true,
             status: true,
             deliveryMethod: true,

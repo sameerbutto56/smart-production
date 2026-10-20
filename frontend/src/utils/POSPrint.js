@@ -1078,9 +1078,9 @@ export async function printOutletOrderThermalSlip(order) {
   const placedBy = order.placedByEmployeeName || order.placedBy || order.cashierName || '';
 
   const grandTotal = parseFloat(order.totalPrice || order.grandTotal || 0);
-  const advPaid = parseFloat(order.advanceAmount || order.advancePaid || 0);
-  const balDue = order.balanceAmount != null ? parseFloat(order.balanceAmount) : Math.max(0, grandTotal - advPaid);
-  const isPaid = (order.paymentStatus === 'PAID') || (balDue <= 0.01);
+  const isPaid = (String(order.paymentStatus || '').toUpperCase() === 'PAID') || (order.balanceAmount != null && parseFloat(order.balanceAmount) <= 0.01);
+  const advPaid = isPaid ? grandTotal : parseFloat(order.advanceAmount || order.advancePaid || 0);
+  const balDue = isPaid ? 0 : (order.balanceAmount != null ? parseFloat(order.balanceAmount) : Math.max(0, grandTotal - advPaid));
 
   let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Order Slip - ${orderNum}</title><style>
     ${getThermalMasterCSS()}

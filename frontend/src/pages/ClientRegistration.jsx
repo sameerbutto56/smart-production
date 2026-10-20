@@ -1596,8 +1596,14 @@ const ClientRegistration = () => {
 
                                         <div className="flex items-center gap-3 text-[11px] text-gray-400">
                                           <span>Total: <strong className="text-white">₨{(ord.totalPrice || 0).toLocaleString()}</strong></span>
-                                          {ord.advanceAmount > 0 && <span>Adv: <strong className="text-emerald-400">₨{(ord.advanceAmount || 0).toLocaleString()}</strong></span>}
-                                          {ord.balanceAmount > 0 && <span>Bal: <strong className="text-amber-400">₨{(ord.balanceAmount || 0).toLocaleString()}</strong></span>}
+                                          {ord.paymentStatus === 'PAID' || (ord.balanceAmount != null && parseFloat(ord.balanceAmount) <= 0.01) ? (
+                                            <span className="text-emerald-400 font-bold">✓ Fully Paid</span>
+                                          ) : (
+                                            <>
+                                              {ord.advanceAmount > 0 && <span>Adv: <strong className="text-emerald-400">₨{(ord.advanceAmount || 0).toLocaleString()}</strong></span>}
+                                              <span>Bal: <strong className="text-amber-400">₨{(ord.balanceAmount != null ? ord.balanceAmount : Math.max(0, (ord.totalPrice || 0) - (ord.advanceAmount || 0))).toLocaleString()}</strong></span>
+                                            </>
+                                          )}
                                         </div>
                                       </div>
 

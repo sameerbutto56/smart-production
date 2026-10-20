@@ -298,8 +298,8 @@ export default function OutletOrderLookup() {
                 </tr>
               ) : (
                 orders.map((ord) => {
-                  const bal = ord.balanceAmount != null ? ord.balanceAmount : Math.max(0, (ord.totalPrice || 0) - (ord.advanceAmount || 0));
-                  const isPaid = (ord.paymentStatus || '').toUpperCase() === 'PAID' || bal <= 0.01;
+                  const isPaid = (ord.paymentStatus || '').toUpperCase() === 'PAID' || (ord.balanceAmount != null && parseFloat(ord.balanceAmount) <= 0.01);
+                  const bal = isPaid ? 0 : (ord.balanceAmount != null ? parseFloat(ord.balanceAmount) : Math.max(0, (ord.totalPrice || 0) - (ord.advanceAmount || 0)));
 
                   return (
                     <tr
@@ -652,12 +652,12 @@ export default function OutletOrderLookup() {
                     </div>
                     <div className="flex justify-between text-emerald-400 font-semibold">
                       <span>Paid / Advance:</span>
-                      <span>Rs. {parseFloat(currentFinancial?.totalPaid || currentOrder.advanceAmount || 0).toLocaleString()}</span>
+                      <span>Rs. {parseFloat(currentFinancial?.paymentStatus === 'PAID' ? (currentFinancial?.grandTotal || currentOrder.totalPrice || 0) : (currentFinancial?.totalPaid != null ? currentFinancial.totalPaid : (currentOrder.advanceAmount || 0))).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between font-bold text-sm">
                       <span className="text-slate-300">Remaining Balance:</span>
-                      <span className={parseFloat(currentFinancial?.remaining || currentFinancial?.balanceAmount || 0) > 0.01 ? 'text-rose-400' : 'text-emerald-400'}>
-                        Rs. {parseFloat(currentFinancial?.remaining != null ? currentFinancial.remaining : (currentFinancial?.balanceAmount || 0)).toLocaleString()}
+                      <span className={(currentFinancial?.paymentStatus === 'PAID' ? 0 : parseFloat(currentFinancial?.remaining != null ? currentFinancial.remaining : (currentFinancial?.balanceAmount || 0))) > 0.01 ? 'text-rose-400' : 'text-emerald-400'}>
+                        Rs. {(currentFinancial?.paymentStatus === 'PAID' ? 0 : parseFloat(currentFinancial?.remaining != null ? currentFinancial.remaining : (currentFinancial?.balanceAmount || 0))).toLocaleString()}
                       </span>
                     </div>
                   </div>

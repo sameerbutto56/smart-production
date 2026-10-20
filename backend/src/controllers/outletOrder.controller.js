@@ -136,6 +136,20 @@ const createOutletOrder = async (req, res) => {
     }, 0);
     const adv = parseFloat(advanceAmount) || 0;
 
+    const isPaid = payStatus === 'PAID';
+    let finalBal = 0;
+    let finalAdv = totalPrice;
+
+    if (!isPaid) {
+      if (balanceAmount !== undefined && balanceAmount !== null && String(balanceAmount).trim() !== '') {
+        finalBal = Math.max(0, parseFloat(balanceAmount) || 0);
+        finalAdv = Math.max(0, totalPrice - finalBal);
+      } else {
+        finalAdv = Math.max(0, adv);
+        finalBal = Math.max(0, totalPrice - finalAdv);
+      }
+    }
+
     // Aggregate per-product measurement notes into order-level field as fallback
     const aggregatedNote = measurementSpecialNote || products
       .filter(p => p.measurementSpecialNote)
@@ -191,10 +205,10 @@ const createOutletOrder = async (req, res) => {
           placedBy: resolvedEmployee?.name || placedBy || null,
           placedByEmployeeId: resolvedEmployee?.id || null,
           deliveryType: deliveryType || 'DELIVERY',
-          advanceAmount: adv,
-          balanceAmount: payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || Math.max(0, totalPrice - adv)) : 0,
+          advanceAmount: finalAdv,
+          balanceAmount: finalBal,
           totalPrice,
-          paymentStatus: payStatus,
+          paymentStatus: isPaid ? 'PAID' : (finalBal <= 0.01 ? 'PAID' : 'BALANCE'),
           currentStage: 'ORDER_ENTRY'
         }
       });
@@ -212,12 +226,11 @@ const createOutletOrder = async (req, res) => {
         data: { orderId: created.id, stageName: 'ORDER_ENTRY', status: 'PENDING' }
       });
 
-      const finalBal = payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || Math.max(0, totalPrice - adv)) : 0;
       await tx.auditLog.create({
         data: {
           orderId: created.id,
           action: 'OUTLET_ORDER_CREATED',
-          details: `Outlet order created, pending acceptance at ${outletName}${resolvedEmployee ? ` — entered by ${resolvedEmployee.name}` : ''} | Total: ₨${totalPrice}, Paid: ₨${adv}, Balance: ₨${finalBal}, Payment Status: ${payStatus}`,
+          details: `Outlet order created, pending acceptance at ${outletName}${resolvedEmployee ? ` — entered by ${resolvedEmployee.name}` : ''} | Total: ₨${totalPrice}, Paid: ₨${finalAdv}, Balance: ₨${finalBal}, Payment Status: ${isPaid ? 'PAID' : (finalBal <= 0.01 ? 'PAID' : 'BALANCE')}`,
           performedBy: req.user?.id || 'SYSTEM'
         }
       });
@@ -388,6 +401,7 @@ const fetchRecentOrdersForClient = async (client) => {
       advanceAmount: true,
       advancePaid: true,
       balanceAmount: true,
+      paymentStatus: true,
       currentStage: true,
       status: true,
       deliveryMethod: true,
@@ -1001,9 +1015,10 @@ const lookupOrderWithFinancials = async (req, res) => {
     let financial = null;
     if (posSale) {
       const totalPaid = (posSale.advanceAmount || 0) + posSale.balancePayments.reduce((s, bp) => s + (bp.amountPaidNow || 0), 0);
-      const totalReturns = posSale.returns.reduce((s, r) => s + (r.refundAmount || 0), 0);
       const remaining = Math.max(0, (posSale.grandTotal || 0) - totalPaid);
-      const isPaid = remaining <= 0.01;
+      const isPaid = remaining <= 0.01 || String(order.paymentStatus || '').toUpperCase() === 'PAID';
+      const effectiveRemaining = isPaid ? 0 : remaining;
+      const effectivePaid = isPaid ? (posSale.grandTotal || 0) : totalPaid;
       const subtotal = (posSale.grandTotal || 0) + (order?.discountAmount || 0) - (order?.deliveryCharges || 0);
       financial = {
         posSaleId: posSale.id,
@@ -1014,14 +1029,14 @@ const lookupOrderWithFinancials = async (req, res) => {
         customizationPrice: order?.customizationPrice || 0,
         grandTotal: posSale.grandTotal,
         advanceAmount: posSale.advanceAmount,
-        totalPaid,
-        totalReturns,
-        remaining,
+        totalPaid: effectivePaid,
+        totalReturns: posSale.returns.reduce((s, r) => s + (r.refundAmount || 0), 0),
+        remaining: effectiveRemaining,
         paymentMethod: posSale.paymentMethod,
         cashierName: posSale.cashierName,
         posSaleDate: posSale.createdAt,
         paymentStatus: isPaid ? 'PAID' : 'BALANCE',
-        balanceAmount: (order && order.balanceAmount != null) ? order.balanceAmount : Math.max(0, posSale.grandTotal - totalPaid),
+        balanceAmount: effectiveRemaining,
         balancePayments: posSale.balancePayments.map(bp => ({
           id: bp.id, receiptNumber: bp.receiptNumber, amountPaidNow: bp.amountPaidNow,
           paymentMethod: bp.paymentMethod, cashierName: bp.cashierName, paidAt: bp.paidAt
@@ -1029,13 +1044,14 @@ const lookupOrderWithFinancials = async (req, res) => {
       };
     } else {
       // No POS sale found — derive from order fields (honor stored PAID/BALANCE status + balanceAmount)
-      const adv = order.advanceAmount || 0;
+      const storedStatus = String(order.paymentStatus || '').toUpperCase();
       const tot = order.totalPrice || 0;
+      const isPaid = storedStatus === 'PAID' || (order.advanceAmount >= tot && tot > 0) || (order.balanceAmount != null && parseFloat(order.balanceAmount) <= 0.01);
+      const adv = isPaid ? tot : (order.advanceAmount || 0);
+      const bal = isPaid ? 0 : (order.balanceAmount != null ? order.balanceAmount : Math.max(0, tot - adv));
       const disc = order.discountAmount || 0;
       const del = order.deliveryCharges || 0;
       const sub = Math.max(0, tot + disc - del);
-      const storedStatus = String(order.paymentStatus || '').toUpperCase();
-      const isPaid = storedStatus === 'PAID' || (adv >= tot && tot > 0);
       financial = {
         posSaleId: null,
         receiptNumber: null,
@@ -1047,12 +1063,12 @@ const lookupOrderWithFinancials = async (req, res) => {
         advanceAmount: adv,
         totalPaid: adv,
         totalReturns: 0,
-        remaining: Math.max(0, tot - adv),
+        remaining: bal,
         paymentMethod: order.paymentMethod || null,
         cashierName: order.placedBy || null,
         posSaleDate: null,
-        paymentStatus: storedStatus === 'PAID' || storedStatus === 'BALANCE' ? storedStatus : (isPaid ? 'PAID' : (adv > 0 ? 'ADVANCE' : 'PENDING')),
-        balanceAmount: (order.balanceAmount != null) ? order.balanceAmount : Math.max(0, tot - adv),
+        paymentStatus: isPaid ? 'PAID' : 'BALANCE',
+        balanceAmount: bal,
         balancePayments: []
       };
     }
@@ -1132,9 +1148,11 @@ const lookupPosSaleForOrderEntry = async (req, res) => {
     if (posSale) {
       const totalPaid = (posSale.advanceAmount || 0) + (posSale.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0);
       const grandTotal = Math.round((posSale.grandTotal || 0) * 100) / 100;
-      const effectivePaid = Math.round(totalPaid * 100) / 100;
-      const balanceAmount = Math.max(0, Math.round((grandTotal - effectivePaid) * 100) / 100);
-      const paymentStatus = balanceAmount <= 0.01 ? 'PAID' : 'BALANCE';
+      const rawBal = Math.max(0, Math.round((grandTotal - totalPaid) * 100) / 100);
+      const isPaid = String(posSale.paymentStatus || existingOrder?.paymentStatus || '').toUpperCase() === 'PAID' || rawBal <= 0.01;
+      const effectivePaid = isPaid ? grandTotal : Math.round(totalPaid * 100) / 100;
+      const balanceAmount = isPaid ? 0 : rawBal;
+      const paymentStatus = isPaid ? 'PAID' : 'BALANCE';
 
       return res.json({
         found: true,
@@ -1145,7 +1163,7 @@ const lookupPosSaleForOrderEntry = async (req, res) => {
         customerPhone: posSale.customerPhone || existingOrder?.customerPhone || '',
         grandTotal,
         totalOrderAmount: grandTotal,
-        advanceAmount: posSale.advanceAmount || 0,
+        advanceAmount: isPaid ? grandTotal : (posSale.advanceAmount || 0),
         paidAmount: effectivePaid,
         totalPaid: effectivePaid,
         balanceAmount,
@@ -1172,8 +1190,10 @@ const lookupPosSaleForOrderEntry = async (req, res) => {
 
     // Only existingOrder exists
     const grandTotal = existingOrder.totalPrice || 0;
-    const paidAmount = existingOrder.advanceAmount || 0;
-    const balanceAmount = existingOrder.balanceAmount != null ? existingOrder.balanceAmount : Math.max(0, grandTotal - paidAmount);
+    const isPaid = String(existingOrder.paymentStatus || '').toUpperCase() === 'PAID' || (existingOrder.advanceAmount >= grandTotal && grandTotal > 0) || (existingOrder.balanceAmount != null && parseFloat(existingOrder.balanceAmount) <= 0.01);
+    const paidAmount = isPaid ? grandTotal : (existingOrder.advanceAmount || 0);
+    const balanceAmount = isPaid ? 0 : (existingOrder.balanceAmount != null ? existingOrder.balanceAmount : Math.max(0, grandTotal - paidAmount));
+    const paymentStatus = isPaid ? 'PAID' : 'BALANCE';
     return res.json({
       found: true,
       orderOnly: true,
@@ -1189,7 +1209,7 @@ const lookupPosSaleForOrderEntry = async (req, res) => {
       paidAmount,
       totalPaid: paidAmount,
       balanceAmount,
-      paymentStatus: existingOrder.paymentStatus || (balanceAmount <= 0.01 ? 'PAID' : 'BALANCE'),
+      paymentStatus,
       orderExists: true,
       existingOrder
     });

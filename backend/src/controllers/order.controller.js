@@ -593,6 +593,28 @@ const createOrder = async (req, res) => {
     const userAdjustedTotal = financialSummary?.total != null ? parseFloat(financialSummary.total) : null;
     const effectiveTotalPrice = userAdjustedTotal != null ? Math.max(0, userAdjustedTotal) : finalTotalPrice;
 
+    const reqPayStatus = (paymentStatus || '').toString().trim().toUpperCase();
+    const isOrderPaid = reqPayStatus === 'PAID';
+    const isOrderBal = reqPayStatus === 'BALANCE';
+    let finalAdv = parseFloat(advanceAmount) || 0;
+    let finalBal = 0;
+    if (isOrderPaid) {
+      finalAdv = effectiveTotalPrice;
+      finalBal = 0;
+    } else if (isOrderBal) {
+      if (balanceAmount !== undefined && balanceAmount !== null && String(balanceAmount).trim() !== '') {
+        finalBal = Math.max(0, parseFloat(balanceAmount) || 0);
+        finalAdv = Math.max(0, effectiveTotalPrice - finalBal);
+      } else {
+        finalAdv = Math.max(0, parseFloat(advanceAmount) || 0);
+        finalBal = Math.max(0, effectiveTotalPrice - finalAdv);
+      }
+    } else {
+      finalAdv = Math.max(0, parseFloat(advanceAmount) || 0);
+      finalBal = Math.max(0, effectiveTotalPrice - finalAdv);
+    }
+    const finalPayStatus = isOrderPaid ? 'PAID' : (finalBal <= 0.01 && effectiveTotalPrice > 0 ? 'PAID' : (isOrderBal ? 'BALANCE' : (paymentStatus || 'PENDING')));
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
@@ -626,10 +648,10 @@ const createOrder = async (req, res) => {
         customization: engravingRequired ? (finalCustomization ? JSON.stringify(finalCustomization) : null) : null,
         productDetails: finalProductDetails || null,
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
-        advancePaid: advancePaid || (advanceAmount > 0) || false,
-        advanceAmount: advanceAmount || 0,
-        balanceAmount: (paymentStatus || '').toString().trim().toUpperCase() === 'BALANCE' ? (parseFloat(balanceAmount) || 0) : null,
-        paymentStatus: paymentStatus || 'PENDING',
+        advancePaid: isOrderPaid || advancePaid || (finalAdv > 0) || false,
+        advanceAmount: finalAdv,
+        balanceAmount: finalBal,
+        paymentStatus: finalPayStatus,
         instructionNotes: instructionNotes || null,
         engravingInstructions: engravingRequired ? (engravingInstructions || null) : null,
         engravingRequired: !!engravingRequired,

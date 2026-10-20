@@ -433,12 +433,14 @@ const OutletOrderEntry = () => {
           });
         }
         // Pre-fill financial amounts
-        const paid = data.paidAmount != null ? data.paidAmount : (data.advanceAmount || 0);
+        const isPaidStatus = String(data.paymentStatus || '').toUpperCase() === 'PAID' || (data.balanceAmount != null && parseFloat(data.balanceAmount) <= 0.01);
+        const grandTot = data.grandTotal || 0;
+        const paid = isPaidStatus ? grandTot : (data.paidAmount != null ? data.paidAmount : (data.advanceAmount || 0));
+        const bal = isPaidStatus ? 0 : (data.balanceAmount != null ? data.balanceAmount : Math.max(0, grandTot - paid));
         setAdvanceAmount(paid);
-        const bal = data.balanceAmount != null ? data.balanceAmount : Math.max(0, (data.grandTotal || 0) - paid);
         setBalanceAmount(bal > 0 ? String(bal) : '0');
-        setPaymentStatus(bal <= 0.01 ? 'PAID' : 'BALANCE');
-        toast.success(`POS Bill connected: ${data.customerName || 'Customer'} (Total: ₨${(data.grandTotal || 0).toLocaleString()}, Paid: ₨${paid.toLocaleString()}, Balance: ₨${bal.toLocaleString()})`);
+        setPaymentStatus(isPaidStatus || bal <= 0.01 ? 'PAID' : 'BALANCE');
+        toast.success(`POS Bill connected: ${data.customerName || 'Customer'} (Total: ₨${grandTot.toLocaleString()}, Paid: ₨${paid.toLocaleString()}, Balance: ₨${bal.toLocaleString()})`);
       }
     } catch (e) {
       // not a fatal error
@@ -726,7 +728,73 @@ const OutletOrderEntry = () => {
     return 0;
   }, [products, posSaleInfo]);
   const advance = parseFloat(advanceAmount) || 0;
-  const balance = Math.max(0, totalAmount - advance);
+  const balance = paymentStatus === 'PAID' ? 0 : Math.max(0, totalAmount - advance);
+
+  // Synchronize financial amounts with totalAmount and paymentStatus
+  useEffect(() => {
+    if (paymentStatus === 'PAID') {
+      setAdvanceAmount(totalAmount);
+      setBalanceAmount('0');
+    } else if (paymentStatus === 'BALANCE') {
+      const adv = parseFloat(advanceAmount) || 0;
+      if (adv > 0 && adv < totalAmount) {
+        setBalanceAmount(String(totalAmount - adv));
+      } else if (balanceAmount !== '' && balanceAmount != null) {
+        const bal = parseFloat(balanceAmount) || 0;
+        if (bal > 0 && bal <= totalAmount) {
+          setAdvanceAmount(Math.max(0, totalAmount - bal));
+        } else {
+          setBalanceAmount(String(totalAmount));
+          setAdvanceAmount(0);
+        }
+      } else {
+        setBalanceAmount(String(totalAmount));
+        setAdvanceAmount(0);
+      }
+    }
+  }, [totalAmount, paymentStatus]);
+
+  const handleSelectPaid = useCallback(() => {
+    setPaymentStatus('PAID');
+    setAdvanceAmount(totalAmount);
+    setBalanceAmount('0');
+  }, [totalAmount]);
+
+  const handleSelectBalance = useCallback(() => {
+    setPaymentStatus('BALANCE');
+    const currentAdv = parseFloat(advanceAmount) || 0;
+    if (currentAdv >= totalAmount && totalAmount > 0) {
+      setAdvanceAmount(0);
+      setBalanceAmount(String(totalAmount));
+    } else {
+      const newBal = Math.max(0, totalAmount - currentAdv);
+      setBalanceAmount(newBal > 0 ? String(newBal) : String(totalAmount));
+    }
+  }, [advanceAmount, totalAmount]);
+
+  const handleAdvanceChange = useCallback((val) => {
+    const newPaid = Math.max(0, parseFloat(val) || 0);
+    setAdvanceAmount(newPaid);
+    const newBal = Math.max(0, totalAmount - newPaid);
+    setBalanceAmount(newBal > 0 ? String(newBal) : '0');
+    if (newBal <= 0 && newPaid >= totalAmount && totalAmount > 0) {
+      setPaymentStatus('PAID');
+    } else {
+      setPaymentStatus('BALANCE');
+    }
+  }, [totalAmount]);
+
+  const handleBalanceChange = useCallback((val) => {
+    setBalanceAmount(val);
+    const newBal = Math.max(0, parseFloat(val) || 0);
+    const newPaid = Math.max(0, totalAmount - newBal);
+    setAdvanceAmount(newPaid);
+    if (newBal <= 0 && totalAmount > 0) {
+      setPaymentStatus('PAID');
+    } else {
+      setPaymentStatus('BALANCE');
+    }
+  }, [totalAmount]);
 
   const canProceed = useMemo(() => {
     const hasOrderNumber = orderNumber.trim().length > 0;
@@ -796,6 +864,10 @@ const OutletOrderEntry = () => {
     }
     setSubmitting(true);
     try {
+      const isPaid = payStatus === 'PAID';
+      const computedBal = isPaid ? 0 : Math.max(0, parseFloat(balanceAmount) || Math.max(0, totalAmount - (parseFloat(advanceAmount) || 0)));
+      const computedAdv = isPaid ? totalAmount : Math.max(0, totalAmount - computedBal);
+
       const payload = {
         orderNumber: orderNumber.trim() || undefined,
         clientNumber: clientData?.clientNumber || null,
@@ -836,14 +908,14 @@ const OutletOrderEntry = () => {
         sizeData: Object.keys(sizeData).length > 0 ? sizeData : (Object.keys(clientMeasurements).length > 0 ? clientMeasurements : null),
         standardSize: sizingMode === 'standard' ? selectedStandardSize : null,
         measurementChart: sizingMode === 'custom' ? 'Custom Measurements' : (selectedStandardSize || (Object.keys(clientMeasurements).length > 0 ? 'Custom Measurements' : null)),
-        advanceAmount: advance,
+        advanceAmount: computedAdv,
         placedBy: employee?.name || user?.name || user?.id || null,
         placedByEmployeeId: employee?.id || null,
         placedByEmployeeName: employee?.name || null,
         priority,
         deliveryType,
-        paymentStatus: payStatus,
-        balanceAmount: payStatus === 'BALANCE' ? (parseFloat(balanceAmount) || 0) : null
+        paymentStatus: isPaid ? 'PAID' : (computedBal <= 0 ? 'PAID' : 'BALANCE'),
+        balanceAmount: isPaid ? 0 : computedBal
       };
       const res = await api.post('/api/outlet-orders', payload);
       // CONFIRMED SUCCESS FROM SERVER:
@@ -904,6 +976,10 @@ const OutletOrderEntry = () => {
       measurementSpecialNote: (p.measurementSpecialNote || '').trim()
     }));
 
+    const isPaid = (paymentStatus || '').toString().trim().toUpperCase() === 'PAID';
+    const computedBal = isPaid ? 0 : Math.max(0, parseFloat(balanceAmount) || Math.max(0, totalAmount - (parseFloat(advanceAmount) || 0)));
+    const computedAdv = isPaid ? totalAmount : Math.max(0, totalAmount - computedBal);
+
     const previewOrder = {
       orderNumber: orderNumber || 'DRAFT',
       customerName: customer.name || 'Walk-in Customer',
@@ -915,10 +991,10 @@ const OutletOrderEntry = () => {
       priority,
       deliveryType,
       type: 'STANDARD',
-      paymentStatus: paymentStatus || 'UNPAID',
-      balanceAmount: balanceAmount ? parseFloat(balanceAmount) : 0,
+      paymentStatus: isPaid ? 'PAID' : (computedBal <= 0 ? 'PAID' : 'BALANCE'),
+      balanceAmount: computedBal,
       totalPrice: totalAmount,
-      advanceAmount: advanceAmount ? parseFloat(advanceAmount) : 0,
+      advanceAmount: computedAdv,
       notes: specialNotes || null,
       productDetails: JSON.stringify(enrichedProducts),
       engravingRequired: products.some(p => !!p.engravingRequired),
@@ -929,6 +1005,10 @@ const OutletOrderEntry = () => {
   };
 
   const handlePrintThermalSlipPreview = () => {
+    const isPaid = (paymentStatus || '').toString().trim().toUpperCase() === 'PAID';
+    const computedBal = isPaid ? 0 : Math.max(0, parseFloat(balanceAmount) || Math.max(0, totalAmount - (parseFloat(advanceAmount) || 0)));
+    const computedAdv = isPaid ? totalAmount : Math.max(0, totalAmount - computedBal);
+
     const previewOrder = {
       orderNumber: orderNumber || 'DRAFT',
       customerName: customer.name || 'Walk-in Customer',
@@ -941,10 +1021,10 @@ const OutletOrderEntry = () => {
       priority,
       deliveryType,
       type: 'STANDARD',
-      paymentStatus: paymentStatus || 'UNPAID',
-      balanceAmount: balanceAmount ? parseFloat(balanceAmount) : 0,
+      paymentStatus: isPaid ? 'PAID' : (computedBal <= 0 ? 'PAID' : 'BALANCE'),
+      balanceAmount: computedBal,
       totalPrice: totalAmount,
-      advanceAmount: advanceAmount ? parseFloat(advanceAmount) : 0,
+      advanceAmount: computedAdv,
       notes: specialNotes || null,
       products,
       sizeData: Object.keys(sizeData).length > 0 ? sizeData : (Object.keys(clientMeasurements).length > 0 ? clientMeasurements : null),
@@ -998,7 +1078,16 @@ const OutletOrderEntry = () => {
   }, [resetAll]);
 
   if (submitted) {
-    const slipOrder = createdOrder || {
+    const isPaid = (createdOrder?.paymentStatus || paymentStatus || '').toString().trim().toUpperCase() === 'PAID';
+    const computedBal = isPaid ? 0 : (createdOrder?.balanceAmount != null ? parseFloat(createdOrder.balanceAmount) : Math.max(0, parseFloat(balanceAmount) || Math.max(0, totalAmount - (parseFloat(advanceAmount) || 0))));
+    const computedAdv = isPaid ? totalAmount : (createdOrder?.advanceAmount != null ? parseFloat(createdOrder.advanceAmount) : Math.max(0, totalAmount - computedBal));
+
+    const slipOrder = createdOrder ? {
+      ...createdOrder,
+      advanceAmount: computedAdv,
+      balanceAmount: computedBal,
+      paymentStatus: isPaid ? 'PAID' : (computedBal <= 0 ? 'PAID' : 'BALANCE')
+    } : {
       orderNumber,
       customerName: customer.name,
       customerPhone: customer.phone,
@@ -1009,9 +1098,9 @@ const OutletOrderEntry = () => {
       products,
       sizeData: Object.keys(sizeData).length > 0 ? sizeData : (Object.keys(clientMeasurements).length > 0 ? clientMeasurements : null),
       totalPrice: totalAmount,
-      advanceAmount: advance,
-      balanceAmount: balance,
-      paymentStatus,
+      advanceAmount: computedAdv,
+      balanceAmount: computedBal,
+      paymentStatus: isPaid ? 'PAID' : (computedBal <= 0 ? 'PAID' : 'BALANCE'),
       priority,
       deliveryType,
       notes: specialNotes,
@@ -1036,8 +1125,9 @@ const OutletOrderEntry = () => {
             <p className="text-gray-400">Customer: <span className="text-white font-bold">{customer.name} ({customer.phone})</span></p>
             {clientData?.clientNumber && <p className="text-gray-400">Client #: <span className="text-blue-400 font-bold">#{clientData.clientNumber}</span></p>}
             <p className="text-gray-400">Total: <span className="text-white font-black">₨{totalAmount.toLocaleString()}</span></p>
-            {advance > 0 && <p className="text-gray-400">Advance: <span className="text-emerald-400 font-black">₨{advance.toLocaleString()}</span></p>}
-            <p className="text-gray-400">Balance: <span className="text-amber-400 font-black">₨{Math.max(0, balance).toLocaleString()}</span></p>
+            <p className="text-gray-400">Paid / Advance: <span className="text-emerald-400 font-black">₨{computedAdv.toLocaleString()}</span></p>
+            <p className="text-gray-400">Balance: <span className={computedBal > 0 ? "text-amber-400 font-black" : "text-emerald-400 font-black"}>₨{computedBal.toLocaleString()}</span></p>
+            <p className="text-gray-400">Status: <span className={isPaid || computedBal <= 0 ? "text-emerald-400 font-black" : "text-red-400 font-black"}>{isPaid || computedBal <= 0 ? "✓ FULLY PAID" : "⚠ BALANCE DUE"}</span></p>
           </div>
 
           <div className="space-y-2 pt-2">
@@ -1970,137 +2060,148 @@ const OutletOrderEntry = () => {
               )}
             </div>
 
-            {/* Mandatory Payment Status Selection */}
-            <div className={`bg-gray-800 rounded-xl p-4 space-y-3 border-2 transition-all ${!paymentStatus ? 'border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.2)] bg-red-950/10' : 'border-amber-500/40'}`}>
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-amber-300 uppercase tracking-wider block">
-                  Payment Status <span className="text-red-400 font-black">* Mandatory</span>
-                </label>
-                {paymentStatus && (
-                  <span className={`text-xs font-black px-2.5 py-1 rounded-full uppercase ${paymentStatus === 'PAID' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-red-500/20 text-red-400 border border-red-500/40'}`}>
-                    {paymentStatus === 'PAID' ? 'ORDER PAID' : 'ORDER BALANCE'}
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] font-bold text-gray-400">Select whether this order is Paid or Balance before proceeding.</p>
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <button type="button" onClick={() => { setPaymentStatus('PAID'); setAdvanceAmount(totalAmount); setBalanceAmount('0'); }}
-                  className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'PAID' ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
-                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'PAID' ? 'border-white' : ''}`}>
-                    {paymentStatus === 'PAID' && <span className="w-2 h-2 rounded-full bg-white"></span>}
-                  </span>
-                  PAID
-                </button>
-                <button type="button" onClick={() => { setPaymentStatus('BALANCE'); const b = Math.max(0, totalAmount - advanceAmount); setBalanceAmount(b > 0 ? String(b) : ''); }}
-                  className={`py-3 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all ${paymentStatus === 'BALANCE' ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 scale-[1.02]' : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
-                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'BALANCE' ? 'border-white' : ''}`}>
-                    {paymentStatus === 'BALANCE' && <span className="w-2 h-2 rounded-full bg-white"></span>}
-                  </span>
-                  BALANCE
-                </button>
-              </div>
-              {paymentStatus === 'BALANCE' && (
-                <div className="pt-1 space-y-1">
-                  <label className="text-[11px] font-black text-red-400 uppercase tracking-wider block">Remaining Balance: ₨ <span className="text-red-500">* required</span></label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    placeholder="Enter exact balance amount (must be > 0)"
-                    value={balanceAmount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setBalanceAmount(val);
-                      const newBal = Math.max(0, parseFloat(val) || 0);
-                      const newPaid = Math.max(0, totalAmount - newBal);
-                      setAdvanceAmount(newPaid);
-                      if (newBal <= 0) setPaymentStatus('PAID');
-                    }}
-                    className={`w-full bg-gray-900 border-2 rounded-xl px-3 py-2.5 text-base font-bold text-white outline-none transition-all ${!(balanceAmount != null && String(balanceAmount).trim() !== '' && parseFloat(balanceAmount) > 0) ? 'border-red-500/70 focus:border-red-400' : 'border-amber-500/50 focus:border-amber-400'}`}
-                  />
-                  {!(balanceAmount != null && String(balanceAmount).trim() !== '' && !isNaN(parseFloat(balanceAmount)) && parseFloat(balanceAmount) > 0) && (
-                    <p className="text-[11px] font-black text-red-400 flex items-center gap-1">⚠️ Enter a valid balance amount greater than zero.</p>
-                  )}
-                </div>
-              )}
-              {!paymentStatus && (
-                <p className="text-[11px] font-black text-red-400 mt-1 flex items-center gap-1">
-                  ⚠️ Please select Paid or Balance before proceeding.
-                </p>
-              )}
-            </div>
-
-            <div className="bg-gray-800/90 border border-gray-700 rounded-2xl p-4 space-y-4">
+            {/* Unified Payment & Balance Details Card */}
+            <div className={`bg-gray-800/90 border-2 rounded-2xl p-5 space-y-4 transition-all ${
+              !paymentStatus
+                ? 'border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.2)] bg-red-950/10'
+                : 'border-gray-700'
+            }`}>
+              {/* Header with Total Amount */}
               <div className="flex items-center justify-between border-b border-gray-700/60 pb-3">
                 <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-gray-400">Total Order Amount</span>
+                  <label className="text-xs font-black uppercase tracking-wider text-amber-300 block">
+                    Payment Status <span className="text-red-400 font-black">* Mandatory</span>
+                  </label>
                   {posSaleInfo && (
-                    <span className="ml-2 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
+                    <span className="inline-block mt-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
                       From POS ({posSaleInfo.receiptNumber})
                     </span>
                   )}
                 </div>
-                <span className="text-xl font-black text-white">₨{totalAmount.toLocaleString()}</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Paid Amount Input */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black uppercase tracking-wider text-emerald-400 block">
-                    Paid Amount / Advance (₨)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={advanceAmount || ''}
-                    onChange={(e) => {
-                      const newPaid = Math.max(0, parseFloat(e.target.value) || 0);
-                      setAdvanceAmount(newPaid);
-                      const newBal = Math.max(0, totalAmount - newPaid);
-                      setBalanceAmount(newBal > 0 ? String(newBal) : '0');
-                      setPaymentStatus(newBal <= 0 ? 'PAID' : 'BALANCE');
-                    }}
-                    className="w-full bg-gray-900 border border-emerald-500/40 focus:border-emerald-400 rounded-xl px-3 py-2 text-base font-black text-emerald-300 outline-none"
-                  />
-                  <p className="text-[10px] text-gray-400">Amount received at POS / in advance</p>
-                </div>
-
-                {/* Balance Amount Display & Input */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black uppercase tracking-wider text-amber-400 block">
-                    Balance Amount (₨)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={balanceAmount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setBalanceAmount(val);
-                      const newBal = Math.max(0, parseFloat(val) || 0);
-                      const newPaid = Math.max(0, totalAmount - newBal);
-                      setAdvanceAmount(newPaid);
-                      setPaymentStatus(newBal <= 0 ? 'PAID' : 'BALANCE');
-                    }}
-                    className={`w-full bg-gray-900 border rounded-xl px-3 py-2 text-base font-black outline-none ${
-                      paymentStatus === 'PAID' || parseFloat(balanceAmount) === 0
-                        ? 'border-emerald-500/40 text-emerald-300'
-                        : 'border-amber-500/50 text-amber-300'
-                    }`}
-                  />
-                  <p className="text-[10px] text-gray-400">Remaining amount to collect at delivery</p>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-gray-400 block uppercase">Total Order Amount</span>
+                  <span className="text-2xl font-black text-white">₨{totalAmount.toLocaleString()}</span>
                 </div>
               </div>
 
-              {/* Status indicator */}
-              <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-700/60">
-                <span className="text-gray-400 font-bold">Payment Status:</span>
+              {/* Status Toggle Buttons */}
+              <p className="text-[11px] font-bold text-gray-400">Select whether this order is fully Paid or has a Remaining Balance:</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleSelectPaid}
+                  className={`py-3.5 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    paymentStatus === 'PAID'
+                      ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/40 scale-[1.02]'
+                      : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'PAID' ? 'border-white' : ''}`}>
+                    {paymentStatus === 'PAID' && <span className="w-2 h-2 rounded-full bg-white"></span>}
+                  </span>
+                  ✓ PAID
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectBalance}
+                  className={`py-3.5 px-4 rounded-xl border-2 font-black text-sm text-center flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    paymentStatus === 'BALANCE'
+                      ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/40 scale-[1.02]'
+                      : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center ${paymentStatus === 'BALANCE' ? 'border-white' : ''}`}>
+                    {paymentStatus === 'BALANCE' && <span className="w-2 h-2 rounded-full bg-white"></span>}
+                  </span>
+                  ⚠ BALANCE
+                </button>
+              </div>
+
+              {/* If PAID: confirmation banner */}
+              {paymentStatus === 'PAID' && (
+                <div className="bg-emerald-950/40 border border-emerald-600/40 rounded-xl p-3 flex items-center justify-between text-xs">
+                  <div className="space-y-0.5">
+                    <p className="font-black text-emerald-300">✓ Fully Paid at Order Placement</p>
+                    <p className="text-gray-400 text-[11px]">Paid: ₨{totalAmount.toLocaleString()} &bull; Remaining Balance: ₨0</p>
+                  </div>
+                  <span className="px-2.5 py-1 bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 rounded-lg font-black text-xs">
+                    PAID IN FULL
+                  </span>
+                </div>
+              )}
+
+              {/* If BALANCE: advance & balance input fields */}
+              {paymentStatus === 'BALANCE' && (
+                <div className="space-y-3 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Advance Paid */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-emerald-400 block">
+                        Advance / Paid Amount (₨)
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        max={totalAmount}
+                        placeholder="0"
+                        value={advanceAmount || ''}
+                        onChange={(e) => handleAdvanceChange(e.target.value)}
+                        className="w-full bg-gray-900 border border-emerald-500/40 focus:border-emerald-400 rounded-xl px-3 py-2 text-base font-black text-emerald-300 outline-none"
+                      />
+                      <p className="text-[10px] text-gray-400">Amount received at POS / in advance</p>
+                    </div>
+
+                    {/* Remaining Balance */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-amber-400 block">
+                        Remaining Balance (₨) <span className="text-red-400">* Required</span>
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        placeholder="Enter remaining balance"
+                        value={balanceAmount}
+                        onChange={(e) => handleBalanceChange(e.target.value)}
+                        className={`w-full bg-gray-900 border-2 rounded-xl px-3 py-2 text-base font-black text-amber-300 outline-none transition-all ${
+                          !(balanceAmount != null && String(balanceAmount).trim() !== '' && parseFloat(balanceAmount) > 0)
+                            ? 'border-red-500/70 focus:border-red-400'
+                            : 'border-amber-500/50 focus:border-amber-400'
+                        }`}
+                      />
+                      <p className="text-[10px] text-gray-400">Remaining amount to collect upon delivery</p>
+                    </div>
+                  </div>
+
+                  {!(balanceAmount != null && String(balanceAmount).trim() !== '' && !isNaN(parseFloat(balanceAmount)) && parseFloat(balanceAmount) > 0) && (
+                    <p className="text-[11px] font-black text-red-400 flex items-center gap-1 bg-red-950/30 p-2 rounded-lg border border-red-800/40">
+                      ⚠️ Balance must be greater than zero. If the customer paid in full, select PAID above.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!paymentStatus && (
+                <p className="text-[11px] font-black text-red-400 flex items-center gap-1 bg-red-950/30 p-2 rounded-lg border border-red-800/40">
+                  ⚠️ Please select Paid or Balance before proceeding.
+                </p>
+              )}
+
+              {/* Real-time Financial Breakdown Strip */}
+              <div className="flex flex-wrap items-center justify-between text-xs pt-2 border-t border-gray-700/60 gap-2">
+                <div className="flex items-center gap-4 text-gray-400 font-bold">
+                  <span>Paid: <strong className="text-emerald-400 font-black">₨{(paymentStatus === 'PAID' ? totalAmount : (parseFloat(advanceAmount) || 0)).toLocaleString()}</strong></span>
+                  <span>Balance: <strong className={paymentStatus === 'PAID' || (parseFloat(balanceAmount) || 0) === 0 ? 'text-emerald-400 font-black' : 'text-amber-400 font-black'}>₨{(paymentStatus === 'PAID' ? 0 : Math.max(0, parseFloat(balanceAmount) || 0)).toLocaleString()}</strong></span>
+                </div>
                 <span className={`px-2.5 py-1 rounded-lg font-black text-xs ${
-                  paymentStatus === 'PAID' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50' : 'bg-red-900/40 text-red-300 border border-red-700/50'
+                  paymentStatus === 'PAID'
+                    ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50'
+                    : paymentStatus === 'BALANCE'
+                    ? 'bg-red-900/40 text-red-300 border border-red-700/50'
+                    : 'bg-gray-800 text-gray-400 border border-gray-700'
                 }`}>
-                  {paymentStatus === 'PAID' ? '✓ FULLY PAID' : `⚠ BALANCE DUE: ₨${(parseFloat(balanceAmount) || 0).toLocaleString()}`}
+                  {paymentStatus === 'PAID' ? '✓ FULLY PAID' : paymentStatus === 'BALANCE' ? `⚠ BALANCE DUE: ₨${(parseFloat(balanceAmount) || 0).toLocaleString()}` : 'STATUS PENDING'}
                 </span>
               </div>
             </div>
