@@ -129,11 +129,19 @@ const createOutletOrder = async (req, res) => {
     // and the Job Sheet print gate's order.engravingRequired check.
     const hasEngravedProduct = enriched.some(p => p?.engravingRequired === true);
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
-    const totalPrice = products.reduce((sum, p) => {
+    const calculatedProductTotal = products.reduce((sum, p) => {
       const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
       const cap = p.matchingCap ? (parseInt(p.matchingCapQty) || 0) * 500 : 0;
       return sum + line + cap;
     }, 0);
+
+    let totalPrice = calculatedProductTotal;
+    const linkedPosSale = orderNumber ? await prisma.posSale.findFirst({ where: { orderNumber } }) : null;
+    if (linkedPosSale && linkedPosSale.grandTotal > 0) {
+      totalPrice = linkedPosSale.grandTotal;
+    } else if (req.body.totalPrice !== undefined && req.body.totalPrice !== null && !isNaN(parseFloat(req.body.totalPrice)) && parseFloat(req.body.totalPrice) > 0) {
+      totalPrice = Math.max(0, parseFloat(req.body.totalPrice));
+    }
     const adv = parseFloat(advanceAmount) || 0;
 
     const isPaid = payStatus === 'PAID';
@@ -1014,30 +1022,37 @@ const lookupOrderWithFinancials = async (req, res) => {
     // 3. Compute financial status
     let financial = null;
     if (posSale) {
-      const totalPaid = (posSale.advanceAmount || 0) + posSale.balancePayments.reduce((s, bp) => s + (bp.amountPaidNow || 0), 0);
-      const remaining = Math.max(0, (posSale.grandTotal || 0) - totalPaid);
-      const isPaid = remaining <= 0.01 || String(order.paymentStatus || '').toUpperCase() === 'PAID';
-      const effectiveRemaining = isPaid ? 0 : remaining;
-      const effectivePaid = isPaid ? (posSale.grandTotal || 0) : totalPaid;
-      const subtotal = (posSale.grandTotal || 0) + (order?.discountAmount || 0) - (order?.deliveryCharges || 0);
+      const isFullyPaidAtCheckout = (posSale.advanceAmount === 0 || posSale.advanceAmount == null) && (!posSale.balancePayments || posSale.balancePayments.length === 0);
+      const grandTotal = posSale.grandTotal || 0;
+      const posAdv = isFullyPaidAtCheckout
+        ? grandTotal
+        : ((posSale.advanceAmount != null && posSale.advanceAmount > 0) ? posSale.advanceAmount : (order.advanceAmount || 0));
+      const totalPaid = isFullyPaidAtCheckout
+        ? grandTotal
+        : (posAdv + (posSale.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0));
+      const rawRemaining = isFullyPaidAtCheckout ? 0 : Math.max(0, grandTotal - totalPaid);
+      const isPaid = isFullyPaidAtCheckout || rawRemaining <= 0.01 || String(order.paymentStatus || posSale.paymentStatus || '').toUpperCase() === 'PAID';
+      const effectivePaid = isPaid ? grandTotal : totalPaid;
+      const effectiveRemaining = isPaid ? 0 : rawRemaining;
+      const subtotal = grandTotal + (order?.discountAmount || 0) - (order?.deliveryCharges || 0);
       financial = {
         posSaleId: posSale.id,
         receiptNumber: posSale.receiptNumber,
-        subtotal: subtotal > 0 ? subtotal : posSale.grandTotal,
+        subtotal: subtotal > 0 ? subtotal : grandTotal,
         discountAmount: order?.discountAmount || 0,
         deliveryCharges: order?.deliveryCharges || 0,
         customizationPrice: order?.customizationPrice || 0,
-        grandTotal: posSale.grandTotal,
-        advanceAmount: posSale.advanceAmount,
+        grandTotal,
+        advanceAmount: isPaid ? grandTotal : posAdv,
         totalPaid: effectivePaid,
-        totalReturns: posSale.returns.reduce((s, r) => s + (r.refundAmount || 0), 0),
+        totalReturns: (posSale.returns || []).reduce((s, r) => s + (r.refundAmount || 0), 0),
         remaining: effectiveRemaining,
         paymentMethod: posSale.paymentMethod,
         cashierName: posSale.cashierName,
         posSaleDate: posSale.createdAt,
         paymentStatus: isPaid ? 'PAID' : 'BALANCE',
         balanceAmount: effectiveRemaining,
-        balancePayments: posSale.balancePayments.map(bp => ({
+        balancePayments: (posSale.balancePayments || []).map(bp => ({
           id: bp.id, receiptNumber: bp.receiptNumber, amountPaidNow: bp.amountPaidNow,
           paymentMethod: bp.paymentMethod, cashierName: bp.cashierName, paidAt: bp.paidAt
         }))
@@ -1146,10 +1161,13 @@ const lookupPosSaleForOrderEntry = async (req, res) => {
     }
 
     if (posSale) {
-      const totalPaid = (posSale.advanceAmount || 0) + (posSale.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0);
+      const isFullyPaidAtCheckout = (posSale.advanceAmount === 0 || posSale.advanceAmount == null) && (!posSale.balancePayments || posSale.balancePayments.length === 0);
       const grandTotal = Math.round((posSale.grandTotal || 0) * 100) / 100;
-      const rawBal = Math.max(0, Math.round((grandTotal - totalPaid) * 100) / 100);
-      const isPaid = String(posSale.paymentStatus || existingOrder?.paymentStatus || '').toUpperCase() === 'PAID' || rawBal <= 0.01;
+      const totalPaid = isFullyPaidAtCheckout
+        ? grandTotal
+        : ((posSale.advanceAmount || 0) + (posSale.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0));
+      const rawBal = isFullyPaidAtCheckout ? 0 : Math.max(0, Math.round((grandTotal - totalPaid) * 100) / 100);
+      const isPaid = isFullyPaidAtCheckout || String(posSale.paymentStatus || existingOrder?.paymentStatus || '').toUpperCase() === 'PAID' || rawBal <= 0.01;
       const effectivePaid = isPaid ? grandTotal : Math.round(totalPaid * 100) / 100;
       const balanceAmount = isPaid ? 0 : rawBal;
       const paymentStatus = isPaid ? 'PAID' : 'BALANCE';

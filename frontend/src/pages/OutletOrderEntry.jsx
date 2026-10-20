@@ -78,6 +78,29 @@ const getDraftStorageKey = (outlet, emp) => {
   return `enamels_outlet_order_draft_${o}_${e}`;
 };
 
+const COMPLETED_ORDERS_KEY = 'enamels_completed_orders_registry';
+
+const getCompletedOrdersRegistry = () => {
+  try {
+    const raw = localStorage.getItem(COMPLETED_ORDERS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+};
+
+const markOrderCompletedInRegistry = (num) => {
+  if (!num || !String(num).trim()) return;
+  try {
+    const clean = String(num).trim();
+    const existing = getCompletedOrdersRegistry();
+    const updated = [clean, ...existing.filter(n => n !== clean)].slice(0, 100);
+    localStorage.setItem(COMPLETED_ORDERS_KEY, JSON.stringify(updated));
+  } catch {}
+};
+
 const hasDraftData = (d) => {
   if (!d || typeof d !== 'object') return false;
   const hasCust = !!(d.customer?.name?.trim() || d.customer?.phone?.trim() || d.customer?.address?.trim() || d.customer?.notes?.trim());
@@ -85,7 +108,6 @@ const hasDraftData = (d) => {
   const hasNewProd = !!(d.newProduct?.name?.trim());
   const hasNotes = !!(d.specialNotes?.trim());
   const hasClient = !!d.clientData;
-  const hasOrderNum = !!(d.orderNumber && d.orderNumber.trim());
   const hasPayment = !!(d.paymentStatus || (d.advanceAmount && d.advanceAmount > 0) || (d.balanceAmount && String(d.balanceAmount).trim() !== ''));
   return hasCust || hasProds || hasNewProd || hasNotes || hasClient || hasPayment;
 };
@@ -96,6 +118,11 @@ const readDraft = (key) => {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
+      const completedRegistry = getCompletedOrdersRegistry();
+      if (parsed.orderNumber && completedRegistry.includes(parsed.orderNumber.trim())) {
+        try { localStorage.removeItem(key); } catch {}
+        return null;
+      }
       const lastCompleted = sessionStorage.getItem('enamels_last_completed_order');
       if (lastCompleted && parsed.orderNumber && parsed.orderNumber.trim() === lastCompleted.trim()) {
         try { localStorage.removeItem(key); } catch {}
@@ -155,6 +182,7 @@ const OutletOrderEntry = () => {
   const [draftSavedAt, setDraftSavedAt] = useState(() => initialDraft?.savedAt || null);
   const [isDraftRestored, setIsDraftRestored] = useState(() => hasDraftData(initialDraft));
   const isHydratedRef = useRef(true);
+  const isOrderSubmittedRef = useRef(false);
   const saveTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -251,6 +279,12 @@ const OutletOrderEntry = () => {
         saveTimeoutRef.current = null;
       }
       localStorage.removeItem(draftKey);
+      const allKeys = Object.keys(localStorage);
+      for (const k of allKeys) {
+        if (k.startsWith('enamels_outlet_order_draft_')) {
+          try { localStorage.removeItem(k); } catch {}
+        }
+      }
     } catch (e) {
       console.error('Error clearing draft:', e);
     }
@@ -259,9 +293,25 @@ const OutletOrderEntry = () => {
     setIsDraftRestored(false);
   }, [draftKey]);
 
+  // ── Auto-purge draft if its orderNumber was already placed and exists in database ──
+  useEffect(() => {
+    const draftNum = initialDraft?.orderNumber;
+    if (draftNum && String(draftNum).trim().length >= 3) {
+      api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(draftNum.trim())}`)
+        .then(res => {
+          if (res.data?.found && res.data?.order) {
+            markOrderCompletedInRegistry(draftNum);
+            clearSavedDraft();
+            resetAll();
+          }
+        })
+        .catch(() => {});
+    }
+  }, [initialDraft?.orderNumber]);
+
   // ── When employee logs in, restore their saved draft if found ──
   useEffect(() => {
-    if (!employee) return;
+    if (!employee || isOrderSubmittedRef.current || submitted) return;
     const key = getDraftStorageKey(employeeOutlet, employee);
     const empDraft = readDraft(key);
     if (hasDraftData(empDraft)) {
@@ -292,11 +342,11 @@ const OutletOrderEntry = () => {
       setDraftStatus('saved');
       setIsDraftRestored(true);
     }
-  }, [employee, employeeOutlet]);
+  }, [employee, employeeOutlet, submitted]);
 
   // ── Auto-save Draft Effect ──
   useEffect(() => {
-    if (!isHydratedRef.current || submitted) return;
+    if (!isHydratedRef.current || submitted || isOrderSubmittedRef.current) return;
 
     const currentData = {
       step,
@@ -333,6 +383,7 @@ const OutletOrderEntry = () => {
 
     saveTimeoutRef.current = setTimeout(() => {
       try {
+        if (isOrderSubmittedRef.current) return;
         const payload = {
           ...currentData,
           savedAt: new Date().toISOString(),
@@ -361,7 +412,7 @@ const OutletOrderEntry = () => {
   // ── Flush on BeforeUnload / Component Unmount ──
   useEffect(() => {
     const flushDraft = () => {
-      if (!isHydratedRef.current || submitted) return;
+      if (!isHydratedRef.current || submitted || isOrderSubmittedRef.current) return;
       const currentData = {
         step, customerMode, searchQuery, lookedUp, clientData, recentOrders,
         customer, orderNumber, deliveryType, priority, products, newProduct,
@@ -371,6 +422,7 @@ const OutletOrderEntry = () => {
       };
       if (hasDraftData(currentData)) {
         try {
+          if (isOrderSubmittedRef.current) return;
           localStorage.setItem(draftKey, JSON.stringify({
             ...currentData,
             savedAt: new Date().toISOString(),
@@ -383,7 +435,9 @@ const OutletOrderEntry = () => {
     window.addEventListener('beforeunload', flushDraft);
     return () => {
       window.removeEventListener('beforeunload', flushDraft);
-      flushDraft();
+      if (!isOrderSubmittedRef.current && !submitted) {
+        flushDraft();
+      }
     };
   }, [
     draftKey, submitted, step, customerMode, searchQuery, lookedUp, clientData,
@@ -411,11 +465,10 @@ const OutletOrderEntry = () => {
           }));
           setCustomerMode('new');
         }
-        // Pre-fill products from POS items if products are empty
+        // Pre-fill products from POS items
         if (Array.isArray(data.items) && data.items.length > 0) {
-          setProducts(prev => {
-            if (prev.length > 0) return prev;
-            return data.items.map((it, idx) => ({
+          setProducts(
+            data.items.map((it, idx) => ({
               _tempId: Date.now() + idx,
               name: it.productName || 'Scrubs',
               fabric: '',
@@ -429,8 +482,8 @@ const OutletOrderEntry = () => {
               engravingRequired: false,
               stitchingNotes: '',
               measurementSpecialNote: ''
-            }));
-          });
+            }))
+          );
         }
         // Pre-fill financial amounts
         const isPaidStatus = String(data.paymentStatus || '').toUpperCase() === 'PAID' || (data.balanceAmount != null && parseFloat(data.balanceAmount) <= 0.01);
@@ -718,14 +771,13 @@ const OutletOrderEntry = () => {
 
   const CAP_UNIT_PRICE = 500;
   const totalAmount = useMemo(() => {
+    if (posSaleInfo?.grandTotal > 0) return posSaleInfo.grandTotal;
     const prodTotal = products.reduce((sum, p) => {
       const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
       const cap = p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0;
       return sum + line + cap;
     }, 0);
-    if (prodTotal > 0) return prodTotal;
-    if (posSaleInfo?.grandTotal > 0) return posSaleInfo.grandTotal;
-    return 0;
+    return prodTotal;
   }, [products, posSaleInfo]);
   const advance = parseFloat(advanceAmount) || 0;
   const balance = paymentStatus === 'PAID' ? 0 : Math.max(0, totalAmount - advance);
@@ -914,16 +966,22 @@ const OutletOrderEntry = () => {
         placedByEmployeeName: employee?.name || null,
         priority,
         deliveryType,
+        totalPrice: totalAmount,
         paymentStatus: isPaid ? 'PAID' : (computedBal <= 0 ? 'PAID' : 'BALANCE'),
         balanceAmount: isPaid ? 0 : computedBal
       };
       const res = await api.post('/api/outlet-orders', payload);
       // CONFIRMED SUCCESS FROM SERVER:
+      isOrderSubmittedRef.current = true;
+      const finalPlacedOrderNum = res.data?.orderNumber || orderNumber;
+      if (finalPlacedOrderNum) {
+        markOrderCompletedInRegistry(finalPlacedOrderNum);
+        try {
+          sessionStorage.setItem('enamels_last_completed_order', finalPlacedOrderNum);
+        } catch {}
+      }
       clearSavedDraft();
       try {
-        if (orderNumber) {
-          sessionStorage.setItem('enamels_last_completed_order', orderNumber);
-        }
         window.history.replaceState({}, '', window.location.pathname);
       } catch {}
       setCreatedOrder(res.data);
@@ -938,13 +996,13 @@ const OutletOrderEntry = () => {
         try {
           const verifyRes = await api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(orderNumber.trim())}`);
           if (verifyRes.data?.found && verifyRes.data.order) {
-            clearSavedDraft();
+            isOrderSubmittedRef.current = true;
+            markOrderCompletedInRegistry(orderNumber);
             try {
-              if (orderNumber) {
-                sessionStorage.setItem('enamels_last_completed_order', orderNumber);
-              }
+              sessionStorage.setItem('enamels_last_completed_order', orderNumber);
               window.history.replaceState({}, '', window.location.pathname);
             } catch {}
+            clearSavedDraft();
             setCreatedOrder(verifyRes.data.order);
             setSubmitted(true);
             toast.success(`Order ${orderNumber} verified and placed successfully!`);
@@ -1035,6 +1093,7 @@ const OutletOrderEntry = () => {
   };
 
   const resetAll = useCallback(() => {
+    isOrderSubmittedRef.current = false;
     clearSavedDraft();
     try {
       window.history.replaceState({}, '', window.location.pathname);

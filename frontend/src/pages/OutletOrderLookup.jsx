@@ -300,6 +300,7 @@ export default function OutletOrderLookup() {
                 orders.map((ord) => {
                   const isPaid = (ord.paymentStatus || '').toUpperCase() === 'PAID' || (ord.balanceAmount != null && parseFloat(ord.balanceAmount) <= 0.01);
                   const bal = isPaid ? 0 : (ord.balanceAmount != null ? parseFloat(ord.balanceAmount) : Math.max(0, (ord.totalPrice || 0) - (ord.advanceAmount || 0)));
+                  const paid = isPaid ? (ord.totalPrice || 0) : (ord.advanceAmount || 0);
 
                   return (
                     <tr
@@ -326,7 +327,7 @@ export default function OutletOrderLookup() {
                         Rs. {parseFloat(ord.totalPrice || 0).toLocaleString()}
                       </td>
                       <td className="py-3 px-4 text-right text-emerald-400 font-semibold">
-                        Rs. {parseFloat(ord.advanceAmount || 0).toLocaleString()}
+                        Rs. {parseFloat(paid).toLocaleString()}
                       </td>
                       <td className="py-3 px-4 text-right font-bold">
                         <span className={bal > 0.01 ? 'text-rose-400' : 'text-emerald-400'}>
@@ -646,20 +647,30 @@ export default function OutletOrderLookup() {
                         <span className="font-semibold">-Rs. {parseFloat(currentFinancial?.discountAmount || currentOrder.discountAmount).toLocaleString()}</span>
                       </div>
                     )}
-                    <div className="pt-2 border-t border-slate-800 flex justify-between font-bold text-sm text-white">
-                      <span>Grand Total:</span>
-                      <span className="text-blue-400">Rs. {parseFloat(currentFinancial?.grandTotal || currentOrder.totalPrice || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-400 font-semibold">
-                      <span>Paid / Advance:</span>
-                      <span>Rs. {parseFloat(currentFinancial?.paymentStatus === 'PAID' ? (currentFinancial?.grandTotal || currentOrder.totalPrice || 0) : (currentFinancial?.totalPaid != null ? currentFinancial.totalPaid : (currentOrder.advanceAmount || 0))).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-sm">
-                      <span className="text-slate-300">Remaining Balance:</span>
-                      <span className={(currentFinancial?.paymentStatus === 'PAID' ? 0 : parseFloat(currentFinancial?.remaining != null ? currentFinancial.remaining : (currentFinancial?.balanceAmount || 0))) > 0.01 ? 'text-rose-400' : 'text-emerald-400'}>
-                        Rs. {(currentFinancial?.paymentStatus === 'PAID' ? 0 : parseFloat(currentFinancial?.remaining != null ? currentFinancial.remaining : (currentFinancial?.balanceAmount || 0))).toLocaleString()}
-                      </span>
-                    </div>
+                    {(() => {
+                      const isOrderPaid = (currentFinancial?.paymentStatus || currentOrder.paymentStatus || '').toUpperCase() === 'PAID' || (currentOrder.balanceAmount != null && parseFloat(currentOrder.balanceAmount) <= 0.01);
+                      const grandTot = parseFloat(currentFinancial?.grandTotal || currentOrder.totalPrice || 0);
+                      const paidAmt = isOrderPaid ? grandTot : (currentFinancial?.totalPaid != null ? currentFinancial.totalPaid : (currentOrder.advanceAmount || 0));
+                      const balAmt = isOrderPaid ? 0 : (currentFinancial?.remaining != null ? currentFinancial.remaining : (currentOrder.balanceAmount != null ? currentOrder.balanceAmount : Math.max(0, grandTot - paidAmt)));
+                      return (
+                        <>
+                          <div className="pt-2 border-t border-slate-800 flex justify-between font-bold text-sm text-white">
+                            <span>Grand Total:</span>
+                            <span className="text-blue-400">Rs. {grandTot.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-emerald-400 font-semibold">
+                            <span>Paid / Advance:</span>
+                            <span>Rs. {parseFloat(paidAmt).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-sm">
+                            <span className="text-slate-300">Remaining Balance:</span>
+                            <span className={balAmt > 0.01 ? 'text-rose-400' : 'text-emerald-400'}>
+                              Rs. {parseFloat(balAmt).toLocaleString()}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* POS & Transaction Info */}

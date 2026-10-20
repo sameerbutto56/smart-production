@@ -102,14 +102,13 @@ test('backend outletOrder.controller.js createOutletOrder enforces isPaid = payS
 });
 
 test('backend outletOrder.controller.js lookupOrderWithFinancials returns 0 remaining on PAID orders', () => {
-  assert(outletOrderControllerSrc.includes("const isPaid = remaining <= 0.01 || String(order.paymentStatus || '').toUpperCase() === 'PAID';"), 'Checks paymentStatus PAID in posSale branch');
+  assert(outletOrderControllerSrc.includes("isFullyPaidAtCheckout") && outletOrderControllerSrc.includes("String(order.paymentStatus"), 'Checks paymentStatus PAID and checkout status in posSale branch');
   assert(outletOrderControllerSrc.includes("remaining: bal,"), 'Sets remaining to bal in order-only branch');
   assert(outletOrderControllerSrc.includes("balanceAmount: bal,"), 'Sets balanceAmount to bal in order-only branch');
 });
 
 test('backend outletOrder.controller.js lookupPosSaleForOrderEntry returns 0 balance on PAID orders', () => {
-  assert(outletOrderControllerSrc.includes("const isPaid = String(posSale.paymentStatus || existingOrder?.paymentStatus || '').toUpperCase() === 'PAID' || rawBal <= 0.01;"), 'Checks PAID in posSale branch of lookupPosSaleForOrderEntry');
-  assert(outletOrderControllerSrc.includes("balanceAmount = isPaid ? 0 : rawBal;"), 'Sets balanceAmount to 0 when isPaid');
+  assert(outletOrderControllerSrc.includes("isFullyPaidAtCheckout") && outletOrderControllerSrc.includes("balanceAmount = isPaid ? 0 : rawBal;"), 'Sets balanceAmount to 0 when isPaid or fully paid at checkout');
 });
 
 test('backend outletOrder.controller.js fetchRecentOrdersForClient selects paymentStatus', () => {
@@ -139,6 +138,17 @@ test('OutletOrderLookup.jsx displays ₨0 in emerald green for PAID orders in ta
 test('ClientRegistration.jsx displays Fully Paid badge for PAID orders in order history', () => {
   assert(clientRegSrc.includes("ord.paymentStatus === 'PAID' || (ord.balanceAmount != null && parseFloat(ord.balanceAmount) <= 0.01)"), 'Checks paymentStatus === PAID or zero balance');
   assert(clientRegSrc.includes("✓ Fully Paid"), 'Renders Fully Paid badge');
+});
+
+// ==========================================
+// 6. OutletOrderEntry Draft Purge & POS Parity
+// ==========================================
+test('OutletOrderEntry.jsx permanently purges draft and prevents re-flush upon placement', () => {
+  assert(outletOrderEntrySrc.includes('COMPLETED_ORDERS_KEY'), 'Must define COMPLETED_ORDERS_KEY');
+  assert(outletOrderEntrySrc.includes('markOrderCompletedInRegistry'), 'Must mark order completed in registry');
+  assert(outletOrderEntrySrc.includes('isOrderSubmittedRef.current = true;'), 'Must set isOrderSubmittedRef on submit');
+  assert(outletOrderEntrySrc.includes('if (!isHydratedRef.current || submitted || isOrderSubmittedRef.current) return;'), 'Must abort auto-save if submitted');
+  assert(outletOrderEntrySrc.includes('if (posSaleInfo?.grandTotal > 0) return posSaleInfo.grandTotal;'), 'Must prioritize POS grandTotal for totalAmount');
 });
 
 console.log(`\n📊 Test Suite Summary: ${passedTests} / ${totalTests} tests passed (${Math.round((passedTests / totalTests) * 100)}%)\n`);
