@@ -1,5 +1,34 @@
 ## Goals
-### Implemented This Session — Fixed Financial Balance Accuracy, Consistency & Removed Duplicate Inputs (deployed & live-verified)
+### Implemented This Session — Clear Outstanding Balance Directly from POS Order History & Invoice Details (deployed & live-verified)
+- **Objective & Requirements**:
+  1. Add a **Clear Balance** action directly to the existing POS → History → Invoice Details screen so users can view and clear outstanding balances when searching invoices by phone or receipt number without switching to the Dashboard.
+  2. Maintain 100% architectural and financial reuse: leverage existing backend clearance endpoint `POST /api/pos/balance-invoices/:saleId/pay`, payment methods (Cash, Card, Online, Cash+Online split), and existing Gate Pass generation/printing workflow (`printBalanceGatePass`).
+  3. Ensure linked production/outlet orders (`Order` table) are automatically updated (`paymentStatus = 'PAID'`, `balanceAmount = 0`, `advanceAmount = totalPrice`) when balance is paid at the POS register.
+  4. Preserve original invoice number, payment history, audit logging, and prevent duplicate invoices, duplicate sales, or duplicate payments.
+  5. Immediate reactive update in POS History without manual reload, showing cleared status and Gate Pass button.
+- **Backend & Frontend Implementation**:
+  - `backend/src/controllers/pos.controller.js`:
+    - Updated `payBalance`: When recording a `posBalancePayment`, locates any linked `Order` matching `sale.orderId`, `sale.orderNumber`, or `sale.receiptNumber`. Atomically updates `balanceAmount = Math.max(0, currentBalance - paymentAmount)`, increments `advanceAmount`, and sets `paymentStatus = 'PAID'` when outstanding drops to 0. Invalidates `orders:*`, `pos:dashboard`, and `outlet:analytics:*` caches.
+  - `frontend/src/components/POSHistory.jsx`:
+    - Imported `handlePayBalanceOpen`, `loadingBalanceAction`, and `refreshSales` from `POSContext`.
+    - Added `selectedHistoryInvoice` and reactive `activeInvoice = (sales || []).find(s => s.id === selectedHistoryInvoice?.id) || selectedHistoryInvoice`.
+    - Added "Clear Balance" button in each sales card next to the balance badge and in the action toolbar.
+    - Added comprehensive "Invoice Details" modal matching specification:
+      - Invoice Number, Cashier, Branch, Date, Customer details, linked Order #.
+      - Ordered items breakdown table.
+      - Financial Summary Card: Invoice Total, Amount Paid, Outstanding Balance.
+      - Action Button: Prominent green "Clear Balance" button (disabled if already paid, refunded, or Faisal Take).
+      - Gate Pass action button (triggers standard or balance gate pass printing when balance is 0).
+      - Balance payment history table.
+    - Synced balance payments reactive state with incoming sales updates.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-pos-history-clear-balance.cjs`: 8 of 8 tests passed (100% pass rate).
+  - Automated test suite `backend/scripts/verify-financial-balance-accuracy.cjs`: 15 of 15 tests passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 0 bundling errors.
+  - Git committed (`b034a4fc`) and pushed to `main`.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app` (Live health check HTTP 200 OK verified).
+
+### Implemented Prior Session — Fixed Financial Balance Accuracy, Consistency & Removed Duplicate Inputs (deployed & live-verified)
 - **Objective & Root Causes**:
   1. Users reported "it still get wrong data of balance" in Outlet Order Entry / POS Order workflow.
   2. Root Cause 1 (Paid Orders with Zero Advance & Phantom Balance): In older backend logic, when an order was placed as `PAID`, `balanceAmount` was stored as `null` or `0`, while `advanceAmount` was left at `0` unless manually typed. When `lookupOrderWithFinancials`, `POSPrint.js`, or order lookup computed remaining balance via `totalPrice - advanceAmount`, it resulted in `totalPrice - 0 = totalPrice`, falsely showing the full total price as a remaining balance on fully paid orders!
