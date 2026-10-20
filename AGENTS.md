@@ -1,5 +1,33 @@
 ## Goals
-### Implemented This Session — Clear Outstanding Balance Directly from POS Order History & Invoice Details (deployed & live-verified)
+### Implemented This Session — Isolated POS Bills, Prevented Zombie Draft Resurrection & Form Contamination in Outlet Order Entry (deployed & live-verified)
+- **Objective & Root Causes**:
+  1. Users reported: *"Payment Status Mandatory, From POS (RCP-20261019-00007), Total Order Amount ₨14,650, Advance 10, Balance 14640... it still get this details of wrong and when I open outlet order entry it show the details of previous order whenever I place the order"*.
+  2. Root Cause 1 (Zombie Draft Auto-Save on Reset/Unmount): In `OutletOrderEntry.jsx`, `flushDraft` ran during React unmount / cleanup. When `resetAll` set `isOrderSubmittedRef.current = false`, the cleanup function ran with the old closure values and immediately re-saved the previous order (including `posSaleInfo`, `totalAmount: 14,650`, customer, products, payments) back into `localStorage.setItem(draftKey, ...)`.
+  3. Root Cause 2 (Missing DB Check on Restored Employee Draft): When an employee logged in, `empDraft` was restored from `localStorage` without checking whether that `orderNumber` or `posSaleInfo` was already an existing, completed order in PostgreSQL. Order `JT-637121` had already been placed yesterday, but was continually resurrected as an active draft.
+  4. Root Cause 3 (Undetected Linked Order for Receipt Number): In `lookupPosSaleForOrderEntry` and `lookupOrderWithFinancials`, querying by receipt number `RCP-20261019-00007` only searched `order.orderNumber === 'RCP-...'`, returning `null` because the order was saved under `JT-637121`. This caused `orderExists: false`, falsely indicating to Order Entry that the sale had never been placed.
+  5. Root Cause 4 (No Reset when Navigating from Client Registration): When clicking "Proceed to Order", `loadPrefilledClient` loaded customer measurements and contact information, but never cleared lingering `posSaleInfo`, products, or payment status.
+  6. Root Cause 5 (No Disconnect Control & Total Amount Locking): `totalAmount` was locked to `posSaleInfo.grandTotal` (`14,650`) whenever `posSaleInfo` was present, and there was no button to unlink the POS receipt.
+- **Backend & Frontend Implementation**:
+  - `backend/src/controllers/outletOrder.controller.js`:
+    - Updated `lookupOrderWithFinancials` & `lookupPosSaleForOrderEntry`: Added checks linking POS sale `orderId` and `orderNumber` to `prisma.order`. Accurately resolves receipt queries (`RCP-...`) to their existing orders (`JT-...`), setting `orderExists: true`.
+  - `frontend/src/pages/OutletOrderEntry.jsx`:
+    - Added `isDraftClearedRef` preventing `flushDraft` from writing drafts back into `localStorage` during `resetAll`, unmount, or post-submission.
+    - Updated `readDraft`: Rejects drafts matching completed orders by `orderNumber`, `posSaleInfo.orderNumber`, or `posSaleInfo.receiptNumber`.
+    - Added `applyDraftState` with database verification: Queries `/api/outlet-orders/order-lookup/` before restoring any employee draft; auto-purges if the order was already completed.
+    - In `fetchPosSaleData`: Rejects already-placed POS sales (`data.orderExists === true`), warns the cashier, clears `posSaleInfo`, and generates a fresh order number.
+    - In `loadPrefilledClient` & `handleStartNewCustomer`: Explicitly clears `posSaleInfo = null`, resets products and financial inputs, and generates a new order number.
+    - Added `handleDisconnectPosSale`: Allows cashiers to unlink a POS bill at any time with one click, restoring product-based pricing and updating balances.
+    - Added "Disconnect POS Bill ✕" button in Step 3 next to `From POS (...)`.
+    - Added "Start Fresh / Reset" button in the top toolbar.
+- **Verification**:
+  - Automated test suite `backend/scripts/verify-outlet-order-entry-pos-isolation.cjs`: 10 of 10 passed (100% pass rate).
+  - Automated test suite `backend/scripts/verify-financial-balance-accuracy.cjs`: 15 of 15 passed (100% pass rate).
+  - Automated test suite `backend/scripts/verify-pos-history-clear-balance.cjs`: 8 of 8 passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, bundled cleanly.
+  - Git committed (`06507d65`) and pushed to `main`.
+  - Deployed to Vercel production and aliased to `smart-production-v2.vercel.app` (Live health check HTTP 200 OK verified).
+
+### Implemented Prior Session — Clear Outstanding Balance Directly from POS Order History & Invoice Details (deployed & live-verified)
 - **Objective & Requirements**:
   1. Add a **Clear Balance** action directly to the existing POS → History → Invoice Details screen so users can view and clear outstanding balances when searching invoices by phone or receipt number without switching to the Dashboard.
   2. Maintain 100% architectural and financial reuse: leverage existing backend clearance endpoint `POST /api/pos/balance-invoices/:saleId/pay`, payment methods (Cash, Card, Online, Cash+Online split), and existing Gate Pass generation/printing workflow (`printBalanceGatePass`).
