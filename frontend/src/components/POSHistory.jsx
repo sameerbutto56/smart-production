@@ -6,7 +6,7 @@ import { formatCurrency, formatPaymentMethod, printBalanceReceipt, printBalanceG
 import { computePosFinancialSummary } from '../utils/posFinancialSummary';
 import { formatDateTime } from '../utils/dateTime';
 import api from '../services/api';
-import { Clock, ShoppingCart, BarChart3, Search, Download, Printer, RotateCcw, FileText, CreditCard } from 'lucide-react';
+import { Clock, ShoppingCart, BarChart3, Search, Download, Printer, RotateCcw, FileText, CreditCard, Eye, X, CheckCircle2 } from 'lucide-react';
 
 const POSHistory = () => {
   const { isUrdu } = useLanguage();
@@ -15,6 +15,7 @@ const POSHistory = () => {
     receiptSearch, setReceiptSearch, sales, filteredSales, salesLoading, historySearchLoading,
     handleRefundInvoiceFromHistory, downloadExcel,
     setPendingPrintSale, setPrintOpts, setShowPrintOptions, setTab, selectedOutlet,
+    handlePayBalanceOpen, loadingBalanceAction, refreshSales,
   } = usePOS();
 
   const [generalEntries, setGeneralEntries] = useState([]);
@@ -24,6 +25,12 @@ const POSHistory = () => {
   const [bpLoading, setBpLoading] = useState(false);
 
   const [historyFilter, setHistoryFilter] = useState('all');
+  const [selectedHistoryInvoice, setSelectedHistoryInvoice] = useState(null);
+
+  const activeInvoice = React.useMemo(() => {
+    if (!selectedHistoryInvoice) return null;
+    return (sales || []).find(s => s.id === selectedHistoryInvoice.id) || selectedHistoryInvoice;
+  }, [sales, selectedHistoryInvoice]);
 
   useEffect(() => {
     setBpLoading(true);
@@ -39,7 +46,7 @@ const POSHistory = () => {
       .then(r => setBalancePayments(r.data?.payments || []))
       .catch(() => setBalancePayments([]))
       .finally(() => setBpLoading(false));
-  }, [selectedOutlet, salesRange, salesDateFrom, salesDateTo]);
+  }, [selectedOutlet, salesRange, salesDateFrom, salesDateTo, sales]);
 
   const matchSearch = React.useCallback((q, ...fields) => {
     if (!q) return true;
@@ -405,14 +412,26 @@ const POSHistory = () => {
                       const refundTotal = (s.returns || []).reduce((sum, r) => sum + r.refundAmount, 0);
                       const netAmount = s.grandTotal - refundTotal;
                       const hasReturn = refundTotal > 0;
-                      const amountReceived = s._amountReceived || s.grandTotal;
+                      const amountReceived = s._amountReceived != null ? s._amountReceived : (s.grandTotal || 0);
                       const outstanding = s._outstandingBalance || 0;
                       return (
                         <>
                           {s._amountReceived != null && s._amountReceived !== s.grandTotal && (
                             <>
                               <p className="text-xs text-emerald-400 font-bold">Recv: {formatCurrency(amountReceived)}</p>
-                              {outstanding > 0.01 && <p className="text-[10px] text-amber-400 font-bold">Bal: {formatCurrency(outstanding)}</p>}
+                              {outstanding > 0.01 && (
+                                <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                                  <span className="text-[10px] text-amber-400 font-bold">Bal: {formatCurrency(outstanding)}</span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handlePayBalanceOpen(s); }}
+                                    disabled={loadingBalanceAction}
+                                    className="text-[9px] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-2 py-0.5 rounded-lg shadow transition-all cursor-pointer inline-flex items-center gap-1"
+                                    title="Clear Balance"
+                                  >
+                                    <CreditCard size={10} /> Clear Balance
+                                  </button>
+                                </div>
+                              )}
                             </>
                           )}
                           <p className={`text-lg font-black ${hasReturn ? 'text-gray-500 line-through' : 'text-emerald-400'}`}>{formatCurrency(netAmount)}</p>
@@ -436,9 +455,52 @@ const POSHistory = () => {
                     </span>
                   ))}
                 </div>
-                <div className="flex items-center justify-between text-xs text-gray-500 font-bold">
+                <div className="flex items-center justify-between text-xs text-gray-500 font-bold flex-wrap gap-2">
                   <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| ${s.customerName}` : ''} {s.customerPhone ? `(${s.customerPhone})` : ''}</span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => setSelectedHistoryInvoice(s)}
+                      className="text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                      title="View Invoice Details"
+                    >
+                      <Eye size={12} />
+                      Invoice Details
+                    </button>
+
+                    {(() => {
+                      const outstanding = s._outstandingBalance || 0;
+                      if (outstanding > 0.01 && !s.faisalTake && !s.refundedAt) {
+                        return (
+                          <button
+                            onClick={() => handlePayBalanceOpen(s)}
+                            disabled={loadingBalanceAction}
+                            className="text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950/40 transition-all cursor-pointer"
+                            title="Clear Outstanding Balance Directly"
+                          >
+                            <CreditCard size={13} />
+                            Clear Balance ({formatCurrency(outstanding)})
+                          </button>
+                        );
+                      }
+                      if (outstanding <= 0.01 && (s.advanceAmount > 0 || s._balanceStatus === 'paid')) {
+                        return (
+                          <button
+                            onClick={() => {
+                              setPendingPrintSale(s);
+                              setPrintOpts({ invoice: false, gatePass: true });
+                              setShowPrintOptions(true);
+                            }}
+                            className="text-amber-300 hover:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                            title="Print Gate Pass"
+                          >
+                            <Printer size={12} />
+                            Gate Pass
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {!s.refundedAt && !s.faisalTake && (
                       <button onClick={() => handleRefundInvoiceFromHistory(s)}
                         className="text-red-400 hover:text-red-300 bg-red-500/10 px-3 py-1.5 rounded-xl"><RotateCcw size={12} className="inline mr-1" />Refund</button>
@@ -522,6 +584,242 @@ const POSHistory = () => {
           return null;
         })}
       </div>
+
+      {/* ── Invoice Details Screen / Modal ── */}
+      {activeInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedHistoryInvoice(null)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-gray-950/60">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-2xl">
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-black text-white font-mono">
+                      {activeInvoice._invoiceNumber || activeInvoice.receiptNumber || activeInvoice.orderNumber}
+                    </h2>
+                    {activeInvoice.orderId && <span className="text-[10px] font-black bg-purple-600 text-white px-2 py-0.5 rounded-full">ORDER</span>}
+                    {activeInvoice._invoiceNumber && <span className="text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded-full">INV</span>}
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                      (activeInvoice._outstandingBalance || 0) <= 0.01 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}>
+                      {(activeInvoice._outstandingBalance || 0) <= 0.01 ? '✓ FULLY PAID' : '⚠️ BALANCE DUE'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-bold mt-0.5">
+                    {formatDateTime(activeInvoice.createdAt)} &bull; {activeInvoice.outletName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedHistoryInvoice(null)}
+                className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Meta Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-950 p-3.5 rounded-2xl border border-gray-800 text-xs">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Customer</p>
+                  <p className="font-bold text-white mt-0.5">{activeInvoice.customerName || 'Walk-in Customer'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Phone</p>
+                  <p className="font-mono text-gray-300 font-bold mt-0.5">{activeInvoice.customerPhone || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Cashier</p>
+                  <p className="font-bold text-gray-300 mt-0.5">{activeInvoice.cashierName || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Payment Method</p>
+                  <p className="font-bold text-emerald-400 mt-0.5">{formatPaymentMethod(activeInvoice.paymentMethod)}</p>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="bg-gray-950 rounded-2xl border border-gray-800 overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex justify-between items-center">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-400">Order Items ({(activeInvoice.items || []).length})</h4>
+                  <span className="text-[10px] font-bold text-gray-500">Qty: {(activeInvoice.items || []).reduce((s, i) => s + (i.quantity || 0), 0)}</span>
+                </div>
+                <div className="divide-y divide-gray-800/60 max-h-48 overflow-y-auto">
+                  {(activeInvoice.items || []).map((it, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between text-xs hover:bg-gray-900/50 transition-colors">
+                      <div>
+                        <p className="font-bold text-white flex items-center gap-1.5">
+                          {it.isExchange && <span className="text-amber-400">🔄</span>}
+                          {it.productName}
+                        </p>
+                        <p className="text-[10px] text-gray-500 font-semibold">
+                          {[it.color ? (isUrdu ? toUrduName(it.color) : it.color) : null, it.size ? `Size: ${it.size}` : null].filter(Boolean).join(' • ') || 'Standard'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-emerald-400">{formatCurrency(it.lineTotal)}</p>
+                        <p className="text-[10px] text-gray-500">{it.quantity} × {formatCurrency(it.unitPrice)}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {(!activeInvoice.items || activeInvoice.items.length === 0) && (
+                    <p className="text-center py-4 text-xs text-gray-500 font-bold">No product items listed</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Financial Breakdown Card (Matching User Specification Layout) */}
+              {(() => {
+                const refundTotal = (activeInvoice.returns || []).reduce((sum, r) => sum + r.refundAmount, 0);
+                const netAmount = activeInvoice.grandTotal - refundTotal;
+                const amountReceived = activeInvoice._amountReceived != null ? activeInvoice._amountReceived : activeInvoice.grandTotal;
+                const outstanding = activeInvoice._outstandingBalance || 0;
+                const isCleared = outstanding <= 0.01;
+
+                return (
+                  <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 space-y-2.5 text-xs">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-gray-400 border-b border-gray-800 pb-2 flex items-center justify-between">
+                      <span>Invoice Financial Summary</span>
+                      <span className={isCleared ? "text-emerald-400" : "text-amber-400"}>
+                        {isCleared ? "✓ All Dues Cleared" : "Action Required"}
+                      </span>
+                    </h4>
+
+                    <div className="flex justify-between items-center text-gray-400">
+                      <span>Invoice Number:</span>
+                      <span className="font-mono font-bold text-white">{activeInvoice._invoiceNumber || activeInvoice.receiptNumber || activeInvoice.orderNumber}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-gray-400">
+                      <span>Customer:</span>
+                      <span className="font-bold text-white">{activeInvoice.customerName || 'Walk-in'} {activeInvoice.customerPhone ? `(${activeInvoice.customerPhone})` : ''}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-gray-400">
+                      <span>Invoice Total:</span>
+                      <span className="font-black text-white text-sm">{formatCurrency(netAmount)}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-emerald-400">
+                      <span>Amount Paid:</span>
+                      <span className="font-black text-sm">{formatCurrency(amountReceived)}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-gray-800">
+                      <span className="font-bold text-gray-300">Outstanding Balance:</span>
+                      <span className={`text-base font-black ${isCleared ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {formatCurrency(outstanding)}
+                      </span>
+                    </div>
+
+                    {/* Prominent Action Section */}
+                    <div className="pt-3 border-t border-gray-800 mt-2">
+                      {!isCleared && !activeInvoice.faisalTake && !activeInvoice.refundedAt ? (
+                        <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap">
+                          <div>
+                            <p className="text-xs font-black text-emerald-300">Clear Outstanding Balance</p>
+                            <p className="text-[11px] text-gray-400">Amount due: <strong className="text-emerald-400">{formatCurrency(outstanding)}</strong></p>
+                          </div>
+                          <button
+                            onClick={() => handlePayBalanceOpen(activeInvoice)}
+                            disabled={loadingBalanceAction}
+                            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer whitespace-nowrap"
+                          >
+                            <CreditCard size={14} />
+                            {loadingBalanceAction ? 'Loading...' : `Clear Balance (${formatCurrency(outstanding)})`}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                            <CheckCircle2 size={16} />
+                            Balance is fully cleared. Eligible for Gate Pass.
+                          </span>
+                          <button
+                            onClick={() => {
+                              setPendingPrintSale(activeInvoice);
+                              setPrintOpts({ invoice: false, gatePass: true });
+                              setShowPrintOptions(true);
+                            }}
+                            className="bg-amber-500 hover:bg-amber-400 text-black font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow transition-all cursor-pointer whitespace-nowrap"
+                          >
+                            <Printer size={13} />
+                            Gate Pass
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Balance Payments History on this invoice (if any) */}
+              {(() => {
+                const invoiceBps = (balancePayments || []).filter(bp =>
+                  bp.posSaleId === activeInvoice.id || bp.originalInvoiceNumber === activeInvoice.receiptNumber || bp.posSale?.receiptNumber === activeInvoice.receiptNumber
+                );
+                if (invoiceBps.length === 0) return null;
+                return (
+                  <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 space-y-2 text-xs">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                      <CreditCard size={12} />
+                      Balance Clearance History ({invoiceBps.length})
+                    </h4>
+                    <div className="divide-y divide-gray-800/60">
+                      {invoiceBps.map(bp => (
+                        <div key={bp.id} className="py-2 flex items-center justify-between text-xs">
+                          <div>
+                            <p className="font-bold text-white font-mono">{bp.receiptNumber}</p>
+                            <p className="text-[10px] text-gray-500">{formatDateTime(bp.paidAt || bp.createdAt)} &bull; {formatPaymentMethod(bp.paymentMethod)}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-cyan-400">+{formatCurrency(bp.amountPaidNow)}</span>
+                            <button
+                              onClick={() => printBalanceGatePass(bp, activeInvoice)}
+                              className="p-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-[10px] font-bold flex items-center gap-1"
+                              title="Print Gate Pass for this balance payment"
+                            >
+                              <Printer size={11} /> GP
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-800 flex items-center justify-between bg-gray-950/60">
+              <button
+                onClick={() => setSelectedHistoryInvoice(null)}
+                className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setPendingPrintSale(activeInvoice);
+                    setPrintOpts({ invoice: true, gatePass: false });
+                    setShowPrintOptions(true);
+                  }}
+                  className="px-4 py-2.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Printer size={13} />
+                  Reprint Receipt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -2152,8 +2152,39 @@ const payBalance = async (req, res) => {
       }
     });
 
+    if (sale.orderId || sale.orderNumber || sale.receiptNumber) {
+      try {
+        const linkedOrder = await prisma.order.findFirst({
+          where: {
+            OR: [
+              ...(sale.orderId ? [{ id: sale.orderId }] : []),
+              ...(sale.orderNumber ? [{ orderNumber: sale.orderNumber }, { invoiceNumber: sale.orderNumber }] : []),
+              ...(sale.receiptNumber ? [{ orderNumber: sale.receiptNumber }, { invoiceNumber: sale.receiptNumber }] : [])
+            ]
+          }
+        });
+        if (linkedOrder) {
+          const newBal = Math.max(0, outstandingAfter);
+          const isOrderPaid = newBal <= 0.01;
+          await prisma.order.update({
+            where: { id: linkedOrder.id },
+            data: {
+              balanceAmount: isOrderPaid ? 0 : newBal,
+              advanceAmount: isOrderPaid ? (linkedOrder.totalPrice || sale.grandTotal) : Math.max(0, (linkedOrder.totalPrice || sale.grandTotal) - newBal),
+              paymentStatus: isOrderPaid ? 'PAID' : 'BALANCE'
+            }
+          });
+        }
+      } catch (orderErr) {
+        console.error('Failed to sync linked order in payBalance:', orderErr.message);
+      }
+    }
+
     cache.delPattern(CACHE_KEY_PREFIX);
     cache.delPattern(`outlet:analytics:${outletName}`);
+    cache.delPattern(`orders:${outletName}`);
+    cache.delPattern('orders:all');
+    cache.delPattern('pos:dashboard');
     if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, balancePayment: true });
 
     res.status(201).json(payment);
