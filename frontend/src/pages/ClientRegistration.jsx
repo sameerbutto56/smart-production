@@ -10,28 +10,16 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateTime';
+import {
+  SHIRT_MEASUREMENT_FIELDS,
+  TROUSER_MEASUREMENT_FIELDS,
+  normalizeCustomerMeasurements
+} from '../utils/measurementUtils';
 
 const GENDERS = ['Male', 'Female', 'Other'];
 const MEASUREMENT_CHARTS = ['Standard Size Chart', 'Plus Size Chart', 'Custom Measurements'];
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 const STANDARD_SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
-
-const SHIRT_FIELDS = [
-  { key: 'shirtLength', label: 'Shirt Length' },
-  { key: 'shoulder', label: 'Shoulder' },
-  { key: 'sleevesLength', label: 'Sleeves Length' },
-  { key: 'sleevesHole', label: 'Sleeves Hole' },
-  { key: 'chest', label: 'Chest' },
-  { key: 'bottom', label: 'Bottom' },
-];
-
-const TROUSER_FIELDS = [
-  { key: 'waist', label: 'Waist' },
-  { key: 'length', label: 'Length' },
-  { key: 'pancha', label: 'Pancha' },
-  { key: 'thighs', label: 'Thighs' },
-  { key: 'asan', label: 'Asan' },
-];
 
 const ClientRegistration = () => {
   const navigate = useNavigate();
@@ -108,25 +96,10 @@ const ClientRegistration = () => {
       outletName: client.outletName || ''
     });
 
-    if (client.sizeDetails) {
-      try {
-        const parsed = typeof client.sizeDetails === 'string' ? JSON.parse(client.sizeDetails) : client.sizeDetails;
-        if (parsed && typeof parsed === 'object') {
-          const { _extra, ...rest } = parsed;
-          setCustomMeasurements(rest || {});
-          setExtraMeasurements(Array.isArray(_extra) ? _extra : []);
-        } else {
-          setCustomMeasurements({});
-          setExtraMeasurements([]);
-        }
-      } catch {
-        setCustomMeasurements({});
-        setExtraMeasurements([]);
-      }
-    } else {
-      setCustomMeasurements({});
-      setExtraMeasurements([]);
-    }
+    const normalized = normalizeCustomerMeasurements(client.sizeDetails);
+    const { _extra, ...rest } = normalized;
+    setCustomMeasurements(rest || {});
+    setExtraMeasurements(Array.isArray(_extra) ? _extra : []);
 
     setAdditionalPhones(Array.isArray(client.additionalPhones) ? client.additionalPhones : []);
     setDeliveryAddresses(Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses : []);
@@ -474,25 +447,10 @@ const ClientRegistration = () => {
     });
 
     // Parse custom measurements
-    if (client.sizeDetails) {
-      try {
-        const parsed = typeof client.sizeDetails === 'string' ? JSON.parse(client.sizeDetails) : client.sizeDetails;
-        if (parsed && typeof parsed === 'object') {
-          const { _extra, ...rest } = parsed;
-          setCustomMeasurements(rest || {});
-          setExtraMeasurements(Array.isArray(_extra) ? _extra : []);
-        } else {
-          setCustomMeasurements({});
-          setExtraMeasurements([]);
-        }
-      } catch {
-        setCustomMeasurements({});
-        setExtraMeasurements([]);
-      }
-    } else {
-      setCustomMeasurements({});
-      setExtraMeasurements([]);
-    }
+    const normalized = normalizeCustomerMeasurements(client.sizeDetails);
+    const { _extra, ...rest } = normalized;
+    setCustomMeasurements(rest || {});
+    setExtraMeasurements(Array.isArray(_extra) ? _extra : []);
 
     setAdditionalPhones(Array.isArray(client.additionalPhones) ? client.additionalPhones : []);
     setDeliveryAddresses(Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses : []);
@@ -1114,19 +1072,27 @@ const ClientRegistration = () => {
 
             {/* Shirt Measurements */}
             <div className="pt-2">
-              <p className="text-xs font-black text-blue-400 uppercase tracking-wider mb-3">Shirt Measurements</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-black text-blue-400 uppercase tracking-wider">Shirt Measurements (شرٹ)</p>
+                <span className="text-[10px] text-gray-500 font-bold" dir="rtl">کسٹم شرٹ سائز (انچ میں)</span>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-                {SHIRT_FIELDS.map(field => (
+                {SHIRT_MEASUREMENT_FIELDS.map(field => (
                   <div key={field.key}>
-                    <label className="text-[10px] font-bold theme-text-secondary block mb-1 uppercase tracking-wider">
-                      {field.label}
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider">
+                        {field.label}
+                      </label>
+                      <span className="text-[10px] font-bold text-blue-400" dir="rtl">
+                        {field.labelUrdu}
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={customMeasurements[field.key] || ''}
                       onChange={(e) => handleMeasurementChange(field.key, e.target.value)}
                       className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white placeholder-gray-600 focus:border-blue-500 outline-none"
-                      placeholder='e.g. 38"'
+                      placeholder={`e.g. ${field.example}"`}
                     />
                   </div>
                 ))}
@@ -1135,19 +1101,27 @@ const ClientRegistration = () => {
 
             {/* Trouser Measurements */}
             <div className="border-t border-gray-800 pt-4">
-              <p className="text-xs font-black text-emerald-400 uppercase tracking-wider mb-3">Trouser Measurements</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-black text-emerald-400 uppercase tracking-wider">Trouser Measurements (ٹراؤزر)</p>
+                <span className="text-[10px] text-gray-500 font-bold" dir="rtl">کسٹم ٹراؤزر سائز (انچ میں)</span>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-                {TROUSER_FIELDS.map(field => (
+                {TROUSER_MEASUREMENT_FIELDS.map(field => (
                   <div key={field.key}>
-                    <label className="text-[10px] font-bold theme-text-secondary block mb-1 uppercase tracking-wider">
-                      {field.label}
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider">
+                        {field.label}
+                      </label>
+                      <span className="text-[10px] font-bold text-emerald-400" dir="rtl">
+                        {field.labelUrdu}
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={customMeasurements[field.key] || ''}
                       onChange={(e) => handleMeasurementChange(field.key, e.target.value)}
                       className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white placeholder-gray-600 focus:border-blue-500 outline-none"
-                      placeholder='e.g. 34"'
+                      placeholder={`e.g. ${field.example}"`}
                     />
                   </div>
                 ))}
@@ -1537,14 +1511,20 @@ const ClientRegistration = () => {
                                       Custom Measurements (Inches)
                                     </span>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-                                      {Object.entries(rest).filter(([, v]) => v && String(v).trim()).map(([k, v]) => (
-                                        <div key={k} className="bg-gray-900 border border-gray-800 rounded-xl p-2.5">
-                                          <span className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">
-                                            {k.replace(/([A-Z])/g, ' $1')}
-                                          </span>
-                                          <span className="text-sm font-black text-white">{v}"</span>
-                                        </div>
-                                      ))}
+                                      {Object.entries(rest).filter(([, v]) => v && String(v).trim()).map(([k, v]) => {
+                                        const def = SHIRT_MEASUREMENT_FIELDS.find(f => f.key === k) || TROUSER_MEASUREMENT_FIELDS.find(f => f.key === k);
+                                        const labelEn = def?.label || k.replace(/([A-Z])/g, ' $1');
+                                        const labelUrdu = def?.labelUrdu;
+                                        return (
+                                          <div key={k} className="bg-gray-900 border border-gray-800 rounded-xl p-2.5">
+                                            <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                                              <span className="text-gray-400 uppercase tracking-wider truncate">{labelEn}</span>
+                                              {labelUrdu && <span className="text-blue-400 ml-1" dir="rtl">{labelUrdu}</span>}
+                                            </div>
+                                            <span className="text-sm font-black text-white">{v}"</span>
+                                          </div>
+                                        );
+                                      })}
                                       {hasExtra && _extra.filter(e => e.name && e.value).map((e, idx) => (
                                         <div key={idx} className="bg-gray-900 border border-gray-800 rounded-xl p-2.5">
                                           <span className="text-[10px] font-bold text-amber-400 uppercase block tracking-wider">

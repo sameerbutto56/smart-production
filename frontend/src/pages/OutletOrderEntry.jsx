@@ -2,10 +2,18 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock, Trash2, Save, FileText } from 'lucide-react';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle, Truck, Store, UserCheck, LogOut, Lock, Trash2, Save, FileText, Sparkles } from 'lucide-react';
 import { formatDateOnly, formatDateTime, formatTimeOnly } from '../utils/dateTime';
 import { printJobSheet } from '../utils/printReport';
 import { printOutletOrderThermalSlip } from '../utils/POSPrint';
+import {
+  SHIRT_MEASUREMENT_FIELDS,
+  TROUSER_MEASUREMENT_FIELDS,
+  normalizeCustomerMeasurements,
+  formatUrduMeasurementNote,
+  mergeMeasurementSpecialNote,
+  getProductMeasurementType
+} from '../utils/measurementUtils';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Customer', 'Products', 'Measurements', 'Review'];
@@ -87,7 +95,14 @@ const readDraft = (key) => {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') return parsed;
+    if (parsed && typeof parsed === 'object') {
+      const lastCompleted = sessionStorage.getItem('enamels_last_completed_order');
+      if (lastCompleted && parsed.orderNumber && parsed.orderNumber.trim() === lastCompleted.trim()) {
+        try { localStorage.removeItem(key); } catch {}
+        return null;
+      }
+      return parsed;
+    }
   } catch (e) {
     console.error('Error reading outlet order draft:', e);
   }
@@ -231,6 +246,10 @@ const OutletOrderEntry = () => {
   // ── Clear saved draft ──
   const clearSavedDraft = useCallback(() => {
     try {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
       localStorage.removeItem(draftKey);
     } catch (e) {
       console.error('Error clearing draft:', e);
@@ -498,6 +517,21 @@ const OutletOrderEntry = () => {
     setLookupLoading(false);
   }, [searchQuery]);
 
+  const applyMeasurementsToProducts = useCallback((measurementsToApply) => {
+    const meas = measurementsToApply || clientMeasurements;
+    if (!meas || typeof meas !== 'object') return;
+    const hasAny = Object.keys(meas).filter(k => k !== '_extra').some(k => meas[k]) || (Array.isArray(meas._extra) && meas._extra.length > 0);
+    if (!hasAny) return;
+
+    setProducts(prev => prev.map(p => {
+      const pType = getProductMeasurementType(p.name);
+      const urduNote = formatUrduMeasurementNote(meas, pType);
+      if (!urduNote) return p;
+      const updatedNote = mergeMeasurementSpecialNote(p.measurementSpecialNote || '', urduNote);
+      return { ...p, measurementSpecialNote: updatedNote };
+    }));
+  }, [clientMeasurements]);
+
   const selectClient = useCallback((client, orders) => {
     setClientData(client);
     setShowResults(false);
@@ -520,57 +554,37 @@ const OutletOrderEntry = () => {
     let hasCustomFromDetails = false;
     let hasStandardFromDetails = false;
     let preSelectedSize = '';
-    let normalized = {};
     setSizeData({});
     setClientMeasurements({});
 
-    if (client.sizeDetails) {
-      const raw = typeof client.sizeDetails === 'string'
-        ? (() => { try { return JSON.parse(client.sizeDetails); } catch { return client.sizeDetails; } })()
-        : client.sizeDetails;
+    // 1. Normalize customer's actual saved measurements from client.sizeDetails
+    const normalizedMeasurements = normalizeCustomerMeasurements(client.sizeDetails);
+    const hasCustomInClient = Object.keys(normalizedMeasurements).filter(k => k !== '_extra').some(k => normalizedMeasurements[k]);
 
-      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        const { _extra, ...rest } = raw;
-        const isPerProduct = Object.values(raw).some(v => typeof v === 'object' && v !== null && !Array.isArray(v));
-        if (isPerProduct) {
-          const normalizedPerProduct = {};
-          Object.entries(raw).forEach(([prodName, measurements]) => {
-            if (typeof measurements === 'object' && measurements !== null && !Array.isArray(measurements)) {
-              normalizedPerProduct[prodName] = {};
-              Object.entries(measurements).forEach(([k, v]) => {
-                if (k === '_extra' || k === '_standardSize') { normalizedPerProduct[prodName][k] = v; return; }
-                const mapped = FIELD_NAME_MAP[k.toLowerCase()] || k;
-                normalizedPerProduct[prodName][mapped] = v;
-              });
-            } else { normalizedPerProduct[prodName] = measurements; }
-          });
-          setSizeData(normalizedPerProduct);
-          const first = Object.values(normalizedPerProduct).find(v => typeof v === 'object' && v !== null);
-          if (first) { setClientMeasurements(first); hasCustomFromDetails = Object.keys(first).filter(k => k !== '_extra').length > 0; }
-          loaded = true;
-        } else if (Object.keys(rest).length > 0) {
-          hasCustomFromDetails = true;
-          Object.keys(rest).forEach(k => {
-            const mapped = FIELD_NAME_MAP[k.toLowerCase()] || k;
-            normalized[mapped] = rest[k];
-          });
-          if (_extra && Array.isArray(_extra)) normalized._extra = _extra;
-          setClientMeasurements(normalized);
-        }
-      } else if (typeof raw === 'string' && raw.trim()) {
-        hasStandardFromDetails = true;
-        preSelectedSize = raw.trim().toUpperCase();
-      }
+    if (hasCustomInClient || (Array.isArray(normalizedMeasurements._extra) && normalizedMeasurements._extra.length > 0)) {
+      setClientMeasurements(normalizedMeasurements);
+      hasCustomFromDetails = true;
+      loaded = true;
+      applyMeasurementsToProducts(normalizedMeasurements);
+    } else if (typeof client.sizeDetails === 'string' && client.sizeDetails.trim() && !client.sizeDetails.startsWith('{')) {
+      hasStandardFromDetails = true;
+      preSelectedSize = client.sizeDetails.trim().toUpperCase();
     }
 
+    // 2. Only if the customer has NO saved measurements in their profile, and past orders exist, check previous orders as a fallback
+    // Never overwrite existing customer database measurements with orders[0].sizeData!
     if (!loaded && orders && orders.length > 0 && orders[0].sizeData) {
       try {
         const raw = typeof orders[0].sizeData === 'string' ? JSON.parse(orders[0].sizeData) : orders[0].sizeData;
         if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
-          setSizeData(raw);
-          const first = Object.values(raw).find(v => typeof v === 'object' && v !== null);
-          if (first) { setClientMeasurements(first); hasCustomFromDetails = true; }
-          loaded = true;
+          const normalizedOrderMeasurements = normalizeCustomerMeasurements(raw);
+          const hasInOrder = Object.keys(normalizedOrderMeasurements).filter(k => k !== '_extra').some(k => normalizedOrderMeasurements[k]);
+          if (hasInOrder) {
+            setClientMeasurements(normalizedOrderMeasurements);
+            hasCustomFromDetails = true;
+            loaded = true;
+            applyMeasurementsToProducts(normalizedOrderMeasurements);
+          }
         }
       } catch {}
     }
@@ -578,13 +592,12 @@ const OutletOrderEntry = () => {
     const hasStandardOption = chart !== 'Custom Measurements' && (sizes.length > 0 || hasStandardFromDetails);
     const hasCustom = hasCustomFromDetails || chart === 'Custom Measurements';
     setSelectedStandardSize(preSelectedSize);
-    if (hasStandardOption && hasCustom) setSizingMode('standard');
+    if (hasCustom) setSizingMode('custom');
     else if (hasStandardOption) setSizingMode('standard');
-    else if (hasCustom) setSizingMode('custom');
     else setSizingMode(null);
 
     toast.success(`Client ${client.name} loaded`);
-  }, []);
+  }, [applyMeasurementsToProducts]);
 
   // ── Auto-load client when navigated with clientNumber, clientId, phone or repeatOrderId ──
   const clientLoadedRef = useRef(false);
@@ -681,9 +694,15 @@ const OutletOrderEntry = () => {
 
   const addProduct = useCallback(() => {
     if (!newProduct.name.trim()) return toast.error('Enter product name');
-    setProducts(prev => [...prev, { ...newProduct, _tempId: Date.now() + Math.random() }]);
+    let initialNote = newProduct.measurementSpecialNote || '';
+    const pType = getProductMeasurementType(newProduct.name);
+    const urduNote = formatUrduMeasurementNote(clientMeasurements, pType);
+    if (urduNote) {
+      initialNote = mergeMeasurementSpecialNote(initialNote, urduNote);
+    }
+    setProducts(prev => [...prev, { ...newProduct, measurementSpecialNote: initialNote, _tempId: Date.now() + Math.random() }]);
     setNewProduct({ ...EMPTY_PRODUCT });
-  }, [newProduct]);
+  }, [newProduct, clientMeasurements]);
 
   const removeProduct = useCallback((idx) => setProducts(prev => prev.filter((_, i) => i !== idx)), []);
 
@@ -814,9 +833,9 @@ const OutletOrderEntry = () => {
           engravingInstructions: p.engravingRequired ? (p.engravingInstructions || '') : ''
         })),
         customization: buildCustomization(),
-        sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
+        sizeData: Object.keys(sizeData).length > 0 ? sizeData : (Object.keys(clientMeasurements).length > 0 ? clientMeasurements : null),
         standardSize: sizingMode === 'standard' ? selectedStandardSize : null,
-        measurementChart: sizingMode === 'custom' ? 'Custom Measurements' : (selectedStandardSize || null),
+        measurementChart: sizingMode === 'custom' ? 'Custom Measurements' : (selectedStandardSize || (Object.keys(clientMeasurements).length > 0 ? 'Custom Measurements' : null)),
         advanceAmount: advance,
         placedBy: employee?.name || user?.name || user?.id || null,
         placedByEmployeeId: employee?.id || null,
@@ -829,6 +848,12 @@ const OutletOrderEntry = () => {
       const res = await api.post('/api/outlet-orders', payload);
       // CONFIRMED SUCCESS FROM SERVER:
       clearSavedDraft();
+      try {
+        if (orderNumber) {
+          sessionStorage.setItem('enamels_last_completed_order', orderNumber);
+        }
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch {}
       setCreatedOrder(res.data);
       setSubmitted(true);
       toast.success(`Order ${res.data.orderNumber} placed!`);
@@ -842,6 +867,12 @@ const OutletOrderEntry = () => {
           const verifyRes = await api.get(`/api/outlet-orders/order-lookup/${encodeURIComponent(orderNumber.trim())}`);
           if (verifyRes.data?.found && verifyRes.data.order) {
             clearSavedDraft();
+            try {
+              if (orderNumber) {
+                sessionStorage.setItem('enamels_last_completed_order', orderNumber);
+              }
+              window.history.replaceState({}, '', window.location.pathname);
+            } catch {}
             setCreatedOrder(verifyRes.data.order);
             setSubmitted(true);
             toast.success(`Order ${orderNumber} verified and placed successfully!`);
@@ -916,7 +947,7 @@ const OutletOrderEntry = () => {
       advanceAmount: advanceAmount ? parseFloat(advanceAmount) : 0,
       notes: specialNotes || null,
       products,
-      sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
+      sizeData: Object.keys(sizeData).length > 0 ? sizeData : (Object.keys(clientMeasurements).length > 0 ? clientMeasurements : null),
       placedByEmployeeName: employee?.name || user?.name || null,
       createdAt: new Date().toISOString()
     };
@@ -925,6 +956,9 @@ const OutletOrderEntry = () => {
 
   const resetAll = useCallback(() => {
     clearSavedDraft();
+    try {
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch {}
     setStep(0);
     setCustomerMode(null);
     setSearchQuery('');
@@ -973,7 +1007,7 @@ const OutletOrderEntry = () => {
       clientNumber: clientData?.clientNumber || null,
       outletName,
       products,
-      sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
+      sizeData: Object.keys(sizeData).length > 0 ? sizeData : (Object.keys(clientMeasurements).length > 0 ? clientMeasurements : null),
       totalPrice: totalAmount,
       advanceAmount: advance,
       balanceAmount: balance,
@@ -1666,31 +1700,206 @@ const OutletOrderEntry = () => {
 
         {/* ═══════════════════ Step 2: Measurements ═══════════════════ */}
         {step === 2 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurements & Special Notes</h2>
-            <div className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
-              <label className="text-xs font-bold text-gray-400 block">Order Special Notes</label>
-              <textarea value={specialNotes} onChange={e => setSpecialNotes(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={2}
-                placeholder="Production instructions, fabric notes, urgent delivery..." />
-            </div>
-            <p className="text-xs font-bold text-gray-500">Enter measurement instructions for each product separately.</p>
-            {products.map((p, idx) => (
-              <div key={p._tempId} className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
-                <p className="text-sm font-black text-amber-400">{idx + 1}. {p.name} {p.color ? `(${p.color})` : ''}</p>
-                <textarea
-                  value={p.measurementSpecialNote}
-                  onChange={e => {
-                    const updated = [...products];
-                    updated[idx] = { ...updated[idx], measurementSpecialNote: e.target.value };
-                    setProducts(updated);
-                  }}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none"
-                  rows={3}
-                  placeholder={`Measurement instructions for ${p.name}...`}
-                />
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <Ruler size={18} className="text-amber-400" />
+                  Measurements & Special Notes
+                </h2>
+                <p className="text-xs font-bold text-gray-400">
+                  Custom sizes prefilled from customer profile. Applied automatically to product Special Notes below.
+                </p>
               </div>
-            ))}
+
+              {/* Quick Action to sync/apply measurements */}
+              <button
+                type="button"
+                onClick={() => {
+                  applyMeasurementsToProducts(clientMeasurements);
+                  toast.success('Applied custom measurements to all product Special Notes!');
+                }}
+                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
+              >
+                <Sparkles size={14} />
+                <span>Apply to Special Notes (کسٹم سائز اپلائی کریں)</span>
+              </button>
+            </div>
+
+            {/* Urdu Custom Measurement Chart Card */}
+            <div className="bg-gray-800/90 rounded-2xl p-5 border border-amber-500/30 shadow-xl space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-700 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-lg">
+                    کسٹم سائز (انچ میں)
+                  </span>
+                  <span className="text-sm font-black text-white tracking-wide">
+                    Custom Measurement Chart (Inches)
+                  </span>
+                </div>
+                <span className="text-[11px] font-bold text-gray-400" dir="rtl">
+                  یہ ناپ آرڈر کے ساتھ محفوظ ہوں گے اور پروڈکٹ نوٹس میں شامل ہوں گے
+                </span>
+              </div>
+
+              {/* Shirt Section (شرٹ) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                    Shirt Measurements (شرٹ)
+                  </span>
+                  <span className="text-xs font-bold text-blue-300" dir="rtl">
+                    شرٹ کا کسٹم ناپ
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {SHIRT_MEASUREMENT_FIELDS.map(f => (
+                    <div key={f.key} className="bg-gray-900/80 p-2.5 rounded-xl border border-gray-700/70 focus-within:border-blue-500 transition-all">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{f.label}</span>
+                        <span className="text-[11px] font-bold text-blue-400" dir="rtl">{f.labelUrdu}</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={clientMeasurements[f.key] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const updated = { ...clientMeasurements, [f.key]: val };
+                          setClientMeasurements(updated);
+                          applyMeasurementsToProducts(updated);
+                        }}
+                        placeholder={`e.g. ${f.example}`}
+                        className="w-full bg-transparent text-sm font-black text-white placeholder-gray-600 outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trouser Section (ٹراؤزر) */}
+              <div className="space-y-3 border-t border-gray-700/70 pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    Trouser Measurements (ٹراؤزر)
+                  </span>
+                  <span className="text-xs font-bold text-emerald-300" dir="rtl">
+                    ٹراؤزر کا کسٹم ناپ
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {TROUSER_MEASUREMENT_FIELDS.map(f => (
+                    <div key={f.key} className="bg-gray-900/80 p-2.5 rounded-xl border border-gray-700/70 focus-within:border-emerald-500 transition-all">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{f.label}</span>
+                        <span className="text-[11px] font-bold text-emerald-400" dir="rtl">{f.labelUrdu}</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={clientMeasurements[f.key] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const updated = { ...clientMeasurements, [f.key]: val };
+                          setClientMeasurements(updated);
+                          applyMeasurementsToProducts(updated);
+                        }}
+                        placeholder={`e.g. ${f.example}`}
+                        className="w-full bg-transparent text-sm font-black text-white placeholder-gray-600 outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Extra Custom Measurements if present */}
+              {Array.isArray(clientMeasurements._extra) && clientMeasurements._extra.length > 0 && (
+                <div className="space-y-2 border-t border-gray-700/70 pt-3">
+                  <span className="text-xs font-black text-purple-400 uppercase tracking-wider block">
+                    Additional Measurements
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {clientMeasurements._extra.map((em, idx) => (
+                      <div key={idx} className="bg-gray-900 px-3 py-1.5 rounded-xl border border-gray-700 text-xs">
+                        <span className="text-gray-400 font-bold">{em.name}: </span>
+                        <span className="text-white font-black">{em.value}"</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Order Special Notes */}
+            <div className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
+              <label className="text-xs font-bold text-gray-400 block">General Order Notes (Optional)</label>
+              <textarea
+                value={specialNotes}
+                onChange={e => setSpecialNotes(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none"
+                rows={2}
+                placeholder="Production instructions, urgent packaging notes..."
+              />
+            </div>
+
+            {/* Product Special Notes (With Auto-Populated Urdu Measurements) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-gray-400">
+                  Product Special Notes (Measurements & Tailoring Details)
+                </p>
+                <span className="text-[10px] text-amber-400 font-bold">
+                  Auto-formatted with Urdu labels for tailors & cutters
+                </span>
+              </div>
+
+              {products.length === 0 ? (
+                <div className="bg-gray-800 rounded-xl p-6 text-center border border-gray-700 text-gray-400 text-xs font-bold">
+                  No products added yet. Go back to Step 1 to add products.
+                </div>
+              ) : (
+                products.map((p, idx) => (
+                  <div key={p._tempId} className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-black text-amber-400">
+                        {idx + 1}. {p.name} {p.color ? `(${p.color})` : ''}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pType = getProductMeasurementType(p.name);
+                          const urdu = formatUrduMeasurementNote(clientMeasurements, pType);
+                          if (urdu) {
+                            const updated = [...products];
+                            updated[idx] = {
+                              ...updated[idx],
+                              measurementSpecialNote: mergeMeasurementSpecialNote(updated[idx].measurementSpecialNote || '', urdu)
+                            };
+                            setProducts(updated);
+                            toast.success(`Updated notes for ${p.name}`);
+                          } else {
+                            toast('No measurements entered in chart yet', { icon: 'ℹ️' });
+                          }
+                        }}
+                        className="text-[10px] font-black text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30 transition-all cursor-pointer"
+                      >
+                        Refresh Measurement Note
+                      </button>
+                    </div>
+                    <textarea
+                      value={p.measurementSpecialNote || ''}
+                      onChange={e => {
+                        const updated = [...products];
+                        updated[idx] = { ...updated[idx], measurementSpecialNote: e.target.value };
+                        setProducts(updated);
+                      }}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none font-sans"
+                      rows={4}
+                      dir="auto"
+                      placeholder={`Measurement instructions for ${p.name}...`}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
@@ -1911,7 +2120,7 @@ const OutletOrderEntry = () => {
                           </span>
                           <div className="flex-1 text-xs">
                             <span className="font-bold text-gray-300">{p.name}{p.color ? ` (${p.color})` : ''}: </span>
-                            <span className="text-white font-medium">{note}</span>
+                            <span className="text-white font-medium whitespace-pre-wrap">{note}</span>
                           </div>
                         </div>
                       );
