@@ -79,7 +79,11 @@ const generateReceiptNumber = async () => {
  */
 const getWarehouseMasterImageMap = async () => {
   try {
+    const cachedMap = cache.get('warehouse:master-image-map');
+    if (cachedMap) return cachedMap;
+
     const warehouseMasters = await prisma.inventoryItem.findMany({
+      where: { isActive: { not: false } },
       select: { name: true, imageUrl: true, metadata: true, variants: true }
     });
     const map = new Map();
@@ -103,6 +107,7 @@ const getWarehouseMasterImageMap = async () => {
         });
       }
     }
+    cache.set('warehouse:master-image-map', map, 60000);
     return map;
   } catch (err) {
     console.error('getWarehouseMasterImageMap error:', err.message);
@@ -506,23 +511,39 @@ const createVariant = async (req, res) => {
     });
 
     // Ensure barcode does not collide with another item in this outlet
-    let attempt = 0;
-    while (await prisma.outletInventory.findFirst({
+    const collision = await prisma.outletInventory.findFirst({
       where: {
         barcode: canonicalBarcode,
         outletName: outlet,
         ...(existing?.id ? { id: { not: existing.id } } : {})
       }
-    })) {
-      attempt++;
-      if (attempt > 50) {
-        canonicalBarcode = `POS${Date.now().toString(36).toUpperCase().slice(-6)}${attempt}`;
-        break;
+    });
+
+    if (collision) {
+      if (collision.isActive === false || collision.deletedAt !== null) {
+        // Release barcode from archived row so active variant gets canonical barcode
+        await prisma.outletInventory.update({
+          where: { id: collision.id },
+          data: { barcode: `${canonicalBarcode}_archived_${Date.now()}` }
+        });
+      } else {
+        let attempt = 0;
+        let safeBc = canonicalBarcode;
+        while (await prisma.outletInventory.findFirst({
+          where: { barcode: safeBc, outletName: outlet, ...(existing?.id ? { id: { not: existing.id } } : {}) }
+        })) {
+          attempt++;
+          safeBc = generateBarcode(productId, cSize, cColor, attempt);
+          if (attempt > 25) {
+            safeBc = `POS${Date.now().toString(36).toUpperCase().slice(-6)}${attempt}`;
+            break;
+          }
+        }
+        canonicalBarcode = safeBc;
       }
-      canonicalBarcode = generateBarcode(productId, cSize, cColor, attempt);
     }
 
-    if (matchedMasterVariant && matchedMasterVariant.barcode !== canonicalBarcode) {
+    if (matchedMasterVariant && !matchedMasterVariant.barcode) {
       matchedMasterVariant.barcode = canonicalBarcode;
       await prisma.inventoryItem.update({
         where: { id: storeItem.id },
@@ -1759,10 +1780,18 @@ const lookupBarcode = async (req, res) => {
       return res.status(404).json({ message: 'Barcode not found in Warehouse' });
     }
 
-    // Barcode lookups skip cache to always return real-time stock
+    const bcUpper = String(barcode || '').trim().toUpperCase();
+
+    // Fast indexed B-tree lookup by sanitized uppercase barcode
     let inv = await prisma.outletInventory.findFirst({
-      where: { barcode: { equals: barcode, mode: 'insensitive' }, outletName: outlet }
+      where: { barcode: bcUpper, outletName: outlet }
     });
+
+    if (!inv && barcode !== bcUpper) {
+      inv = await prisma.outletInventory.findFirst({
+        where: { barcode: { equals: barcode, mode: 'insensitive' }, outletName: outlet }
+      });
+    }
 
     if (inv && inv.isActive === false) {
       return res.status(400).json({
@@ -1773,7 +1802,7 @@ const lookupBarcode = async (req, res) => {
     }
 
     if (!inv) {
-      inv = await createOutletVariantFromBarcode(barcode, outlet);
+      inv = await createOutletVariantFromBarcode(bcUpper, outlet);
     }
 
     if (!inv) return res.status(404).json({ message: 'Barcode not found' });
@@ -1781,7 +1810,9 @@ const lookupBarcode = async (req, res) => {
     const result = {
       id: inv.id,
       productName: inv.name,
+      name: inv.name,
       category: inv.category,
+      genderApplicable: inv.genderApplicable,
       imageUrl: inv.imageUrl,
       color: inv.color,
       size: inv.size,
@@ -1798,15 +1829,25 @@ const lookupBarcode = async (req, res) => {
 };
 
 const createOutletVariantFromBarcode = async (barcode, outlet) => {
-  // 1. Search in Central Product Master (InventoryItem) - only active products
+  // 1. Search in Central Product Master (InventoryItem) - only active products with lean select
   const stores = await prisma.inventoryItem.findMany({
-    where: { isActive: { not: false } }
+    where: { isActive: { not: false } },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      genderApplicable: true,
+      fabric: true,
+      price: true,
+      imageUrl: true,
+      variants: true
+    }
   });
   for (const store of stores) {
     let variants = typeof store.variants === 'string' ? JSON.parse(store.variants) : store.variants;
     if (Array.isArray(variants)) {
       for (const v of variants) {
-        if (v && v.barcode && v.barcode.toUpperCase() === barcode && v.isActive !== false) {
+        if (v && v.barcode && String(v.barcode).trim().toUpperCase() === barcode && v.isActive !== false) {
           const existing = await prisma.outletInventory.findFirst({
             where: {
               outletName: outlet,
@@ -1819,7 +1860,12 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
             if (existing.isActive === false) return null; // Inactive in this outlet, do not recreate!
             return prisma.outletInventory.update({
               where: { id: existing.id },
-              data: { barcode: v.barcode, price: v.price || store.price || 0 }
+              data: {
+                barcode: String(v.barcode).trim().toUpperCase(),
+                price: v.price || store.price || 0,
+                category: store.category,
+                genderApplicable: store.genderApplicable
+              }
             });
           }
           return prisma.outletInventory.create({
@@ -1827,10 +1873,11 @@ const createOutletVariantFromBarcode = async (barcode, outlet) => {
               outletName: outlet,
               name: store.name,
               category: store.category,
+              genderApplicable: store.genderApplicable,
               color: v.color || null,
               size: v.size || null,
               fabric: store.fabric,
-              barcode: v.barcode,
+              barcode: String(v.barcode).trim().toUpperCase(),
               stock: 0,
               price: v.price || store.price || 0,
               imageUrl: v.imageUrl || store.imageUrl || null,

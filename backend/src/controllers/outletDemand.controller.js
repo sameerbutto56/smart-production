@@ -869,8 +869,8 @@ const acceptDemandRequest = async (req, res) => {
               updateData.price = masterPrice;
             }
 
-            // Preserve existing barcode if valid; only assign warehouse barcode if missing
-            if (!oi.barcode && warehouseBarcode) {
+            // Sync barcode to authoritative warehouse barcode
+            if (warehouseBarcode && oi.barcode !== warehouseBarcode) {
               const barcodeCollision = await tx.outletInventory.findFirst({
                 where: {
                   outletName: existing.outletName,
@@ -962,19 +962,42 @@ const acceptDemandRequest = async (req, res) => {
               );
 
               if (existingVariantRow) {
+                const targetBc = wv.barcode || (isTargetVariant ? warehouseBarcode : null);
+                const vUpdateData = {
+                  isActive: true,
+                  deletedAt: null,
+                  category: authoritativeCategory,
+                  genderApplicable: authoritativeGenderApplicable
+                };
+                if (isTargetVariant) {
+                  const pStock = existingVariantRow.stock || 0;
+                  vUpdateData.stock = pStock + acceptedQty;
+                }
+                if (targetBc && existingVariantRow.barcode !== targetBc) {
+                  const barcodeCollision = await tx.outletInventory.findFirst({
+                    where: {
+                      outletName: existing.outletName,
+                      barcode: targetBc,
+                      id: { not: existingVariantRow.id }
+                    }
+                  });
+                  if (!barcodeCollision) {
+                    vUpdateData.barcode = targetBc;
+                  } else if (barcodeCollision.isActive === false || barcodeCollision.deletedAt !== null) {
+                    await tx.outletInventory.update({
+                      where: { id: barcodeCollision.id },
+                      data: { barcode: `${targetBc}_archived_${Date.now()}` }
+                    });
+                    vUpdateData.barcode = targetBc;
+                  }
+                }
+                await tx.outletInventory.update({
+                  where: { id: existingVariantRow.id },
+                  data: vUpdateData
+                });
                 if (isTargetVariant) {
                   const pStock = existingVariantRow.stock || 0;
                   const nStock = pStock + acceptedQty;
-                  await tx.outletInventory.update({
-                    where: { id: existingVariantRow.id },
-                    data: {
-                      stock: nStock,
-                      isActive: true,
-                      deletedAt: null,
-                      category: authoritativeCategory,
-                      genderApplicable: authoritativeGenderApplicable
-                    }
-                  });
                   await recordInventoryMovement({
                     movementType: 'TRANSFER_IN',
                     location: existing.outletName,
@@ -982,7 +1005,7 @@ const acceptDemandRequest = async (req, res) => {
                     productName: existingVariantRow.name,
                     color: existingVariantRow.color,
                     size: existingVariantRow.size,
-                    barcode: existingVariantRow.barcode || wv.barcode,
+                    barcode: vUpdateData.barcode || existingVariantRow.barcode || wv.barcode,
                     previousQty: pStock,
                     newQty: nStock,
                     difference: acceptedQty,

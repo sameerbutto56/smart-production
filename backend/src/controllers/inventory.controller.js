@@ -1,9 +1,51 @@
 const prisma = require('../prisma');
+const crypto = require('crypto');
 const xlsx = require('xlsx');
 const { syncPricesForWarehouseItem } = require('../utils/priceSync');
 const { isCategoryGenderApplicable } = require('../utils/productConfig');
 const { recordInventoryMovement } = require('../utils/inventoryMovement');
 const { generateBarcode } = require('./pos.controller');
+
+/**
+ * Ensures all variants in a master product have globally unique, collision-free barcodes.
+ * Prevents sharing of barcodes across different products, genders, or categories.
+ */
+const ensureUniqueMasterVariantBarcodes = async (variants, currentItemId = null) => {
+  if (!Array.isArray(variants) || variants.length === 0) return variants;
+
+  const otherItems = await prisma.inventoryItem.findMany({
+    where: {
+      isActive: { not: false },
+      ...(currentItemId ? { id: { not: currentItemId } } : {})
+    },
+    select: { variants: true }
+  });
+
+  const existingBarcodes = new Set();
+  for (const it of otherItems) {
+    const vars = Array.isArray(it.variants) ? it.variants : [];
+    for (const v of vars) {
+      if (v && v.barcode) existingBarcodes.add(String(v.barcode).trim().toUpperCase());
+    }
+  }
+
+  const seenInPayload = new Set();
+  return variants.map(v => {
+    let bc = v.barcode ? String(v.barcode).trim().toUpperCase() : null;
+    if (!bc || existingBarcodes.has(bc) || seenInPayload.has(bc)) {
+      let candidate;
+      do {
+        candidate = `POS${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      } while (existingBarcodes.has(candidate) || seenInPayload.has(candidate));
+      bc = candidate;
+    }
+    seenInPayload.add(bc);
+    return {
+      ...v,
+      barcode: bc
+    };
+  });
+};
 
 const getInventory = async (req, res) => {
   try {
@@ -205,16 +247,19 @@ const createInventoryItem = async (req, res) => {
       primarySize = (variants[0].size || '').trim() || null;
 
       // Stamp color images and canonical barcodes onto variants
-      processedVariants = variants.map(v => {
+      const mappedVariants = variants.map(v => {
         const colImg = v.color && colorImages && typeof colorImages === 'object' ? colorImages[v.color] : null;
         return {
           ...v,
           stock: parseInt(v.stock, 10) || 0,
           price: parseFloat(v.price) || 0,
           imageUrl: colImg || v.imageUrl || null,
-          barcode: v.barcode || generateBarcode(cleanName, v.size, v.color)
+          barcode: v.barcode ? String(v.barcode).trim().toUpperCase() : null
         };
       });
+
+      // Ensure all variant barcodes are globally unique across all products
+      processedVariants = await ensureUniqueMasterVariantBarcodes(mappedVariants);
     }
 
     const resolvedGenderApplicable = typeof genderApplicable === 'boolean'
@@ -324,16 +369,20 @@ const updateInventoryItem = async (req, res) => {
         computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
       }
 
-      // Stamp color images onto variants
-      processedVariants = variants.map(v => {
+      // Stamp color images onto variants and preserve valid barcodes
+      const mappedVariants = variants.map(v => {
         const colImg = v.color && colorImages && typeof colorImages === 'object' ? colorImages[v.color] : null;
         return {
           ...v,
           stock: parseInt(v.stock, 10) || 0,
           price: parseFloat(v.price) || 0,
-          imageUrl: colImg || v.imageUrl || null
+          imageUrl: colImg || v.imageUrl || null,
+          barcode: v.barcode ? String(v.barcode).trim().toUpperCase() : null
         };
       });
+
+      // Ensure all variant barcodes are globally unique across all products
+      processedVariants = await ensureUniqueMasterVariantBarcodes(mappedVariants, id);
     }
 
     const updateData = { 

@@ -242,7 +242,7 @@ export function POSProvider({ children }) {
 
   const { data: products = [], loading: productsLoading, refresh: refreshProducts, invalidate: invalidateProducts } = useCache(productsKey, {
     fetcher: () => api.get(`/api/pos/products?outlet=${selectedOutlet}`).then(r => r.data),
-    ttl: 5 * 60 * 1000,
+    ttl: 30 * 1000,
   });
   const { data: dashboard = null, loading: dashboardLoading, error: dashboardError, refresh: refreshDashboard } = useCache(dashboardKey, {
     fetcher: () => api.get('/api/pos/sales/dashboard', {
@@ -402,9 +402,18 @@ export function POSProvider({ children }) {
   const handleInventoryUpdate = debounce(() => { invalidateProducts(); refreshProducts(); }, 1000);
   useEffect(() => {
     socket.on('inventory-updated', handleInventoryUpdate);
+    socket.on('demand-accepted', handleInventoryUpdate);
+    socket.on('outlet-demand-updated', handleInventoryUpdate);
+    socket.on('inventory-demand-status-updated', handleInventoryUpdate);
     const onFocus = () => { refreshProducts(); };
     window.addEventListener('focus', onFocus);
-    return () => { socket.off('inventory-updated', handleInventoryUpdate); window.removeEventListener('focus', onFocus); };
+    return () => {
+      socket.off('inventory-updated', handleInventoryUpdate);
+      socket.off('demand-accepted', handleInventoryUpdate);
+      socket.off('outlet-demand-updated', handleInventoryUpdate);
+      socket.off('inventory-demand-status-updated', handleInventoryUpdate);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const fetchCurrentBook = useCallback(async () => {
@@ -453,24 +462,59 @@ export function POSProvider({ children }) {
         if (key.toUpperCase() === upper) { v = val; break; }
       }
     }
-    try {
-      const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
-      if (res.data) v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
-    } catch (e) { console.warn(`Barcode API lookup failed for "${code}":`, e?.response?.data || e.message); }
+    if (!v) {
+      try {
+        const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
+        if (res.data) {
+          v = {
+            id: res.data.id,
+            productName: res.data.productName || res.data.name,
+            name: res.data.name || res.data.productName,
+            color: res.data.color,
+            size: res.data.size,
+            price: res.data.price || 0,
+            stock: res.data.stock,
+            barcode: res.data.barcode || code,
+            category: res.data.category,
+            genderApplicable: res.data.genderApplicable
+          };
+          refreshProducts();
+        }
+      } catch (e) {
+        console.warn(`Barcode API lookup failed for "${code}":`, e?.response?.data || e.message);
+      }
+    }
     if (!v) {
       toast.error(`Barcode not found: ${code}`);
       setBarcodeInput('');
       if (barcodeRef.current) barcodeRef.current.focus();
       return;
     }
-    if (v.stock != null && v.stock < 1) toast(`"${v.productName}" is out of stock — use Exchange toggle to process as return`);
+    if (v.stock != null && v.stock < 1) toast(`"${v.productName || v.name}" is out of stock — use Exchange toggle to process as return`);
     const existing = cart.find(i => i.variantId === v.id);
     if (existing) {
       setCart(cart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
     } else {
-      setCart([...cart, { variantId: v.id, productName: v.productName, size: v.size, color: v.color, unitPrice: v.price || 0, qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0, customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0, isExchange: false }]);
+      setCart([...cart, {
+        variantId: v.id,
+        productName: v.productName || v.name,
+        size: v.size,
+        color: v.color,
+        unitPrice: v.price || 0,
+        qty: 1,
+        alterationAmount: 0,
+        alterationLabel: '',
+        discountPct: 0,
+        discountFixed: 0,
+        customization1: false,
+        customization2: false,
+        nameEngrave: false,
+        logoDesign: false,
+        otherCharges: 0,
+        isExchange: false
+      }]);
     }
-    toast.success(`${v.productName} added via barcode`);
+    toast.success(`${v.productName || v.name} added via barcode`);
     setBarcodeInput('');
     if (barcodeRef.current) barcodeRef.current.focus();
   };
@@ -498,7 +542,7 @@ export function POSProvider({ children }) {
     if (!v) {
       try {
         const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
-        if (res.data) v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
+        if (res.data) v = { id: res.data.id, productName: res.data.productName || res.data.name, name: res.data.name || res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock, barcode: res.data.barcode || code };
       } catch (e) { console.warn(`Return barcode lookup failed for "${code}":`, e?.response?.data || e.message); }
     }
     if (!v) return toast.error(`Barcode not found: ${code}`);
@@ -667,8 +711,12 @@ export function POSProvider({ children }) {
     for (const c of cart) {
       if (c.isExchange) continue; // exchange items return to stock — no stock check needed
       const pr = products.find(p => p.id === c.variantId);
-      if (!pr) { setCheckoutLoading(false); return toast.error(`"${c.productName}" not found in outlet inventory`); }
-      if (pr.stock != null && pr.stock < c.qty) { setCheckoutLoading(false); return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`); }
+      if (pr) {
+        if (pr.stock != null && pr.stock < c.qty) {
+          setCheckoutLoading(false);
+          return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`);
+        }
+      }
     }
     // Generate numbers — alteration number serves as both order + alteration number
     let orderNum = null;
