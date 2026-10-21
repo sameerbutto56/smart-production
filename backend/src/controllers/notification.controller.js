@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const cache = require('../utils/cache');
 
 exports.getNotifications = async (req, res) => {
   try {
@@ -41,6 +42,13 @@ exports.getUnreadCounts = async (req, res) => {
     const role = req.user?.role;
     if (!role) return res.status(400).json({ message: 'Role required' });
 
+    // In-memory cache for 8 seconds per role to coalesce concurrent polling from multiple open tabs
+    const cacheKey = `notif:unread:${role}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return res.json({ counts: cached });
+    }
+
     const unread = await prisma.notification.groupBy({
       by: ['moduleName', 'path'],
       where: { role, isRead: false },
@@ -52,6 +60,7 @@ exports.getUnreadCounts = async (req, res) => {
       counts[g.path] = g._count.id;
     });
 
+    cache.set(cacheKey, counts, 8000);
     res.json({ counts });
   } catch (error) {
     console.error('getUnreadCounts error:', error);
@@ -64,6 +73,8 @@ exports.markModuleRead = async (req, res) => {
     const { path, moduleName } = req.body;
     const role = req.user?.role;
     if (!role) return res.status(400).json({ message: 'Role required' });
+
+    cache.invalidatePattern('notif:unread:');
 
     const where = { role, isRead: false };
     if (path) where.path = path;
@@ -82,6 +93,7 @@ exports.markModuleRead = async (req, res) => {
 
     const counts = {};
     unread.forEach(g => { counts[g.path] = g._count.id; });
+    cache.set(`notif:unread:${role}`, counts, 8000);
 
     const io = req.app?.get('io');
     if (io) {
@@ -99,6 +111,7 @@ exports.markModuleRead = async (req, res) => {
 exports.markOneRead = async (req, res) => {
   try {
     const { id } = req.params;
+    cache.invalidatePattern('notif:unread:');
     await prisma.notification.update({
       where: { id: parseInt(id) },
       data: { isRead: true }

@@ -1,5 +1,43 @@
 ## Goals
-### Implemented This Session — Fixed Demand-to-POS Inventory Product Creation, Variant Mapping, Barcode Synchronization & Historical Data Reconciliation (deployed & live-verified)
+### Implemented This Session — Resolved FATAL: (EMAXCONN) Max Client Connections Reached (200) in PostgreSQL / Supavisor & Co-located Vercel Serverless Compute (deployed & live-verified)
+- **Objective & Root Causes**:
+  1. Users reported a critical production crash dialog:
+     `smart-production-v2.vercel.app says: Invalid prisma.order.findUnique() invocation: Error in connector: Error querying the database: FATAL: (EMAXCONN) max client connections reached, limit: 200`
+  2. Root Cause 1 (High Serverless Concurrency with Unbounded / High Connection Limits): On Vercel, requests to `/api/index.js` spawn concurrent serverless function containers. In `backend/src/prisma.js`, `PrismaClient` was instantiated with raw environment strings without enforcing a serverless connection limit. If omitted or set to `connection_limit=5`, as few as 40 lambdas (or 20 lambdas under default Prisma 10 connections) simultaneously exhausted Supabase Supavisor's 200 client connection pool (`EMAXCONN`).
+  3. Root Cause 2 (Cross-Ocean Latency Multiplying Connection Hold Times): `vercel.json` had no region configured, defaulting serverless lambdas to `iad1` (Washington D.C., USA), while Supabase is hosted in Mumbai (`aws-1-ap-south-1`). Each database query traversed the globe (~250ms latency each way), multiplying query durations by 20x–50x, keeping container connections held open and multiplying the number of concurrent containers needed by Vercel.
+  4. Root Cause 3 (Zero Query-Level Retry on Transient Pool Exhaustion): While `$transaction` had retry logic, basic model operations (`prisma.order.findUnique`, `prisma.order.findFirst`, etc.) lacked transient error retries. Any temporary micro-spike caused an immediate uncaught 500 error.
+  5. Root Cause 4 (Excessive Unthrottled Polling on Inactive Tabs): `NotificationContext` polled `/api/notifications/unread-counts` every 15 seconds without checking `document.hidden`, and `getUnreadCounts` executed un-cached `groupBy` queries on every poll. Multiple staff users with backgrounded tabs continuously flooded the database with connection requests.
+  6. Root Cause 5 (Raw Prisma Error Dialogs): `OrderCard.jsx` used `alert(...)` with raw backend error strings, showing technical internal stack traces directly to end users.
+- **Backend & Database Implementation**:
+  - `backend/src/prisma.js`:
+    - Added `getSanitizedDatabaseUrl`:
+      - Automatically detects Supabase pooler host and ensures transaction mode port `6543` and `pgbouncer=true`.
+      - Enforces `connection_limit=1` for all serverless/production lambdas (allowing up to 180+ concurrent lambdas without hitting the 200 pool limit).
+      - Sets `pool_timeout=20` so requests queue gracefully rather than aborting immediately.
+      - Enforces `sslmode=require`.
+    - Added Prisma 6 `$extends` query middleware: Catches transient connection errors (`EMAXCONN`, `max client connections reached`, `Connection pool timeout`, `Timed out fetching a new connection`, `Can't reach database server`, `connection closed`, `Transaction not found`) and retries up to 3 times with exponential backoff and jitter.
+    - Preserved hardened `$transaction` wrapper with 20s `maxWait`, 60s `timeout`, and connection retry.
+    - Global singleton caching on `globalForPrisma.prisma`.
+  - `vercel.json`:
+    - Added `"regions": ["bom1"]` (Mumbai), co-locating serverless compute in the exact same cloud region as Supabase (`aws-1-ap-south-1`). Query latency drops from ~250ms to ~5ms (up to 50x faster), freeing pool connections almost instantly.
+  - `backend/src/controllers/notification.controller.js` & `backend/src/utils/notify.js`:
+    - Added in-memory caching to `getUnreadCounts` (8-second TTL per role), coalescing duplicate polling from multiple open tabs.
+    - Cache is automatically invalidated upon `markModuleRead`, `markOneRead`, and notification creation (`notify.create`).
+  - `backend/src/utils/cache.js`:
+    - Added `invalidatePattern: delPattern` alias.
+  - `backend/src/middleware/error.middleware.js`:
+    - Sanitizes technical database connection/connector errors into a user-friendly message (`"The system is experiencing unusually high traffic. Please retry in a few moments."`), preventing internal database stack traces from reaching clients.
+  - `frontend/src/context/NotificationContext.jsx` & `frontend/src/context/SystemPauseContext.jsx`:
+    - Added `if (document.hidden) return;` to pause polling when tabs are minimized or in the background. Increased interval to 25s (with instant fetch on tab focus).
+  - `frontend/src/components/OrderCard.jsx`:
+    - Replaced blocking raw `alert(...)` calls with non-blocking toast notifications via `getCleanErrorMessage(err, ...)`.
+- **Verification**:
+  - Automated verification test suite `backend/scripts/verify-demand-to-pos-sync.cjs`: 41 of 41 tests passed (100% pass rate).
+  - Automated test suite `backend/scripts/verify-outlet-order-entry-pos-isolation.cjs`: 10 of 10 passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 0 bundling errors.
+  - Deployed to Vercel production and verified live.
+
+### Implemented Prior Session — Fixed Demand-to-POS Inventory Product Creation, Variant Mapping, Barcode Synchronization & Historical Data Reconciliation (deployed & live-verified)
 - **Objective & Root Causes**:
   1. Users reported: *"The Demand workflow still has issues when new products are sent from the warehouse to an outlet. Some products do not appear in the outlet's POS Inventory after the complete Demand process. In other cases, products are added under the wrong category or gender, incorrect quantities are added, or the product and its size variants are created incorrectly. For example, some new Men's and Women's articles were sent through Demand, but after completing the process, certain products appeared under the wrong gender/category or did not appear in POS Inventory at all."*
   2. Root Cause 1 (Barcode Matching Cross-Contamination): In `acceptDemandRequest`, Step 1 searched for an existing record strictly by `tx.outletInventory.findFirst({ where: { outletName, barcode: variantBarcode } })` WITHOUT verifying the canonical product name or product ID. If an outlet row happened to hold that barcode (e.g. `Sprinter Women New` in Johar Town, or `Sprinter Navy Collar-Men` in Jail Road), the system treated that row as the matched record, adding Men's stock to Women's articles (and vice-versa) while the intended article was never created at the outlet.

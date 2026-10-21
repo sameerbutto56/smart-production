@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const cache = require('./cache');
 
 async function create(req, { type, moduleName, path, role, title, message, orderId, orderNumber, customerName, action, employeeName }) {
   try {
@@ -42,6 +43,10 @@ async function create(req, { type, moduleName, path, role, title, message, order
       }
 
       results.push(notification);
+    }
+
+    if (results.length > 0) {
+      cache.invalidatePattern('notif:unread:');
     }
 
     return results.length === 1 ? results[0] : results;

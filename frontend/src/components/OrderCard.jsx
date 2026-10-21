@@ -18,6 +18,21 @@ import { useSystemPause } from '../context/SystemPauseContext';
 import { useDelay } from '../context/DelayContext';
 import toast from 'react-hot-toast';
 
+const getCleanErrorMessage = (err, fallback = 'Operation failed') => {
+  const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || fallback;
+  if (
+    typeof msg === 'string' &&
+    (msg.includes('EMAXCONN') ||
+      msg.includes('max client connections') ||
+      msg.includes('connector: Error') ||
+      msg.includes('Invalid `prisma.') ||
+      msg.includes('PrismaClient'))
+  ) {
+    return 'The server is temporarily busy with high traffic. Please retry in a few moments.';
+  }
+  return msg;
+};
+
 // Detect whether a product object carries direct per-product outlet engraving.
 const hasDirectOutletEngraving = (p) =>
   !!p && (p.engravingRequired === true ||
@@ -1320,7 +1335,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       toast.success(`Order moved to ${nextStage.replace(/_/g, ' ')}`);
                       if (onMarkSeen) onMarkSeen();
                     } catch (err) {
-                      alert('Route failed: ' + (err.response?.data?.message || err.message));
+                      toast.error(getCleanErrorMessage(err, 'Route failed'));
                     }
                   })}
                   disabled={!!actionLoading}
@@ -1428,7 +1443,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                           });
                                           toast.success(`Order routed to ${destUpper.replace(/_/g, ' ')}`);
                                         } catch (err) {
-                                          alert('Route failed: ' + (err.response?.data?.message || err.message));
+                                          toast.error(getCleanErrorMessage(err, 'Route failed'));
                                         }
                                       } else {
                                         alert('Invalid destination. Valid: STORE, LOGO_DESIGN, PRODUCTION_ACCEPTANCE, PRODUCTION, STORE_RECEIVE, DISPATCH, OUT_FOR_DELIVERY, ORDER_ENTRY');
@@ -1970,7 +1985,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   setLocalInventoryAdded(true);
                                   toast.success('Inventory updated!');
                                 } catch (err) {
-                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                  toast.error(getCleanErrorMessage(err, 'Failed'));
                                 }
                               }}
                               className={`py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg ${inventoryAdded ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-900/20'}`}
@@ -1993,7 +2008,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   toast.success(`Sent to ${storeRouteDest.replace(/_/g, ' ')}`);
                                   if (onMarkSeen) onMarkSeen();
                                 } catch (err) {
-                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                  toast.error(getCleanErrorMessage(err, 'Failed'));
                                 }
                               })}
                               disabled={!!actionLoading}
@@ -2062,7 +2077,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               setNextStage('');
                               setTrackingUrl('');
                             } catch (err) {
-                              alert('Failed: ' + (err.response?.data?.message || err.message));
+                              toast.error(getCleanErrorMessage(err, 'Failed'));
                             }
                           }}
                           className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/20"
@@ -2107,7 +2122,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                                               await api.put(`/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'DELIVERED' });
                                   toast.success('Marked as Delivered');
                                 } catch (err) {
-                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                  toast.error(getCleanErrorMessage(err, 'Failed'));
                                 }
                               }}
                               className="py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-1"
@@ -2122,7 +2137,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                                               await api.put(`/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'RETURNED' });
                                   toast.success('Marked as Returned');
                                 } catch (err) {
-                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                  toast.error(getCleanErrorMessage(err, 'Failed'));
                                 }
                               }}
                               className="py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/20 flex items-center justify-center gap-1"
@@ -2256,7 +2271,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   cashAmount: order.totalPrice || 0,
                                   onlineAmount: 0,
                                   riderName: userRole
-                                }).then(() => { toast.success('Delivered'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                }).then(() => { toast.success('Delivered'); }).catch(err => { toast.error(getCleanErrorMessage(err, 'Failed')); });
                               }
                             }}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
@@ -2272,7 +2287,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   await api.put(`/api/delivery/${order.id}/deliver-to-outlet`, { targetOutlet, riderName: userRole });
                                   toast.success(`Delivered to ${targetOutlet}`);
                                 } catch (err) {
-                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                  toast.error(getCleanErrorMessage(err, 'Failed'));
                                 }
                               }
                             }}
@@ -2285,7 +2300,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             onClick={() => {
                               const reason = prompt('Reason for no response?');
                               if (reason !== null) {
-                                api.put(`/api/delivery/${order.id}/no-response`, { riderName: userRole }).then(() => { toast.success('No response logged'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                api.put(`/api/delivery/${order.id}/no-response`, { riderName: userRole }).then(() => { toast.success('No response logged'); }).catch(err => { toast.error(getCleanErrorMessage(err, 'Failed')); });
                               }
                             }}
                             className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
@@ -2297,7 +2312,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             onClick={() => {
                               const reason = prompt('Reason for return?');
                               if (reason !== null) {
-                                api.put(`/api/delivery/${order.id}/return`, { riderName: userRole, reason }).then(() => { toast.success('Returned to dispatch'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                api.put(`/api/delivery/${order.id}/return`, { riderName: userRole, reason }).then(() => { toast.success('Returned to dispatch'); }).catch(err => { toast.error(getCleanErrorMessage(err, 'Failed')); });
                               }
                             }}
                             className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-red-500/20 active:scale-95"
@@ -2316,7 +2331,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 api.put(`/api/orders/${order.id}/delivery`, {
                                   deliveryStatus: 'DELIVERED',
                                   remarks: 'Delivered successfully'
-                                }).then(() => { toast.success('Marked as DELIVERED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                }).then(() => { toast.success('Marked as DELIVERED'); }).catch(err => { toast.error(getCleanErrorMessage(err, 'Failed')); });
                               }
                             }}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
@@ -2331,7 +2346,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 api.put(`/api/orders/${order.id}/delivery`, {
                                   deliveryStatus: 'FAILED',
                                   remarks: reason || 'Delivery failed'
-                                }).then(() => { toast.success('Marked as FAILED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                }).then(() => { toast.success('Marked as FAILED'); }).catch(err => { toast.error(getCleanErrorMessage(err, 'Failed')); });
                               }
                             }}
                             className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all border border-red-500/20 active:scale-95"
@@ -2345,7 +2360,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               api.put(`/api/orders/${order.id}/delivery`, {
                                   deliveryStatus: 'RESCHEDULED',
                                   remarks: date ? `Rescheduled to ${date}` : 'Rescheduled to next day'
-                                }).then(() => { toast.success('Delivery rescheduled'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                }).then(() => { toast.success('Delivery rescheduled'); }).catch(err => { toast.error(getCleanErrorMessage(err, 'Failed')); });
                             }}
                             className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
                           >
@@ -2361,7 +2376,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 await api.post(`/api/orders/${order.id}/refund`, { reason });
                                 toast.success('Refund requested — moved to Refund Management');
                               } catch (err) {
-                                alert('Refund failed: ' + (err.response?.data?.message || err.message));
+                                toast.error(getCleanErrorMessage(err, 'Refund failed'));
                               }
                             }
                           }}

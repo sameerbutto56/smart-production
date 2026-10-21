@@ -265,15 +265,18 @@ export const NotificationProvider = ({ children }) => {
     };
   }, [user, fetchUnreadCounts, queueIncrement]);
 
-  // Core polling — 15s interval
+  // Core polling — 25s interval, paused when tab is hidden/minimized
   useEffect(() => {
     if (!user?.role) return;
 
-    console.log('[Notif] Polling started for', user.role, '(15s interval)');
-    const poll = () => { fetchUnreadCounts(); };
+    console.log('[Notif] Polling started for', user.role, '(25s interval)');
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchUnreadCounts();
+    };
 
     poll();
-    pollingRef.current = setInterval(poll, 15000);
+    pollingRef.current = setInterval(poll, 25000);
     return () => {
       console.log('[Notif] Polling stopped for', user.role);
       if (pollingRef.current) clearInterval(pollingRef.current);

@@ -47,7 +47,10 @@ export const SystemPauseProvider = ({ children }) => {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 30000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      refresh();
+    }, 45000);
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
 

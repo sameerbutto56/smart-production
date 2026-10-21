@@ -97,6 +97,7 @@ module.exports = {
   set,
   del,
   delPattern,
+  invalidatePattern: delPattern,
   delKeys,
   stats,
   isRedisEnabled: () => false,

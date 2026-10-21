@@ -16,7 +16,18 @@ const errorHandler = (err, req, res, _next) => {
     message = 'Invalid JSON in request body. Please send valid JSON.';
   }
 
-  if (message === 'Internal server error') {
+  const rawMsg = String(err?.message || '');
+  if (
+    rawMsg.includes('EMAXCONN') ||
+    rawMsg.includes('max client connections reached') ||
+    rawMsg.includes('Connection pool timeout') ||
+    rawMsg.includes('Error in connector') ||
+    rawMsg.includes('Invalid `prisma.')
+  ) {
+    console.error('[Prisma/Database Connection Error]:', err);
+    statusCode = 503;
+    message = 'The system is experiencing unusually high traffic. Please retry in a few moments.';
+  } else if (message === 'Internal server error') {
     console.error('Unhandled error:', err);
   }
 
