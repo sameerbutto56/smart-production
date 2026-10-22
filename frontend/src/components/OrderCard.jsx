@@ -2003,11 +2003,22 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             <button
                               onClick={() => withActionLoading('store-receive-route', async () => {
                                 if (!storeRouteDest) { alert('Select a destination first'); return; }
+                                const corrId = `rt_fe_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                                const t0 = Date.now();
+                                console.log(`[Store-Route][${corrId}] Stage 1: Frontend Route/Dispatch clicked: order #${order.orderNumber} -> dest: ${storeRouteDest}`);
                                 try {
-                                  await api.post(`/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: inventoryAdded ? 'Inventory added, routing from Store' : 'Routing from Store (no inventory update)' });
+                                  console.log(`[Store-Route][${corrId}] Stage 2: Request initiated to /api/orders/${order.id}/route`);
+                                  const res = await api.post(`/api/orders/${order.id}/route`, {
+                                    destinationStage: storeRouteDest,
+                                    remarks: inventoryAdded ? 'Inventory added, routing from Store' : 'Routing from Store (no inventory update)'
+                                  }, {
+                                    headers: { 'x-correlation-id': corrId }
+                                  });
+                                  console.log(`[Store-Route][${corrId}] Stage 13: Response received in ${Date.now() - t0}ms`, res?.data);
                                   toast.success(`Sent to ${storeRouteDest.replace(/_/g, ' ')}`);
                                   if (onMarkSeen) onMarkSeen();
                                 } catch (err) {
+                                  console.error(`[Store-Route][${corrId}] Routing failed in ${Date.now() - t0}ms:`, err);
                                   toast.error(getCleanErrorMessage(err, 'Failed'));
                                 }
                               })}

@@ -380,12 +380,17 @@ const MyTasks = () => {
   };
 
   const handleAction = async (orderId, stageId, action, payload = {}) => {
+    const corrId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const t0 = Date.now();
+    console.log(`[Stage-Action][${corrId}] Stage 1: Action ${action} initiated for order ${orderId}, stage ${stageId}:`, payload);
     try {
       const endpoint = `/api/orders/${orderId}/stages/${stageId}/${action}`;
-      await api.put(endpoint, payload);
+      console.log(`[Stage-Action][${corrId}] Stage 2: Request PUT ${endpoint}`);
+      const res = await api.put(endpoint, payload, { headers: { 'x-correlation-id': corrId } });
+      console.log(`[Stage-Action][${corrId}] Stage 13: Action ${action} completed in ${Date.now() - t0}ms:`, res?.data);
       refreshTasks();
     } catch (error) {
-      console.error(`Error performing ${action}:`, error);
+      console.error(`[Stage-Action][${corrId}] Error performing ${action} after ${Date.now() - t0}ms:`, error);
       alert(error.response?.data?.error || error.response?.data?.message || 'Action failed');
     }
   };

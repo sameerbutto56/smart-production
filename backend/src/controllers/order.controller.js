@@ -3369,10 +3369,17 @@ const getOutletAnalytics = async (req, res) => {
 
 // ====== MANUAL ROUTING ======
 const manualRouteOrder = async (req, res) => {
+  const startTime = Date.now();
+  const correlationId = req.headers['x-correlation-id'] || `rt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  res.setHeader('x-correlation-id', correlationId);
+
   const { orderId } = req.params;
   let { destinationStage, remarks } = req.body;
   // Auto-correct common shorthand
   if (destinationStage === 'LOGO') destinationStage = 'LOGO_DESIGN';
+
+  console.log(`[Store-Route][${correlationId}] Stage 3: Backend request received: orderId=${orderId}, destinationStage=${destinationStage}`);
+  console.log(`[Store-Route][${correlationId}] Stage 4: Auth & permissions verified: user=${req.user?.name || req.user?.id} (${req.user?.role})`);
 
   // Validate that the destination stage exists in the system
   if (!validAllStages.includes(destinationStage)) {
@@ -3382,8 +3389,10 @@ const manualRouteOrder = async (req, res) => {
   }
 
   try {
+    const t0Lookup = Date.now();
     const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
+    console.log(`[Store-Route][${correlationId}] Stage 5: Order and active-task lookup completed in ${Date.now() - t0Lookup}ms`);
 
     // Idempotency check: if order is already at destinationStage, return early success
     if (order.currentStage === destinationStage) {
@@ -3391,7 +3400,8 @@ const manualRouteOrder = async (req, res) => {
         success: true,
         message: `Order is already at ${destinationStage}`,
         nextStage: destinationStage,
-        isIdempotent: true
+        isIdempotent: true,
+        correlationId
       });
     }
 
@@ -3412,7 +3422,8 @@ const manualRouteOrder = async (req, res) => {
         success: true,
         message: `Order is already at ${destinationStage}`,
         nextStage: destinationStage,
-        isIdempotent: true
+        isIdempotent: true,
+        correlationId
       });
     }
 
@@ -3431,7 +3442,8 @@ const manualRouteOrder = async (req, res) => {
         success: true,
         message: `Order is already at ${destinationStage}`,
         nextStage: destinationStage,
-        isIdempotent: true
+        isIdempotent: true,
+        correlationId
       });
     }
 
@@ -3444,6 +3456,7 @@ const manualRouteOrder = async (req, res) => {
         return res.status(400).json({ message: validation.message, expectedNext: validation.expected });
       }
     }
+    console.log(`[Store-Route][${correlationId}] Stage 6: Current-stage (${currentStage?.stageName || order.currentStage}) and routing-eligibility validation passed`);
 
     const recipientUsers = await prisma.user.findMany({
       where: { role: { in: getRolesForStage(destinationStage) } },
@@ -3469,14 +3482,19 @@ const manualRouteOrder = async (req, res) => {
     }
 
     // Atomic transaction for critical state mutations with generous remote timeout
+    const t0Tx = Date.now();
+    console.log(`[Store-Route][${correlationId}] Stage 7: Database transaction starting`);
     await prisma.$transaction(async (tx) => {
+      const t0Close = Date.now();
       if (currentStage) {
         await tx.orderStage.updateMany({
           where: { orderId, stageName: currentStage.stageName, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
           data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
         });
       }
+      console.log(`[Store-Route][${correlationId}] Stage 8: Previous Store task closed in ${Date.now() - t0Close}ms`);
 
+      const t0Dispatch = Date.now();
       if (destinationStage === 'DISPATCH') {
         await ensureSingleActiveDispatchStage(orderId, order.priority, tx);
       } else {
@@ -3490,12 +3508,16 @@ const manualRouteOrder = async (req, res) => {
           });
         }
       }
+      console.log(`[Store-Route][${correlationId}] Stage 9: ${destinationStage} task created or activated in ${Date.now() - t0Dispatch}ms`);
 
+      const t0Update = Date.now();
       await tx.order.update({
         where: { id: orderId },
         data: orderUpdateData
       });
+      console.log(`[Store-Route][${correlationId}] Stage 10: Order status and stage updated in ${Date.now() - t0Update}ms`);
 
+      const t0Hist = Date.now();
       await tx.routingHistory.create({
         data: {
           orderId,
@@ -3508,10 +3530,12 @@ const manualRouteOrder = async (req, res) => {
           createdAt: new Date()
         }
       });
+      console.log(`[Store-Route][${correlationId}] Stage 11: Routing history created in ${Date.now() - t0Hist}ms`);
     }, {
       timeout: 25000,
       maxWait: 10000
     });
+    console.log(`[Store-Route][${correlationId}] Stage 12: Database transaction committed in ${Date.now() - t0Tx}ms`);
 
     // Non-blocking SeenTask updates after transaction successfully commits
     (async () => {
@@ -3538,6 +3562,42 @@ const manualRouteOrder = async (req, res) => {
         }
       } catch (seenErr) {
         console.warn('Non-blocking seenTask update warning in manualRouteOrder:', seenErr.message);
+      }
+    })();
+
+    // Non-blocking side effects after commit
+    createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id).catch(() => {});
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('order-updated', { orderId, createdById: order.createdById });
+      if (destinationStage === 'DISPATCH') {
+        io.emit('dispatch-request', { orderId });
+      }
+    }
+
+    const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
+    const manRole = manDestRoleMap[destinationStage] || 'STORE';
+    if (order?.customerName && order?.orderNumber) {
+      notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
+    }
+    if (destinationStage === 'PRODUCTION' && order?.customerName && order?.orderNumber) {
+      notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Order In Production', message: `Order #${order.orderNumber} is now in Production`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'In Production', employeeName: req.user?.name }).catch(() => {});
+    }
+
+    console.log(`[Store-Route][${correlationId}] Stage 13: Routing completed successfully in ${Date.now() - startTime}ms total`);
+    res.json({
+      success: true,
+      message: `Order successfully routed to ${destinationStage}`,
+      nextStage: destinationStage,
+      correlationId,
+      durationMs: Date.now() - startTime
+    });
+  } catch (error) {
+    console.error(`[Store-Route][${correlationId}] Error routing order:`, error);
+    res.status(500).json({ message: 'Error routing order', error: error.message, correlationId });
+  }
+};
       }
     })();
 
@@ -4651,6 +4711,16 @@ const storeRouteOrder = async (req, res) => {
       return res.json({ message: 'Order returned to source' });
     }
 
+    const recipientUsers = await prisma.user.findMany({
+      where: { role: { in: getRolesForStage(destinationStage) } },
+      select: { id: true }
+    });
+
+    const durations = destinationStage !== 'DISPATCH'
+      ? await getStageDurations(order.priority)
+      : null;
+
+    const t0Tx = Date.now();
     await prisma.$transaction(async (tx) => {
       await tx.orderStage.update({
         where: { id: storeStage.id },
@@ -4659,8 +4729,7 @@ const storeRouteOrder = async (req, res) => {
       if (destinationStage === 'DISPATCH') {
         await ensureSingleActiveDispatchStage(orderId, order.priority, tx);
       } else {
-        const durations = await getStageDurations(order.priority);
-        const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+        const deadline = calculateDeadline(new Date(), durations?.[destinationStage] || 24);
         await tx.orderStage.create({
           data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
         });
@@ -4678,10 +4747,6 @@ const storeRouteOrder = async (req, res) => {
         data: orderUpdateData
       });
 
-      const recipientUsers = await prisma.user.findMany({
-        where: { role: { in: getRolesForStage(destinationStage) } },
-        select: { id: true }
-      });
       await tx.routingHistory.create({
         data: {
           orderId, sentByUserId: req.user.id, sentToStage: destinationStage,
@@ -4694,7 +4759,11 @@ const storeRouteOrder = async (req, res) => {
       await tx.seenTask.deleteMany({
         where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
       });
+    }, {
+      timeout: 25000,
+      maxWait: 10000
     });
+    console.log(`[Store-Route][storeRouteOrder] Transaction committed in ${Date.now() - t0Tx}ms`);
 
     await createAuditLog(orderId, 'STORE_ROUTE', `Routed from Store to ${destinationStage} by ${req.user.name}`, req.user.id);
 

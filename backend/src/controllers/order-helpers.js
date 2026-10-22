@@ -266,8 +266,24 @@ const DISPATCH_RESET_FIELDS = {
   courierDetails: null
 };
 
-const getStageDurations = async (priority = 'NORMAL') => {
-  const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+const getStageDurations = async (priority = 'NORMAL', tx = null) => {
+  if (Date.now() < cache.stageDurations.expiresAt && cache.stageDurations.value) {
+    const slaMultiplier = cache.stageDurations.value.slaMultipliers?.[priority] ?? 1;
+    const adjusted = {};
+    for (const [stage, hours] of Object.entries(cache.stageDurations.value.stageDurations || {})) {
+      adjusted[stage] = Math.round((hours * slaMultiplier) * 100) / 100;
+    }
+    return adjusted;
+  }
+
+  const db = tx || prisma;
+  let setting = null;
+  try {
+    setting = await db.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+  } catch (err) {
+    console.warn('[order-helpers] Error reading DEADLINE_CONFIG:', err?.message);
+  }
+
   let config = {
     stageDurations: { STORE: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
@@ -275,6 +291,9 @@ const getStageDurations = async (priority = 'NORMAL') => {
   if (setting) {
     try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) {}
   }
+
+  cache.stageDurations = { value: config, expiresAt: Date.now() + CACHE_TTL };
+
   const slaMultiplier = config.slaMultipliers?.[priority] ?? 1;
   const durations = config.stageDurations || {};
   const adjusted = {};
@@ -306,7 +325,7 @@ const ensureSingleActiveDispatchStage = async (orderId, priority = 'NORMAL', tx 
 
   if (!existing) {
     const { calculateDeadline } = require('../utils/deadline');
-    const durations = await getStageDurations(priority);
+    const durations = await getStageDurations(priority, tx);
     const deadline = calculateDeadline(new Date(), durations['DISPATCH'] || 12);
     return await tx.orderStage.create({
       data: {

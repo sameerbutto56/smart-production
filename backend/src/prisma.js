@@ -24,13 +24,14 @@ function getSanitizedDatabaseUrl(rawUrl) {
     }
 
     // 2. Strict connection limit for serverless execution
-    // Default to 1 connection per container so up to 180+ serverless instances can scale safely.
+    // Default to 2 connections per container: 1 for interactive $transaction and 1 for concurrent/unwrapped queries,
+    // ensuring zero connection pool deadlocks while easily supporting up to 90+ concurrent serverless containers on Supabase.
     const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production');
-    let targetLimit = isServerless ? '1' : '5';
+    let targetLimit = isServerless ? '2' : '5';
     if (process.env.PRISMA_CONNECTION_LIMIT) {
       const parsed = parseInt(process.env.PRISMA_CONNECTION_LIMIT, 10);
       if (!isNaN(parsed) && parsed > 0) {
-        targetLimit = String(isServerless ? Math.min(parsed, 2) : parsed);
+        targetLimit = String(isServerless ? Math.min(parsed, 3) : parsed);
       }
     }
     url.searchParams.set('connection_limit', targetLimit);

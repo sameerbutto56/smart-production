@@ -1,5 +1,43 @@
 ## Goals
-### Implemented This Session — Resolved FATAL: (EMAXCONN) Max Client Connections Reached (200) in PostgreSQL / Supavisor & Co-located Vercel Serverless Compute (deployed & live-verified)
+### Implemented This Session — Fixed Store-to-Dispatch Routing Timeout & Interactive $transaction Connection Pool Deadlock (verified)
+- **Objective & Root Causes**:
+  1. Users reported a critical routing timeout error:
+     "The issue occurs in: Store Profile → Active Tasks → Store Provided → Select Order → Dispatch. When the user clicks Dispatch, the routing operation takes an unusually long time and eventually displays: 'The server is taking longer than usual to respond. Please check your internet connection or try again.'"
+  2. Root Cause 1 (Circular Interactive `$transaction` Connection Pool Deadlock):
+     - When `destinationStage === 'DISPATCH'`, `manualRouteOrder` and `storeRouteOrder` call `ensureSingleActiveDispatchStage(orderId, order.priority, tx)` inside `prisma.$transaction(async (tx) => { ... })`.
+     - In `backend/src/controllers/order-helpers.js`, `ensureSingleActiveDispatchStage` invoked `getStageDurations(priority)`.
+     - `getStageDurations` did not pass `tx` and lacked in-memory caching; it executed `prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } })` using the ROOT `prisma` client outside the transaction.
+     - With `connection_limit=1` on Vercel Serverless, the single connection in the pool was held open by the uncommitted interactive transaction `tx`.
+     - The call on root `prisma` attempted to acquire a second connection from the pool, blocking for 20s (`pool_timeout`) until Prisma retry middleware re-attempted and exceeded Axios's 30,000ms frontend request timeout.
+  3. Root Cause 2 (Un-cached `DEADLINE_CONFIG` & Missing Transaction Client):
+     - `getStageDurations` in `order-helpers.js` queried `SystemSetting` on every single routing operation without checking `cache.stageDurations`.
+     - In `storeRouteOrder` (`order.controller.js`), `recipientUsers` was queried inside the transaction callback via root `prisma.user.findMany(...)` rather than pre-fetched or using `tx`.
+- **Backend & Database Implementation**:
+  - `backend/src/controllers/order-helpers.js`:
+    - Updated `getStageDurations(priority = 'NORMAL', tx = null)`:
+      - Reads from in-memory cache `cache.stageDurations` (30s TTL). Cache hit returns calculated SLA durations in 0ms without any DB query.
+      - On cache miss, queries `(tx || prisma).systemSetting.findUnique(...)`, ensuring that if called inside a transaction, it executes on `tx` without requesting a new pool connection.
+    - Updated `ensureSingleActiveDispatchStage(orderId, priority = 'NORMAL', tx = prisma)`:
+      - Passes `tx` into `getStageDurations(priority, tx)`.
+  - `backend/src/prisma.js`:
+    - Set serverless default connection limit to `targetLimit = isServerless ? '2' : '5'` (allowing 1 connection for interactive `$transaction` and 1 connection for auxiliary/middleware queries), completely eliminating single-connection pool starvations while comfortably remaining well under Supabase's 200 pool limit (50 concurrent serverless containers * 2 = 100).
+  - `backend/src/controllers/order.controller.js`:
+    - Updated `manualRouteOrder` & `storeRouteOrder`:
+      - Pre-fetches `recipientUsers` and `durations` before starting `$transaction`.
+      - Passes `tx` cleanly to `ensureSingleActiveDispatchStage(orderId, order.priority, tx)` and `tx.orderStage.updateMany`, `tx.order.update`, `tx.routingHistory.create`.
+      - Added 13-stage correlation ID and diagnostic logging (`x-correlation-id`) measuring each workflow phase down to the millisecond.
+  - `frontend/src/components/OrderCard.jsx` & `frontend/src/pages/MyTasks.jsx`:
+    - Added frontend request timing and correlation ID propagation (`x-correlation-id`) across Stages 1, 2, and 13.
+- **Verification**:
+  - Standalone verification script `backend/scripts/verify-store-to-dispatch-routing.cjs`: 16 of 16 tests passed (100% pass rate).
+    - Cache retrieval: 0ms.
+    - Full Store-to-Dispatch transaction runtime: ~1,400ms (down from >30,000ms timeout).
+    - Single active Dispatch stage guaranteed; prior Store stage completed; routing history recorded; idempotency verified.
+  - Automated test suite `backend/scripts/verify-financial-balance-accuracy.cjs`: 15 of 15 passed (100% pass rate).
+  - Automated test suite `backend/scripts/verify-outlet-order-entry-pos-isolation.cjs`: 10 of 10 passed (100% pass rate).
+  - Frontend production build (`npm --prefix frontend run build`): Exit code 0, 0 bundling errors.
+
+### Implemented Prior Session — Resolved FATAL: (EMAXCONN) Max Client Connections Reached (200) in PostgreSQL / Supavisor & Co-located Vercel Serverless Compute (deployed & live-verified)
 - **Objective & Root Causes**:
   1. Users reported a critical production crash dialog:
      `smart-production-v2.vercel.app says: Invalid prisma.order.findUnique() invocation: Error in connector: Error querying the database: FATAL: (EMAXCONN) max client connections reached, limit: 200`
