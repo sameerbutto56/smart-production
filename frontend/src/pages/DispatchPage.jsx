@@ -75,6 +75,7 @@ const DispatchPage = () => {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [estimatedDelivery, setEstimatedDelivery] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [statusLoading, setStatusLoading] = useState(null);
   const [acceptLoading, setAcceptLoading] = useState(null);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
@@ -209,6 +210,8 @@ const DispatchPage = () => {
   };
 
   const handleDispatch = async (orderId) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     const option = selectedOption;
     setSubmitting(true);
     try {
@@ -219,7 +222,7 @@ const DispatchPage = () => {
           trackingUrl: trackingNumber || undefined
         });
       } else if (option.id === 'WALK_IN') {
-        await api.put(`/api/dispatch/${orderId}/status`, { status: 'DELIVERED', deliveredAt: new Date().toISOString() });
+        await api.put(`/api/dispatch/${orderId}/status`, { dispatchStatus: 'DELIVERED', status: 'DELIVERED', deliveredAt: new Date().toISOString() });
       } else {
         const name = option.id === 'OTHER' ? otherCourierName.trim() : option.label;
         await api.post(`/api/dispatch/${orderId}/book`, { courierName: name, trackingNumber, estimatedDelivery: estimatedDelivery || null });
@@ -234,8 +237,10 @@ const DispatchPage = () => {
       if (loggedIn) fetchStats();
     } catch (err) {
       toast.error('Failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   const handleRequestCourier = async (orderId) => {

@@ -4,6 +4,7 @@ const notify = require('../utils/notify');
 const { syncReplacementCaseOnOrderCompletion } = require('./order-helpers');
 const { recordAssignment, markAssignmentTerminal } = require('./tahirSheet.controller');
 const postexService = require('../services/postex.service');
+const { invalidateDispatchDashboardCache } = require('./dispatch-profile.controller');
 
 const createAuditLog = async (orderId, action, details, userId, tx) => {
   try {
@@ -146,7 +147,10 @@ const bookCourier = async (req, res) => {
   }
 
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     const courierDetails = {
@@ -188,6 +192,19 @@ const bookCourier = async (req, res) => {
         }
       });
 
+      // Complete the current active DISPATCH stage
+      const dispatchStage = (order.stages || []).find(s => s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status));
+      if (dispatchStage) {
+        await tx.orderStage.update({
+          where: { id: dispatchStage.id },
+          data: {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+            rejectionReason: `Courier booked: ${courierName}`
+          }
+        });
+      }
+
       // Auto-create OUT_FOR_DELIVERY stage
       const existingStage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status === 'PENDING');
       if (!existingStage) {
@@ -227,6 +244,8 @@ const bookCourier = async (req, res) => {
       }
     }, { timeout: 30000 });
 
+    invalidateDispatchDashboardCache();
+
     recordAssignment({ orderId, deliveryBoyName: courierName, routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
 
     // ── PostEx shipment creation (when courier is PostEx and integration is active) ──
@@ -255,7 +274,7 @@ const bookCourier = async (req, res) => {
 
 const updateCourierStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { dispatchStatus } = req.body;
+  const dispatchStatus = req.body.dispatchStatus || req.body.status;
 
   const validStatuses = ['DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RETURNED', 'REJECTED'];
   if (!validStatuses.includes(dispatchStatus)) {
@@ -327,6 +346,8 @@ const updateCourierStatus = async (req, res) => {
       customerName: order.customerName,
       city: order.city
     });
+
+    invalidateDispatchDashboardCache();
 
     res.json({ message: `Courier status updated to ${dispatchStatus}` });
   } catch (error) {

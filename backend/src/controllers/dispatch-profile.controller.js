@@ -19,6 +19,14 @@ const getActiveDispatchers = async () => {
     .map(e => e.name);
 };
 
+// In-memory cache for getDispatchDashboard to coalesce concurrent requests
+const dashboardCache = new Map();
+const DASHBOARD_CACHE_TTL = 15000; // 15 seconds
+
+const invalidateDispatchDashboardCache = () => {
+  dashboardCache.clear();
+};
+
 const isActiveDispatcher = async (name) => {
   if (!name) return false;
   const dispatchers = await getActiveDispatchers();
@@ -388,6 +396,8 @@ const acceptDispatchOrder = async (req, res) => {
     const io = req.app?.get('io');
     if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
 
+    invalidateDispatchDashboardCache();
+
     res.json({ message: `Dispatch accepted by ${employeeName}` });
   } catch (error) {
     res.status(500).json({ message: 'Failed to accept dispatch order', error: error.message });
@@ -410,7 +420,7 @@ const dispatchFromProfile = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: true }
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.currentStage !== 'DISPATCH' || order.status === 'COMPLETED') {
@@ -432,7 +442,7 @@ const dispatchFromProfile = async (req, res) => {
         where: {
           id: orderId,
           currentStage: 'DISPATCH',
-          dispatchOfficer: { in: [null, employeeName] }
+          OR: [{ dispatchOfficer: null }, { dispatchOfficer: employeeName }]
         },
         data: { dispatchOfficer: 'Faisal', forwardedBy: employeeName }
       });
@@ -458,6 +468,8 @@ const dispatchFromProfile = async (req, res) => {
         }, tx);
       }, { timeout: 30000 });
 
+      invalidateDispatchDashboardCache();
+
       const io = req.app?.get('io');
       if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
 
@@ -477,6 +489,7 @@ const dispatchFromProfile = async (req, res) => {
     };
     const mappedDeliveryType = deliveryTypeMap[dispatchMethod];
     updateData.deliveryType = mappedDeliveryType;
+    updateData.dispatchOfficer = employeeName;
     if (trackingUrl) updateData.trackingNumber = trackingUrl;
 
     // ─── CUSTOMER TAKEAWAY: immediate DELIVERED (customer has physically taken order) ───
@@ -496,8 +509,8 @@ const dispatchFromProfile = async (req, res) => {
     // Complete the DISPATCH stage → create next stage → update order →
     // routing history → reset seen → audit + dispatch log, all in ONE transaction so
     // the order can never be left half-dispatched.
-    const currentStage = order.stages.find(s =>
-      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+    const currentStage = (order.stages || []).find(s =>
+      s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
     const durations = await getStageDurations(order.priority);
     const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
@@ -523,11 +536,15 @@ const dispatchFromProfile = async (req, res) => {
       : `Dispatched via ${dispatchMethod} by ${employeeName}. Tracking: ${trackingUrl || 'N/A'}`;
 
     // Atomic claim of the DISPATCH -> next stage transition. Only the recording
-    // employee (dispatchOfficer === employeeName) may dispatch, and only while the order
+    // employee (dispatchOfficer in [null, employeeName]) may dispatch, and only while the order
     // is still at DISPATCH for that officer. A concurrent or duplicate dispatch attempt
     // matches 0 rows -> the whole transaction is skipped and no duplicate stage / log is created.
     const claimed = await prisma.order.updateMany({
-      where: { id: orderId, currentStage: 'DISPATCH', dispatchOfficer: employeeName },
+      where: {
+        id: orderId,
+        currentStage: 'DISPATCH',
+        OR: [{ dispatchOfficer: null }, { dispatchOfficer: employeeName }]
+      },
       data: { dispatchOfficer: employeeName }
     });
     if (claimed.count === 0) {
@@ -538,9 +555,16 @@ const dispatchFromProfile = async (req, res) => {
     }
 
     await prisma.$transaction(async (tx) => {
-      if (currentStage) {
+      let stageToComplete = currentStage;
+      if (!stageToComplete) {
+        stageToComplete = await tx.orderStage.findFirst({
+          where: { orderId, stageName: 'DISPATCH', status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
+          orderBy: { createdAt: 'desc' }
+        });
+      }
+      if (stageToComplete) {
         await tx.orderStage.update({
-          where: { id: currentStage.id },
+          where: { id: stageToComplete.id },
           data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Dispatched via ${dispatchMethod} by ${employeeName}` }
         });
       }
@@ -587,6 +611,8 @@ const dispatchFromProfile = async (req, res) => {
         city: order.city
       }, tx);
     }, { timeout: 30000 });
+
+    invalidateDispatchDashboardCache();
 
     // Customer Takeaway: mark delivery assignment terminal + sync replacement cases
     if (isCustomerTakeaway) {
@@ -664,24 +690,44 @@ const getDispatchDashboard = async (req, res) => {
   try {
     const { dateFrom, dateTo, employee, city, status, payment, period } = req.query;
 
+    const cacheKey = JSON.stringify(req.query || {});
+    const cached = dashboardCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < DASHBOARD_CACHE_TTL)) {
+      return res.json(cached.data);
+    }
+
     const activeDispatchers = await getActiveDispatchers();
 
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const dateFilter = {};
     if (dateFrom) dateFilter.gte = new Date(dateFrom);
     if (dateTo) dateFilter.lte = new Date(dateTo);
 
     // Base order query for dispatch-related orders
     // Exclude Enamel Delivery Boy orders (they live in the DELIVERY_BOY profile, never the dispatcher dashboard)
-    const orderWhere = {
-      OR: [
+    const orderWhere = {};
+    if (dateFrom || dateTo) {
+      orderWhere.createdAt = { ...dateFilter };
+      orderWhere.OR = [
         { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
         { dispatchStatus: { not: 'PENDING' } },
         { dispatchOfficer: { not: null } }
-      ]
-    };
-    if (dateFrom || dateTo) {
-      orderWhere.createdAt = { ...dateFilter };
+      ];
+    } else {
+      // Default: include ALL currently active dispatch & delivery orders regardless of age,
+      // plus recently dispatched orders from the last 30 days.
+      orderWhere.OR = [
+        { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
+        {
+          createdAt: { gte: thirtyDaysAgo },
+          OR: [
+            { dispatchStatus: { not: 'PENDING' } },
+            { dispatchOfficer: { not: null } }
+          ]
+        }
+      ];
     }
+
     if (city) {
       orderWhere.city = { contains: city, mode: 'insensitive' };
     }
@@ -762,11 +808,26 @@ const getDispatchDashboard = async (req, res) => {
     const logWhere = {};
     if (dateFrom) logWhere.createdAt = { ...logWhere.createdAt, gte: new Date(dateFrom) };
     if (dateTo) logWhere.createdAt = { ...logWhere.createdAt, lte: new Date(dateTo) };
+    if (!dateFrom && !dateTo) {
+      logWhere.createdAt = { gte: thirtyDaysAgo };
+    }
 
     const allLogs = await prisma.dispatchLog.findMany({
-      where: Object.keys(logWhere).length ? logWhere : undefined,
+      where: logWhere,
       orderBy: { createdAt: 'desc' }
     });
+
+    // Build fast lookup maps for logs
+    const acceptedLogsByOfficerAndOrder = new Map();
+    const dispatchedLogsByOrder = new Map();
+    for (const l of allLogs) {
+      if (l.action === 'ACCEPTED') {
+        const k = `${l.officerName}:${l.orderId}`;
+        if (!acceptedLogsByOfficerAndOrder.has(k)) acceptedLogsByOfficerAndOrder.set(k, l);
+      } else if (l.action === 'DISPATCHED') {
+        if (!dispatchedLogsByOrder.has(l.orderId)) dispatchedLogsByOrder.set(l.orderId, l);
+      }
+    }
 
     const buildEmployeeStats = (name) => {
       const empLogs = allLogs.filter(l => l.officerName === name);
@@ -779,7 +840,7 @@ const getDispatchDashboard = async (req, res) => {
       for (const l of empLogs) {
         if (l.action === 'DISPATCHED') {
           lastDispatch = l.createdAt;
-          const acceptedLog = empLogs.find(al => al.action === 'ACCEPTED' && al.orderId === l.orderId);
+          const acceptedLog = acceptedLogsByOfficerAndOrder.get(`${name}:${l.orderId}`);
           if (acceptedLog) {
             const diff = (new Date(l.createdAt) - new Date(acceptedLog.createdAt)) / (1000 * 60);
             if (diff > 0) dispatchTimes.push(diff);
@@ -808,13 +869,12 @@ const getDispatchDashboard = async (req, res) => {
       employeeStats[name] = buildEmployeeStats(name);
     }
 
-    // Tracking data for the table (deliveryStatus comes from the hoisted
-    // classifyDelivery above — the ONE source of truth for chips and counts)
-    const trackingData = orders.map(o => {
+    // Tracking data for the table (limited to top 200 orders for rapid rendering)
+    const trackingData = orders.slice(0, 200).map(o => {
       const dispatchStages = (o.stages || []).filter(s => s.stageName === 'DISPATCH');
       const dispatchStage = dispatchStages[dispatchStages.length - 1];
       const deliveryStage = o.stages.find(s => s.stageName === 'OUT_FOR_DELIVERY');
-      const dispatchLogEntry = allLogs.find(l => l.orderId === o.id && l.action === 'DISPATCHED');
+      const dispatchLogEntry = dispatchedLogsByOrder.get(o.id);
       return {
         id: o.id,
         orderNumber: o.orderNumber,
@@ -872,13 +932,16 @@ const getDispatchDashboard = async (req, res) => {
       employeeMonthly[name] = Object.values(empMonthlyMap).sort((a, b) => a.month.localeCompare(b.month));
     }
 
-    res.json({
+    const responsePayload = {
       summary: { totalOrders, pending, active, delivered, returned, rejected, cod, paid },
       employeeStats,
       trackingData,
       monthlyReport,
       employeeMonthly
-    });
+    };
+
+    dashboardCache.set(cacheKey, { timestamp: Date.now(), data: responsePayload });
+    res.json(responsePayload);
 
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch dispatch dashboard', error: error.message });
@@ -909,4 +972,12 @@ const getAllActivityLogs = async (req, res) => {
   }
 };
 
-module.exports = { getDispatchProfileOrders, acceptDispatchOrder, dispatchFromProfile, getDispatchProfileStats, getDispatchDashboard, getAllActivityLogs };
+module.exports = {
+  getDispatchProfileOrders,
+  acceptDispatchOrder,
+  dispatchFromProfile,
+  getDispatchProfileStats,
+  getDispatchDashboard,
+  getAllActivityLogs,
+  invalidateDispatchDashboardCache
+};

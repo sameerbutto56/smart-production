@@ -5130,7 +5130,7 @@ const dispatchOrder = async (req, res) => {
     if (deliveryMethod === 'ENAMELS') {
       // Complete DISPATCH stage and route to OUT_FOR_DELIVERY
       const currentStage = order.stages.find(s =>
-        ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+        s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
       );
       if (currentStage) {
         await prisma.orderStage.update({
@@ -5188,7 +5188,7 @@ const dispatchOrder = async (req, res) => {
     } else {
       // TCS / POST_EX / WALK_IN — advance to OUT_FOR_DELIVERY
       const currentStage = order.stages.find(s =>
-        ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+        s.stageName === 'DISPATCH' && ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
       );
       if (currentStage) {
         await prisma.orderStage.update({
