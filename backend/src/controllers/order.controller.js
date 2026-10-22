@@ -3598,40 +3598,6 @@ const manualRouteOrder = async (req, res) => {
     res.status(500).json({ message: 'Error routing order', error: error.message, correlationId });
   }
 };
-      }
-    })();
-
-    // Non-blocking side effects after commit
-    createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id).catch(() => {});
-
-    const io = req.app.get('io');
-    if (io) {
-      io.emit('order-updated', { orderId, createdById: order.createdById });
-      if (destinationStage === 'DISPATCH') {
-        io.emit('dispatch-request', { orderId });
-      }
-    }
-
-    const manDestRoleMap = { 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'DELIVERY_BOY', 'OUTLET_RECEIVE': 'OUTLET', 'ENAMELS_DELIVERY': 'DELIVERY_BOY' };
-    const manRole = manDestRoleMap[destinationStage] || 'STORE';
-    if (order?.customerName && order?.orderNumber) {
-      notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: manRole, title: 'Order Routed', message: `Order #${order.orderNumber} manually routed to ${destinationStage}`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: `Routed \u2192 ${destinationStage}`, employeeName: req.user?.name }).catch(() => {});
-    }
-    if (destinationStage === 'PRODUCTION' && order?.customerName && order?.orderNumber) {
-      notify.create(req, { type: 'manual_route', moduleName: 'My Tasks', path: '/tasks', role: 'PRODUCTION_OUT', title: 'Production Task Ready', message: `Order #${order.orderNumber} routed to Production — assigned to Production Out.`, orderId: order.id, orderNumber: order.orderNumber, customerName: order.customerName, action: 'Assigned \u2192 Production', employeeName: req.user?.name }).catch(() => {});
-    }
-
-    // Record delivery assignment when routing to Enamels Delivery Boy
-    if (destinationStage === 'ENAMELS_DELIVERY') {
-      recordAssignment({ orderId, deliveryBoyName: 'Enamels Delivery', routedBy: req.user?.name, outletName: order.outletName }).catch(() => {});
-    }
-
-    res.json({ success: true, message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
-  } catch (error) {
-    console.error('Error routing order:', error);
-    res.status(500).json({ message: error.message || 'Error routing order', error: error.message });
-  }
-};
 
 const getRolesForStageBasedOnRole = (role) => {
   const map = {
