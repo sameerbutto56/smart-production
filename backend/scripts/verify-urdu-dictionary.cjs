@@ -20,7 +20,13 @@ async function test() {
     ['Espresso', 'ایسپریسو'],
     ['Collar', 'کالر'],
     ['Steel', 'اسٹیل'],
-    ['Emerald', 'ایمرلڈ']
+    ['Emerald', 'ایمرلڈ'],
+    ['fatimah', 'فاطمہ'],
+    ['longline', 'لانگ لائن'],
+    ['fatimah longline', 'فاطمہ لانگ لائن'],
+    ['Fatimah Longline', 'فاطمہ لانگ لائن'],
+    ['Fatima Longline', 'فاطمہ لانگ لائن'],
+    ['Fatima Longline Women', 'فاطمہ لانگ لائن ویمن']
   ];
 
   console.log('--- INDIVIDUAL TESTS ---');

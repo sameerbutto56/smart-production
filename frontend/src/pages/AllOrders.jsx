@@ -128,7 +128,7 @@ const AllOrders = () => {
       setReturnDelaysLoading(true);
       const res = await api.get('/api/orders/returns-replacements-delays', {
         params: { _t: Date.now() },
-        timeout: 30000
+        timeout: 60000
       });
       if (res.data?.success) {
         setReturnReplacementDelays({

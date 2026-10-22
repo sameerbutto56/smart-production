@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const appCache = require('../utils/cache');
 const { calculateDeadline } = require('../utils/deadline');
 const { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue, syncReplacementCaseOnOrderCompletion, DISPATCH_RESET_FIELDS, ensureSingleActiveDispatchStage } = require('./order-helpers');
 const { getDelayInfo, getDelayMap, attachDelayInfoToOrders, getAllowedHours, fmtDuration, DEFAULT_DELAY_CONFIG, computeWorkingMs, computeReturnExchangeDelay } = require('../utils/orderDelay');
@@ -5929,6 +5930,12 @@ const getDashboardSummary = async (req, res) => {
  */
 const getReturnsAndReplacementsDelays = async (req, res) => {
   try {
+    const cacheKey = 'orders:delays:summary';
+    const cached = appCache.get(cacheKey);
+    if (cached && req.query.skipCache !== 'true') {
+      return res.json(cached);
+    }
+
     const delayConfig = await loadDelayConfig();
     const systemState = await getSystemState();
     const pausePeriods = systemState?.pausePeriods || [];
@@ -6067,7 +6074,7 @@ const getReturnsAndReplacementsDelays = async (req, res) => {
       total: csrReturns.length + inventoryViewReturns.length + storeReturns.length + replacementOrders.length,
     };
 
-    res.json({
+    const payload = {
       success: true,
       counts,
       records: {
@@ -6076,7 +6083,11 @@ const getReturnsAndReplacementsDelays = async (req, res) => {
         storeReturns,
         replacementOrders,
       }
-    });
+    };
+
+    appCache.set(cacheKey, payload, 15000); // 15 seconds in-memory cache
+
+    res.json(payload);
   } catch (error) {
     console.error('getReturnsAndReplacementsDelays error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch returns and replacement delays', error: error.message });

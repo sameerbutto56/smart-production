@@ -6,7 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || (
     : window.location.origin
 );
 
-const api = axios.create({ baseURL: API_URL, timeout: 30000 });
+const api = axios.create({ baseURL: API_URL, timeout: 60000 });
 
 api.interceptors.request.use(config => {
   const token = sessionStorage.getItem('token');
@@ -54,6 +54,25 @@ api.interceptors.response.use(
     }
     if (axios.isCancel(error)) {
       return Promise.reject(new Error('CANCELLED'));
+    }
+
+    const isTimeout = error.code === 'ECONNABORTED' || (error.message && String(error.message).toLowerCase().includes('timeout'));
+
+    // Automatically retry once for idempotent GET requests on timeout before failing
+    if (isTimeout && error.config && error.config.method?.toLowerCase() === 'get' && !error.config._retryCount) {
+      error.config._retryCount = 1;
+      error.config.timeout = 90000;
+      return new Promise(resolve => {
+        setTimeout(() => resolve(api(error.config)), 1000);
+      });
+    }
+
+    if (isTimeout) {
+      const friendlyMsg = 'The server is taking longer than usual to respond. Please check your internet connection or try again.';
+      error.message = friendlyMsg;
+      if (error.response?.data) {
+        error.response.data.message = friendlyMsg;
+      }
     }
     const url = error.config?.url || '';
     const msg = String(error.response?.data?.message || error.response?.data?.error || '').toLowerCase();
