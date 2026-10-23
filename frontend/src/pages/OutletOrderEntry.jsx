@@ -2447,11 +2447,19 @@ const OutletOrderEntry = () => {
             <div className={`text-center py-2 rounded-lg font-black text-xs uppercase border-2 ${deliveryType === 'SELF_COLLECTION' ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-blue-100 text-blue-700 border-blue-300'}`}>
               {deliveryType === 'DELIVERY' ? '🚚 DELIVERY' : '🏪 SELF COLLECTION'}
             </div>
-            {paymentStatus && (
-              <div className={`text-center py-2.5 rounded-lg font-black text-sm uppercase border-2 tracking-wider ${paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800 border-emerald-400' : 'bg-red-100 text-red-800 border-red-400'}`}>
-                {paymentStatus === 'PAID' ? 'ORDER PAID' : `ORDER BALANCE${balanceAmount ? `: ₨ ${balanceAmount}` : ''}`}
-              </div>
-            )}
+            {(() => {
+              const isPaid = (paymentStatus || '').toString().trim().toUpperCase() === 'PAID';
+              const balNum = parseFloat(balanceAmount) || 0;
+              const hasBal = !isPaid && balNum > 0.001;
+              if (hasBal) {
+                return (
+                  <div className="text-center py-2 rounded-lg font-black text-2xl border-2 tracking-wider bg-red-100 text-red-700 border-red-400">
+                    ✓
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div className="text-xs font-bold space-y-0.5 border-b border-gray-200 pb-2">
               <p>Customer: {customer.name} — {customer.phone}</p>
               {customer.address && <p>Address: {customer.address}{customer.city ? `, ${customer.city}` : ''}</p>}

@@ -3,6 +3,7 @@ import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from './dateTime';
 import { hasEngravingData, getFilledArticleNames, getFilledEngravingLines } from './engravingUtils';
 import { formatDateWithPreference, DEFAULT_DATE_FORMAT } from './dateFormat';
+import { hasJobSheetOutstandingBalance } from './paymentUtils';
 
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
@@ -1332,24 +1333,16 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     'SUPER_URGENT': isUrdu ? 'انتہائی ارجنٹ' : 'SUPER URGENT',
     'URGENT': isUrdu ? 'ارجنٹ' : 'URGENT',
     'OUTLET': isUrdu ? 'آؤٹ لیٹ' : 'OUTLET',
-    'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
     'DELIVERY': isUrdu ? 'ڈلیوری' : 'DELIVERY',
     'SELF_COLLECTION': isUrdu ? 'خود لینا' : 'SELF COLLECTION',
   };
-  const isPaidStatus = String(order.paymentStatus || '').toUpperCase() === 'PAID' || String(order.paymentStatus || '').toUpperCase() === 'FULL_PAID' || (order.balanceAmount != null && parseFloat(order.balanceAmount) <= 0.01 && parseFloat(order.totalPrice || 0) > 0);
-  const isBalanceStatus = !isPaidStatus && (String(order.paymentStatus || '').toUpperCase() === 'BALANCE' || (order.balanceAmount != null && parseFloat(order.balanceAmount) > 0.01));
-  
-  let _payLabel;
-  if (isPaidStatus) {
-    _payLabel = 'ORDER PAID';
-  } else if (isBalanceStatus) {
-    const balAmt = order.balanceAmount != null ? order.balanceAmount : Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-    _payLabel = `ORDER BALANCE: ${currency(balAmt)}`;
-  } else if (parseFloat(order.advanceAmount || 0) > 0) {
-    _payLabel = `COD: ${currency(Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)))}`;
-  } else {
-    _payLabel = 'CASH ON DELIVERY';
-  }
+
+  // Case A: Customer has an outstanding balance > 0:
+  // Display only a tick mark (✓) in the designated balance indicator area.
+  // Case B: Customer has no outstanding balance, or balance <= 0:
+  // Display nothing in the balance indicator area (remains completely blank).
+  const hasOutstandingBal = hasJobSheetOutstandingBalance(order);
+  const _payLabel = hasOutstandingBal ? '✓' : null;
 
   [order.type, order.priority, order.outletName || order.source, _payLabel, order.deliveryType].filter(Boolean).forEach(label => {
     let color = '#6b7280';
@@ -1357,12 +1350,11 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     else if (label === 'SUPER_URGENT') color = '#dc2626';
     else if (label === 'URGENT') color = '#d97706';
     else if (label === 'OUTLET') color = '#7c3aed';
-    else if (typeof label === 'string' && label.startsWith('ORDER BALANCE')) color = '#dc2626';
-    else if (label === 'CASH ON DELIVERY') color = '#dc2626';
+    else if (label === '✓') color = '#dc2626';
     else if (label === 'DELIVERY') color = '#2563eb';
     else if (label === 'SELF_COLLECTION') color = '#8b5cf6';
-    const displayLabel = badgeLabels[label] || pu(label);
-    win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:20px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40"${isUrdu ? ' class="urdu-text"' : ''}>${displayLabel}</span>`);
+    const displayLabel = label === '✓' ? '&#10003;' : (badgeLabels[label] || pu(label));
+    win.document.write(`<span style="padding:3px 14px;border-radius:6px;font-size:22px;font-weight:900;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40;display:inline-flex;align-items:center;justify-content:center;line-height:1"${isUrdu ? ' class="urdu-text"' : ''}>${displayLabel}</span>`);
   });
   win.document.write(`</div>`);
 
@@ -1770,7 +1762,9 @@ export function printDispatchSheet(order, options = {}) {
 
   // ─── ORDER META ───
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">`);
-  const payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'COD';
+  const isPaidStatus = String(order.paymentStatus || '').toUpperCase() === 'PAID' || String(order.paymentStatus || '').toUpperCase() === 'FULL_PAID' || (order.balanceAmount != null && parseFloat(order.balanceAmount) <= 0.01 && parseFloat(order.totalPrice || 0) > 0);
+  const isBalanceStatus = !isPaidStatus && (String(order.paymentStatus || '').toUpperCase() === 'BALANCE' || (order.balanceAmount != null && parseFloat(order.balanceAmount) > 0.01));
+  const payLabel = isPaidStatus ? 'PAID' : 'COD';
   [order.type, order.priority, order.outletName || order.source, payLabel].filter(Boolean).forEach(label => {
     let color = '#6b7280';
     if (label === 'PAID') color = '#059669';

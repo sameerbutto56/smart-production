@@ -10,7 +10,7 @@ import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
 import { formatDateWithPreference } from '../utils/dateFormat';
-import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
+import { isPaidOrder, getRemainingBalance, hasJobSheetOutstandingBalance } from '../utils/paymentUtils';
 import { getFilledArticleNames, getFilledEngravingLines, hasEngravingData } from '../utils/engravingUtils';
 import { computeWorkingMs, fmtWorkingDuration, getTimerState, isWorkingTime } from '../utils/workingHours';
 import { getAllowedHours, STAGE_CONFIG_MAP, computeActiveWorkingMs } from '../utils/delayUtils';
@@ -2760,11 +2760,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             ...(showPrice && order.logoCharges > 0 ? [{ label: 'Logo Charge', val: `₨${order.logoCharges}` }] : []),
                             ...(showPrice && order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: `₨${order.namePrintingCharges}` }] : []),
                             ...(showPrice ? [{ label: 'Customization Charge', val: `₨${order.customizationPrice || 0}` }] : []),
-                            ...(showPrice ? [{ label: 'Payment', val: order.paymentStatus }] : [])
+                            ...(showPrice && hasJobSheetOutstandingBalance(order) ? [{ label: 'Payment', val: '✓' }] : [])
                           ].filter(i => i.val).map((item, i) => (
                             <tr key={i} className="border-b border-gray-800/30 hover:bg-gray-900/20">
                               <td className="py-3 px-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">{item.label}</td>
-                              <td className="py-3 px-4 text-sm md:text-base font-black text-white">{item.val}</td>
+                              <td className="py-3 px-4 text-sm md:text-base font-black text-white">
+                                {item.val === '✓' ? <span className="text-xl font-black px-3 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30">✓</span> : item.val}
+                              </td>
                             </tr>
                           ))}
                           {['STORE', 'STORE_EMPLOYEE'].includes(userRole) && (

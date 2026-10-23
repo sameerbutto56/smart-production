@@ -56,6 +56,33 @@ export const isPaidOrder = (order) => {
 export const isBalanceOrder = (order) =>
   order?.paymentStatus === 'BALANCE' && !isPaidOrder(order);
 
+/**
+ * Single source of truth for Job Sheet Balance Indicator.
+ * Returns true strictly when the customer has an outstanding balance > 0.
+ * For zero, negative, prepaid, or fully paid orders, returns false.
+ */
+export const hasJobSheetOutstandingBalance = (order) => {
+  if (!order) return false;
+  if (order.isPrepaid === true) return false;
+  const statusUpper = String(order.paymentStatus || '').trim().toUpperCase();
+  if (statusUpper === 'PAID' || statusUpper === 'FULL_PAID') return false;
+  if (order.status === 'RETURNED' || order.status === 'CANCELLED') return false;
+
+  if (order.balanceAmount != null && !isNaN(parseFloat(order.balanceAmount))) {
+    return parseFloat(order.balanceAmount) > 0.001;
+  }
+
+  const remaining = getRemainingBalance(order);
+  return typeof remaining === 'number' && !isNaN(remaining) && remaining > 0.001;
+};
+
+/**
+ * Returns '✓' when the order has a positive outstanding balance, otherwise empty string.
+ */
+export const getJobSheetBalanceIndicator = (order) => {
+  return hasJobSheetOutstandingBalance(order) ? '✓' : '';
+};
+
 export const getPaymentInfo = (order) => {
   const prepaid = isPrepaidOrder(order);
   const remaining = getRemainingBalance(order);

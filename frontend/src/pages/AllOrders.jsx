@@ -33,7 +33,7 @@ import { motion } from 'framer-motion';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName, translateGender } from '../utils/urduDictionary';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../utils/dateTime';
-import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
+import { isPaidOrder, getRemainingBalance, getCodAmount, hasJobSheetOutstandingBalance } from '../utils/paymentUtils';
 import { getDelayInfo, getStageDelays, getEffectiveStage, fmtDuration, stageLabel } from '../utils/delayUtils';
 import { useSystemPause } from '../context/SystemPauseContext';
 import { useDelay } from '../context/DelayContext';
@@ -2196,19 +2196,13 @@ const AllOrders = () => {
                         ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
                         ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
                         ...(product?.additionalProductRef ? [{ label: 'Additional Reference', val: product.additionalProductRef }] : []),
-                        ...(showPrice ? [{ label: 'Payment', val: isPaidOrder(selectedOrder) ? 'PAID' : getRemainingBalance(selectedOrder) > 0 ? 'COD' : 'COD' }] : []),
+                        ...(showPrice && hasJobSheetOutstandingBalance(selectedOrder) ? [{ label: 'Payment', val: '✓' }] : []),
                         { label: 'Stock', val: 'toggle' }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
                           <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
                           {item.label === 'Payment' ? (
-                            (() => {
-                              const paid = isPaidOrder(selectedOrder);
-                              const remaining = getRemainingBalance(selectedOrder);
-                              if (paid) return <span className="text-lg font-black px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PAID</span>;
-                              if (remaining > 0) return <span className="text-lg font-black px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">COD: ₨{remaining.toLocaleString()}</span>;
-                              return <span className="text-lg font-black px-3 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">CASH ON DELIVERY</span>;
-                            })()
+                            <span className="text-xl font-black px-4 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30">✓</span>
                           ) : item.label === 'Stock' ? (
                             (() => {
                               const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);

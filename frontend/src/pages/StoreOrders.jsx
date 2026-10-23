@@ -4,6 +4,7 @@ import useCache from '../hooks/useCache';
 import { Search, ArrowLeft, RefreshCcw, Package, FileText, Printer, X, User, Phone, MapPin, Calendar, Hash, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { printJobSheet } from '../utils/printReport';
+import { hasJobSheetOutstandingBalance } from '../utils/paymentUtils';
 
 const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry', VERIFICATION: 'Verification', STORE: 'Store', WORKERS: 'Workers',
@@ -314,12 +315,14 @@ const StoreOrders = () => {
                       )}
                     </>
                   )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400 font-bold">Payment Status</span>
-                    <span className={`font-black uppercase tracking-widest text-xs px-2 py-0.5 rounded ${order.paymentStatus === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                      {order.paymentStatus || 'PENDING'}
-                    </span>
-                  </div>
+                  {hasJobSheetOutstandingBalance(order) && (
+                    <div className="flex justify-between text-sm items-center">
+                      <span className="text-gray-400 font-bold">Payment Status</span>
+                      <span className="font-black text-base px-3 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/30">
+                        ✓
+                      </span>
+                    </div>
+                  )}
                 </div>
               </section>
 
